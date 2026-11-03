@@ -22,6 +22,7 @@ export function agentFolderCalls(): AgentFolderCalls {
     exclude: (agentId) => window.openbot.agent.chooseAgentExclusion(agentId),
     addExclusion: (agentId, path) => window.openbot.agent.addAgentExclusion({ agentId, path }),
     include: (agentId, path) => window.openbot.agent.removeAgentExclusion({ agentId, path }),
+    setWorkFolder: (agentId, path) => window.openbot.agent.setAgentWorkFolder({ agentId, path }), // Fork
   };
 }
 

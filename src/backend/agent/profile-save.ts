@@ -175,6 +175,7 @@ export function standingProfileChanged(
     workspaceAccessEnforced(previous) !== workspaceAccessEnforced(agent) ||
     (previous.additionalFolders ?? []).join("\n") !== (agent.additionalFolders ?? []).join("\n") ||
     (previous.excludedFolders ?? []).join("\n") !== (agent.excludedFolders ?? []).join("\n") ||
+    previous.workFolder !== agent.workFolder || // Fork: the work folder is the session's cwd.
     agentComputerUseEnabled(previous) !== agentComputerUseEnabled(agent) ||
     agentAutomationAllowed(previous, previousDefaults) !== agentAutomationAllowed(agent, defaults) ||
     agentQuickAcknowledgementEnabled(previous, previousDefaults) !== agentQuickAcknowledgementEnabled(agent, defaults)

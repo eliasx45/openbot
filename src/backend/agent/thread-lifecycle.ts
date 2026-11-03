@@ -73,6 +73,7 @@ import {
   promptInstructionsFile,
 } from "./workspace-instructions";
 import {
+  agentSessionCwd,
   checkAgentFolders,
   codexSandboxConfig,
   codexSandboxMode,
@@ -625,7 +626,7 @@ export class ThreadLifecycle {
       ...config,
       model: agent.model,
       effort: agent.reasoningEffort,
-      cwd: agent.workspacePath,
+      cwd: agentSessionCwd(agent), // Fork: the work folder
       runtimeWorkspaceRoots: workspaceWritableRoots(agent, this.#store.sharedRoot),
       approvalPolicy: "on-request",
       sandbox: codexSandboxMode(agent),
@@ -1191,7 +1192,8 @@ export class ThreadLifecycle {
     client: AgentClient,
   ) {
     const read =
-      client.provider === "claude" && workspaceAccessEnforced(agent)
+      // Fork: a session in the work folder reads that project's file, not the agent's own.
+      (client.provider === "claude" && workspaceAccessEnforced(agent)) || agentSessionCwd(agent) !== agent.workspacePath
         ? []
         : agentProviderDescriptor(client.provider).workspaceInstructionFiles;
     const file = yield* promptInstructionsFile(agent.workspacePath, read);
@@ -1224,7 +1226,7 @@ export class ThreadLifecycle {
       threadId: externalThreadId,
       model: agent.model,
       effort: agent.reasoningEffort,
-      cwd: agent.workspacePath,
+      cwd: agentSessionCwd(agent), // Fork: the work folder
       runtimeWorkspaceRoots: workspaceWritableRoots(agent, this.#store.sharedRoot),
       approvalPolicy: "on-request",
       sandbox: codexSandboxMode(agent),

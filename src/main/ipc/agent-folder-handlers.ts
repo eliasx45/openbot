@@ -123,6 +123,10 @@ export function agentFolderIpcHandlers({
         remote: (input, serverId) =>
           remote(serverId, AGENT_FOLDERS_ROUTES.remove, decodeRemoteAgentFolderChange, input),
       }),
+      // Fork: the folder the agent's sessions start in. Only for an agent on this computer.
+      setAgentWorkFolder: payloadHandler(parseAgentFolderInput, ({ agentId, path }) =>
+        folders.setWorkFolder(agentId, path),
+      ),
       browseAgentFolders: scopedHandler(parseBrowseAgentFoldersInput, {
         // Only a joined server needs this list: this computer has the native folder picker.
         local: () => {

@@ -41,6 +41,8 @@ export interface AgentFolderList {
   shared: string;
   folders: AgentFolder[];
   excluded: string[];
+  /** Fork: the added folder that the agent's sessions start in. Absent: its workspace. */
+  workFolder?: string;
 }
 
 export type AgentFolderChange =

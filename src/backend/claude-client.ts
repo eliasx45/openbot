@@ -63,7 +63,12 @@ import {
   RequestTimeoutError,
 } from "./agent-client";
 import { claudeContextCategories } from "./claude-context-categories";
-import { type ClaudeHistoryOptions, claudeHistoryFromMessages, claudeHistoryReader } from "./claude-history";
+import {
+  type ClaudeHistoryOptions,
+  carryClaudeTranscript,
+  claudeHistoryFromMessages,
+  claudeHistoryReader,
+} from "./claude-history";
 import {
   CLAUDE_WORKSPACE_MANAGED_SETTINGS,
   claudeExcludedWriteMessage,
@@ -841,6 +846,13 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
     config: ThreadConfig,
     resume: boolean,
   ): Effect.fn.Return<void, ProviderClientOperationError> {
+    // Fork: a session resumed in another working directory (the agent's work folder) takes its transcript along.
+    if (resume && !config.profileGeneration)
+      yield* Effect.promise(() =>
+        carryClaudeTranscript(threadId, config.cwd, this.#agentEnvironment?.().CLAUDE_CONFIG_DIR).catch(
+          () => undefined,
+        ),
+      );
     const input = new AsyncMessageQueue();
     const appliedEffort = this.#resolveEffort(config.model, config.effort);
     const canUseTool: CanUseTool = (toolName, toolInput, options) =>

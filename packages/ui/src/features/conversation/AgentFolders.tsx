@@ -50,6 +50,11 @@ export interface AgentFolderCalls {
   addExclusion: (agentId: string, path: string) => Promise<AgentExclusionChange>;
   /** The agent can change the excluded folder again. */
   include: (agentId: string, path: string) => Promise<AgentExclusionChange>;
+  /**
+   * Fork: the folder the agent's sessions start in; the workspace path goes back to the workspace.
+   * Absent when the agent runs on another computer.
+   */
+  setWorkFolder?: ((agentId: string, path: string) => Promise<AgentFolderList>) | undefined;
 }
 
 interface AgentFolderSource {
@@ -275,6 +280,21 @@ export function createAgentFolders(source: () => AgentFolderSource | undefined) 
     choose: (replace?: string) => act(({ agentId, calls }) => calls.choose(agentId, replace)),
     remove: (path: string) => act(({ agentId, calls }) => calls.remove(agentId, path)),
     exclude: () => actExclusion(({ agentId, calls }) => calls.exclude(agentId)),
+    /** Fork: whether this computer can change the folder the agent's sessions start in. */
+    canSetWorkFolder: (): boolean => source()?.calls.setWorkFolder !== undefined,
+    /** Fork: the agent's next session starts in `path` (its workspace path: the workspace). */
+    async setWorkFolder(path: string): Promise<void> {
+      const current = source();
+      if (!current?.calls.setWorkFolder) return;
+      try {
+        setList(current.agentId, await current.calls.setWorkFolder(current.agentId, path));
+        toast.success(
+          t("agentSettings.folders.toastWorkFolder", { agent: current.agentName, folder: agentFolderName(path) }),
+        );
+      } catch (error) {
+        failed(error);
+      }
+    },
     include: (path: string) => actExclusion(({ agentId, calls }) => calls.include(agentId, path)),
     /** The agent's computer takes a folder dropped from this computer. */
     canDrop: (): boolean => source()?.calls.drop !== undefined,
@@ -413,6 +433,9 @@ function FolderRow(props: {
   onFlashEnd?: () => void;
   onLocate?: () => void;
   onRemove?: () => void;
+  /** Fork: the agent's sessions start in this folder. */
+  worksHere?: boolean;
+  onWorkHere?: () => void;
 }) {
   const { t } = useText();
   const name = () => props.name ?? agentFolderName(props.path);
@@ -440,6 +463,21 @@ function FolderRow(props: {
           </Show>
         </span>
       </span>
+      <Show when={props.worksHere}>
+        <span class="agent-folders-path">{t("agentSettings.folders.worksHere")}</span>
+      </Show>
+      <Show when={!props.worksHere && !props.missing && props.onWorkHere}>
+        {(workHere) => (
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label={t("agentSettings.folders.workHereLabel", { folder: name() })}
+            onClick={() => workHere()()}
+          >
+            {t("agentSettings.folders.workHere")}
+          </Button>
+        )}
+      </Show>
       <Show when={props.missing && props.onLocate}>
         {(locate) => (
           <Button variant="outline" size="sm" onClick={() => locate()()}>
@@ -534,6 +572,11 @@ export function AgentFoldersPage(props: {
   });
   const flash = () => props.folders.state.flash;
   const clearFlash = () => props.folders.clearFlash();
+  // Fork: which folder the agent's sessions start in, and the button that picks another.
+  const workHere = (path: string, current: boolean) =>
+    props.folders.canSetWorkFolder()
+      ? { worksHere: current, onWorkHere: () => void props.folders.setWorkFolder(path) }
+      : {};
   return (
     <div class="agent-folders-page">
       <Show when={props.wideAccess}>
@@ -566,6 +609,7 @@ export function AgentFoldersPage(props: {
                 path={list().workspace}
                 flash={flash() === list().workspace}
                 onFlashEnd={clearFlash}
+                {...workHere(list().workspace, !list().workFolder)}
               />
               <FolderRow
                 name={t("agentSettings.folders.shared")}
@@ -588,6 +632,7 @@ export function AgentFoldersPage(props: {
                         onFlashEnd={clearFlash}
                         onLocate={() => void props.folders.choose(folder().path)}
                         onRemove={() => void props.folders.remove(folder().path)}
+                        {...workHere(folder().path, list().workFolder === folder().path)}
                       />
                     );
                   }}

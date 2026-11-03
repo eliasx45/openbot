@@ -1694,6 +1694,8 @@ export const IPC_ENDPOINTS = {
     // picked one. `replace` puts the folder in the place of a folder that is gone.
     addAgentFolder: scopedRequest<AddAgentFolderInput, AgentFolderChange>()("agent:folders:add"),
     removeAgentFolder: scopedRequest<AgentFolderInput, AgentFolderChange>()("agent:folders:remove"),
+    // Fork: the folder the agent's sessions start in. The workspace path goes back to the workspace.
+    setAgentWorkFolder: request<AgentFolderInput, AgentFolderList>()("agent:folders:work-folder"),
     // Folders in those that the agent must not change. The picker opens in main; add is the Undo.
     chooseAgentExclusion: request<string, AgentExclusionChange>()("agent:folders:exclusions:choose"),
     addAgentExclusion: scopedRequest<AgentFolderInput, AgentExclusionChange>()("agent:folders:exclusions:add"),

@@ -765,6 +765,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       shared: "/mock/OpenBot/Shared",
       folders: (agent.additionalFolders ?? []).map((path) => ({ path, found: !path.endsWith("(missing)") })),
       excluded: agent.excludedFolders ?? [],
+      ...(agent.workFolder ? { workFolder: agent.workFolder } : {}),
     };
   }
 
@@ -2033,6 +2034,15 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
           (agent.additionalFolders ?? []).filter((folder) => folder !== path),
         );
         return { outcome: "removed", path, list: mockAgentFolders(agentId) };
+      },
+      // Fork: the folder the agent's sessions start in.
+      setAgentWorkFolder: async ({ agentId, path }) => {
+        const agent = requireMockAgent(agentId);
+        const updated: ClientAgentSummary = { ...agent, workFolder: path };
+        if (!(agent.additionalFolders ?? []).includes(path)) delete updated.workFolder;
+        agents = agents.map((candidate) => (candidate.id === agentId ? updated : candidate));
+        emitAgentEvent({ type: "agents-changed", agents });
+        return mockAgentFolders(agentId);
       },
       // The preview has no picker: it excludes a folder in the workspace.
       chooseAgentExclusion: async (agentId) =>

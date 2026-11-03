@@ -648,6 +648,7 @@ const agentFoldersGroup = bridgeGroup(IPC_ENDPOINTS.agentFolders, {
   chooseAgentFolder: decodeAgentFolderChangeFromMain,
   addAgentFolder: decodeAgentFolderChangeFromMain,
   removeAgentFolder: decodeAgentFolderChangeFromMain,
+  setAgentWorkFolder: decodeAgentFolderListFromMain, // Fork
   chooseAgentExclusion: decodeAgentExclusionChangeFromMain,
   addAgentExclusion: decodeAgentExclusionChangeFromMain,
   removeAgentExclusion: decodeAgentExclusionChangeFromMain,

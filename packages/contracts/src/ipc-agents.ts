@@ -229,6 +229,11 @@ export interface AgentSummary {
    */
   excludedFolders?: string[];
   /**
+   * Fork: the project folder the agent's sessions start in (their working directory), one of
+   * `additionalFolders`. Local-only, like `access`. Absent means the agent's own workspace.
+   */
+  workFolder?: string;
+  /**
    * Whether the agent gets the Computer Use tools. Local-only, like `access`. Absent means on; see
    * `agentComputerUseEnabled`.
    */

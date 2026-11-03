@@ -430,6 +430,8 @@ export type AgentUpdate = UpdateAgentInput & {
   additionalFolders?: string[];
   /** Only the local `agentFolders` handler sets it, like `additionalFolders`. */
   excludedFolders?: string[];
+  /** Fork: only the local `agentFolders` handler sets it. `null` goes back to the workspace. */
+  workFolder?: string | null;
 };
 
 export class AgentService extends EventEmitter<AgentServiceEvents> {

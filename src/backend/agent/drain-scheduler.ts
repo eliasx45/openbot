@@ -36,7 +36,7 @@ import {
 import type { ThreadLifecycle } from "./thread-lifecycle";
 import { TurnSlots } from "./turn-slots";
 import type { UsageLimitGate } from "./usage-limit-gate";
-import { checkAgentFolders, codexSandboxPolicy, workspaceWritableRoots } from "./workspace-sandbox";
+import { agentSessionCwd, checkAgentFolders, codexSandboxPolicy, workspaceWritableRoots } from "./workspace-sandbox";
 
 /** Shown to the user when a message names a model of an endpoint that was taken out. */
 export const REMOVED_ENDPOINT_MESSAGE = sourceText("error.agent.endpointRemoved");
@@ -852,7 +852,7 @@ export class DrainScheduler {
                 answerOptional:
                   delivery.sender.kind === "agent" && delivery.expectsReply === false && !delivery.replyToMessageId,
                 input: inputForThread(providerThreadId),
-                cwd: agent.workspacePath,
+                cwd: agentSessionCwd(agent), // Fork: the work folder
                 runtimeWorkspaceRoots: workspaceWritableRoots(agent, this.#store.sharedRoot),
                 approvalPolicy: "on-request",
                 sandboxPolicy: codexSandboxPolicy(agent, this.#store.sharedRoot),

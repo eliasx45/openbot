@@ -15,6 +15,7 @@ import type { ProviderRuntime } from "./provider-runtime";
 import { stopRunningSubagents } from "./subagent-updates";
 import { isCodexMissingRollout, isCodexRolloutPending, providerForAgent } from "./thread-items";
 import type { ThreadLifecycle } from "./thread-lifecycle";
+import { agentSessionCwd } from "./workspace-sandbox"; // Fork: the work folder
 
 type UnresolvedDelivery = DeliveryContext["delivery"];
 
@@ -199,7 +200,7 @@ export class BootRecovery {
           .readHistory(
             {
               threadId: session.externalSessionId,
-              cwd: agent.workspacePath,
+              cwd: agentSessionCwd(agent), // Fork: the work folder
               items: delivery.turnId ? "none" : "full",
             },
             (fragment) =>
@@ -365,7 +366,7 @@ export class BootRecovery {
             externalSessionId: session.externalSessionId,
             agentId: agent.id,
             publicThreadId,
-            cwd: typeof params.cwd === "string" ? params.cwd : agent.workspacePath,
+            cwd: typeof params.cwd === "string" ? params.cwd : agentSessionCwd(agent),
             findDelivery: (deliveryId) => this.#mailbox.deliveryForProviderMessage(agent.id, deliveryId),
             findMessageDelivery: (messageId) => this.#mailbox.deliveryForMessage(messageId, agent.id),
             quietRoutineDelivery: (deliveryId) => this.#hooks.quietRoutineDelivery(deliveryId),

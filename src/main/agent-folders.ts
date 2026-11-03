@@ -131,6 +131,7 @@ export function createAgentFolders({ service, userDataPath }: AgentFoldersDepend
       shared,
       folders: folders.map((path, index) => ({ path, found: found[index] === true })),
       excluded: agent.excludedFolders ?? [],
+      ...(agent.workFolder ? { workFolder: agent.workFolder } : {}), // Fork
     };
   }
 
@@ -226,6 +227,18 @@ export function createAgentFolders({ service, userDataPath }: AgentFoldersDepend
             folders.filter((folder) => folder !== path),
           ),
         };
+      }),
+    /**
+     * Fork: the folder the agent's sessions start in. One of its added folders; its workspace path goes
+     * back to the workspace. The next session of the agent starts there.
+     */
+    setWorkFolder: (agentId: string, path: string) =>
+      oneAtATime(agentId, async (): Promise<AgentFolderList> => {
+        const agent = requireAgent(agentId);
+        const workFolder = (agent.additionalFolders ?? []).includes(path) ? path : null;
+        if (workFolder === null && path !== agent.workspacePath && path !== (await realFolder(agent.workspacePath)))
+          throw new Error("Add the folder first.");
+        return list(await runCauseEffect(service.updateAgent({ agentId, workFolder })));
       }),
     /** Excludes `picked`, a folder in the workspace, the shared folder or an added folder. */
     exclude: (agentId: string, picked: string) => oneAtATime(agentId, () => excludeNow(agentId, picked)),

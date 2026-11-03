@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { mkdir, open, readdir, stat } from "node:fs/promises";
+import { copyFile, mkdir, open, readdir, stat } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Effect } from "effect";
 import { isTurnContextBlock } from "./agent/developer-instructions";
@@ -970,6 +970,26 @@ function parseRecord(line: string): ParsedRecord | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Fork: the CLI resumes a session only from the project folder of its working directory. When the
+ * agent's work folder changed, the transcript is in the folder of the old one: a copy in the new
+ * folder lets the same session go on there.
+ */
+export async function carryClaudeTranscript(
+  threadId: string,
+  cwd: string,
+  configDirectory: string | undefined,
+): Promise<void> {
+  if (process.env.CLAUDE_CODE_PROJECT_DIR_NAME) return;
+  const root = configDirectory ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
+  const target = join(root, "projects", sanitizeProjectPath(resolve(cwd)), `${threadId}.jsonl`);
+  if (await exists(target)) return;
+  const found = await findTranscript(threadId, undefined, configDirectory, undefined);
+  if (!found) return;
+  await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+  await copyFile(found, target);
 }
 
 function sanitizeProjectPath(path: string): string {

@@ -16,7 +16,7 @@ import { redactText } from "@openbot/logging";
 import { automationRunCommand } from "../automation-command";
 import type { HomeSkill } from "../home-skills";
 import type { PromptInstructionsFile } from "./workspace-instructions";
-import { existingAgentFolders, workspaceExcludedFolders } from "./workspace-sandbox";
+import { agentSessionCwd, existingAgentFolders, workspaceExcludedFolders } from "./workspace-sandbox";
 
 const ROUTINE_SIGN_IN_RULE =
   "In a routine run, first check saved logins with openbot_browser.list_logins. Use a matching login's username and submit_secret with its loginId for a password or authenticator code. With several logins, use only the account that the task names. When no login fits, the account is unclear, a fill fails, or the page needs a person (email or SMS code, CAPTCHA, passkey, or payment confirmation), report the sign-in requirement; do not call request_takeover or submit_secret without loginId.";
@@ -313,7 +313,10 @@ export function developerInstructions(
       : options.sectionTeammates
         ? sectionTeammateInstructions(options.sectionTeammates)
         : []),
-    `Your working directory, for your own persistent files, is ${agent.workspacePath}. The shared directory, for files that other OpenBot agents need, is ${sharedRoot}. You can change files and run commands in both.`,
+    // Fork: the session can start in a project folder (the agent's work folder).
+    agentSessionCwd(agent) !== agent.workspacePath
+      ? `You work in the project folder ${agentSessionCwd(agent)}: it is your current directory, and its own instruction files and skills apply. Your own folder, for your own persistent files and your instruction file, is ${agent.workspacePath}. The shared directory, for files that other OpenBot agents need, is ${sharedRoot}. You can change files and run commands in all three.`
+      : `Your working directory, for your own persistent files, is ${agent.workspacePath}. The shared directory, for files that other OpenBot agents need, is ${sharedRoot}. You can change files and run commands in both.`,
     ...(folders.length
       ? [
           `The user also gave you these folders to work in: ${folders.join(", ")}. You can change files and run commands in them. They belong to the user: keep your own files in your working directory.`,

@@ -53,6 +53,16 @@ export function existingAgentFolders(agent: Pick<AgentSummary, "additionalFolder
 }
 
 /**
+ * Fork: the working directory of the agent's sessions. Its work folder when that is one of its added
+ * folders and was on the disk at the last `checkAgentFolders`, else its workspace. The CLI then loads
+ * the project's own instructions, skills and settings.
+ */
+export function agentSessionCwd(agent: Pick<AgentSummary, "additionalFolders" | "workspacePath" | "workFolder">) {
+  const folder = agent.workFolder;
+  return folder && existingAgentFolders(agent).includes(folder) ? folder : agent.workspacePath;
+}
+
+/**
  * The folders a Workspace only agent may write, besides the temporary folders: its workspace, the
  * shared folder, and the added folders that exist.
  */
