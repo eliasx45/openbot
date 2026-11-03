@@ -96,7 +96,7 @@ changes() {
         src/* | packages/* | electron.vite.config.ts | tsconfig*.json | scripts/agent-runtime-lock* | LICENSE | NOTICE) parts="$parts js" ;;
         resources/*) parts="$parts res js" ;;
         docs/* | plans/* | changelog.d/* | apps/* | remote/* | docker/* | nix/* | marketplace/* | .github/* | \
-            .githooks/* | scripts/fork/* | scripts/*-e2e.ts | biome.json | knip.config.ts | flake.* | .gitignore) ;;
+            .githooks/* | tools/* | scripts/fork/* | scripts/*-e2e.ts | scripts/*-smoke.ts | biome.json | knip.config.ts | flake.* | .gitignore) ;;
         *.md) ;;
         *) echo full; return ;;
         esac
