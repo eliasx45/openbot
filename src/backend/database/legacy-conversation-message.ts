@@ -1,3 +1,4 @@
+import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type { ConversationMessage } from "@openbot/contracts/ipc";
 import { isConversationMessage, isConversationTurnTrace } from "@openbot/contracts/ipc";
 import { isBoolean, isDynamicRecord, isNumber, isString } from "@openbot/contracts/runtime-values";
@@ -34,7 +35,7 @@ export function currentConversationMessage(value: unknown): ConversationMessage 
   // the one released key the guard accepts as it stands -- as an unknown extra -- so it is asked for by
   // name; every other one already fails the guard and takes the branch below.
   if (isDynamicRecord(value) && value.senderBotId === undefined && isConversationMessage(value)) return value;
-  const current = withoutInvalidTrace(withoutEmptyReplyIds(toCurrentKeys(value)));
+  const current = withShortRoutineName(withoutInvalidTrace(withoutEmptyReplyIds(toCurrentKeys(value))));
   return isConversationMessage(current) ? current : null;
 }
 
@@ -46,6 +47,19 @@ function withoutInvalidTrace(value: JsonValue): JsonValue {
   if (!isDynamicRecord(value) || value.trace === undefined || isConversationTurnTrace(value.trace)) return value;
   const { trace: _dropped, ...message } = value;
   return message;
+}
+
+/**
+ * Fork: builds before the wait fix stored a "⏳ Wait over" message with a routine name of up to 200
+ * characters. The guard allows 80, so that message failed the read. The name is cut on read.
+ */
+function withShortRoutineName(value: JsonValue): JsonValue {
+  if (!isDynamicRecord(value) || !isDynamicRecord(value.routine) || !isString(value.routine.name)) return value;
+  if (value.routine.name.length <= INPUT_LIMITS.routineName) return value;
+  return {
+    ...value,
+    routine: { ...value.routine, name: `${value.routine.name.slice(0, INPUT_LIMITS.routineName - 1)}…` },
+  };
 }
 
 function withoutEmptyReplyIds(value: JsonValue): JsonValue {

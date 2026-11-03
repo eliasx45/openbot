@@ -304,7 +304,8 @@ export class ForkWaitConditions {
     this.#watched.delete(watched.waitId);
     this.#store.delete(watched.agentId, watched.waitId);
     this.#changed(watched.agentId);
-    const title = `${timedOut ? "⌛ Wait timed out" : "⏳ Wait over"}: ${watched.note}`.slice(0, 200);
+    // The message's routine name must fit the contract (80 characters), or the wake fails to decode.
+    const title = shortName(`${timedOut ? "⌛ Wait timed out" : "⏳ Wait over"}: ${watched.note}`);
     const text = [
       `[OpenBot: ${timedOut ? "⌛ wait timed out" : "⏳ wait over"}] The wait you opened with openbot.${WAIT_UNTIL_TOOL} has ended. This is not a message from the user.`,
       `Your note: ${watched.note}`,
@@ -372,4 +373,10 @@ function isWatchedEntry(value: unknown): value is Watched {
     typeof value.deadline === "number" &&
     (kind === "file" || kind === "process" || kind === "agent" || kind === "url")
   );
+}
+
+function shortName(text: string): string {
+  if (text.length <= INPUT_LIMITS.routineName) return text;
+  const cut = text.slice(0, INPUT_LIMITS.routineName - 1);
+  return `${/[\uD800-\uDBFF]$/u.test(cut) ? cut.slice(0, -1) : cut}…`;
 }

@@ -92,6 +92,8 @@ export class ForkMemory {
   readonly #timer: ReturnType<typeof setInterval>;
   #lastTidy: string | null = null;
   #tidying = false;
+  /** Test switch `OPENBOT_FORK_TIDY_NOW=<agentId>`: the first check tidies that agent at any hour. */
+  #forced: string | null = process.env.OPENBOT_FORK_TIDY_NOW?.trim() || null;
 
   constructor(options: {
     memories: AgentMemories;
@@ -298,11 +300,14 @@ export class ForkMemory {
   async #tidyIfDue(): Promise<void> {
     const now = new Date();
     const today = localDate(now);
-    if (this.#tidying || now.getHours() < TIDY_HOUR || this.#lastTidy === today) return;
+    if (this.#tidying) return;
+    const forced = this.#forced;
+    this.#forced = null;
+    if (!forced && (now.getHours() < TIDY_HOUR || this.#lastTidy === today)) return;
     this.#tidying = true;
     try {
       let skipped = false;
-      for (const agentId of this.#hooks.listAgentIds()) {
+      for (const agentId of forced ? [forced] : this.#hooks.listAgentIds()) {
         if (this.#hooks.agentBusy(agentId)) {
           skipped = true;
           continue;
@@ -314,7 +319,7 @@ export class ForkMemory {
         );
       }
       // A busy agent gets its tidy at the next check today.
-      if (!skipped) {
+      if (!skipped && !forced) {
         this.#lastTidy = today;
         if (this.#stateFile) writeFileSync(this.#stateFile, JSON.stringify({ lastTidy: today }));
       }
