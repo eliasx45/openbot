@@ -81,6 +81,11 @@ export interface MarketplaceAppConnection {
    * separate sign-in for each account (`mcp-accounts-v1`).
    */
   multipleAccounts: boolean;
+  /**
+   * Fork: the host's rows come from elsewhere (Claude Code's `~/.claude.json`, the Composio session)
+   * and are changed there, so the page offers no key change or sign-in for them.
+   */
+  readOnly?: boolean;
 }
 
 /**

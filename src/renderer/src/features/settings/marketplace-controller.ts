@@ -15,7 +15,13 @@ import type {
   McpSignInRelayPage,
   McpSignInState,
 } from "@openbot/contracts/ipc";
-import { assignedSkillCount, isRemovableSkill, isSkillEnabled, mcpConfigErrors } from "@openbot/contracts/ipc";
+import {
+  assignedSkillCount,
+  isClaudeCodeMcpServerId,
+  isRemovableSkill,
+  isSkillEnabled,
+  mcpConfigErrors,
+} from "@openbot/contracts/ipc";
 import { createMarketplaceShareUrl, type MarketplaceListingLink } from "@openbot/contracts/marketplace-links";
 import { mcpAccountFragment, mcpAccountUrl } from "@openbot/contracts/mcp-accounts";
 import { type McpConnectFlow, mcpFlowFields } from "@openbot/contracts/mcp-connect-flows";
@@ -781,6 +787,7 @@ export function createMarketplaceController(props: MarketplaceControllerProps) {
       signInNeeded: accounts.some((account) => account.signInNeeded),
       accounts,
       multipleAccounts: accounts.length > 0 && accountsOffered(app),
+      readOnly: accounts.length > 0 && accounts.every((account) => isClaudeCodeMcpServerId(account.id)),
     };
   }
   /** The agent that a plugin's skills go to: the open conversation, else the first agent. */

@@ -395,7 +395,7 @@ function ConnectionRow(props: { scope: MarketplaceScope; app: PluginApp; entry: 
   };
   /** The row action of a held app. An app that asks for nothing has none. */
   const action = (): AppTextKey | null => {
-    if (!connection().held || !model().canConnectApps()) return null;
+    if (!connection().held || connection().readOnly || !model().canConnectApps()) return null;
     switch (setup()) {
       case "account":
         return "provider.account.signInAgain";
