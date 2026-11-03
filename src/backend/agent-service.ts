@@ -128,6 +128,7 @@ import {
   WORKFLOWS_USAGE_ID,
   workspaceAccessEnforced,
 } from "@openbot/contracts/ipc";
+import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { AGENT_THREAD_READS_LIMIT } from "@openbot/contracts/team-protocol/agent-thread-reads-v1";
 import { CLAUDE_API_KEY_ACCOUNT_ID } from "@openbot/contracts/team-protocol/claude-api-key-v1";
 import { ContextCompactRefusedError } from "@openbot/contracts/team-protocol/context-compact-v1";
@@ -233,6 +234,8 @@ import type { BundledProviderExecutables } from "./cli";
 import type { ConversationMarkerExclusions } from "./conversation-read-store";
 import type { ProviderSession } from "./database/provider-sessions";
 import { reportOriginalFailure } from "./effect-boundary";
+// Fork: agent commands for the `$` list.
+import { type AgentOwnCommand, cleanAgentCommands } from "./fork-agent-skills";
 import type { HostMemory } from "./host-memory";
 import type { SignInRegion } from "./kimi-region";
 import type { LinkWallet } from "./link-wallet";
@@ -461,6 +464,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
   readonly #prepareAgentWorkspace: (agent: AgentSummary) => Effect.Effect<void, AgentLifecycleFailed>;
   readonly #hostedSites: HostedSiteCoordinator;
   readonly #conversation: ConversationRuntime;
+  /** Fork: the last ACP command list of each agent. */
+  readonly #agentCommands = new Map<string, readonly AgentOwnCommand[]>();
   readonly #attention: AttentionRegistry;
   readonly #images: ImageGenRuntime;
   readonly #threads: ThreadLifecycle;
@@ -711,6 +716,18 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
               const threadId = getString(notification.params, "threadId");
               const agentId = threadId ? this.#conversation.agentForThread(threadId) : undefined;
               if (agentId) this.#emit({ type: "agent-session-settings-changed", agentId });
+              return;
+            }
+            // Fork: keep the commands the agent's ACP CLI listed, for the `$` list.
+            if (notification.method === "openbot/agentCommands/updated") {
+              const threadId = getString(notification.params, "threadId");
+              const agentId = threadId ? this.#conversation.agentForThread(threadId) : undefined;
+              const raw = isDynamicRecord(notification.params) ? notification.params.commands : undefined;
+              if (!agentId || !Array.isArray(raw)) return;
+              const commands = cleanAgentCommands(raw.filter(isDynamicRecord));
+              if (JSON.stringify(this.#agentCommands.get(agentId)) === JSON.stringify(commands)) return;
+              this.#agentCommands.set(agentId, commands);
+              this.notifySkillsChanged(agentId);
               return;
             }
             Effect.runFork(
@@ -2204,6 +2221,11 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
   }
 
   /** The installed skills of one agent changed, so every open skills list reads them again. */
+  /** Fork: the commands the agent's ACP CLI last listed (`available_commands_update`), for the `$` list. */
+  agentCommands(agentId: string): readonly AgentOwnCommand[] {
+    return this.#agentCommands.get(agentId) ?? [];
+  }
+
   notifySkillsChanged(agentId: string): void {
     this.#emit({ type: "skills-changed", agentId });
   }

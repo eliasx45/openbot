@@ -2254,6 +2254,7 @@ export async function createApplicationServices({
         .refreshAgentRuntime(agentId)
         .pipe(Effect.ensuring(Effect.sync(() => service.notifySkillsChanged(agentId)))),
     new LocalSkillLibrary(join(app.getPath("userData"), "local-skills"), () => service.listAgents()),
+    (agentId) => service.agentCommands(agentId), // Fork: ACP commands for the `$` list.
   );
   const marketplaceAgents = new AgentMarketplaceService(centralAuth, service, skills);
   const agentTemplates = new AgentTemplateService(centralAuth, service, {

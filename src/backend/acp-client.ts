@@ -2283,6 +2283,16 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
         this.#privateAnswer?.push(update.content.text);
       return;
     }
+    // Fork: the agent's own slash commands, for the `$` list; it sends them outside turns too.
+    if (notification.update.sessionUpdate === "available_commands_update") {
+      const owner = this.#threads.get(notification.sessionId);
+      if (owner)
+        this.emit("notification", {
+          method: "openbot/agentCommands/updated",
+          params: { threadId: owner.id, commands: notification.update.availableCommands },
+        });
+      return;
+    }
     const replay = this.#historyReplays.get(notification.sessionId);
     if (replay) {
       this.#historyUpdate(replay, notification);

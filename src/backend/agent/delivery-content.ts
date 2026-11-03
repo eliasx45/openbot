@@ -12,6 +12,7 @@ import type {
 } from "@openbot/contracts/ipc";
 import { redactText } from "@openbot/logging";
 import { wokenWaitsPromptText } from "../agent-waits/agent-waits";
+import { agentSkillTagName } from "../fork-agent-skills";
 import { homeSkillRoot, homeSkillTagSlug } from "../home-skills";
 import type { DeliveryContext } from "../mailbox-store";
 import { quietRoutineRun, ROUTINE_NO_UPDATE_TOOL, ROUTINE_REPORT_FAILURE_TOOL } from "./routine-quiet-runs";
@@ -359,7 +360,8 @@ export function displayMessageReferences(
         reference.kind === "agent"
           ? agentNames.get(reference.id)
           : reference.kind === "skill" && options.fileHeadings
-            ? homeSkillTagName(reference.id, reference.name)
+            ? // Fork: a skill of the agent's own CLI is `/<name>`, which its Skill tool runs.
+              (agentSkillTagName(reference.id) ?? homeSkillTagName(reference.id, reference.name))
             : undefined,
       options,
     ),

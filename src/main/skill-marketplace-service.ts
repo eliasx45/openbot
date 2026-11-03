@@ -32,6 +32,7 @@ import { parse as parseYaml } from "yaml";
 import type { AgentLifecycleFailed } from "../backend/agent-service";
 import { writeFileAtomically } from "../backend/atomic-json-file";
 import { causeHelpers } from "../backend/effect-boundary";
+import { type AgentOwnCommand, listAgentOwnSkills } from "../backend/fork-agent-skills";
 import { toArrayBuffer } from "./agent-marketplace-service";
 import type { CentralAuthManager } from "./central-auth-manager";
 import type { LocalSkillLibrary } from "./local-skill-library";
@@ -90,6 +91,8 @@ export class SkillMarketplaceService {
     private readonly refreshAgentRuntime: (agentId: string) => Effect.Effect<void, AgentLifecycleFailed> = () =>
       Effect.void,
     readonly localLibrary?: LocalSkillLibrary,
+    // Fork: the commands each agent's ACP CLI last listed, for the `$` list.
+    private readonly agentCommands: (agentId: string) => readonly AgentOwnCommand[] = () => [],
   ) {}
 
   list(query: MarketplaceSkillQuery = {}): Effect.Effect<MarketplaceSkillPage, SkillMarketplaceFailure> {
@@ -244,6 +247,14 @@ export class SkillMarketplaceService {
         );
       }
       installed.push(...(yield* listHomeFolderSkills(new Set(installed.map((skill) => skill.slug)))));
+      // Fork: also the skills and commands the agent's own CLI has (`~/.claude/skills`, project folders, ACP).
+      installed.push(
+        ...(yield* listAgentOwnSkills(
+          agent,
+          this.agentCommands(agentId),
+          new Set(installed.map((skill) => skill.slug)),
+        )),
+      );
       return installed.sort((a, b) => a.name.localeCompare(b.name));
     });
   }
