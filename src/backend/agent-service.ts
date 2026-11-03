@@ -237,6 +237,7 @@ import type { ConversationMarkerExclusions } from "./conversation-read-store";
 import type { ProviderSession } from "./database/provider-sessions";
 import { reportOriginalFailure } from "./effect-boundary";
 import { type AgentOwnCommand, cleanAgentCommands } from "./fork-agent-skills";
+import { ClaudeCodeMcpMirror, claudeCodeMcpOffPath, claudeCodeUserConfigPath } from "./fork-claude-code-mcp";
 import type { HostMemory } from "./host-memory";
 import type { SignInRegion } from "./kimi-region";
 import type { LinkWallet } from "./link-wallet";
@@ -537,7 +538,16 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     // First of the sub-objects, because `#emitError` reads it to redact and every one of them is
     // given that callback.
     this.#mcp = new McpGateway({
-      servers: new McpServerStore(store.database),
+      // Fork: Claude Code's user-level MCP servers join the panel's list (docs/fork/FEATURES.md entry 9).
+      servers: new McpServerStore(
+        store.database,
+        undefined,
+        new ClaudeCodeMcpMirror({
+          configPath: claudeCodeUserConfigPath(),
+          offPath: claudeCodeMcpOffPath(store.database.path),
+          logger,
+        }),
+      ),
       credentials,
       computerUseMcpServer,
       githubConnector,
@@ -3655,6 +3665,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       );
     yield* lifecycleStep("restore channel links", () => {
       this.#mcp.migrateCatalogBridgesToHttp();
+      this.#mcp.watchClaudeCode();
       this.channels.restoreDeliveryLinks();
       this.channels.removeDeletedMembers(new Set(this.#store.list().map((agent) => agent.id)));
     });

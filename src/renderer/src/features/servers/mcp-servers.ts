@@ -21,7 +21,12 @@ export type {
   McpSignInState,
   McpTestResult,
 } from "@openbot/contracts/ipc";
-export { mcpConfigErrors, mcpConfigIsValid, normalizeMcpConfig } from "@openbot/contracts/ipc";
+export {
+  isClaudeCodeMcpServerId,
+  mcpConfigErrors,
+  mcpConfigIsValid,
+  normalizeMcpConfig,
+} from "@openbot/contracts/ipc";
 
 /** The badge variants this panel uses, narrowed from the shared `Badge` set. */
 export type McpStatusVariant = "success-light" | "destructive-light" | "warning-light" | "secondary";

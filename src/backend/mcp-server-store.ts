@@ -1,6 +1,7 @@
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import {
   createMcpServerId,
+  isClaudeCodeMcpServerId,
   isMcpKeyValue,
   isMcpServerConfig,
   isReservedMcpServerName,
@@ -13,6 +14,7 @@ import { type DynamicRecord, isString } from "@openbot/contracts/runtime-values"
 import { sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger, type Logger } from "@openbot/logging";
 import { databaseRow, databaseRows, requiredNumberColumn, requiredStringColumn } from "./database/database-rows";
+import type { ClaudeCodeMcpMirror } from "./fork-claude-code-mcp";
 import { registerMcpSecretValues } from "./mcp-redaction";
 import type { OpenBotDatabase } from "./openbot-database";
 
@@ -66,12 +68,28 @@ export class McpServerStore {
   constructor(
     private readonly database: OpenBotDatabase,
     private readonly logger: Pick<Logger, "warn"> = createOpenBotLogger("mcp-server-store"),
+    /** Fork: Claude Code's user-level servers, listed after the rows (docs/fork/FEATURES.md entry 9). */
+    private readonly claudeCode: ClaudeCodeMcpMirror | null = null,
   ) {}
 
   list(): McpServerConfig[] {
-    return databaseRows(
+    const rows = databaseRows(
       this.database.connection.prepare("SELECT * FROM projection_mcp_servers ORDER BY position, mcp_server_id").all(),
     ).flatMap((row) => readServer(row, this.report)?.config ?? []);
+    if (!this.claudeCode) return rows;
+    // Fork: a row the user made wins over a mirrored server with its name, and the whole list stays
+    // within the limit the renderer decodes with.
+    const room = INPUT_LIMITS.mcpServers - this.count();
+    return [...rows, ...this.claudeCode.list(new Set(rows.map((config) => config.name)), room)];
+  }
+
+  /** Fork: calls `changed` when the mirrored Claude Code servers change in `~/.claude.json`. */
+  watchClaudeCode(changed: () => void): void {
+    this.claudeCode?.watch(changed);
+  }
+
+  closeClaudeCode(): void {
+    this.claudeCode?.close();
   }
 
   listEnabled(): McpServerConfig[] {
@@ -79,11 +97,15 @@ export class McpServerStore {
   }
 
   get(mcpServerId: string): McpServerConfig | null {
+    if (isClaudeCodeMcpServerId(mcpServerId)) return this.list().find((config) => config.id === mcpServerId) ?? null;
     return this.read(mcpServerId)?.config ?? null;
   }
 
   /** Inserts or replaces one configuration and answers the stored form of it. */
   save(config: McpServerConfig, now = new Date().toISOString()): McpServerConfig {
+    // Fork: a mirrored server is edited in `~/.claude.json`, never here.
+    if (isClaudeCodeMcpServerId(config.id))
+      throw new McpServerError(sourceText("error.backend.mcpServerFromClaudeCode"));
     const normalized = normalizeMcpConfig(config);
     const errors = mcpConfigErrors(normalized);
     const firstError = errors.name ?? errors.command ?? errors.url;
@@ -147,10 +169,18 @@ export class McpServerStore {
   }
 
   remove(mcpServerId: string): void {
+    if (isClaudeCodeMcpServerId(mcpServerId))
+      throw new McpServerError(sourceText("error.backend.mcpServerFromClaudeCode"));
     this.database.connection.prepare("DELETE FROM projection_mcp_servers WHERE mcp_server_id = ?").run(mcpServerId);
   }
 
   setEnabled(mcpServerId: string, enabled: boolean, now = new Date().toISOString()): McpServerConfig {
+    // Fork: the switch of a mirrored server is kept by name, so the next sync keeps it.
+    if (this.claudeCode && isClaudeCodeMcpServerId(mcpServerId)) {
+      const mirrored = this.get(mcpServerId);
+      if (!mirrored) throw new McpServerError(sourceText("error.backend.mcpServerGone"));
+      return this.claudeCode.setEnabled(mirrored, enabled);
+    }
     const stored = this.read(mcpServerId);
     if (!stored) throw new McpServerError(sourceText("error.backend.mcpServerGone"));
     const current = stored.config;

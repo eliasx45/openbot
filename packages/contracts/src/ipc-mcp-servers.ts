@@ -49,6 +49,17 @@ export const GITHUB_CONNECTOR_MCP_SERVER_ID = "openbot-github";
 export const GITHUB_CONNECTOR_MCP_SERVER_NAME = "github";
 export const GITHUB_CONNECTOR_MCP_SERVER_URL = "https://api.githubcopilot.com/mcp/";
 
+/**
+ * Fork: the id prefix of a server mirrored from Claude Code's user-level `mcpServers`
+ * (`~/.claude.json`). The panel shows such a row read-only. See docs/fork/FEATURES.md entry 9.
+ * A row the user makes gets `mcp-<uuid>`, so the two never share an id.
+ */
+export const CLAUDE_CODE_MCP_SERVER_ID_PREFIX = "claude-code-";
+
+export function isClaudeCodeMcpServerId(id: string): boolean {
+  return id.startsWith(CLAUDE_CODE_MCP_SERVER_ID_PREFIX);
+}
+
 export const MCP_TRANSPORTS = ["stdio", "http"] as const;
 
 export type McpTransport = (typeof MCP_TRANSPORTS)[number];

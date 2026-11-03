@@ -174,6 +174,7 @@ export const messages = defineMessages("error.backend", {
   "error.backend.memoryTextRequired": "Memory text is required.",
   "error.backend.memoryTextTooLong": "Memory text is too long.",
   "error.backend.mcpServerGone": "This MCP server no longer exists.",
+  "error.backend.mcpServerFromClaudeCode": "This MCP server comes from Claude Code. Edit it in ~/.claude.json.",
   "error.backend.routineFlowLinkGone": "This connection no longer exists.",
   "error.backend.routineFlowSameAgent": "An agent cannot hand work to itself.",
   "error.backend.routineFlowIntoOwner":

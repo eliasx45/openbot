@@ -102,6 +102,8 @@ export const messages = defineMessages("mcp", {
   "mcp.panel.removeDescription": "Its tools stop being offered to this server’s agents. The configuration is not kept.",
   "mcp.panel.removeConfirm": "Remove MCP server",
   "mcp.panel.actionsFor": "Actions for {name}",
+  "mcp.panel.fromClaudeCode": "From Claude Code",
+  "mcp.panel.fromClaudeCodeNote": "Edit in ~/.claude.json. Changes there show here.",
   "mcp.panel.testUnavailable": "This server cannot be tested here.",
   "mcp.panel.signIn": "Sign in",
   "mcp.panel.signOut": "Sign out",

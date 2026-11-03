@@ -218,6 +218,7 @@ export class McpGateway {
 
   /** Stops the OAuth proxy. Called once, after every provider process has stopped. */
   readonly close = Effect.fnUntraced(function* (this: McpGateway) {
+    this.#servers.closeClaudeCode();
     yield* this.#proxy.close();
   });
 
@@ -338,6 +339,27 @@ export class McpGateway {
    */
   migrateCatalogBridgesToHttp(): void {
     this.#servers.migrateCatalogBridgesToHttp();
+  }
+
+  /**
+   * Fork: when the Claude Code servers in `~/.claude.json` change, every agent gets a fresh provider
+   * session at its next turn, as after a save in the panel (docs/fork/FEATURES.md entry 9).
+   */
+  watchClaudeCode(): void {
+    this.#servers.watchClaudeCode(() => {
+      this.#logger.info("The Claude Code MCP servers changed; agents get them at their next turn.");
+      Effect.runFork(
+        this.changed().pipe(
+          Effect.catch((failure) =>
+            Effect.sync(() =>
+              this.#logger.warn("The agents were not refreshed after a Claude Code MCP change.", {
+                cause: toLogValue(failure.cause),
+              }),
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   /**

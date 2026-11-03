@@ -39,6 +39,7 @@ import { createEffect, createMemo, createStore, For, onCleanup, Show } from "sol
 import { type McpPanelSignInApp, McpSignInAppSection } from "./McpSignInAppSection";
 import {
   emptyMcpConfig,
+  isClaudeCodeMcpServerId,
   isMcpHttpAddress,
   isMcpSignInCancelled,
   isMcpSignInOnHost,
@@ -691,7 +692,14 @@ export function ServerMcpPanel(props: ServerMcpPanelProps) {
                         <Show when={canSignIn(config()) && props.signIn?.states[config().id]?.signedIn}>
                           <Badge variant="outline">{t("mcp.status.signedIn")}</Badge>
                         </Show>
+                        {/* Fork: mirrored from ~/.claude.json, read-only (docs/fork/FEATURES.md entry 9). */}
+                        <Show when={isClaudeCodeMcpServerId(config().id)}>
+                          <Badge variant="outline">{t("mcp.panel.fromClaudeCode")}</Badge>
+                        </Show>
                       </div>
+                      <Show when={isClaudeCodeMcpServerId(config().id) && !test()}>
+                        <ItemDescription>{t("mcp.panel.fromClaudeCodeNote")}</ItemDescription>
+                      </Show>
                       <Show when={test()?.status === "signing-in" && test()}>
                         {(waiting) => (
                           <>
@@ -774,6 +782,7 @@ export function ServerMcpPanel(props: ServerMcpPanelProps) {
                               }
                             : undefined
                         }
+                        readOnly={isClaudeCodeMcpServerId(config().id)}
                         onEdit={() => openForm(config())}
                         onRemove={(trigger) => {
                           // The confirmation returns focus to the element focused when it opens.
@@ -1337,6 +1346,8 @@ function McpRowMenu(props: {
   onTest: () => void;
   /** Present for an http row on this computer: Sign in, or Sign out once a sign-in is held. */
   signIn?: { signedIn: boolean; busy: boolean; onSignIn: () => void; onSignOut: () => void } | undefined;
+  /** Fork: a server mirrored from Claude Code has no Edit or Remove; it changes in `~/.claude.json`. */
+  readOnly?: boolean;
   onEdit: () => void;
   onRemove: (trigger: HTMLElement) => void;
 }) {
@@ -1393,18 +1404,20 @@ function McpRowMenu(props: {
               </Show>
             )}
           </Show>
-          <DropdownMenu.Item onSelect={() => props.onEdit()}>
-            <Pencil aria-hidden="true" />
-            {t("common.edit")}
-          </DropdownMenu.Item>
-          <DropdownMenu.Separator />
-          <DropdownMenu.Item
-            class="ui-action-menu-danger"
-            onSelect={() => triggerElement && props.onRemove(triggerElement)}
-          >
-            <Trash2 aria-hidden="true" />
-            {t("common.remove")}
-          </DropdownMenu.Item>
+          <Show when={!props.readOnly}>
+            <DropdownMenu.Item onSelect={() => props.onEdit()}>
+              <Pencil aria-hidden="true" />
+              {t("common.edit")}
+            </DropdownMenu.Item>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Item
+              class="ui-action-menu-danger"
+              onSelect={() => triggerElement && props.onRemove(triggerElement)}
+            >
+              <Trash2 aria-hidden="true" />
+              {t("common.remove")}
+            </DropdownMenu.Item>
+          </Show>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
