@@ -66,9 +66,11 @@ trap stop TERM INT HUP
 
 # Signed with Elias's Developer ID (not notarized: it never leaves this Mac). A stable signature
 # keeps macOS privacy grants (Screen Recording, Accessibility, Automation) across rebuilds; an
-# ad-hoc one is a new app to macOS every build. OPENBOT_SIGN_IDENTITY overrides. The full name:
-# an Apple Distribution certificate has the same short name.
-identity=${OPENBOT_SIGN_IDENTITY:-Developer ID Application: mohamed elias hamadouche (GQQBT37P3D)}
+# ad-hoc one is a new app to macOS every build. OPENBOT_SIGN_IDENTITY overrides. codesign gets the
+# full name: an Apple Distribution certificate has the same short name.
+# electron-builder wants the name without the type (it picks the Developer ID certificate itself).
+identity_name=${OPENBOT_SIGN_IDENTITY:-mohamed elias hamadouche (GQQBT37P3D)}
+identity="Developer ID Application: $identity_name"
 team=GQQBT37P3D
 entitlements="$root/scripts/fork/entitlements.mac.plist"
 # Same flags for the signed full build and the unsigned JS build, so both make the same Info.plist.
@@ -123,7 +125,7 @@ steps() {
     bun run build
     rm -rf dist/mac-arm64
     # shellcheck disable=SC2086 # word-split flags
-    bunx electron-builder $builder_flags "-c.mac.identity=$identity"
+    bunx electron-builder $builder_flags "-c.mac.identity=$identity_name"
     rm -rf "$staged"
     mv dist/mac-arm64/OpenBot.app "$staged"
     codesign --verify --deep --strict "$staged"

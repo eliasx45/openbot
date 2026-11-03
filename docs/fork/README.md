@@ -30,7 +30,7 @@ bun run prepare:cua-driver
 bun run build                            # electron-vite
 bunx electron-builder --dir --mac --arm64 --publish never \
   -c.mac.notarize=false -c.mac.timestamp=none \
-  "-c.mac.identity=Developer ID Application: mohamed elias hamadouche (GQQBT37P3D)" \
+  "-c.mac.identity=mohamed elias hamadouche (GQQBT37P3D)"   # no type prefix: electron-builder refuses it \
   -c.mac.entitlements=scripts/fork/entitlements.mac.plist \
   -c.mac.extendInfo.ElectronTeamID=GQQBT37P3D
 ```
