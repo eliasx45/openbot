@@ -218,3 +218,24 @@ export function cleanAgentCommands(
   }
   return [...commands.values()];
 }
+
+/**
+ * Fork (docs/fork/FEATURES.md, "`$` in channels"): the line a channel member reads first when the
+ * user's request tags skills that this member has, or null. A channel packet starts with the
+ * channel's own text, not the user's, so a `/<name>` in it does not run by itself. Built-in commands
+ * (`agent-cmd:`) run only at the start of a prompt, so they are not named. A member without the
+ * skill gets no line and reads the tag as plain text.
+ */
+export function pickedSkillsLine(text: string, skills: readonly InstalledSkill[]): string | null {
+  const names = new Set<string>();
+  for (const reference of chatTagReferences(text)) {
+    if (reference.kind !== "skill" || reference.id.startsWith(AGENT_COMMAND_ID_PREFIX)) continue;
+    const skill = skills.find((item) => item.skillId === reference.id && item.enabled !== false);
+    if (skill) names.add(agentSkillTagName(skill.skillId) ?? skill.name);
+  }
+  const list = [...names];
+  if (list.length === 0) return null;
+  return list.length === 1
+    ? `The user picked your ${list[0]} skill for this message. Use it.`
+    : `The user picked your skills ${list.join(", ")} for this message. Use them.`;
+}

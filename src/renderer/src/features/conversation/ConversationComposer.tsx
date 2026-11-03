@@ -136,8 +136,11 @@ export function ConversationComposer() {
         : t("composer.placeholder.messageAgent");
   const [pickerOpen, setPickerOpen] = createSignal(false);
   const [skillPickerRequest, setSkillPickerRequest] = createSignal(0);
-  /** A skill belongs to one agent, and a channel message goes to the agents it routes to. */
-  const pickSkill = () => (channel ? undefined : () => setSkillPickerRequest((current) => current + 1));
+  /**
+   * Fork (docs/fork/FEATURES.md, "`$` in channels"): a channel lists the skills of its members, each
+   * with the members that have it. Upstream turned the picker off there.
+   */
+  const pickSkill = () => setSkillPickerRequest((current) => current + 1);
   /**
    * The draft goes to the side question, so that the chat gets nothing of it. A draft with attachments
    * stays: the side question cannot send files.
@@ -636,7 +639,8 @@ export function ConversationComposer() {
               everyoneMention={Boolean(channel) && (props.mentionAgents ?? props.agents).length > 1}
               skills={installedSkills()}
               skillsLoadFailed={installedSkillsLoadFailed()}
-              mcpServers={mcpServers()}
+              // Fork: a channel's `$` lists its members' skills only (docs/fork/FEATURES.md, "`$` in channels").
+              mcpServers={channel ? [] : mcpServers()}
               attachments={currentDraft().attachments}
               value={currentDraft().text}
               disabled={submitting() || voicePhase() === "transcribing" || editorLocked() || savePending()}
@@ -711,7 +715,7 @@ export function ConversationComposer() {
               }
               attachDisabled={attachmentBusy()}
               onAttach={openAttachmentPicker}
-              onPickSkill={pickSkill()}
+              onPickSkill={pickSkill}
               onSideQuestion={askSideQuestion()}
               onVoice={openVoiceConversation()}
             />

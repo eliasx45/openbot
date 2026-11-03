@@ -2,6 +2,7 @@ import type { InstalledSkill } from "@openbot/contracts/ipc";
 import { createEffect, createMemo, createSignal, untrack } from "solid-js";
 import { conversationRuntime } from "../conversation-runtime";
 import type { ConversationProps } from "../conversation-types";
+import { type ChannelSkill, channelSkills } from "../fork-channel-skills";
 import { installedSkillsRequestKey } from "../installed-skills-source";
 
 export interface SkillsStoreDeps {
@@ -10,7 +11,7 @@ export interface SkillsStoreDeps {
 }
 
 export function createSkillsStore(deps: SkillsStoreDeps) {
-  const [installedSkills, setInstalledSkills] = createSignal<InstalledSkill[]>([]);
+  const [installedSkills, setInstalledSkills] = createSignal<ChannelSkill[]>([]);
   const [installedSkillsLoadFailed, setInstalledSkillsLoadFailed] = createSignal(false);
   const [installedSkillsRetry, setInstalledSkillsRetry] = createSignal(0);
   let installedSkillsRequest = 0;
@@ -33,13 +34,38 @@ export function createSkillsStore(deps: SkillsStoreDeps) {
       }
     },
   );
+  // Fork (docs/fork/FEATURES.md, "`$` in channels"): a channel reads the skills of each member.
+  const channelMembers = createMemo(() =>
+    deps.props.channel ? (deps.props.mentionAgents ?? []).map((agent) => agent.id).join(",") : "",
+  );
   const refreshKey = createMemo(
     () =>
-      `${installedSkillsSource()}\0${installedSkillsRetry()}\0${deps.props.activeTurnId ?? ""}\0${deps.settingsOpen()}`,
+      `${installedSkillsSource()}\0${installedSkillsRetry()}\0${deps.props.activeTurnId ?? ""}\0${deps.settingsOpen()}\0${channelMembers()}`,
   );
   createEffect(refreshKey, (source) => {
     const request = ++installedSkillsRequest;
-    const [serverId = "", agentId, support, visibility] = source.split("\0");
+    const [serverId = "", agentId, support, visibility, , , , members] = source.split("\0");
+    if (!agentId && members && support !== "unsupported") {
+      if (visibility === "hidden") return;
+      installedSkillsSourceId = undefined;
+      failedInstalledSkillsAttempt = undefined;
+      const agents = untrack(() => deps.props.mentionAgents ?? []);
+      const runtime = conversationRuntime(deps.props);
+      void Promise.all(
+        agents.map((agent) =>
+          runtime.agent
+            .listInstalledSkills(agent.id)
+            // One member that does not answer leaves its skills out, not the others'.
+            .catch((): InstalledSkill[] => [])
+            .then((skills) => ({ agent, skills })),
+        ),
+      ).then((lists) => {
+        if (request !== installedSkillsRequest) return;
+        setInstalledSkills(channelSkills(lists));
+        setInstalledSkillsLoadFailed(false);
+      });
+      return;
+    }
     if (!agentId) {
       installedSkillsSourceId = undefined;
       failedInstalledSkillsAttempt = undefined;

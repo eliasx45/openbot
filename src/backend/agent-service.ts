@@ -58,6 +58,7 @@ import type {
   GenerateAgentProfileInput,
   HiddenAgentsSnapshot,
   HostAnalyticsInput,
+  InstalledSkill,
   ListChannelRoutineRunsInput,
   ListRoutineRunsInput,
   LocalBrowserSecretResponse,
@@ -474,6 +475,11 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
   readonly #conversation: ConversationRuntime;
   /** Fork: the last ACP command list of each agent. */
   readonly #agentCommands = new Map<string, readonly AgentOwnCommand[]>();
+  /**
+   * Fork (docs/fork/FEATURES.md, "`$` in channels"): the `$` skills of one agent
+   * (`SkillMarketplaceService.listInstalledForChatTags`). Main sets it once that service exists.
+   */
+  forkChatSkills: ((agentId: string) => Effect.Effect<readonly InstalledSkill[], unknown>) | undefined;
   readonly #attention: AttentionRegistry;
   readonly #images: ImageGenRuntime;
   readonly #threads: ThreadLifecycle;
@@ -1317,6 +1323,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           // the MCP gateway knows. The logger redacts again and limits the length.
           cause: failureMessages(error).map((message) => this.#mcp.redact(message)),
         }),
+      skillsOf: (agentId) => this.forkChatSkills?.(agentId) ?? Effect.succeed([]),
     });
     this.#channelRoutines = new ChannelRoutineScheduler({
       channels: this.channels,

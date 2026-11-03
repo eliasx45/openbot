@@ -35,7 +35,8 @@ export function pickerOptionText(option: PickerOption, t: TextValue["t"]): strin
   if (option.type === "everyone") return t("composer.picker.everyone");
   if (option.type === "skill") {
     const name = option.showSlug ? `${option.skill.name} ${option.skill.slug}` : option.skill.name;
-    return t("composer.picker.option.skill", { name });
+    const owners = skillOwnersText(option.skill, t);
+    return t("composer.picker.option.skill", { name: owners ? `${name} ${owners}` : name });
   }
   return option.type === "mcp"
     ? t("composer.picker.option.mcp", { name: option.server.name })
@@ -47,6 +48,15 @@ export function pickerOptionName(option: PickerOption, t: TextValue["t"]): strin
   if (option.type === "everyone") return t("composer.picker.everyone");
   if (option.type === "skill") return option.skill.name;
   return option.type === "mcp" ? option.server.name : option.attachment.name;
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md, "`$` in channels"): the members of a channel that have the skill, as
+ * "· Shelf, Boty"; undefined outside a channel.
+ */
+export function skillOwnersText(skill: ComposerSkill, t: TextValue["t"]): string | undefined {
+  if (!skill.owners?.length) return undefined;
+  return t("composer.picker.skillOwners", { names: skill.owners.map((owner) => owner.name).join(", ") });
 }
 
 export function pickerOptionDescription(

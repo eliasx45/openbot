@@ -1,6 +1,6 @@
 import { rankAgentMentions } from "@openbot/contracts/agent-mention-rank";
 import { attachmentReferenceIds } from "@openbot/contracts/attachment-references";
-import { EVERYONE_MENTION, serializeChatTagReference } from "@openbot/contracts/chat-tag-references";
+import { EVERYONE_MENTION, leadingAddress, serializeChatTagReference } from "@openbot/contracts/chat-tag-references";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type { DraftAttachment } from "@openbot/contracts/ipc";
 import { Badge, Blocks, Listbox, Puzzle, UsersRound } from "@openbot/ui";
@@ -52,6 +52,7 @@ import {
   pickerOptionName,
   pickerOptionText,
   skillMatchRank,
+  skillOwnersText,
 } from "./composer-picker";
 import {
   type AttachmentTokenActions,
@@ -624,6 +625,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
     const trailingSpace = document.createTextNode(" ");
     range.insertNode(trailingSpace);
     range.insertNode(token);
+    if (option.type === "skill") addressSkillOwner(option.skill);
     const selection = window.getSelection();
     range.setStartAfter(trailingSpace);
     range.collapse(true);
@@ -632,6 +634,20 @@ export function ComposerEditor(props: ComposerEditorProps) {
     setMention(null);
     emitValue();
     editor.focus();
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md, "`$` in channels"): a channel skill that one member has also
+   * addresses that member, so the channel gives the message to it only. A channel reads only the
+   * mentions at the start of a message as its address, so the mention goes first.
+   */
+  function addressSkillOwner(skill: ComposerSkill) {
+    const owner = skill.owners?.length === 1 ? skill.owners[0] : undefined;
+    if (!editor || !owner) return;
+    if (leadingAddress(serializeEditor(editor)).mentions.some((mention) => mention.id === owner.id)) return;
+    const space = document.createTextNode(" ");
+    editor.insertBefore(space, editor.firstChild);
+    editor.insertBefore(createMentionToken(owner), space);
   }
 
   function insertQuote(messageId: string, text: string) {
@@ -1090,6 +1106,9 @@ export function ComposerEditor(props: ComposerEditorProps) {
                       <strong>{pickerOptionName(option, t)}</strong>
                       <Show when={option.type === "skill" && option.showSlug ? option.skill.slug : undefined}>
                         {(slug) => <span class="mention-picker-slug">{slug()}</span>}
+                      </Show>
+                      <Show when={option.type === "skill" ? skillOwnersText(option.skill, t) : undefined}>
+                        {(owners) => <span class="mention-picker-slug">{owners()}</span>}
                       </Show>
                       <Show when={pickerOptionDescription(option, t, format)}>
                         {(description) => <span class="mention-picker-description">{description()}</span>}

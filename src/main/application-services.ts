@@ -2260,6 +2260,8 @@ export async function createApplicationServices({
     new LocalSkillLibrary(join(app.getPath("userData"), "local-skills"), () => service.listAgents()),
     (agentId) => service.agentCommands(agentId), // Fork: ACP commands for the `$` list.
   );
+  // Fork: a channel member reads which of its skills the user picked (docs/fork/FEATURES.md, "`$` in channels").
+  service.forkChatSkills = (agentId) => skills.listInstalledForChatTags(agentId);
   const marketplaceAgents = new AgentMarketplaceService(centralAuth, service, skills);
   const agentTemplates = new AgentTemplateService(centralAuth, service, {
     listTemplateSkills: (agentId) => skills.listTemplateSkills(agentId),

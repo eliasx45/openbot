@@ -305,7 +305,13 @@ export type ComposerAgent = Pick<
 export type ComposerSkill = Pick<
   InstalledSkill,
   "skillId" | "slug" | "name" | "state" | "enabled" | "origin" | "description"
->;
+> & {
+  /**
+   * Fork (docs/fork/FEATURES.md, "`$` in channels"): in a channel, the members that have the skill.
+   * The picker names them, and a pick of a skill that one member has also addresses that member.
+   */
+  owners?: readonly ComposerAgent[] | undefined;
+};
 
 /** The MCP server fields that the composer reads. It never reads the environment or the headers. */
 export type ComposerMcpServer = Pick<

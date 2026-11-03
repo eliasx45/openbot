@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, sep } from "node:path";
-import { leadingAddress } from "@openbot/contracts/chat-tag-references";
+import { chatTagReferences, leadingAddress } from "@openbot/contracts/chat-tag-references";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import {
   type AgentAccessLevel,
@@ -21,6 +21,7 @@ import {
   type CreateChannelMemoryInput,
   channelRoutingConversationEventItemType,
   type DeleteChannelMemoryInput,
+  type InstalledSkill,
   type QueueHold,
   type UpdateChannelMemoryInput,
 } from "@openbot/contracts/ipc";
@@ -53,6 +54,7 @@ import {
 } from "./channel-management";
 import { ChannelMemoryStore } from "./channel-memory-store";
 import { type ChannelAssignment, type ChannelContext, ChannelStore } from "./channel-store";
+import { pickedSkillsLine } from "./fork-agent-skills";
 import type { DeliveryContext, MailboxStore } from "./mailbox-store";
 import type { OpenBotDatabase } from "./openbot-database";
 import { extractJsonObject, StructuredOutputError } from "./structured-output";
@@ -120,6 +122,8 @@ export interface ChannelHooks {
    * the channel shows as catalog text, for the log. A question of the lead is not a failure.
    */
   routingFailed?(failure: { channelId: string; taskId: string; lead: AgentSummary | undefined; error: unknown }): void;
+  /** Fork (docs/fork/FEATURES.md, "`$` in channels"): the skills of a member, as its `$` list has them. */
+  skillsOf?(agentId: string): Effect.Effect<readonly InstalledSkill[], unknown>;
 }
 
 class ChannelRoutingError extends Schema.TaggedError<ChannelRoutingError>()("ChannelRoutingError", {
@@ -1150,6 +1154,38 @@ export class ChannelService {
     return named.length === 1 && named[0] ? [named[0].id] : [];
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md, "`$` in channels"): puts the line that names the skills the user
+   * tagged in the request, and that this member has, in front of a packet; null when there are none.
+   * A skill list that does not load gives no line: the tag still reaches the member as text.
+   */
+  #pickedSkills(
+    channelId: string,
+    task: ChannelTask,
+    agentId: string,
+  ): Effect.Effect<((packet: string) => string) | null> {
+    const skillsOf = this.hooks.skillsOf;
+    if (!skillsOf) return Effect.succeed(null);
+    return Effect.try(() => this.store.message(channelId, task.requestMessageId)).pipe(
+      Effect.flatMap((request) => {
+        const text = request?.message.text ?? "";
+        if (
+          request?.author.kind !== "member" ||
+          request.author.id.startsWith("agent:") ||
+          !chatTagReferences(text).some((reference) => reference.kind === "skill")
+        )
+          return Effect.succeed(null);
+        return skillsOf(agentId).pipe(
+          Effect.map((skills) => {
+            const line = pickedSkillsLine(text, skills);
+            return line ? (packet: string) => `${line}\n\n${packet}` : null;
+          }),
+        );
+      }),
+      Effect.orElseSucceed(() => null),
+    );
+  }
+
   private eligibleMembers(channel: Channel): string[] {
     const live = this.hooks.agents();
     return channel.members
@@ -2145,7 +2181,7 @@ export class ChannelService {
     const delivered = this.#deliveredContext(channel.id, context, agent);
     const budget = this.hooks.contextCharacters?.(agent.id, context.threadId);
     yield* this.#awaitSummary(channel.id, budget);
-    const history = yield* this.#history.prepare(
+    let history = yield* this.#history.prepare(
       task,
       agent,
       this.hooks.agents().find((item) => item.id === channel.leadAgentId),
@@ -2153,6 +2189,9 @@ export class ChannelService {
       this.#peers(tasks, task),
       budget,
     );
+    // Fork: the member reads first which of its skills the user picked (docs/fork/FEATURES.md, "`$` in channels").
+    const picked = yield* this.#pickedSkills(channel.id, task, agent.id);
+    if (picked) history = { ...history, text: picked(history.text), delta: history.delta && picked(history.delta) };
     if (delivered && history.delta !== null)
       this.#deltas.set(delivery.delivery.id, { sessionId: delivered.sessionId, text: history.delta });
     else this.#deltas.delete(delivery.delivery.id);
@@ -2986,12 +3025,15 @@ export class ChannelService {
     yield* channelSync(() =>
       this.store.update(this.store.get(channelId), { assignments: [{ ...current, pendingRevision: task.revision }] }),
     );
+    // Fork: as in `prepare`, the member reads which of its skills the user picked.
+    const picked = yield* this.#pickedSkills(channelId, task, agent.id);
+    const packet = history.delta ?? history.text;
     const outcome = yield* steer(
       agent.id,
       threadId,
       turnId,
       task.requestMessageId,
-      `The user corrected this task. Apply this current request and do not present earlier work as its completion.\n\n${history.delta ?? history.text}`,
+      `The user corrected this task. Apply this current request and do not present earlier work as its completion.\n\n${picked ? picked(packet) : packet}`,
     ).pipe(Effect.mapError(channelFailure));
     if (
       (yield* channelSync(() => this.store.tasks(channelId))).find((item) => item.id === task.id)?.revision !==
