@@ -274,3 +274,13 @@ They describe the enforced syntax, fixture behavior, and reasons for removed rul
   or `@ts-ignore`; disables rules through `biome.json` overrides or removes a GritQL plugin; widens
   a boundary to `any` or `unknown`; or uses an assertion to bypass a checker. Fix the domain issue,
   or explain why the rule is wrong and let the developer decide.
+
+## Elias's fork (eliasx45/openbot)
+
+- This checkout is a personal fork of `nightly-labs/openbot`. Read [docs/fork/README.md](docs/fork/README.md)
+  before changing, merging or reverting fork behaviour. Do not "fix" a fork switch back to upstream.
+- **Every fork change adds or updates its entry in [docs/fork/FEATURES.md](docs/fork/FEATURES.md) in the
+  same commit.** Build tooling and fixes for this Mac count too.
+- Work on `main`. Sync with `git fetch upstream && git merge upstream/main`. Do not open PRs upstream.
+- When Elias mentions a gap that a skipped feature in [docs/fork/LATER.md](docs/fork/LATER.md) would close,
+  point to that file and offer the entry.

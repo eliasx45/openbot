@@ -67,3 +67,7 @@ keys
 
 # Persistent local development identity and migration recovery.
 .openbot/
+
+# Fork (eliasx45/openbot): the Dock launcher's state and the official release backup.
+/build/fork-launcher/
+/build/official-*

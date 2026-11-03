@@ -208,6 +208,7 @@ import {
   ExternalLinkOpener,
   type ExternalLinkPreferenceStore,
 } from "./external-link-opener";
+import { updatesAllowed as forkUpdatesAllowed } from "./fork";
 import { githubAppConfig } from "./github-connector-config";
 import { GitHubConnectorService } from "./github-connector-service";
 import { GitHubConnectorStore } from "./github-connector-store";
@@ -3252,6 +3253,7 @@ export async function createApplicationServices({
       existsSync(HOSTED_UPDATE_TRIGGER));
   // A local server is the same application as its parent, which installs the update for both.
   const updatesEnabled =
+    forkUpdatesAllowed &&
     !localServerChild &&
     app.isPackaged &&
     !isNixStoreInstall() &&
