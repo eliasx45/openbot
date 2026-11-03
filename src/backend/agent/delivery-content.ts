@@ -14,6 +14,7 @@ import { redactText } from "@openbot/logging";
 import { wokenWaitsPromptText } from "../agent-waits/agent-waits";
 import { FORK_WAIT_ROUTINE_ID } from "../agent-waits/fork-wait-conditions";
 import { agentSkillTagName, expandAgentCommandTags } from "../fork-agent-skills";
+import { forkTeammatePrompt, forkUserPrompt } from "../fork-commands";
 import { homeSkillRoot, homeSkillTagSlug } from "../home-skills";
 import type { DeliveryContext } from "../mailbox-store";
 import { quietRoutineRun, ROUTINE_NO_UPDATE_TOOL, ROUTINE_REPORT_FAILURE_TOOL } from "./routine-quiet-runs";
@@ -193,6 +194,9 @@ export function deliveryPromptInput(context: DeliveryContext, sources: DeliveryP
       displayText || "(The reply contains attachments only.)",
     ].join("\n");
   }
+  // Fork: commands, the goal footer and recalled memories (docs/fork/FEATURES.md). Own chat only.
+  if (delivery.sender.kind === "user" && sources.executionText === undefined)
+    text = forkUserPrompt(delivery, displayText, text);
   // Only `start_task` sends an agent's message to itself: it is the brief of a task.
   if (delivery.sender.kind === "agent" && delivery.sender.agentId === delivery.recipientAgentId) {
     text = [
@@ -234,6 +238,7 @@ export function deliveryPromptInput(context: DeliveryContext, sources: DeliveryP
     ]
       .filter(Boolean)
       .join("\n");
+    if (sources.executionText === undefined) text = forkTeammatePrompt(delivery.recipientAgentId, text);
   }
   // Fork: a watched wait ended. Its text is already the whole prompt (`ForkWaitConditions`).
   if (delivery.sender.kind === "routine" && delivery.sender.routineId === FORK_WAIT_ROUTINE_ID) {

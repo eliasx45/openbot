@@ -2552,6 +2552,9 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         memories.delete(agentId);
         emitAgentEvent({ type: "memories-changed", agentId });
       },
+      // Fork: the memory journal. The preview keeps none.
+      listMemoryJournal: async () => [],
+      undoMemoryChange: async () => {},
       listTables: async () => clone(tables),
       deleteTable: async (input) => {
         tables = tables.filter((table) => table.name !== input.name);

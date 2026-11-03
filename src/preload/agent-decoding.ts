@@ -17,6 +17,7 @@ import {
 import {
   type AccountUsage,
   type AgentMemory,
+  type AgentMemoryJournalEntry,
   type AgentMemorySelectionState,
   type AgentRuntimeSnapshot,
   type AgentStatus,
@@ -31,6 +32,7 @@ import {
   isAccountUsage,
   isAgentHostSettings,
   isAgentMemory,
+  isAgentMemoryJournalEntry,
   isAgentMemorySelectionState,
   isAgentProvider,
   isAgentRuntimeSnapshot,
@@ -195,6 +197,13 @@ export function decodeTables(value: unknown): SharedTable[] {
 
 export function decodeMemories(value: unknown): AgentMemory[] {
   if (!Array.isArray(value) || !value.every(isAgentMemory)) throw new Error("Invalid agent memories response.");
+  return value;
+}
+
+/** Fork: the memory journal (docs/fork/FEATURES.md, "Memory"). */
+export function decodeMemoryJournal(value: unknown): AgentMemoryJournalEntry[] {
+  if (!Array.isArray(value) || !value.every(isAgentMemoryJournalEntry))
+    throw new Error("Invalid memory journal response.");
   return value;
 }
 

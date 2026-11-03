@@ -17,6 +17,7 @@ import {
   parseCreateAgentMemory,
   parseDeleteAgentMemory,
   parseSetAgentMemoryInclusion,
+  parseUndoAgentMemoryChange,
   parseUpdateAgentMemory,
 } from "./agent-inputs";
 import type { IpcGroupHandlers } from "./define-ipc-group";
@@ -98,6 +99,17 @@ export function memoryIpcHandlers({
               method: "DELETE",
             }),
           ),
+      }),
+      // Fork: the memory journal and its undo (docs/fork/FEATURES.md, "Memory"). This computer only.
+      listMemoryJournal: scopedHandler(parseAgentId, {
+        local: (agentId) => service.forkMemoryJournal(agentId),
+        remote: () => [],
+      }),
+      undoMemoryChange: scopedHandler(parseUndoAgentMemoryChange, {
+        local: (input) => service.forkUndoMemoryChange(input),
+        remote: () => {
+          throw new Error("The memory journal is kept on the agent's own computer.");
+        },
       }),
       clearMemories: scopedHandler(parseAgentId, {
         local: (agentId) => service.clearMemories(agentId),

@@ -108,6 +108,7 @@ import {
   decodeHostProviderAccountsFromMain,
   decodeMemories,
   decodeMemory,
+  decodeMemoryJournal,
   decodeMemorySelection,
   decodeOptionalMemorySelection,
   decodeProviderApiKeyState,
@@ -1213,6 +1214,8 @@ const openbotApi: OpenBotDesktopApi = {
       updateMemory: decodeMemory,
       deleteMemory: decodeVoid,
       clearMemories: decodeVoid,
+      listMemoryJournal: decodeMemoryJournal, // Fork
+      undoMemoryChange: decodeVoid, // Fork
     }),
     ...bridgeGroup(IPC_ENDPOINTS.sharedTables, {
       listTables: decodeTables,

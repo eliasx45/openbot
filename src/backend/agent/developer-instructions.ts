@@ -14,6 +14,8 @@ import {
 } from "@openbot/contracts/ipc";
 import { redactText } from "@openbot/logging";
 import { automationRunCommand } from "../automation-command";
+import { COMPOSIO_INSTRUCTIONS } from "../fork-composio";
+import { forkHub } from "../fork-hub";
 import type { HomeSkill } from "../home-skills";
 import type { PromptInstructionsFile } from "./workspace-instructions";
 import { agentSessionCwd, existingAgentFolders, workspaceExcludedFolders } from "./workspace-sandbox";
@@ -294,6 +296,8 @@ export function developerInstructions(
         ]
       : []),
     "When a request waits for something outside this turn, such as a build, a deploy, or a later check, open a wait with openbot.await_event, tell the user what you wait for, and end your turn; do not poll or sleep. When plain code can see the end (a file written, a process exit, another agent finishing, a URL answering), use openbot.wait_until instead: OpenBot watches it and wakes you in this chat. For a repeated or timed request, such as every morning or remind me, create a routine with openbot.create_routine, or openbot.create_webhook_routine for events from another system; when you are not sure, or a handoff repeats, offer one in one sentence. Schedule only in OpenBot, never with provider scheduling such as Claude routines, /schedule, /loop, cron tools, or cloud agents: the user cannot see or stop that work. When an OpenBot routine tool fails, report it; do not schedule another way. Give times in the user's timezone.",
+    // Fork: Composio's apps (docs/fork/FEATURES.md, "Composio").
+    ...(forkHub.composio?.ready() ? [COMPOSIO_INSTRUCTIONS] : []),
     "When the user tells you to stop or cancel your work, in any words, stop at once, interrupt each teammate that has part of it (describe openbot.interrupt_agent), close its waits, do not resume it, and tell the user who stopped and what may still run. A request to change how you work is not a stop. After a teammate interrupts your turn, resume that work only on a new request.",
     "In a group chat with several agents, follow its rules: speak when addressed or when you add something useful, do not repeat other agents, and do your part in the chat.",
     "Attach files that you created with openbot.attach_files_to_response before the final answer; use absolute paths in file links. React with openbot.react_to_user_message to clearly emotional messages, negative ones included, not to neutral ones. A reaction does not replace or shorten the answer; do not mention it.",

@@ -9,6 +9,7 @@ import type {
   AgentAnalyticsInput,
   AgentEvent,
   AgentMemory,
+  AgentMemoryJournalEntry,
   AgentMemorySelectionState,
   AgentModelId,
   AgentModelOption,
@@ -100,6 +101,7 @@ import type {
   TestChannelRoutineInput,
   TestMcpServerInput,
   TestRoutineInput,
+  UndoAgentMemoryChangeInput,
   UpdateAgentInput,
   UpdateAgentMemoryInput,
   UpdateChannelMemoryInput,
@@ -123,6 +125,7 @@ import {
   isCustomProviderHarness,
   MODEL_SWITCH_ITEM_TYPES,
   type ModelSwitchReason,
+  PLAN_CONTINUATION_ITEM_TYPE,
   type QueueSteerFallback,
   sameAgentBrowserProfile,
   sameAgentModelChoice,
@@ -136,7 +139,7 @@ import { ContextCompactRefusedError } from "@openbot/contracts/team-protocol/con
 import { ContextResetBusyError } from "@openbot/contracts/team-protocol/context-reset-v1";
 import type { QueueEditRequest } from "@openbot/contracts/team-protocol/queue-edit-v1";
 import { sourceText } from "@openbot/i18n/source";
-import { createOpenBotLogger } from "@openbot/logging";
+import { createOpenBotLogger, toLogValue } from "@openbot/logging";
 import { classifyFailure } from "@openbot/telemetry";
 import { Cause, Deferred, Effect, Exit, Fiber, Result, Schema, Scope, Semaphore } from "effect";
 import { AgentMemories } from "./agent/agent-memories";
@@ -239,6 +242,10 @@ import type { ProviderSession } from "./database/provider-sessions";
 import { reportOriginalFailure } from "./effect-boundary";
 import { type AgentOwnCommand, cleanAgentCommands } from "./fork-agent-skills";
 import { ClaudeCodeMcpMirror, claudeCodeMcpOffPath, claudeCodeUserConfigPath } from "./fork-claude-code-mcp";
+import { ForkComposio } from "./fork-composio";
+import { ForkGoals } from "./fork-goals";
+import { forkHub } from "./fork-hub";
+import { ForkMemory } from "./fork-memory";
 import type { HostMemory } from "./host-memory";
 import type { SignInRegion } from "./kimi-region";
 import type { LinkWallet } from "./link-wallet";
@@ -552,6 +559,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           configPath: claudeCodeUserConfigPath(),
           offPath: claudeCodeMcpOffPath(store.database.path),
           logger,
+          // Fork: Composio's session joins the list (docs/fork/FEATURES.md, "Composio").
+          extra: () => forkHub.composio?.servers() ?? [],
         }),
       ),
       credentials,
@@ -759,6 +768,29 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       },
     });
     this.#waits.useConditions(this.#waitConditions);
+    // Fork: goal mode, and the memory recall, journal and nightly tidy (docs/fork/FEATURES.md).
+    forkHub.goals = new ForkGoals({
+      databasePath: store.database.path,
+      hooks: {
+        line: (agentId, text) => this.#forkLine(agentId, text),
+        notify: (title, body) => options.forkNotify?.(title, body),
+        agentName: (agentId) => this.#store.list().find((agent) => agent.id === agentId)?.name ?? agentId,
+      },
+    });
+    forkHub.memory = new ForkMemory({
+      memories: this.#memories,
+      review: this.#memoryReview,
+      databasePath: store.database.path,
+      hooks: {
+        listAgentIds: () => this.#store.list().map((agent) => agent.id),
+        agentBusy: (agentId) =>
+          Boolean(this.#conversation.workingSnapshot(agentId)?.activeTurnId) ||
+          this.#mailbox.unresolvedDeliveries().some(({ delivery }) => delivery.recipientAgentId === agentId),
+        redact: (text) => this.#mcp.redact(text),
+        appendMessage: (agentId, message) => this.#appendSystemMessage(agentId, message, "thread.memory-reviewed"),
+        warn: (message, error) => logger.warn(message, { error: toLogValue(error) }),
+      },
+    });
     this.#hostedSites = new HostedSiteCoordinator({
       store,
       conversation: this.#conversation,
@@ -1927,6 +1959,27 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
 
   clearMemories(agentId: string): void {
     this.#memories.clear(agentId);
+  }
+
+  /** Fork: the memory journal, newest first (docs/fork/FEATURES.md, "Memory"). */
+  forkMemoryJournal(agentId: string): AgentMemoryJournalEntry[] {
+    this.#conversation.requireKnownAgent(agentId);
+    return (forkHub.memory?.journal(agentId, 100) ?? []).reverse().map((entry) => ({
+      id: entry.id,
+      at: entry.at,
+      memoryId: entry.memoryId,
+      kind: entry.kind,
+      actor: entry.actor,
+      before: entry.before,
+      after: entry.after,
+      undone: entry.undone === true,
+    }));
+  }
+
+  forkUndoMemoryChange(input: UndoAgentMemoryChangeInput): void {
+    this.#conversation.requireKnownAgent(input.agentId);
+    if (!forkHub.memory) throw new Error("The memory journal is not ready.");
+    forkHub.memory.undo(input.agentId, input.entryId);
   }
 
   listTables(): Effect.Effect<SharedTable[], AgentLifecycleFailed> {
@@ -3320,6 +3373,35 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
   });
 
   /** Appends a system line to the agent's own chat, outside any turn. */
+  /** Fork: a status line of goal mode in the agent's own chat. Held while a turn runs (it would write over it). */
+  #forkLine(agentId: string, text: string): void {
+    const message: ConversationMessage = {
+      id: `fork-goal:${randomUUID()}`,
+      author: "system",
+      source: "system",
+      status: "completed",
+      createdAt: new Date().toISOString(),
+      itemType: PLAN_CONTINUATION_ITEM_TYPE,
+      text,
+    };
+    const append = () => {
+      try {
+        this.#appendSystemMessage(agentId, message, "thread.memory-reviewed");
+      } catch (error) {
+        logger.warn("Could not show a goal line.", { error: toLogValue(error) });
+      }
+    };
+    // The line comes at the end of a turn: the snapshot is written once the turn has ended.
+    const wait = (tries: number) => {
+      if (tries > 0 && this.#conversation.workingSnapshot(agentId)?.activeTurnId) {
+        setTimeout(() => wait(tries - 1), 1_000);
+        return;
+      }
+      append();
+    };
+    setTimeout(() => wait(30), 0);
+  }
+
   #appendSystemMessage(agentId: string, message: ConversationMessage, eventType: string): void {
     const database = this.#store.database;
     this.#conversation.withConversationTransaction(agentId, ({ threadId, snapshot }) => {
@@ -3673,6 +3755,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     yield* lifecycleStep("restore channel links", () => {
       this.#mcp.migrateCatalogBridgesToHttp();
       this.#mcp.watchClaudeCode();
+      forkHub.memory?.start();
+      forkHub.composio = new ForkComposio({ databasePath: this.#store.database.path, logger });
+      forkHub.composio.start(() => this.#mcp.refreshClaudeCode());
       this.channels.restoreDeliveryLinks();
       this.channels.removeDeletedMembers(new Set(this.#store.list().map((agent) => agent.id)));
     });
@@ -4250,6 +4335,10 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     this.#drain.dispose();
     this.#planContinuation.dispose();
     this.#waitConditions.dispose();
+    forkHub.memory?.dispose();
+    forkHub.memory = null;
+    forkHub.goals = null;
+    forkHub.composio = null;
     this.#browser.clearControls();
     yield* Effect.forEach(clients, (client) => client.stop().pipe(Effect.catch(() => Effect.void)), {
       concurrency: "unbounded",

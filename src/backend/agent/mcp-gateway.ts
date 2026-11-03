@@ -341,6 +341,11 @@ export class McpGateway {
     this.#servers.migrateCatalogBridgesToHttp();
   }
 
+  /** Fork: an extra mirrored server (Composio) is ready; agents get it at their next turn. */
+  refreshClaudeCode(): void {
+    this.#servers.refreshClaudeCode();
+  }
+
   /**
    * Fork: when the Claude Code servers in `~/.claude.json` change, every agent gets a fresh provider
    * session at its next turn, as after a save in the panel (docs/fork/FEATURES.md entry 9).

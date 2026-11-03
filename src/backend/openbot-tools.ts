@@ -44,6 +44,8 @@ import {
 } from "./agent-waits/agent-waits";
 import { WAIT_UNTIL_TOOL, waitUntilToolSchema } from "./agent-waits/fork-wait-conditions";
 import { CHANNEL_TOOL_DEFINITIONS } from "./channel-tools";
+import { GOAL_STATUS_TOOL, goalStatusToolSchema } from "./fork-goals";
+import { MEMORY_JOURNAL_TOOL, MEMORY_UNDO_TOOL, memoryJournalToolSchema, memoryUndoToolSchema } from "./fork-memory";
 import { MESSAGING_TOOL_DEFINITIONS } from "./messaging/messaging-tools";
 import { ROUTINE_FLOW_TOOL_DEFINITIONS } from "./routine-flows/routine-flow-tools";
 import {
@@ -582,6 +584,26 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
     description:
       "Wait, without polling, until something outside this turn is done, then continue in this same chat and session with everything you know: a file is written and stops changing (file), a process exits (pid), another local agent finishes its work (agentId), or a URL answers (url). Give exactly one. OpenBot checks it every 2 s; the wait shows to the user with Cancel and times out after timeoutMinutes (default and most 1440). After this call, tell the user in one line what you wait for and end your turn. list_waits lists it and close_wait cancels it.",
     shape: waitUntilToolSchema.shape,
+  },
+  // Fork: goal mode (docs/fork/FEATURES.md, "/goal").
+  {
+    name: GOAL_STATUS_TOOL,
+    description:
+      "Only while goal mode runs in your own chat (the user sent /goal). Call it once, as the last action of each turn: continue (with next, your concrete next step; OpenBot starts your next turn by itself), waiting (teammates work for you), or completed / needs-input / blocked (with detail) to end the goal turns.",
+    shape: goalStatusToolSchema.shape,
+  },
+  // Fork: the memory journal (docs/fork/FEATURES.md, "Memory").
+  {
+    name: MEMORY_JOURNAL_TOOL,
+    description:
+      "List the latest changes to your saved memories, newest first: who made each one (you, the user, the background review, the nightly tidy, an undo), and the text before and after. Use it when the user asks what you remembered or forgot, or before memory_undo.",
+    shape: memoryJournalToolSchema.shape,
+  },
+  {
+    name: MEMORY_UNDO_TOOL,
+    description:
+      "Undo one change from memory_journal when the user asks: an added memory is removed, an edited one gets its earlier text back, a forgotten one comes back.",
+    shape: memoryUndoToolSchema.shape,
   },
   {
     name: START_TASK_TOOL,

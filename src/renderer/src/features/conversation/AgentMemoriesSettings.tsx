@@ -1,4 +1,9 @@
-import type { AgentMemorySelectionChange, AgentMemorySelectionState, MemoryEntry } from "@openbot/contracts/ipc";
+import type {
+  AgentMemoryJournalEntry,
+  AgentMemorySelectionChange,
+  AgentMemorySelectionState,
+  MemoryEntry,
+} from "@openbot/contracts/ipc";
 import { ConfirmDialog, toast } from "@openbot/ui";
 import { AGENT_DELETE_UNDO_MS } from "@openbot/ui/features/agents/AgentDeleteUndoToast";
 import { AgentMemoriesView } from "@openbot/ui/features/conversation/AgentMemoriesView";
@@ -48,6 +53,24 @@ export function AgentMemoriesSettings(props: AgentMemoriesSettingsProps) {
   const [error, setError] = createSignal<string | null>(null);
   const [savingId, setSavingId] = createSignal<string | null>(null);
   const [clearConfirmation, setClearConfirmation] = createSignal(false);
+  // Fork: the memory journal (docs/fork/FEATURES.md, "Memory").
+  const [journal, setJournal] = createSignal<AgentMemoryJournalEntry[] | undefined>(undefined);
+  const [undoingId, setUndoingId] = createSignal<string | null>(null);
+
+  async function undoJournal(entry: AgentMemoryJournalEntry): Promise<void> {
+    const port = props.port.journal;
+    if (!port || undoingId()) return;
+    setUndoingId(entry.id);
+    setError(null);
+    try {
+      await port.undo(entry.id);
+      await loadMemories(false);
+    } catch (caught) {
+      setError(errorMessage(caught, t("memory.journal.undoFailed")));
+    } finally {
+      setUndoingId(null);
+    }
+  }
 
   /**
    * Deletes that wait for the undo time to end, by memory. When the settings go away, each delete runs
@@ -79,7 +102,13 @@ export function AgentMemoriesSettings(props: AgentMemoriesSettingsProps) {
     if (showLoading) setLoading(true);
     setError(null);
     try {
-      const [next, nextSelection] = await Promise.all([props.port.list(), props.port.selection?.read() ?? null]);
+      const [next, nextSelection, nextJournal] = await Promise.all([
+        props.port.list(),
+        props.port.selection?.read() ?? null,
+        // Fork: the memory journal. A failure leaves it out; the memories still show.
+        props.port.journal?.list().catch(() => undefined),
+      ]);
+      setJournal(nextJournal);
       setSelection(nextSelection);
       setMemories(next);
       props.onCountChange(visibleCount(next, hidden));
@@ -286,6 +315,9 @@ export function AgentMemoriesSettings(props: AgentMemoriesSettingsProps) {
           onSetEveryChat={(memory, everyChat) => void setInclusion(memory, everyChat ? "essential" : "searchable")}
           onLetAgentDecide={(memory) => void setInclusion(memory, "automatic")}
           onClearAll={() => setClearConfirmation(true)}
+          journal={journal()}
+          journalUndoingId={undoingId()}
+          onUndoJournal={(entry) => void undoJournal(entry)}
         />
       </Show>
       <ConfirmDialog

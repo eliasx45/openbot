@@ -19,6 +19,7 @@ import { agentProviderDescriptor } from "@openbot/contracts/agent-providers";
 import { chatTagReferences } from "@openbot/contracts/chat-tag-references";
 import { AGENT_COMMAND_ID_PREFIX, type AgentSummary, type InstalledSkill } from "@openbot/contracts/ipc";
 import { Effect } from "effect";
+import { FORK_COMMANDS } from "./fork-commands";
 import { HOME_SKILL_FOLDER } from "./home-skills";
 import { readSkillFrontmatter } from "./skill-frontmatter";
 
@@ -168,8 +169,12 @@ export const listAgentOwnSkills = Effect.fn("ForkAgentSkills.list")(function* (
   const found = yield* Effect.promise(() => Promise.all(roots.map(({ root, label }) => folderSkills(root, label))));
   const seen = new Set(exclude);
   const skills: InstalledSkill[] = [];
-  const listed = commands.map((command) => agentSkill(command.name, command.description, undefined, command.builtin));
-  for (const skill of [...found.flat(), ...listed]) {
+  // Fork commands first (`/goal`, `/setup`, `/learn`, `/memory`): OpenBot runs them, whatever the CLI lists.
+  const listed = [...FORK_COMMANDS, ...commands].map((command) =>
+    agentSkill(command.name, command.description, undefined, command.builtin),
+  );
+  const forkCount = FORK_COMMANDS.length;
+  for (const skill of [...listed.slice(0, forkCount), ...found.flat(), ...listed.slice(forkCount)]) {
     if (seen.has(skill.name)) continue;
     seen.add(skill.name);
     skills.push(skill);

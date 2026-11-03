@@ -73,6 +73,7 @@ import {
   type SteerQueuedMessageInput,
   type TestChannelRoutineInput,
   type TestRoutineInput,
+  type UndoAgentMemoryChangeInput,
   type UpdateAgentInput,
   type UpdateAgentMemoryInput,
   type UpdateChannelMemoryInput,
@@ -267,6 +268,15 @@ export function parseDeleteAgentMemory(value: unknown): DeleteAgentMemoryInput {
   return {
     agentId: requireString(value.agentId, "agentId", INPUT_LIMITS.identifier),
     memoryId: requireString(value.memoryId, "memoryId", INPUT_LIMITS.identifier),
+  };
+}
+
+/** Fork: an undo in the memory journal (docs/fork/FEATURES.md, "Memory"). */
+export function parseUndoAgentMemoryChange(value: unknown): UndoAgentMemoryChangeInput {
+  if (!isObject(value)) throw new Error("Invalid memory undo request.");
+  return {
+    agentId: requireString(value.agentId, "agentId", INPUT_LIMITS.identifier),
+    entryId: requireString(value.entryId, "entryId", INPUT_LIMITS.identifier),
   };
 }
 

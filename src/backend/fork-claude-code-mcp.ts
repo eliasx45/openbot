@@ -55,9 +55,18 @@ export class ClaudeCodeMcpMirror {
   readonly #reported = new Set<string>();
   #snapshot: Snapshot = { stamp: "", servers: [], fingerprint: "[]" };
   #listener: ((current: Stats, previous: Stats) => void) | null = null;
+  #changed: (() => void) | null = null;
+  /** Fork: servers that come from elsewhere than `~/.claude.json` (Composio), listed the same way. */
+  readonly #extra: () => McpServerConfig[];
 
-  constructor(options: { configPath: string; offPath: string | null; logger: Pick<Logger, "warn" | "info"> }) {
+  constructor(options: {
+    configPath: string;
+    offPath: string | null;
+    logger: Pick<Logger, "warn" | "info">;
+    extra?: () => McpServerConfig[];
+  }) {
     this.#configPath = options.configPath;
+    this.#extra = options.extra ?? (() => []);
     this.#offPath = options.offPath;
     this.#logger = options.logger;
     this.#off = new Set(readOffNames(options.offPath));
@@ -69,7 +78,9 @@ export class ClaudeCodeMcpMirror {
    */
   list(handMadeNames: ReadonlySet<string>, room: number): McpServerConfig[] {
     const servers: McpServerConfig[] = [];
-    for (const server of this.#read().servers) {
+    const mirrored = this.#read().servers;
+    const extra = this.#extra().filter((server) => !mirrored.some((item) => item.name === server.name));
+    for (const server of [...mirrored, ...extra]) {
       if (handMadeNames.has(server.name)) {
         this.#report(server.name, "A panel server you made has this name; the Claude Code one is left out.");
         continue;
@@ -98,12 +109,18 @@ export class ClaudeCodeMcpMirror {
    */
   watch(changed: () => void): void {
     if (this.#listener) return;
+    this.#changed = changed;
     this.#read();
     this.#listener = () => {
       const before = this.#snapshot.fingerprint;
       if (this.#read().fingerprint !== before) changed();
     };
     watchFile(this.#configPath, { interval: 3000, persistent: false }, this.#listener);
+  }
+
+  /** Fork: an extra server changed (Composio's session is ready): agents get it at their next turn. */
+  refresh(): void {
+    this.#changed?.();
   }
 
   close(): void {
@@ -179,7 +196,7 @@ function readOffNames(path: string | null): string[] {
 }
 
 /** One `mcpServers` entry as a panel row, or the reason it cannot be one. A reason never quotes a value. */
-function toConfig(name: string, entry: unknown): McpServerConfig | string {
+export function toConfig(name: string, entry: unknown): McpServerConfig | string {
   if (!isDynamicRecord(entry)) return "The entry is not an object.";
   const type = isString(entry.type)
     ? entry.type

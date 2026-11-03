@@ -200,3 +200,38 @@ export function isAgentMemorySelectionState(value: unknown): value is AgentMemor
     value.usedBytes <= value.budgetBytes
   );
 }
+
+/**
+ * Fork (docs/fork/FEATURES.md, "Memory"): one change in an agent's memory journal. `before` and
+ * `after` are the memory's text, redacted; null when the memory did not exist on that side.
+ */
+export interface AgentMemoryJournalEntry {
+  id: string;
+  at: string;
+  memoryId: string;
+  kind: "created" | "edited" | "deleted";
+  actor: "agent" | "user" | "review" | "tidy" | "undo";
+  before: string | null;
+  after: string | null;
+  undone: boolean;
+}
+
+export interface UndoAgentMemoryChangeInput {
+  agentId: string;
+  entryId: string;
+}
+
+export function isAgentMemoryJournalEntry(value: unknown): value is AgentMemoryJournalEntry {
+  return (
+    isDynamicRecord(value) &&
+    isString(value.id) &&
+    value.id.length <= INPUT_LIMITS.identifier &&
+    isString(value.at) &&
+    isString(value.memoryId) &&
+    isOneOf(["created", "edited", "deleted"] as const, value.kind) &&
+    isOneOf(["agent", "user", "review", "tidy", "undo"] as const, value.actor) &&
+    (value.before === null || isString(value.before)) &&
+    (value.after === null || isString(value.after)) &&
+    typeof value.undone === "boolean"
+  );
+}

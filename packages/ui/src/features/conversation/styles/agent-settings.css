@@ -1559,3 +1559,64 @@
   font-size: var(--openbot-text-sm);
   line-height: 15px;
 }
+
+/* Fork: the memory journal (docs/fork/FEATURES.md, "Memory"). */
+.memory-journal {
+  display: grid;
+  gap: var(--openbot-space-2);
+  margin-top: var(--openbot-space-4);
+  padding-top: var(--openbot-space-3);
+  border-top: 1px solid var(--openbot-border-subtle);
+}
+
+.memory-journal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--openbot-space-2);
+}
+
+.memory-journal-title {
+  margin: 0;
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-md);
+  line-height: var(--openbot-leading-md);
+}
+
+.memory-journal-list {
+  display: grid;
+  gap: var(--openbot-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memory-journal-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--openbot-space-2);
+}
+
+.memory-journal-text {
+  display: grid;
+  min-width: 0;
+  gap: var(--openbot-space-1);
+}
+
+.memory-journal-before,
+.memory-journal-after {
+  margin: 0;
+  font-size: var(--openbot-text-sm);
+  line-height: var(--openbot-leading-sm);
+  overflow-wrap: anywhere;
+}
+
+.memory-journal-before {
+  color: var(--openbot-text-muted);
+  text-decoration: line-through;
+}
+
+.memory-journal-after {
+  color: var(--openbot-text-primary);
+}

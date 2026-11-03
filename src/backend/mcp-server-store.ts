@@ -88,6 +88,10 @@ export class McpServerStore {
     this.claudeCode?.watch(changed);
   }
 
+  refreshClaudeCode(): void {
+    this.claudeCode?.refresh();
+  }
+
   closeClaudeCode(): void {
     this.claudeCode?.close();
   }

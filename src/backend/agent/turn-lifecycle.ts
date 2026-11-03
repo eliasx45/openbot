@@ -29,6 +29,7 @@ import type { BrowserOperationError } from "../browser-effects";
 import type { BrowserDynamicToolHooks } from "../browser-tool-actions";
 import { newAssistantMessage, normalizeCompletionStatus } from "../conversation-snapshots";
 import { causeHelpers, reportOriginalFailure } from "../effect-boundary";
+import { forkHub } from "../fork-hub";
 import type { DeliveryContext, MailboxStore, UsageLimitContinuation } from "../mailbox-store";
 import {
   type AppServerNotification,
@@ -1204,7 +1205,27 @@ export class TurnLifecycle {
       if (routineSession && routineDelivery && outcome === "completed" && !quiet && !markerAnswer && latestAssistant)
         yield* this.#hooks.routineAnswered(agentId, routineDelivery, latestAssistant.text);
       const laneTaskId = taskTurn ? this.#taskForThread(agentId, threadId) : null;
+      // Fork (docs/fork/FEATURES.md, "/goal"): a running goal continues the turn in the same session.
+      const goalTurn =
+        !channelTurn && !routineSession && !taskTurn && deliveries.length > 0
+          ? (forkHub.goals?.turnEnded(agentId, {
+              outcome,
+              stopped: this.#hooks.turnStopped(agentId, null, turnId),
+              mayContinue:
+                outcome === "completed" &&
+                reportedFailure === undefined &&
+                running !== undefined &&
+                deliveries.every(({ channelId }) => channelId === undefined) &&
+                !this.#hooks.hasOpenWait(
+                  agentId,
+                  deliveries.map(({ delivery }) => delivery.id),
+                ) &&
+                !this.#attention.hasAttentionFor(agentId) &&
+                this.#mailbox.laneQueuedIds(agentId, null).length === 0,
+            }) ?? null)
+          : null;
       const planContinues =
+        goalTurn === null &&
         outcome === "completed" &&
         reportedFailure === undefined &&
         running !== undefined &&
@@ -1212,19 +1233,25 @@ export class TurnLifecycle {
         !routineSession &&
         (!taskTurn || laneTaskId !== null) &&
         this.#planContinues(agentId, laneTaskId, turnId, deliveries, latestAssistant?.text);
-      const continuation = planContinues
-        ? this.#planContinuation.consider({
+      const continuation = goalTurn
+        ? this.#planContinuation.continueGoal(
             agentId,
-            taskId: laneTaskId,
-            deliveryIds: deliveries.map(({ delivery }) => delivery.id),
-            plan: snapshot.messages.find((message) => message.id === `${turnId}:plan`)?.plan ?? null,
-            earlierPlan:
-              snapshot.messages.findLast(
-                (message) => message.itemType === CONVERSATION_PLAN_ITEM_TYPE && message.turnId !== turnId,
-              )?.plan ?? null,
-            answer: latestAssistant?.text,
-          })
-        : null;
+            deliveries.map(({ delivery }) => delivery.id),
+            goalTurn,
+          )
+        : planContinues
+          ? this.#planContinuation.consider({
+              agentId,
+              taskId: laneTaskId,
+              deliveryIds: deliveries.map(({ delivery }) => delivery.id),
+              plan: snapshot.messages.find((message) => message.id === `${turnId}:plan`)?.plan ?? null,
+              earlierPlan:
+                snapshot.messages.findLast(
+                  (message) => message.itemType === CONVERSATION_PLAN_ITEM_TYPE && message.turnId !== turnId,
+                )?.plan ?? null,
+              answer: latestAssistant?.text,
+            })
+          : null;
       if (!continuation) this.#planContinuation.cancel(agentId, laneTaskId);
       if (deliveries.length > 0) {
         const terminal = outcome === "failed" ? "failed" : outcome === "interrupted" ? "interrupted" : "completed";
@@ -1297,13 +1324,16 @@ export class TurnLifecycle {
           status: "completed",
           createdAt: new Date().toISOString(),
           itemType: PLAN_CONTINUATION_ITEM_TYPE,
-          text: sourceText(
-            continuation.kind === "plan" ? "status.agent.planContinues" : "status.agent.nextStepContinues",
-            {
-              current: continuation.current,
-              limit: continuation.limit,
-            },
-          ),
+          text:
+            continuation.kind === "goal" && goalTurn
+              ? goalTurn.line
+              : sourceText(
+                  continuation.kind === "plan" ? "status.agent.planContinues" : "status.agent.nextStepContinues",
+                  {
+                    current: continuation.current,
+                    limit: continuation.limit,
+                  },
+                ),
         });
       }
       this.#conversation.emitConversation(snapshot, "turn.completed", { turnId, status: outcome });

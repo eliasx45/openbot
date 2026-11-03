@@ -334,6 +334,25 @@ export class MemoryReview {
     Effect.mapError((failure) => new MemoryReviewFailed({ cause: failure })),
   ).bind(this);
 
+  /**
+   * Fork (docs/fork/FEATURES.md, "Memory"): one generation without tools for the agent, as a review
+   * runs it, for the nightly tidy (`ForkMemory`). Null when no model or no spare client is free.
+   */
+  readonly forkGenerate = Effect.fn("MemoryReview.forkGenerate")(
+    function* (this: MemoryReview, agentId: string, prompt: string) {
+      const options = this.#options;
+      const agent = options.listAgents().find((candidate) => candidate.id === agentId);
+      if (!agent || this.#running || options.stopping()) return null;
+      const model = backgroundModel(agent, yield* options.models(agent));
+      if (!model || !options.profileClients.hasSpare()) return null;
+      const client = yield* Effect.try(() => options.createProfileClient(agent));
+      return yield* options.profileClients.run(client, (cancelled) =>
+        generateTextWithoutTools(client, model, prompt, cancelled, options.usageObserver(agent, model)),
+      );
+    },
+    Effect.mapError((failure) => new MemoryReviewFailed({ cause: failure })),
+  ).bind(this);
+
   #moveCursor(conversation: ReviewedConversation, messages: readonly ConversationMessage[]): void {
     const last = messages.at(-1);
     if (last) conversation.cursor = last.id;

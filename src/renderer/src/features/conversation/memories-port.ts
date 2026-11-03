@@ -5,6 +5,7 @@
 
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type {
+  AgentMemoryJournalEntry,
   AgentMemorySelectionState,
   MemoryEntry,
   OpenBotDesktopApi,
@@ -30,6 +31,11 @@ export interface MemoriesPort {
   clear: () => Promise<void>;
   /** Returns the unsubscribe function. The owner-id filter belongs to the port, not the page. */
   subscribe: (reload: () => void) => () => void;
+  /** Fork: the memory journal and its undo (docs/fork/FEATURES.md, "Memory"). Agents only. */
+  journal?: {
+    list: () => Promise<AgentMemoryJournalEntry[]>;
+    undo: (entryId: string) => Promise<void>;
+  };
 }
 
 /** The host calls an agent's memories make. The desktop sends them through preload. */
@@ -42,6 +48,8 @@ export type AgentMemoriesApi = Pick<
   | "updateMemory"
   | "deleteMemory"
   | "clearMemories"
+  | "listMemoryJournal"
+  | "undoMemoryChange"
   | "onEvent"
 >;
 
@@ -73,6 +81,10 @@ export function agentMemoriesPort(
       api.onEvent((event) => {
         if (event.type === "memories-changed" && event.agentId === agentId) reload();
       }),
+    journal: {
+      list: () => api.listMemoryJournal(agentId),
+      undo: (entryId) => api.undoMemoryChange({ agentId, entryId }),
+    },
   };
 }
 

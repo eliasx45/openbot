@@ -39,6 +39,7 @@ import type { AgentWaits } from "../agent-waits/agent-waits";
 import { OPENBOT_BROWSER_NAMESPACE } from "../browser-tools";
 import type { ChannelService } from "../channel-service";
 import type { ProviderSession } from "../database/provider-sessions";
+import { forkHub } from "../fork-hub";
 import type { MailboxStore } from "../mailbox-store";
 import { agentMcpServers } from "../mcp-provider-shapes";
 import type { MessagingThreads } from "../messaging/messaging-threads";
@@ -1071,6 +1072,11 @@ export class OpenBotToolRouter {
     };
     const waitResult = this.#waits.handleTool(params, caller);
     if (waitResult) return waitResult;
+
+    // Fork: goal mode and the memory journal (docs/fork/FEATURES.md).
+    const forkResult =
+      forkHub.goals?.handleTool(params, caller) ?? forkHub.memory?.handleTool(params, senderAgentId) ?? null;
+    if (forkResult) return forkResult;
 
     const taskResult = yield* this.#tasks.handleTool(params, caller);
     if (taskResult) return taskResult;

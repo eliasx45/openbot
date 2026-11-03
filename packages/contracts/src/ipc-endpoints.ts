@@ -80,6 +80,7 @@ import type {
 import type { AgentInstructionsFile, SaveAgentInstructionsInput } from "./ipc-agent-instructions";
 import type {
   AgentMemory,
+  AgentMemoryJournalEntry,
   AgentMemoryLimitPreference,
   AgentMemorySelectionState,
   CreateAgentMemoryInput,
@@ -87,6 +88,7 @@ import type {
   HostAgentMemoryLimit,
   HostMemoryReview,
   SetAgentMemoryInclusionInput,
+  UndoAgentMemoryChangeInput,
   UpdateAgentMemoryInput,
 } from "./ipc-agent-memories";
 import type { AgentNotificationLevelsSnapshot, SetAgentNotificationLevelInput } from "./ipc-agent-notification-levels";
@@ -1561,6 +1563,9 @@ export const IPC_ENDPOINTS = {
     updateMemory: scopedRequest<UpdateAgentMemoryInput, AgentMemory>()("agent:update-memory"),
     deleteMemory: scopedRequest<DeleteAgentMemoryInput, void>()("agent:delete-memory"),
     clearMemories: scopedRequest<string, void>()("agent:clear-memories"),
+    // Fork: the memory journal and its undo (docs/fork/FEATURES.md, "Memory"). This computer only.
+    listMemoryJournal: scopedRequest<string, AgentMemoryJournalEntry[]>()("agent:fork-memory-journal"),
+    undoMemoryChange: scopedRequest<UndoAgentMemoryChangeInput, void>()("agent:fork-memory-undo"),
   },
   sharedTables: {
     // Shared tables are not scoped to an agent: there is no `agentId` on either call. The list is

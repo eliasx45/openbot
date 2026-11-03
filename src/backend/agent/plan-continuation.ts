@@ -7,7 +7,7 @@ export interface PlanContinuationOptions {
 }
 
 /** Why a turn continues: open steps in its plan, or a next step that it named but did not do. */
-type ContinuationKind = "plan" | "nextStep";
+type ContinuationKind = "plan" | "nextStep" | "goal";
 
 /** The most next-step continuations of one request. Each one has no plan to measure progress. */
 const NEXT_STEP_LIMIT = 2;
@@ -82,6 +82,8 @@ interface Chain {
   openSteps: string;
   /** The open steps of the chat's plan before the request, by text and status. */
   earlierSteps: ReadonlySet<string>;
+  /** Fork: the note of a goal turn (`ForkGoals`), which replaces the plan note. */
+  goalNote?: string;
 }
 
 function laneKey(agentId: string, taskId: string | null): string {
@@ -175,6 +177,29 @@ export class PlanContinuation {
   }
 
   /**
+   * Fork (docs/fork/FEATURES.md, "/goal"): the turn continues for a running goal, as a plan does,
+   * with the goal prompt as its note. The goal counts its own turns, so the plan limit does not apply.
+   */
+  continueGoal(
+    agentId: string,
+    deliveryIds: readonly string[],
+    goal: { note: string; current: number; limit: number },
+  ): { kind: ContinuationKind } & ContinuationCount {
+    this.#chains.set(laneKey(agentId, null), {
+      deliveryIds: new Set(deliveryIds),
+      count: 0,
+      kind: "goal",
+      shown: { current: goal.current, limit: goal.limit },
+      nextSteps: 0,
+      plan: null,
+      openSteps: "[]",
+      earlierSteps: new Set(),
+      goalNote: goal.note,
+    });
+    return { kind: "goal", current: goal.current, limit: goal.limit };
+  }
+
+  /**
    * The note that starts the continuation of this delivery, or null when no chain waits for it:
    * after a restart, a Stop, a new chat, or when other messages wait in the lane (`othersQueued`).
    * A start that goes back to the queue, as during a compaction, claims the same note again.
@@ -186,6 +211,7 @@ export class PlanContinuation {
       this.#chains.delete(key);
       return null;
     }
+    if (chain.kind === "goal") return chain.goalNote ?? null;
     return chain.kind === "plan" && chain.plan
       ? planContinuationPrompt(openSteps(chain.plan, chain.earlierSteps), chain.shown.current, chain.shown.limit)
       : nextStepContinuationPrompt(chain.shown.current, chain.shown.limit);

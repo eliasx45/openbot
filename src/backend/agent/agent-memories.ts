@@ -20,6 +20,7 @@ import {
   AgentMemoryStore,
 } from "../agent-memory-store";
 import type { AgentStore } from "../agent-store";
+import { forkHub } from "../fork-hub";
 import { normalizeMemoryText } from "../memory-store";
 import { type DynamicToolCallParams, isRecord } from "../protocol";
 import type { ConversationRuntime } from "./conversation-runtime";
@@ -110,6 +111,11 @@ export class AgentMemories {
     return this.#memories.list(agentId);
   }
 
+  /** Fork: the memories that match a text, for the recall of each message (`ForkMemory`). */
+  searchFor(agentId: string, query: string, limit: number) {
+    return this.#memories.search(agentId, query, limit);
+  }
+
   /** Unchecked read for callers that already hold the agent, such as the developer instructions. */
   listFor(agentId: string): AgentMemory[] {
     return this.#memories.list(agentId);
@@ -145,6 +151,7 @@ export class AgentMemories {
 
   create(input: CreateAgentMemoryInput): AgentMemory {
     this.#conversation.requireKnownAgent(input.agentId);
+    forkHub.memory?.nextActor(input.agentId, "user");
     const memory = this.#memories.createManual(input.agentId, input.text);
     this.stateChanged(input.agentId);
     return memory;
@@ -152,6 +159,7 @@ export class AgentMemories {
 
   update(input: UpdateAgentMemoryInput): AgentMemory {
     this.#conversation.requireKnownAgent(input.agentId);
+    forkHub.memory?.nextActor(input.agentId, "user");
     const memory = this.#memories.updateManual(input.agentId, input.memoryId, input.text);
     this.stateChanged(input.agentId);
     return memory;
@@ -159,6 +167,7 @@ export class AgentMemories {
 
   delete(input: DeleteAgentMemoryInput): void {
     this.#conversation.requireKnownAgent(input.agentId);
+    forkHub.memory?.nextActor(input.agentId, "user");
     if (!this.#memories.delete(input.agentId, input.memoryId)) {
       throw new Error(sourceText("error.backend.memoryGone"));
     }
@@ -167,6 +176,7 @@ export class AgentMemories {
 
   clear(agentId: string): void {
     this.#conversation.requireKnownAgent(agentId);
+    forkHub.memory?.nextActor(agentId, "user");
     this.#epochs.set(agentId, this.#epoch(agentId) + 1);
     if (this.#memories.clear(agentId) > 0) this.stateChanged(agentId);
   }
@@ -206,6 +216,7 @@ export class AgentMemories {
     turnId: string,
   ): ConversationMemoryChange[] {
     if (base.epoch !== this.#epoch(agentId)) return [];
+    forkHub.memory?.nextActor(agentId, "review");
     const read = new Map(base.memories.map((entry) => [entry.memory.id, entry]));
     // Forgets first, so that the adds find the room they free.
     const ordered = [
@@ -695,6 +706,7 @@ export class AgentMemories {
    */
   stateChanged(agentId: string): void {
     const agent = this.#conversation.requireKnownAgent(agentId);
+    forkHub.memory?.sync(agentId); // Fork: the memory journal (docs/fork/FEATURES.md, "Memory").
     this.#conversation.unloadAgentThreads(agent.id);
     this.#emit({ type: "memories-changed", agentId });
   }

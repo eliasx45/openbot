@@ -93,4 +93,16 @@ export const messages = defineMessages("status.agent", {
   "status.agent.nextStepContinues": "The agent stopped before its next step. It continues ({current} of {limit}).",
   "status.agent.planContinues": "The plan has open steps. The agent continues ({current} of {limit}).",
   "status.agent.branchTitle": "Branched chat",
+  // Fork: goal mode (docs/fork/FEATURES.md, "/goal").
+  "status.agent.goalTurn": "🎯 Goal turn {current} of {limit}: {next}",
+  "status.agent.goalTurnNoStep": "🎯 Goal turn {current} of {limit}",
+  "status.agent.goalResumed": "🎯 Goal resumed (turn {current} of {limit}): {goal}",
+  "status.agent.goalReplaced": "🎯 Goal replaced: {goal}",
+  "status.agent.goalWaits": "🎯 Goal waits: {detail}",
+  "status.agent.goalNeedsYou": "🎯 Goal needs you: {detail}",
+  "status.agent.goalFailedTurn": "🎯 Goal paused: the turn failed. Send a message or /goal continue to go on.",
+  "status.agent.goalCompleted": "✅ Goal completed: {detail}",
+  "status.agent.goalStopped": "⏹ Goal stopped.",
+  "status.agent.goalLimit": "⏸ Goal paused after {limit} turns. Send /goal continue for {limit} more.",
+  "status.agent.goalBlocked": "⛔ Goal blocked: {detail}",
 });

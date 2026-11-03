@@ -1,5 +1,5 @@
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
-import type { MemoryEntry } from "@openbot/contracts/ipc";
+import type { AgentMemoryJournalEntry, MemoryEntry } from "@openbot/contracts/ipc";
 import type { AppMessages, AppTextKey } from "@openbot/i18n";
 import { Button, Input, Plus, Search, Switch, Textarea } from "@openbot/ui";
 import {
@@ -11,6 +11,7 @@ import {
 import { createMemo, createSignal, For, Show, untrack } from "solid-js";
 import { useText } from "../../text";
 import { AgentMemoriesEmpty } from "./AgentMemoriesEmpty";
+import { MemoryJournalList } from "./MemoryJournalList";
 
 type Inclusion = "essential" | "searchable";
 
@@ -50,6 +51,10 @@ export interface AgentMemoriesViewProps {
   onSetEveryChat: (memory: MemoryEntry, everyChat: boolean) => void;
   onLetAgentDecide: (memory: MemoryEntry) => void;
   onClearAll: () => void;
+  /** Fork: the memory journal with Undo (docs/fork/FEATURES.md, "Memory"). Agents only. */
+  journal?: readonly AgentMemoryJournalEntry[] | undefined;
+  journalUndoingId?: string | null;
+  onUndoJournal?: (entry: AgentMemoryJournalEntry) => void;
 }
 
 /**
@@ -348,6 +353,15 @@ export function AgentMemoriesView(props: AgentMemoriesViewProps) {
                   </div>
                 </Show>
               </>
+            )}
+          </Show>
+          <Show when={!current() && props.journal}>
+            {(entries) => (
+              <MemoryJournalList
+                entries={entries()}
+                undoingId={props.journalUndoingId ?? null}
+                onUndo={(entry) => props.onUndoJournal?.(entry)}
+              />
             )}
           </Show>
         </div>
