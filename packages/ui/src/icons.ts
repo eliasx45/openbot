@@ -149,6 +149,7 @@ export { default as Smartphone } from "lucide-solid/icons/smartphone";
 export { default as Sparkles } from "lucide-solid/icons/sparkles";
 export { default as Split } from "lucide-solid/icons/split";
 export { default as Square } from "lucide-solid/icons/square";
+export { default as SquareSlash } from "lucide-solid/icons/square-slash";
 export { default as Star } from "lucide-solid/icons/star";
 export { default as StickyNote } from "lucide-solid/icons/sticky-note";
 export { default as Store } from "lucide-solid/icons/store";

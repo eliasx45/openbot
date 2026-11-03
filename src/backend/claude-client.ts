@@ -14,6 +14,7 @@ import {
   query,
   type SDKUserMessage,
   type SessionMessage,
+  type SlashCommand,
   type SpawnedProcess,
   type SpawnOptions,
   tool,
@@ -93,6 +94,8 @@ import {
   isClaudeTaskNotification,
 } from "./conversation-snapshots";
 import { runCauseEffect } from "./effect-boundary";
+// Fork: the session's commands for the `$` list.
+import { type ClaudeCommandRow, claudeCommandsForList, isClaudeCommandRow } from "./fork-agent-skills";
 import { IdleThreadPool } from "./idle-thread-pool";
 import {
   agentMcpServers,
@@ -262,6 +265,9 @@ interface ThreadRuntime {
   nextTurnId: string | null;
   /** The message the stream sends now, and the thinking block key of each of its content indexes. */
   streamMessage: { id: string | null; thinkingBlocks: Map<number, string> };
+  /** Fork: the last command list of the SDK and the terminal-only names of `system/init`, for the `$` list. */
+  forkCommands?: readonly ClaudeCommandRow[];
+  forkTerminalCommands?: readonly string[];
 }
 
 /**
@@ -312,11 +318,17 @@ interface ClaudeStreamMessage {
   error_status?: unknown;
   /** `api_retry`: set when the server sent no headers in time, with a retry limit of its own. */
   no_response?: unknown;
+  /** Fork: `commands_changed`: the full new command list. */
+  commands?: unknown;
+  /** Fork: `init`: the commands that only work in a terminal. */
+  terminal_slash_commands?: unknown;
 }
 
 interface ClaudeQuery extends AsyncIterable<ClaudeStreamMessage> {
   interrupt(): Promise<unknown>;
   supportedModels(): Promise<ModelInfo[]>;
+  /** Fork: the skills and built-in commands of the session, for the `$` list. */
+  supportedCommands?(): Promise<SlashCommand[]>;
   getContextUsage?(options: { detail: "summary" }): Promise<unknown>;
   setModel(model?: string): Promise<void>;
   applyFlagSettings(settings: { effortLevel?: ClaudeEffort | null }): Promise<void>;
@@ -1020,7 +1032,31 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
     };
     runtime.consume = yield* Effect.forkIn(this.#consume(runtime), this.#scope, { startImmediately: true });
     this.#threads.add(runtime);
+    // Fork: what this Claude really has (skills, plugin skills, built-in commands), read again at each
+    // session start, for the `$` list (docs/fork/FEATURES.md 6).
+    if (!config.profileGeneration && claudeQuery.supportedCommands)
+      yield* Effect.forkIn(
+        providerCall(() => claudeQuery.supportedCommands?.() ?? Promise.resolve([])).pipe(
+          Effect.tap((commands) => Effect.sync(() => this.#forkEmitCommands(runtime, commands))),
+          Effect.ignore,
+        ),
+        this.#scope,
+        { startImmediately: true },
+      );
   });
+
+  /** Fork: sends the session's commands to `AgentService` (`openbot/agentCommands/updated`), as ACP does. */
+  #forkEmitCommands(runtime: ThreadRuntime, commands?: readonly ClaudeCommandRow[]): void {
+    if (commands) runtime.forkCommands = commands;
+    if (!runtime.forkCommands || this.#threads.get(runtime.id) !== runtime) return;
+    this.emit("notification", {
+      method: "openbot/agentCommands/updated",
+      params: {
+        threadId: runtime.id,
+        commands: claudeCommandsForList(runtime.forkCommands, runtime.forkTerminalCommands ?? []),
+      },
+    });
+  }
 
   readonly #startTurnEffect = Effect.fn("ClaudeAgentClient.startTurn")(function* (
     this: ClaudeAgentClient,
@@ -1239,6 +1275,14 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
       if (runtime.resumedUsage && id && model && isRecord(message.message))
         runtime.requestUsage.set(id, { model, usage: message.message.usage });
     }
+    // Fork: the terminal-only commands come with `init`, a mid-session change with `commands_changed`.
+    if (message.type === "system" && message.subtype === "init" && !message.parent_tool_use_id) {
+      if (Array.isArray(message.terminal_slash_commands))
+        runtime.forkTerminalCommands = message.terminal_slash_commands.filter(isString);
+      this.#forkEmitCommands(runtime);
+    }
+    if (message.type === "system" && message.subtype === "commands_changed" && Array.isArray(message.commands))
+      this.#forkEmitCommands(runtime, message.commands.filter(isClaudeCommandRow));
     if (message.type === "system" && message.subtype === "status") {
       const status =
         message.status === "compacting"

@@ -1,5 +1,5 @@
-import type { DraftAttachment } from "@openbot/contracts/ipc";
-import { Bot, File, Folder, Plug, type Puzzle, ShieldCheck, Store, UsersRound } from "@openbot/ui";
+import { AGENT_COMMAND_ID_PREFIX, type DraftAttachment } from "@openbot/contracts/ipc";
+import { Bot, File, Folder, Plug, type Puzzle, ShieldCheck, SquareSlash, Store, UsersRound } from "@openbot/ui";
 import type { ComposerAgent, ComposerMcpServer, ComposerSkill } from "../../data";
 import type { TextValue } from "../../text";
 
@@ -84,6 +84,9 @@ export function pickerOptionBadge(option: PickerOption, t: TextValue["t"]): { la
   if (option.type === "everyone") return { label: t("composer.picker.badge.channel"), icon: UsersRound };
   if (option.type === "attachment") return { label: t("composer.picker.badge.file"), icon: File };
   if (option.type === "mcp") return { label: MCP_BADGE, icon: Plug };
+  // Fork: a built-in command of the agent's CLI (Claude Code's `/compact`), not a skill.
+  if (option.skill.skillId.startsWith(AGENT_COMMAND_ID_PREFIX))
+    return { label: t("composer.picker.badge.command"), icon: SquareSlash };
   switch (option.skill.origin ?? "marketplace") {
     case "local":
       return { label: t("composer.picker.badge.custom"), icon: Folder };

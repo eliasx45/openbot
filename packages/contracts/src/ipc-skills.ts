@@ -123,6 +123,12 @@ export const HOME_SKILL_ID_PREFIX = "home:";
 export function isHomeSkillId(skillId: string): boolean {
   return skillId.startsWith(HOME_SKILL_ID_PREFIX);
 }
+
+/**
+ * Fork (docs/fork/FEATURES.md 6): the id of a built-in command of the agent's CLI (Claude Code's
+ * `/compact`) in the `$` list is `agent-cmd:<name>`. The provider reads its tag as `/<name>`.
+ */
+export const AGENT_COMMAND_ID_PREFIX = "agent-cmd:";
 export type InstalledSkillOrigin = (typeof INSTALLED_SKILL_ORIGINS)[number];
 
 /**

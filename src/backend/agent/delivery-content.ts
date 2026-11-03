@@ -13,7 +13,7 @@ import type {
 import { redactText } from "@openbot/logging";
 import { wokenWaitsPromptText } from "../agent-waits/agent-waits";
 import { FORK_WAIT_ROUTINE_ID } from "../agent-waits/fork-wait-conditions";
-import { agentSkillTagName } from "../fork-agent-skills";
+import { agentSkillTagName, expandAgentCommandTags } from "../fork-agent-skills";
 import { homeSkillRoot, homeSkillTagSlug } from "../home-skills";
 import type { DeliveryContext } from "../mailbox-store";
 import { quietRoutineRun, ROUTINE_NO_UPDATE_TOOL, ROUTINE_REPORT_FAILURE_TOOL } from "./routine-quiet-runs";
@@ -359,7 +359,8 @@ export function displayMessageReferences(
   const names = new Map(attachments.map((attachment) => [attachment.id, attachment.name]));
   return expandAttachmentReferences(
     expandChatTagReferences(
-      text,
+      // Fork: a Claude Code built-in command tag is a bare `/<name>` for the provider.
+      options.fileHeadings ? expandAgentCommandTags(text) : text,
       (reference) =>
         reference.kind === "agent"
           ? agentNames.get(reference.id)

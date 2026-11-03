@@ -2,30 +2,96 @@
  * Fork (docs/fork/FEATURES.md, "`$` list shows the agent's own skills"): the skills and commands
  * that the agent's own CLI has, for the `$` list. Upstream lists only the skills OpenBot manages or
  * finds in the agent's workspace and `~/.agents/skills`; a CLI also loads the skills in its home
- * folder (Claude Code: `~/.claude/skills`) and in the project folders it works in, and an ACP agent
- * names its commands in `available_commands_update`.
+ * folder (Claude Code: `~/.claude/skills`) and in the project folders it works in, an ACP agent
+ * names its commands in `available_commands_update`, and Claude (Agent SDK, not ACP) names its
+ * skills, plugin skills and built-in commands in `supportedCommands()` (`ClaudeAgentClient`).
  *
  * A tag of one of these is `agent:<name>` and reaches the agent as `/<name> (skill)`: Claude Code
  * runs a skill that the user names as `/<name>` with its Skill tool, and an ACP agent knows its
- * commands by the same name.
+ * commands by the same name. A Claude Code built-in command is `agent-cmd:<name>` and reaches it as
+ * a bare `/<name>`, which runs only at the start of the message (`expandAgentCommandTags`).
  */
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { agentProviderDescriptor } from "@openbot/contracts/agent-providers";
-import type { AgentSummary, InstalledSkill } from "@openbot/contracts/ipc";
+import { chatTagReferences } from "@openbot/contracts/chat-tag-references";
+import { AGENT_COMMAND_ID_PREFIX, type AgentSummary, type InstalledSkill } from "@openbot/contracts/ipc";
 import { Effect } from "effect";
 import { HOME_SKILL_FOLDER } from "./home-skills";
 import { readSkillFrontmatter } from "./skill-frontmatter";
 
-/** A command that an ACP agent listed in its last `available_commands_update`. */
+/**
+ * A command that the agent's CLI listed: an ACP agent in its last `available_commands_update`, Claude
+ * in the Agent SDK's `supportedCommands()`. `builtin`: a command of Claude Code itself (`/compact`),
+ * which runs only as the start of a message, not a skill.
+ */
 export interface AgentOwnCommand {
   name: string;
   description: string;
+  builtin?: boolean;
 }
 
 export const AGENT_SKILL_ID_PREFIX = "agent:";
+
+/**
+ * Claude Code commands that make no sense in OpenBot, as claude-agent-acp leaves them out
+ * (`getAvailableSlashCommands`): OpenBot owns the session, the login and the MCP servers.
+ */
+const CLAUDE_HIDDEN_COMMANDS = new Set([
+  "clear",
+  "cost",
+  "keybindings-help",
+  "login",
+  "logout",
+  "mcp",
+  "output-style:new",
+  "release-notes",
+  "todos",
+]);
+
+/** The fields of the Agent SDK's `SlashCommand` that the `$` list reads. */
+export interface ClaudeCommandRow {
+  name: string;
+  description: string;
+  builtin?: boolean | undefined;
+}
+
+/** A row of a `commands_changed` message, which the stream gives untyped. */
+export function isClaudeCommandRow(value: unknown): value is ClaudeCommandRow {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "description" in value &&
+    typeof value.description === "string"
+  );
+}
+
+/**
+ * The Agent SDK's command list as the `$` list wants it. Left out: the commands above, the commands
+ * that only work in a terminal (`terminal_slash_commands` of `system/init`), and the skills of
+ * OpenBot's own plugins (`agents:`, `openbot:`), which upstream already lists by their folders.
+ */
+export function claudeCommandsForList(
+  commands: readonly ClaudeCommandRow[],
+  terminal: readonly string[],
+): AgentOwnCommand[] {
+  return commands
+    .filter(
+      (command) =>
+        !CLAUDE_HIDDEN_COMMANDS.has(command.name) &&
+        !terminal.includes(command.name) &&
+        !/^(?:agents|openbot):/u.test(command.name),
+    )
+    .map((command) => ({
+      name: command.name,
+      description: command.description,
+      ...(command.builtin ? { builtin: true } : {}),
+    }));
+}
 const MAX_SKILLS_PER_FOLDER = 300;
 const MAX_SKILL_FILE_BYTES = 256 * 1024;
 const MAX_DESCRIPTION = 1024;
@@ -59,9 +125,9 @@ async function folderSkills(root: string, label: string): Promise<InstalledSkill
   return skills;
 }
 
-function agentSkill(name: string, description: string, location?: string): InstalledSkill {
+function agentSkill(name: string, description: string, location?: string, builtin = false): InstalledSkill {
   return {
-    skillId: `${AGENT_SKILL_ID_PREFIX}${name}`,
+    skillId: `${builtin ? AGENT_COMMAND_ID_PREFIX : AGENT_SKILL_ID_PREFIX}${name}`,
     slug: name,
     name,
     installedVersion: 1,
@@ -102,7 +168,8 @@ export const listAgentOwnSkills = Effect.fn("ForkAgentSkills.list")(function* (
   const found = yield* Effect.promise(() => Promise.all(roots.map(({ root, label }) => folderSkills(root, label))));
   const seen = new Set(exclude);
   const skills: InstalledSkill[] = [];
-  for (const skill of [...found.flat(), ...commands.map((command) => agentSkill(command.name, command.description))]) {
+  const listed = commands.map((command) => agentSkill(command.name, command.description, undefined, command.builtin));
+  for (const skill of [...found.flat(), ...listed]) {
     if (seen.has(skill.name)) continue;
     seen.add(skill.name);
     skills.push(skill);
@@ -117,14 +184,36 @@ export function agentSkillTagName(id: string): string | undefined {
   return name && !/\s/u.test(name) ? `/${name}` : undefined;
 }
 
+/**
+ * The text with each built-in command tag (`agent-cmd:<name>`) as a bare `/<name>`. The usual tag
+ * text adds " (skill)", which Claude Code would read as the command's arguments. A command at the
+ * start of the message loses the blank before it, because Claude Code runs a command only when the
+ * message starts with `/`; one later in the text stays words for the model.
+ */
+export function expandAgentCommandTags(text: string): string {
+  const tags = chatTagReferences(text).filter(
+    (reference) => reference.kind === "skill" && reference.id.startsWith(AGENT_COMMAND_ID_PREFIX),
+  );
+  let result = text;
+  for (const tag of tags.reverse()) {
+    const name = tag.id.slice(AGENT_COMMAND_ID_PREFIX.length).trim();
+    if (!name || /\s/u.test(name)) continue;
+    const before = result.slice(0, tag.start);
+    result = `${/^\s*$/u.test(before) ? "" : before}/${name}${result.slice(tag.end)}`;
+  }
+  return result;
+}
+
 /** Names cleaned as Codync does: no leading `/`, no spaces, each once, at most 500. */
-export function cleanAgentCommands(raw: ReadonlyArray<{ name?: unknown; description?: unknown }>): AgentOwnCommand[] {
+export function cleanAgentCommands(
+  raw: ReadonlyArray<{ name?: unknown; description?: unknown; builtin?: unknown }>,
+): AgentOwnCommand[] {
   const commands = new Map<string, AgentOwnCommand>();
   for (const entry of raw) {
     const name = typeof entry.name === "string" ? entry.name.trim().replace(/^\/+/u, "") : "";
     if (!name || /\s/u.test(name) || commands.has(name)) continue;
     const description = typeof entry.description === "string" ? entry.description.trim().slice(0, 200) : "";
-    commands.set(name, { name, description });
+    commands.set(name, { name, description, ...(entry.builtin === true ? { builtin: true } : {}) });
     if (commands.size >= 500) break;
   }
   return [...commands.values()];
