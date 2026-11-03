@@ -29,6 +29,8 @@ export const GOAL_STATUS_TOOL = "goal_status";
 export const DEFAULT_GOAL_TURNS = 25;
 const MAX_GOAL_TURNS = 200;
 const FILE = "fork-goals.json";
+/** How long a command line waits for its turn to start before it is appended on its own. */
+const START_LINE_WAIT_MS = 60_000;
 
 export const goalStatusToolSchema = z.strictObject({
   status: z
@@ -88,6 +90,8 @@ export class ForkGoals {
   readonly #reports = new Map<string, GoalReport>();
   /** While `turnEnded` runs: the agent whose ending turn takes the chat line, and that line. */
   #ending: { agentId: string; line: string | null } | null = null;
+  /** Lines of `/goal` commands, per agent, for the turn that starts next. */
+  readonly #starting = new Map<string, string[]>();
 
   constructor(options: { databasePath: string; hooks: ForkGoalsHooks }) {
     this.#hooks = options.hooks;
@@ -350,9 +354,32 @@ export class ForkGoals {
   }
 
   /** A chat line: with the ending turn when one ends now, else on its own. */
+  /**
+   * The lines that a `/goal` command made (resumed, replaced, stopped) for the turn that the command
+   * starts now. That turn writes them with its own snapshot, so the chat shows them at once.
+   */
+  takeStartLines(agentId: string): string[] {
+    const lines = this.#starting.get(agentId) ?? [];
+    this.#starting.delete(agentId);
+    return lines;
+  }
+
   #line(agentId: string, text: string): void {
-    if (this.#ending?.agentId === agentId) this.#ending.line = text;
-    else this.#hooks.line(agentId, text);
+    if (this.#ending?.agentId === agentId) {
+      this.#ending.line = text;
+      return;
+    }
+    // A command line waits for the turn the command starts; with no turn, it is appended later.
+    this.#starting.set(agentId, [...(this.#starting.get(agentId) ?? []), text]);
+    setTimeout(() => {
+      const waiting = this.#starting.get(agentId);
+      if (!waiting?.includes(text)) return;
+      this.#starting.set(
+        agentId,
+        waiting.filter((line) => line !== text),
+      );
+      this.#hooks.line(agentId, text);
+    }, START_LINE_WAIT_MS).unref?.();
   }
 
   #save(): void {

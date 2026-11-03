@@ -598,6 +598,18 @@ export class TurnLifecycle {
             if (this.#turnAssociations.get(turnId) === association) this.#turnAssociations.delete(turnId);
           }).pipe(Effect.forkIn(this.#scope, { startImmediately: true }));
         }
+        // Fork: lines of the `/goal` command this turn answers go with the turn (docs/fork/FEATURES.md, "/goal").
+        if (taskId === null && !unprompted)
+          for (const [index, text] of (forkHub.goals?.takeStartLines(agentId) ?? []).entries())
+            snapshot.messages.push({
+              id: `${turnId}:goal-start-${index}`,
+              author: "system",
+              source: "system",
+              status: "completed",
+              createdAt: new Date().toISOString(),
+              itemType: PLAN_CONTINUATION_ITEM_TYPE,
+              text,
+            });
         this.#hooks.emit({ type: "turn-started", agentId, threadId: publicThreadId, turnId, origin });
         this.#conversation.emitConversation(snapshot, "turn.started", { turnId });
         const workspace = this.#store.list().find((entry) => entry.id === agentId)?.workspacePath;
