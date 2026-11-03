@@ -12,6 +12,7 @@ import type {
 } from "@openbot/contracts/ipc";
 import { redactText } from "@openbot/logging";
 import { wokenWaitsPromptText } from "../agent-waits/agent-waits";
+import { FORK_WAIT_ROUTINE_ID } from "../agent-waits/fork-wait-conditions";
 import { agentSkillTagName } from "../fork-agent-skills";
 import { homeSkillRoot, homeSkillTagSlug } from "../home-skills";
 import type { DeliveryContext } from "../mailbox-store";
@@ -234,7 +235,10 @@ export function deliveryPromptInput(context: DeliveryContext, sources: DeliveryP
       .filter(Boolean)
       .join("\n");
   }
-  if (delivery.sender.kind === "routine") {
+  // Fork: a watched wait ended. Its text is already the whole prompt (`ForkWaitConditions`).
+  if (delivery.sender.kind === "routine" && delivery.sender.routineId === FORK_WAIT_ROUTINE_ID) {
+    text = displayText;
+  } else if (delivery.sender.kind === "routine") {
     const run = sources.routineRun;
     const testRun = run !== null && !quietRoutineRun(run);
     const runKind = testRun ? "manual Test run" : run?.source ? `${run.source} run` : "scheduled run";

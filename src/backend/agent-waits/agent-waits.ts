@@ -6,6 +6,7 @@ import { type OpenBotToolResponse, openBotToolFailure, openBotToolResult } from 
 import type { MailboxStore } from "../mailbox-store";
 import type { DynamicToolCallParams } from "../protocol";
 import { AgentWaitError, AgentWaitLimitError, type AgentWaitStore } from "./agent-wait-store";
+import type { ForkWaitConditions } from "./fork-wait-conditions";
 
 export const AWAIT_EVENT_TOOL = "await_event";
 export const CLOSE_WAIT_TOOL = "close_wait";
@@ -68,11 +69,18 @@ export class AgentWaits {
   readonly #store: AgentWaitStore;
   readonly #mailbox: MailboxStore;
   readonly #hooks: AgentWaitsHooks;
+  /** Fork: waits that plain code watches (`wait_until`). */
+  #conditions: ForkWaitConditions | null = null;
 
   constructor(options: AgentWaitsOptions) {
     this.#store = options.store;
     this.#mailbox = options.mailbox;
     this.#hooks = options.hooks;
+  }
+
+  /** Fork: set once, after the routine scheduler that wakes a watched wait exists. */
+  useConditions(conditions: ForkWaitConditions): void {
+    this.#conditions = conditions;
   }
 
   list(agentId: string): AgentWaitsSnapshot {
@@ -92,7 +100,9 @@ export class AgentWaits {
    */
   wakeForRun(run: { agentId: string; routineId: string }, deliveryId: string, waitId: string | null): void {
     const named = waitId ? this.#store.get(run.agentId, waitId) : null;
-    const candidates = waitId ? (named ? [named] : []) : this.#store.forRoutineRun(run.agentId, run.routineId);
+    const candidates = (waitId ? (named ? [named] : []) : this.#store.forRoutineRun(run.agentId, run.routineId)).filter(
+      (wait) => !this.#conditions?.isWatched(wait.id),
+    ); // Fork: only its condition wakes a watched wait.
     const woken = candidates
       .filter((wait) => !wait.wakeDeliveryId || !this.#isPending(wait.wakeDeliveryId))
       .map((wait) => wait.id);
@@ -117,7 +127,7 @@ export class AgentWaits {
       if (params.tool === AWAIT_EVENT_TOOL) return this.#awaitEvent(params, caller);
       if (params.tool === CLOSE_WAIT_TOOL) return this.#closeWait(params, caller);
       if (params.tool === LIST_WAITS_TOOL) return this.#listWaits(params, caller);
-      return null;
+      return this.#conditions?.handleTool(params, caller) ?? null; // Fork: `wait_until`.
     } catch (error) {
       if (error instanceof AgentWaitError) return openBotToolFailure(error.message);
       throw error;

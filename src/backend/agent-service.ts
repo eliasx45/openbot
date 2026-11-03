@@ -225,6 +225,8 @@ import { type AgentTaskBranchFailed, AgentTasks } from "./agent-tasks/agent-task
 import { type AgentThreadRecord, AgentThreadStore } from "./agent-threads/agent-thread-store";
 import { AgentWaitStore } from "./agent-waits/agent-wait-store";
 import { AgentWaits } from "./agent-waits/agent-waits";
+// Fork: agent commands for the `$` list, and watched waits.
+import { FORK_WAIT_ROUTINE_ID, ForkWaitConditions } from "./agent-waits/fork-wait-conditions";
 import { automationRunCommand } from "./automation-command";
 import { toChannelOperationError } from "./channel-effects";
 import { type ChannelImageFile, ChannelImages } from "./channel-images";
@@ -234,7 +236,6 @@ import type { BundledProviderExecutables } from "./cli";
 import type { ConversationMarkerExclusions } from "./conversation-read-store";
 import type { ProviderSession } from "./database/provider-sessions";
 import { reportOriginalFailure } from "./effect-boundary";
-// Fork: agent commands for the `$` list.
 import { type AgentOwnCommand, cleanAgentCommands } from "./fork-agent-skills";
 import type { HostMemory } from "./host-memory";
 import type { SignInRegion } from "./kimi-region";
@@ -291,6 +292,8 @@ export interface AgentServiceOptions {
   store: AgentStore;
   mailbox: MailboxStore;
   browser: AgentBrowserHost;
+  /** Fork: shows a desktop notification when a watched wait ends. */
+  forkNotify?: (title: string, body: string) => void;
   requestTimeoutMs?: number;
   /**
    * How long a provider takes to start a context compaction before OpenBot stops it. A started
@@ -450,6 +453,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
   readonly #instructionChanges = new InstructionsChanges();
   readonly #memoryReview: MemoryReview;
   readonly #waits: AgentWaits;
+  /** Fork: waits that plain code watches (`wait_until`). */
+  readonly #waitConditions: ForkWaitConditions;
   readonly #tasks: AgentTasks;
   readonly #tables: AgentTables | null;
   readonly #routines: RoutineScheduler;
@@ -660,8 +665,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       () => this.#initialized && !this.#stopping,
       (code, error) => this.#emitError(code, error),
     );
+    const waitStore = new AgentWaitStore({ database: store.database });
     this.#waits = new AgentWaits({
-      store: new AgentWaitStore({ database: store.database }),
+      store: waitStore,
       mailbox,
       hooks: {
         emit: (event) => this.#emit(event),
@@ -696,6 +702,45 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         usageLimited: (agentId) => !this.#usageLimits.mayDrain(agentId),
       },
     });
+    // Fork: waits that plain code watches; the wake is a routine-style delivery in the agent's own chat.
+    this.#waitConditions = new ForkWaitConditions({
+      store: waitStore,
+      mailbox,
+      databasePath: store.database.path,
+      hooks: {
+        emit: (event) => this.#emit(event),
+        requireKnownAgent: (agentId) => {
+          this.#conversation.requireKnownAgent(agentId);
+        },
+        agentName: (agentId) => this.#store.list().find((agent) => agent.id === agentId)?.name ?? agentId,
+        agentBusy: (agentId) =>
+          Boolean(this.#conversation.workingSnapshot(agentId)?.activeTurnId) ||
+          this.#mailbox.unresolvedDeliveries().some(({ delivery }) => delivery.recipientAgentId === agentId),
+        wake: ({ agentId, waitId, title, text }) => {
+          Effect.runFork(
+            this.#routines
+              .enqueueHandoff({
+                run: {
+                  id: waitId,
+                  routineId: FORK_WAIT_ROUTINE_ID,
+                  routineName: title,
+                  scheduledFor: new Date().toISOString(),
+                },
+                agentId,
+                text,
+                idempotencyKey: `fork-wait:${waitId}`,
+              })
+              .pipe(
+                Effect.catch((failure) => Effect.sync(() => this.#emitError("fork_wait_wake", failure.cause, agentId))),
+                Effect.forkIn(this.#scope, { startImmediately: true }),
+              ),
+          );
+        },
+        notify: (title, body) => options.forkNotify?.(title, body),
+        isRunning: () => this.#initialized && !this.#stopping,
+      },
+    });
+    this.#waits.useConditions(this.#waitConditions);
     this.#hostedSites = new HostedSiteCoordinator({
       store,
       conversation: this.#conversation,
@@ -1100,6 +1145,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         // A deleted routine takes its runs with it, so a run without a record counts as quiet:
         // otherwise the import would bring back the answers that its quiet turns settled.
         quietRoutineDelivery: (deliveryId) => {
+          // Fork: the wake of a watched wait has no run, and its answer is never quiet.
+          const sender = this.#mailbox.getDelivery(deliveryId)?.delivery.sender;
+          if (sender?.kind === "routine" && sender.routineId === FORK_WAIT_ROUTINE_ID) return false;
           const run = this.#routines.runForDelivery(deliveryId);
           return run === null || quietRoutineRun(run);
         },
@@ -4181,6 +4229,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     yield* this.#usageLimits.dispose();
     this.#drain.dispose();
     this.#planContinuation.dispose();
+    this.#waitConditions.dispose();
     this.#browser.clearControls();
     yield* Effect.forEach(clients, (client) => client.stop().pipe(Effect.catch(() => Effect.void)), {
       concurrency: "unbounded",

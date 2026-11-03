@@ -42,6 +42,7 @@ import {
   LIST_WAITS_TOOL,
   listWaitsToolSchema,
 } from "./agent-waits/agent-waits";
+import { WAIT_UNTIL_TOOL, waitUntilToolSchema } from "./agent-waits/fork-wait-conditions";
 import { CHANNEL_TOOL_DEFINITIONS } from "./channel-tools";
 import { MESSAGING_TOOL_DEFINITIONS } from "./messaging/messaging-tools";
 import { ROUTINE_FLOW_TOOL_DEFINITIONS } from "./routine-flows/routine-flow-tools";
@@ -574,6 +575,13 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
     description:
       "List your open waits, or another local agent's when you give agentId: waitId, note, openedAt, routineId (null: any of its routines wakes it), and wokenAt. Use it to find and close waits whose request is done. Read-only.",
     shape: listWaitsToolSchema.shape,
+  },
+  // Fork: a wait that OpenBot watches with plain code (docs/fork/FEATURES.md, "Waits").
+  {
+    name: WAIT_UNTIL_TOOL,
+    description:
+      "Wait, without polling, until something outside this turn is done, then continue in this same chat and session with everything you know: a file is written and stops changing (file), a process exits (pid), another local agent finishes its work (agentId), or a URL answers (url). Give exactly one. OpenBot checks it every 2 s; the wait shows to the user with Cancel and times out after timeoutMinutes (default and most 1440). After this call, tell the user in one line what you wait for and end your turn. list_waits lists it and close_wait cancels it.",
+    shape: waitUntilToolSchema.shape,
   },
   {
     name: START_TASK_TOOL,

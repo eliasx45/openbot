@@ -193,7 +193,7 @@ import { CUSTOM_AGENTS_FILE, CustomAgentStore } from "./custom-agent-store";
 import { type CustomProviderChanges, createCustomProviderChanges } from "./custom-provider-changes";
 import { CustomProviderStore } from "./custom-provider-store";
 import { MCP_OAUTH_REDIRECT_URL } from "./deep-link-router";
-import { desktopShowsAgentEvent } from "./desktop-notifications";
+import { desktopShowsAgentEvent, showRetainedNotification } from "./desktop-notifications";
 import { shouldAutoStartHost } from "./development-profile";
 import {
   applyDevelopmentRemoteAccount,
@@ -1761,6 +1761,10 @@ export async function createApplicationServices({
     store,
     mailbox,
     browser,
+    // Fork: a watched wait ended (`wait_until`).
+    forkNotify: (title, body) => {
+      if (Notification.isSupported()) showRetainedNotification(new Notification({ title, body }));
+    },
     visualPreview: new ChatVisualPreviewer(),
     marketplaceAppServer: (appId) => {
       const listed = catalogPluginServers.filter((server) => server.slug === appId);
