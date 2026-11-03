@@ -1314,6 +1314,18 @@ export class TurnLifecycle {
       const memoryLine = memoryChangesMessage(turnId, memoryChanges, (text) => this.#hooks.redactMcp(text));
       if (memoryLine) snapshot.messages.push(memoryLine);
       if (instructionsChange) snapshot.messages.push(instructionsChangeMessage(turnId, instructionsChange));
+      // Fork: the goal ended or paused with this turn; its line goes with the turn (docs/fork/FEATURES.md, "/goal").
+      const goalLine = continuation ? null : (forkHub.goals?.takeLine(agentId) ?? null);
+      if (goalLine)
+        snapshot.messages.push({
+          id: `${turnId}:goal`,
+          author: "system",
+          source: "system",
+          status: "completed",
+          createdAt: new Date().toISOString(),
+          itemType: PLAN_CONTINUATION_ITEM_TYPE,
+          text: goalLine,
+        });
       if (continuation) {
         // No `turnId`: inside the turn, a system row sorts before the answer. Alone, the line shows
         // after this turn's answer and before the continuation turn.

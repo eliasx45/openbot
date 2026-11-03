@@ -86,6 +86,8 @@ export class ForkGoals {
   readonly #goals = new Map<string, Goal>();
   /** The status an agent reported in the turn that runs now. */
   readonly #reports = new Map<string, GoalReport>();
+  /** While `turnEnded` runs: the agent whose ending turn takes the chat line, and that line. */
+  #ending: { agentId: string; line: string | null } | null = null;
 
   constructor(options: { databasePath: string; hooks: ForkGoalsHooks }) {
     this.#hooks = options.hooks;
@@ -132,7 +134,7 @@ export class ForkGoals {
         current.state = "working";
         current.misses = 0;
         this.#save();
-        this.#hooks.line(
+        this.#line(
           agentId,
           sourceText("status.agent.goalResumed", {
             current: current.turn,
@@ -167,7 +169,7 @@ export class ForkGoals {
       detail: null,
     };
     if (current && this.active(agentId))
-      this.#hooks.line(agentId, sourceText("status.agent.goalReplaced", { goal: current.text }));
+      this.#line(agentId, sourceText("status.agent.goalReplaced", { goal: current.text }));
     this.#goals.set(agentId, goal);
     this.#reports.delete(agentId);
     this.#save();
@@ -232,6 +234,29 @@ export class ForkGoals {
     agentId: string,
     input: { outcome: string; stopped: boolean; mayContinue: boolean },
   ): GoalContinuation | null {
+    this.#ending = { agentId, line: null };
+    try {
+      return this.#turnEnded(agentId, input);
+    } finally {
+      if (this.#ending?.line === null) this.#ending = null;
+    }
+  }
+
+  /**
+   * The line that the turn which just ended adds after its answer (the goal ended or paused), or
+   * null. The turn writes it with its own snapshot, so the chat shows it at once.
+   */
+  takeLine(agentId: string): string | null {
+    const ending = this.#ending;
+    if (ending?.agentId !== agentId) return null;
+    this.#ending = null;
+    return ending.line;
+  }
+
+  #turnEnded(
+    agentId: string,
+    input: { outcome: string; stopped: boolean; mayContinue: boolean },
+  ): GoalContinuation | null {
     const goal = this.active(agentId);
     const report = this.#reports.get(agentId);
     this.#reports.delete(agentId);
@@ -245,7 +270,7 @@ export class ForkGoals {
     if (input.outcome === "failed") {
       goal.state = "paused";
       this.#save();
-      this.#hooks.line(agentId, sourceText("status.agent.goalFailedTurn"));
+      this.#line(agentId, sourceText("status.agent.goalFailedTurn"));
       return null;
     }
     if (report && report.status !== "continue") {
@@ -254,7 +279,7 @@ export class ForkGoals {
         goal.detail = report.detail ?? null;
         goal.misses = 0;
         this.#save();
-        this.#hooks.line(agentId, sourceText("status.agent.goalWaits", { detail: report.detail ?? "" }));
+        this.#line(agentId, sourceText("status.agent.goalWaits", { detail: report.detail ?? "" }));
         return null;
       }
       const state =
@@ -263,7 +288,7 @@ export class ForkGoals {
         goal.state = "paused";
         goal.detail = report.detail ?? null;
         this.#save();
-        this.#hooks.line(agentId, sourceText("status.agent.goalNeedsYou", { detail: report.detail ?? "" }));
+        this.#line(agentId, sourceText("status.agent.goalNeedsYou", { detail: report.detail ?? "" }));
         this.#hooks.notify(`${this.#hooks.agentName(agentId)}: goal needs you`, report.detail ?? "");
         return null;
       }
@@ -320,8 +345,14 @@ export class ForkGoals {
           : state === "limit"
             ? sourceText("status.agent.goalLimit", { limit: goal.maxTurns })
             : sourceText("status.agent.goalBlocked", { detail });
-    this.#hooks.line(goal.agentId, line);
+    this.#line(goal.agentId, line);
     if (state !== "stopped") this.#hooks.notify(this.#hooks.agentName(goal.agentId), line);
+  }
+
+  /** A chat line: with the ending turn when one ends now, else on its own. */
+  #line(agentId: string, text: string): void {
+    if (this.#ending?.agentId === agentId) this.#ending.line = text;
+    else this.#hooks.line(agentId, text);
   }
 
   #save(): void {
