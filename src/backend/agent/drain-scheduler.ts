@@ -5,6 +5,7 @@ import { createOpenBotLogger } from "@openbot/logging";
 import { Deferred, Effect, Result, Schema } from "effect";
 import { type AgentProvider, ProviderTurnActiveError } from "../agent-client";
 import type { AgentStore } from "../agent-store";
+import { FORK_WAIT_ROUTINE_ID } from "../agent-waits/fork-wait-conditions";
 import type { ChannelService } from "../channel-service";
 import { causeHelpers } from "../effect-boundary";
 import type { DeliveryContext, MailboxStore } from "../mailbox-store";
@@ -1067,6 +1068,8 @@ export class DrainScheduler {
     const id = context.delivery.id;
     return (
       context.delivery.sender.kind === "routine" &&
+      // Fork: a watched wait's wake continues in the agent's own session (docs/fork/FEATURES.md entry 7).
+      context.delivery.sender.routineId !== FORK_WAIT_ROUTINE_ID &&
       this.#mailbox.taskIdForDelivery(id) === null &&
       !this.#channels?.store.assignmentForDelivery(id) &&
       !this.#messaging?.ownsDelivery(id)
