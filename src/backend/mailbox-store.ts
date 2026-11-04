@@ -2791,7 +2791,7 @@ export class MailboxStore {
     return {
       ...publicDelivery,
       ...(steerFallback && delivery.status === "queued" ? { steerFallback } : {}),
-      sender: structuredClone(message.sender),
+      sender: publicSender(message.sender),
       text: message.text,
       attachments: message.attachments.map(toAttachmentSummary),
       replyToMessageId: message.replyToMessageId,
@@ -3274,4 +3274,16 @@ function isAnswer(
   message: StoredMessage,
 ): message is StoredMessage & { sender: { kind: "agent"; agentId: string }; replyToMessageId: string } {
   return message.sender.kind === "agent" && message.replyToMessageId !== null && message.expectsReply === false;
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md, "wait_until"): builds before the wait fix stored a "⏳ Wait over"
+ * routine name of up to 200 characters. The queue guard of the clients allows 80, so one such row
+ * made the phone refuse the whole queue ("Request failed."). The name is cut where it leaves.
+ */
+function publicSender(sender: StoredMessage["sender"]): StoredMessage["sender"] {
+  const copy = structuredClone(sender);
+  if (copy.kind === "routine" && copy.routineName.length > INPUT_LIMITS.routineName)
+    copy.routineName = `${copy.routineName.slice(0, INPUT_LIMITS.routineName - 1)}…`;
+  return copy;
 }
