@@ -1,0 +1,44 @@
+/* Fork (docs/fork/FEATURES.md entry 16): Settings › Appearance › Contrast, in every window mode.
+ * `fork-glass-contrast.ts` sets `--window-glass-contrast` (0–1) on the root. At 0 nothing changes.
+ * Upward, the secondary and muted text move toward the primary text, and the lines get stronger.
+ * The transparent window also gets a more solid tint (`window-glass.css`).
+ *
+ * A custom property cannot read itself, so the root keeps the palette's own values under fork names,
+ * and `body` (where every page and portal lives) gets the mixed tokens. */
+
+:root {
+  --fork-contrast: var(--window-glass-contrast, 0);
+  --fork-base-text-secondary: var(--openbot-text-secondary);
+  --fork-base-text-muted: var(--openbot-text-muted);
+  --fork-base-text-readable: var(--openbot-text-readable);
+  --fork-base-border: var(--openbot-border);
+  --fork-base-border-strong: var(--openbot-border-strong);
+}
+
+body {
+  --openbot-text-secondary: color-mix(
+    in srgb,
+    var(--openbot-text-primary) calc(70% * var(--fork-contrast)),
+    var(--fork-base-text-secondary)
+  );
+  --openbot-text-muted: color-mix(
+    in srgb,
+    var(--openbot-text-primary) calc(55% * var(--fork-contrast)),
+    var(--fork-base-text-muted)
+  );
+  --openbot-text-readable: color-mix(
+    in srgb,
+    var(--openbot-text-primary) calc(55% * var(--fork-contrast)),
+    var(--fork-base-text-readable)
+  );
+  --openbot-border: color-mix(
+    in srgb,
+    var(--openbot-text-primary) calc(10% * var(--fork-contrast)),
+    var(--fork-base-border)
+  );
+  --openbot-border-strong: color-mix(
+    in srgb,
+    var(--openbot-text-primary) calc(14% * var(--fork-contrast)),
+    var(--fork-base-border-strong)
+  );
+}

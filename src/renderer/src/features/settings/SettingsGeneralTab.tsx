@@ -84,22 +84,20 @@ export function SettingsGeneralTab(props: SettingsGeneralTabProps) {
               description={i18n.t("settings.appearance.transparentWindow.description")}
             />
           </Show>
-          <Show when={props.platform === "darwin" && appearance.transparentWindow()}>
-            <Item data-settings-row="settings.appearance.glassContrast.title" class="settings-modal-row">
-              <ItemContent>
-                <SliderField
-                  label={i18n.t("settings.appearance.glassContrast.title")}
-                  description={i18n.t("settings.appearance.glassContrast.description")}
-                  value={glassContrast.contrast()}
-                  minValue={GLASS_CONTRAST_MIN}
-                  maxValue={GLASS_CONTRAST_MAX}
-                  formatValue={(value) => format.percent(value / 100)}
-                  onChange={glassContrast.change}
-                  onChangeEnd={glassContrast.changeEnd}
-                />
-              </ItemContent>
-            </Item>
-          </Show>
+          <Item data-settings-row="settings.appearance.glassContrast.title" class="settings-modal-row">
+            <ItemContent>
+              <SliderField
+                label={i18n.t("settings.appearance.glassContrast.title")}
+                description={i18n.t("settings.appearance.glassContrast.description")}
+                value={glassContrast.contrast()}
+                minValue={GLASS_CONTRAST_MIN}
+                maxValue={GLASS_CONTRAST_MAX}
+                formatValue={(value) => format.percent(value / 100)}
+                onChange={glassContrast.change}
+                onChangeEnd={glassContrast.changeEnd}
+              />
+            </ItemContent>
+          </Item>
           <Item data-settings-row="settings.language.title" class="settings-modal-row">
             <ItemContent>
               <ItemTitle>{i18n.t("settings.language.title")}</ItemTitle>

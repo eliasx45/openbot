@@ -85,6 +85,7 @@
 @import "./styles/window-glass.css";
 /* Fork: after app-shell.css and window-glass.css, whose sidebar rules it replaces. */
 @import "./styles/fork-sidebar.css";
+@import "./styles/fork-contrast.css";
 
 @source "../../../packages/ui/src";
 

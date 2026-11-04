@@ -4,8 +4,9 @@
  *    Codync's spring (`--spring` in Codync's `theme.css`). Upstream ran the height for 160 ms and the
  *    fade for 120 ms, so the rows were gone before the space closed.
  * 2. In the transparent window the sidebar is clear, so a folder's sticky header must not paint the
- *    opaque sidebar color: it showed as a dark band. It stays clear and blurs the rows that scroll
- *    under it instead of covering them. */
+ *    opaque sidebar color: it showed as a dark band. There it is clear and does not stick, so no row
+ *    scrolls under it. No `backdrop-filter`: in the transparent macOS window it left old frames on
+ *    screen (ghosts of the last chat and of closed panels, 4 Nov 2026). */
 
 :root {
   --fork-sidebar-spring: linear(
@@ -44,9 +45,8 @@
 }
 
 :root[data-openbot-window-glass] .sidebar:not(.sidebar-compact) .sidebar-folder > header {
+  position: static;
   background: transparent;
-  -webkit-backdrop-filter: blur(24px);
-  backdrop-filter: blur(24px);
 }
 
 /* As specific as the rule above, and after it, so a drop target keeps its tint. */

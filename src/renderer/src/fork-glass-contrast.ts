@@ -1,10 +1,11 @@
 import { createSignal } from "solid-js";
 
 /**
- * Fork: how solid the transparent window's tint is. 0 is upstream's glass (frame 20 %, card 45 %),
- * 100 is fully opaque, as Codync's dark window. `window-glass.css` reads `--window-glass-contrast`
- * (0–1). The value is a preference of this computer's main window only, so it stays in browser
- * storage and needs no main-process setting.
+ * Fork: the Contrast slider. 0 is upstream's look. Upward, `fork-contrast.css` makes the gray text
+ * and the lines stronger, and `window-glass.css` makes the transparent window's tint more solid
+ * (frame 20 % → 100 %, card 45 % → 100 %, as Codync's dark window). Both read
+ * `--window-glass-contrast` (0–1). The value is a preference of this computer's main window only, so
+ * it stays in browser storage and needs no main-process setting.
  */
 const STORAGE_KEY = "openbot.fork.glassContrast";
 const CONTRAST_PROPERTY = "--window-glass-contrast";
