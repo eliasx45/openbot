@@ -920,8 +920,6 @@ export const messages = {
     "Les limites actuelles de chaque fournisseur. La période ci-dessous ne les change pas.",
   "mobile.server.planLimits.title": "Limites du forfait",
   "mobile.server.planLimits.button": "Limites du forfait : {summary}",
-  "mobile.server.planLimits.left": "{percent} % restants",
-  "mobile.server.planLimits.windowLeft": "{window} {percent} % restants",
   "mobile.server.planLimits.resetsAt": "Réinitialisation le {time}",
   "mobile.server.planLimits.empty": "Aucun fournisseur n’a encore indiqué ses limites.",
   "mobile.server.planLimits.more": "+{number}",

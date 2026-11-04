@@ -1016,8 +1016,6 @@ export const messages = {
   "mobile.server.usage.planLimitsNote": "Bieżące limity każdego dostawcy. Zakres poniżej ich nie zmienia.",
   "mobile.server.planLimits.title": "Limity planu",
   "mobile.server.planLimits.button": "Limity planu: {summary}",
-  "mobile.server.planLimits.left": "Pozostało {percent}%",
-  "mobile.server.planLimits.windowLeft": "{window}: pozostało {percent}%",
   "mobile.server.planLimits.resetsAt": "Reset {time}",
   "mobile.server.planLimits.empty": "Żaden dostawca nie podał jeszcze swoich limitów.",
   "mobile.server.planLimits.more": "+{number}",

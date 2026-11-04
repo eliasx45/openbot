@@ -1011,8 +1011,6 @@ export const messages = {
   "mobile.server.usage.planLimitsNote": "Текущие лимиты каждого провайдера. Период ниже на них не влияет.",
   "mobile.server.planLimits.title": "Лимиты тарифа",
   "mobile.server.planLimits.button": "Лимиты тарифа: {summary}",
-  "mobile.server.planLimits.left": "Осталось {percent}%",
-  "mobile.server.planLimits.windowLeft": "{window}: осталось {percent}%",
   "mobile.server.planLimits.resetsAt": "Сброс: {time}",
   "mobile.server.planLimits.empty": "Ни один провайдер ещё не сообщил свои лимиты.",
   "mobile.server.planLimits.more": "+{number}",

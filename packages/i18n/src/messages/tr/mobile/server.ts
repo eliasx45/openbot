@@ -910,8 +910,6 @@ export const messages = {
   "mobile.server.usage.planLimitsNote": "Her sağlayıcının güncel limitleri. Aşağıdaki aralık bunları değiştirmez.",
   "mobile.server.planLimits.title": "Plan limitleri",
   "mobile.server.planLimits.button": "Plan limitleri: {summary}",
-  "mobile.server.planLimits.left": "%{percent} kaldı",
-  "mobile.server.planLimits.windowLeft": "{window} %{percent} kaldı",
   "mobile.server.planLimits.resetsAt": "{time} tarihinde sıfırlanır",
   "mobile.server.planLimits.empty": "Henüz hiçbir sağlayıcı limitlerini bildirmedi.",
   "mobile.server.planLimits.more": "+{number}",

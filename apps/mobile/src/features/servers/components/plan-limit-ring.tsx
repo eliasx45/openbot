@@ -73,8 +73,8 @@ function useToneColors(): Record<PlanLimitTone, string> {
 
 /**
  * The limits of one provider account as concentric rings, as on the desktop rail: the outer ring is
- * the longest window, the inner ring the shortest. Each arc shows how much is left, in the tone of that
- * window. The provider mark is in the middle. It is an image: the button that holds it has the label.
+ * the longest window, the inner ring the shortest. Each arc shows how much is used (fork: as Claude
+ * shows it; the tone still comes from what is left). The provider mark is in the middle. It is an image: the button that holds it has the label.
  * A `cutout` clears a circle of the rings, where another ring lies over this one, on any background.
  */
 export function PlanLimitRing({
@@ -126,7 +126,7 @@ export function PlanLimitRing({
                     radius={radius}
                     stroke={stroke}
                     color={tones[window.tone]}
-                    remainingPercent={window.remainingPercent}
+                    remainingPercent={100 - window.remainingPercent}
                   />
                 </G>
               );

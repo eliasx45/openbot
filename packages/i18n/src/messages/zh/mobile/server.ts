@@ -844,8 +844,6 @@ export const messages = {
   // The plan limits of the host's providers: the rings in the home header and their sheet. {time} is a date.
   "mobile.server.planLimits.title": "套餐额度",
   "mobile.server.planLimits.button": "套餐额度：{summary}",
-  "mobile.server.planLimits.left": "剩余 {percent}%",
-  "mobile.server.planLimits.windowLeft": "{window}剩余 {percent}%",
   "mobile.server.planLimits.resetsAt": "{time} 重置",
   "mobile.server.planLimits.empty": "还没有服务商报告其额度。",
   "mobile.server.planLimits.more": "+{number}",

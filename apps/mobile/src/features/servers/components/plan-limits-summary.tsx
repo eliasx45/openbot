@@ -52,9 +52,9 @@ export function PlanLimitsSummary({ serverId }: { serverId: string }) {
                       className={PLAN_LIMIT_TONE_TEXT[window.tone]}
                       style={{ fontVariant: ["tabular-nums"] }}
                     >
-                      {t("mobile.server.planLimits.windowLeft", {
+                      {t("mobile.server.planLimits.windowUsed", {
                         window: planLimitWindowLabel(window.durationMins, t),
-                        percent: window.remainingPercent,
+                        percent: 100 - window.remainingPercent,
                       })}
                     </Typography>
                     {resetsAt ? (

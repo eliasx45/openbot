@@ -1333,8 +1333,6 @@ export const messages = {
   "mobile.server.usage.planLimitsNote": "الحدود الحالية لكل مزوّد. لا يغيّرها النطاق أدناه.",
   "mobile.server.planLimits.title": "حدود الخطة",
   "mobile.server.planLimits.button": "حدود الخطة: {summary}",
-  "mobile.server.planLimits.left": "متبقٍّ {percent}%",
-  "mobile.server.planLimits.windowLeft": "{window} متبقٍّ {percent}%",
   "mobile.server.planLimits.resetsAt": "يُعاد التعيين {time}",
   "mobile.server.planLimits.empty": "لم يُبلغ أي مزوّد عن حدوده بعد.",
   "mobile.server.planLimits.more": "+{number}",

@@ -1207,8 +1207,9 @@ export const messages = defineMessages("mobile.server", {
   // The plan limits of the host's providers: the rings in the home header, their sheet and the Usage screen. {time} is a date.
   "mobile.server.planLimits.title": "Plan limits",
   "mobile.server.planLimits.button": "Plan limits: {summary}",
-  "mobile.server.planLimits.left": "{percent}% left",
-  "mobile.server.planLimits.windowLeft": "{window} {percent}% left",
+  // Fork: plan limits show what is used, as Claude does.
+  "mobile.server.planLimits.used": "{percent}% used",
+  "mobile.server.planLimits.windowUsed": "{window} {percent}% used",
   "mobile.server.planLimits.resetsAt": "Resets {time}",
   "mobile.server.planLimits.empty": "No provider has reported its limits yet.",
   "mobile.server.planLimits.more": "+{number}",

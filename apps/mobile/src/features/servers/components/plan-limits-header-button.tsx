@@ -44,9 +44,9 @@ export function PlanLimitsHeaderButton({
   const summary = lowest
     .map((row) => {
       const window = row.windows.find((item) => item.remainingPercent === row.remainingPercent) ?? row.windows[0];
-      return `${planLimitName(row, accounts, t)} ${t("mobile.server.planLimits.windowLeft", {
+      return `${planLimitName(row, accounts, t)} ${t("mobile.server.planLimits.windowUsed", {
         window: planLimitWindowLabel(window?.durationMins ?? null, t),
-        percent: row.remainingPercent,
+        percent: 100 - row.remainingPercent,
       })}`;
     })
     .join(", ");

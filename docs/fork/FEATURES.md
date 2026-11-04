@@ -168,11 +168,12 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 
 ## 18. Usage shows what is used, like Claude
 
-- **Get:** the rail's usage rings, their hover card, the usage popover and the low-limit badge in Settings › Providers show the **used** part of each limit: "5-hour 33 %" with a bar that fills up, and a ring arc that grows as you use it. Upstream showed what is left (67 %), the opposite of Claude's own usage view. All providers (Claude accounts, Codex, Grok…).
+- **Get:** the rail's usage rings, their hover card, the usage popover, the low-limit badge in Settings › Providers and the iPhone's plan-limit rings and screen show the **used** part of each limit: "5-hour 33 %" with a bar that fills up, and a ring arc that grows as you use it. Upstream showed what is left (67 %), the opposite of Claude's own usage view. All providers (Claude accounts, Codex, Grok…).
 - **Why:** Elias, 4 Nov 2026: next to Claude's "5-hour limit 34 %" the rail's "67 %" was confusing; he is used to Claude's view.
 - **How (portable):** the reading keeps its wire meaning (`remainingPercent`); only the display shows `100 − remainingPercent`. Colors still warn from what is left (below 30 % left warning, 10 % critical). New English keys `account.usage.row.windowUsed` ("{window} {percent}% used") and `provider.settings.usageLowUsed`; the old "left" keys are removed in every language, so other languages show the English text until they are translated (a translation of "left" next to a used number would be wrong).
 - **Here:** `AccountUsageWindowList` in `packages/ui/src/features/account/AccountUsageDetails.tsx`; `accountUsageRowLabel` in `account-usage-view.ts`; `UsageRings` in `packages/ui/src/features/window/PageRail.tsx`; `LowUsageBadge` in `packages/ui/src/features/settings/ProviderSettingsPage.tsx`; i18n `en/account.ts`, `en/provider.ts`.
-- **Not done:** the iPhone app (plan-limit rings and screen still show what is left); custom agents' own usage text (written by the agent).
+- **iPhone:** the plan-limit rings in the server header, the summary card and the Plan limits screen show used too (arc and bar = 100 − left; keys `mobile.server.planLimits.used` / `windowUsed`, old "left" keys removed in every language). Files: `apps/mobile/src/features/servers/components/plan-limit-ring.tsx`, `plan-limits-header-button.tsx`, `plan-limits-summary.tsx`, `screens/plan-limits-screen.tsx`.
+- **Not done:** custom agents' own usage text (written by the agent); the phone needs a new build (Xcode / EAS) to show it.
 - **Check:** hover a Claude ring in the rail: the card says the same % as Claude's own Plan usage limits; the ring arc is short when little is used.
 
 ---

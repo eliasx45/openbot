@@ -56,7 +56,7 @@ function PlanLimitWindowRow({ window }: { window: PlanLimitWindow }) {
           {planLimitWindowLabel(window.durationMins, t)}
         </Typography.Paragraph>
         <Typography.Paragraph className={PLAN_LIMIT_TONE_TEXT[window.tone]} style={{ fontVariant: ["tabular-nums"] }}>
-          {t("mobile.server.planLimits.left", { percent: window.remainingPercent })}
+          {t("mobile.server.planLimits.used", { percent: 100 - window.remainingPercent })}
         </Typography.Paragraph>
       </View>
       <View className="h-1.5 overflow-hidden rounded-full">
@@ -64,7 +64,7 @@ function PlanLimitWindowRow({ window }: { window: PlanLimitWindow }) {
         <View className="absolute inset-0" style={{ backgroundColor: track, opacity: 0.15 }} />
         <View
           className="h-full rounded-full"
-          style={{ width: `${window.remainingPercent}%`, backgroundColor: String(fill) }}
+          style={{ width: `${100 - window.remainingPercent}%`, backgroundColor: String(fill) }}
         />
       </View>
       {resetsAt ? (

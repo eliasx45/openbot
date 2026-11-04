@@ -883,8 +883,6 @@ export const messages = {
     "De huidige limieten van elke provider. De periode hieronder verandert ze niet.",
   "mobile.server.planLimits.title": "Abonnementslimieten",
   "mobile.server.planLimits.button": "Abonnementslimieten: {summary}",
-  "mobile.server.planLimits.left": "{percent}% over",
-  "mobile.server.planLimits.windowLeft": "{window} {percent}% over",
   "mobile.server.planLimits.resetsAt": "Herstelt {time}",
   "mobile.server.planLimits.empty": "Nog geen aanbieder heeft zijn limieten gemeld.",
   "mobile.server.planLimits.more": "+{number}",

@@ -873,8 +873,6 @@ export const messages = {
   "mobile.server.usage.planLimitsNote": "各プロバイダーの現在の上限です。下の期間では変わりません。",
   "mobile.server.planLimits.title": "プランの上限",
   "mobile.server.planLimits.button": "プランの上限: {summary}",
-  "mobile.server.planLimits.left": "残り {percent}%",
-  "mobile.server.planLimits.windowLeft": "{window} 残り {percent}%",
   "mobile.server.planLimits.resetsAt": "{time} にリセット",
   "mobile.server.planLimits.empty": "上限を報告したプロバイダーはまだありません。",
   "mobile.server.planLimits.more": "+{number}",

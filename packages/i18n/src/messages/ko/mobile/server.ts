@@ -869,8 +869,6 @@ export const messages = {
   "mobile.server.usage.planLimitsNote": "각 제공자의 현재 한도입니다. 아래의 기간은 한도를 바꾸지 않습니다.",
   "mobile.server.planLimits.title": "요금제 한도",
   "mobile.server.planLimits.button": "요금제 한도: {summary}",
-  "mobile.server.planLimits.left": "{percent}% 남음",
-  "mobile.server.planLimits.windowLeft": "{window} {percent}% 남음",
   "mobile.server.planLimits.resetsAt": "{time} 초기화",
   "mobile.server.planLimits.empty": "한도를 보고한 제공자가 아직 없어요.",
   "mobile.server.planLimits.more": "+{number}",

@@ -916,8 +916,6 @@ export const messages = {
   "mobile.server.usage.planLimitsNote": "Os limites atuais de cada provedor. O período abaixo não os altera.",
   "mobile.server.planLimits.title": "Limites do plano",
   "mobile.server.planLimits.button": "Limites do plano: {summary}",
-  "mobile.server.planLimits.left": "{percent}% restante",
-  "mobile.server.planLimits.windowLeft": "{window} {percent}% restante",
   "mobile.server.planLimits.resetsAt": "Renova em {time}",
   "mobile.server.planLimits.empty": "Nenhum provedor informou seus limites ainda.",
   "mobile.server.planLimits.more": "+{number}",
