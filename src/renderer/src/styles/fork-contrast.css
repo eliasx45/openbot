@@ -2,6 +2,9 @@
  * `fork-glass-contrast.ts` sets `--window-glass-contrast` (0–1) on the root. At 0 nothing changes.
  * Upward, the secondary and muted text move toward the primary text, and the lines get stronger.
  * The transparent window also gets a more solid tint (`window-glass.css`).
+ * In the dark palette the backgrounds also get darker: at 100 the canvas and the sidebar are
+ * as dark as Codync's dark window (sampled 4 Nov 2026; values in FEATURES.md 16). The light palette keeps
+ * its backgrounds.
  *
  * A custom property cannot read itself, so the root keeps the palette's own values under fork names,
  * and `body` (where every page and portal lives) gets the mixed tokens. */
@@ -13,6 +16,11 @@
   --fork-base-text-readable: var(--openbot-text-readable);
   --fork-base-border: var(--openbot-border);
   --fork-base-border-strong: var(--openbot-border-strong);
+  --fork-base-bg-canvas: var(--openbot-bg-canvas);
+  --fork-base-bg-sidebar: var(--openbot-bg-sidebar);
+  --fork-base-bg-frame: var(--openbot-bg-frame);
+  --fork-base-bg-surface: var(--openbot-bg-surface);
+  --fork-base-bg-control: var(--openbot-bg-control);
 }
 
 body {
@@ -40,5 +48,35 @@ body {
     in srgb,
     var(--openbot-text-primary) calc(14% * var(--fork-contrast)),
     var(--fork-base-border-strong)
+  );
+}
+
+/* Mixed toward `--openbot-bg-notch` (the darkest palette color). Canvas and sidebar 35 %, frame 46 %, as Codync; the raised surfaces darken less, so
+ * they still stand out from the canvas. */
+:root:not([data-openbot-color-scheme="light"]) body {
+  --openbot-bg-canvas: color-mix(
+    in srgb,
+    var(--openbot-bg-notch) calc(35% * var(--fork-contrast)),
+    var(--fork-base-bg-canvas)
+  );
+  --openbot-bg-sidebar: color-mix(
+    in srgb,
+    var(--openbot-bg-notch) calc(35% * var(--fork-contrast)),
+    var(--fork-base-bg-sidebar)
+  );
+  --openbot-bg-frame: color-mix(
+    in srgb,
+    var(--openbot-bg-notch) calc(46% * var(--fork-contrast)),
+    var(--fork-base-bg-frame)
+  );
+  --openbot-bg-surface: color-mix(
+    in srgb,
+    var(--openbot-bg-notch) calc(20% * var(--fork-contrast)),
+    var(--fork-base-bg-surface)
+  );
+  --openbot-bg-control: color-mix(
+    in srgb,
+    var(--openbot-bg-notch) calc(20% * var(--fork-contrast)),
+    var(--fork-base-bg-control)
   );
 }
