@@ -30,8 +30,11 @@
   --fork-sidebar-fold-duration: 300ms;
 }
 
+/* Not during a drag: the drag measures its drop targets again only when a fold ends
+ * (`remeasureAfterTransition` in `createSidebarDragEngine.ts`), so a longer fold kept stale targets
+ * while a folder sprang open and made dragging feel rough. Drags keep upstream's quick fold. */
 @media (prefers-reduced-motion: no-preference) {
-  .sidebar-section-collapse {
+  .agent-list:not([data-sidebar-dragging]) .sidebar-section-collapse {
     transition-property: grid-template-rows, opacity;
     transition-duration: var(--fork-sidebar-fold-duration);
     transition-timing-function: var(--fork-sidebar-spring);
