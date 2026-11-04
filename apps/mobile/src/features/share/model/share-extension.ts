@@ -7,6 +7,7 @@ import {
   agentAvatarFile,
   syncAvatarFolder,
 } from "@/features/workspace/model/agent-avatar-file";
+import { APP_GROUP } from "@/shared/lib/app-group";
 
 /**
  * What the iOS share extension needs to send a share without the app. It reads this file from the
@@ -54,8 +55,6 @@ declare class ShareExtensionModule extends NativeModule {
 /** `modules/share-extension`. Android, Expo Go and a build without the module have no extension to feed. */
 const native = requireOptionalNativeModule<ShareExtensionModule>("OpenBotShareExtension");
 
-/** The App Group of the app and its extensions. `app.json` names the same group. */
-const APP_GROUP = "group.run.openbot.mobile";
 /** `plugins/share-extension/ShareExtensionData.swift` and `NotificationService.swift` read this file. */
 const DIRECTORY_FILE = "share-extension.json";
 /**

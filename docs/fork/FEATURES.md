@@ -178,6 +178,18 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 
 ---
 
+## 19. Own iPhone build (EAS → TestFlight), next to the App Store app
+
+- **Get:** an "OpenBot Fork" app on Elias's iPhone with the fork's mobile changes (e.g. entry 18's "% used"), installed from his own TestFlight. The App Store OpenBot stays as it is.
+- **Why:** Elias, 4 Nov 2026: fork changes to `apps/mobile` never reach the App Store app (upstream's signed build); he chose EAS + TestFlight over Xcode-over-USB.
+- **How (portable):** `app.json` stays upstream's; `app.config.js` passes it through `fork-ios.js`, which renames every upstream iOS id: bundle `com.eliasx45.openbot` (+ `.ShareExtension`, `.ExpoWidgetsTarget`, `.NotificationService`), App Group `group.com.eliasx45.openbot`, Apple team `GQQBT37P3D`, name "OpenBot Fork", no `applinks:openbot.run` (Elias's team cannot claim that domain). Owner and EAS project come from `apps/mobile/fork-ios.json` (`{owner, projectId}`, no secrets); without it OTA updates are off, so the fork never loads upstream's JavaScript. The two TS files that named the App Group read it from `extra.forkAppGroup` (`src/shared/lib/app-group.ts`).
+- **Here:** `apps/mobile/fork-ios.js`, `apps/mobile/app.config.js`, `apps/mobile/src/shared/lib/app-group.ts`, `push-notifications-native.ios.ts`, `share/model/share-extension.ts`.
+- **Limits:** push notifications do not arrive (the account service sends with upstream's APNs key for upstream's bundle id); links from outside the app (`openbot://`, QR codes scanned with the Camera app) may open the App Store app instead: use the in-app scanner; the "update available" card points to the App Store; a TestFlight build lasts 90 days.
+- **Steps:** (1) Elias: Expo account at expo.dev, then `cd apps/mobile && bunx eas-cli login`. (2) `bunx eas-cli init` (new project) → write `fork-ios.json`. (3) Elias, in a terminal (Apple sign-in): `bunx eas-cli build -p ios --profile production --auto-submit`. (4) TestFlight on the phone.
+- **Check:** TestFlight shows "OpenBot Fork"; it signs in with the same email code and shows the plan-limit rings as "% used".
+
+---
+
 ## Checked, not needed
 
 - **Several agents use the computer at once (Codync entry 9 / ADR 0006):** OpenBot has no lock between agents. Each provider starts its own `cua-driver mcp` proxy on the shared daemon (`src/main/cua-driver-runtime.ts`), and the action tap (`src/main/cua-driver-action-tap.ts`) only watches calls for the rim and cursor; it refuses and delays nothing. So several agents can already work at once, in different apps or the same one (no "another agent is using this app" guard). The only rule: an agent's task threads get no Computer Use, so one agent's own chat holds its screen work (`#sessionAgent` in `thread-lifecycle.ts`). Checked 2026-11-03; skipped. If two agents clashing in one app becomes a problem, Codync's per-app hold (look-only free, `pid` + background holds that app 20 s, foreground/untargeted holds all) would go in the tap's `data` handler, which sees each call's `name` and `args`.
