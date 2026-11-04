@@ -19,7 +19,9 @@ function readProject() {
   const file = join(__dirname, "fork-ios.json");
   if (!existsSync(file)) return null;
   const { owner, projectId } = JSON.parse(readFileSync(file, "utf8"));
-  return typeof owner === "string" && typeof projectId === "string" ? { owner, projectId } : null;
+  if (typeof owner !== "string") return null;
+  // An owner with no project yet is the moment before `eas init` makes one.
+  return { owner, projectId: typeof projectId === "string" ? projectId : null };
 }
 
 /** Each upstream id in a plugin's options, as the fork's id. */
@@ -48,10 +50,10 @@ function forkIos(config) {
     extra: {
       ...config.extra,
       forkAppGroup: APP_GROUP,
-      eas: project ? { ...config.extra?.eas, projectId: project.projectId } : config.extra?.eas,
+      eas: project ? { ...config.extra?.eas, projectId: project.projectId ?? undefined } : config.extra?.eas,
     },
     owner: project ? project.owner : config.owner,
-    updates: project
+    updates: project?.projectId
       ? { ...config.updates, url: `https://u.expo.dev/${project.projectId}` }
       : { ...config.updates, enabled: false },
   };
