@@ -155,6 +155,17 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 
 ---
 
+## 17. Sidebar folders: Codync's smooth open/close, no dark header band in the glass window
+
+- **Get:** clicking a folder or section header opens and closes its rows like Codync: height and fade together, 300 ms on a spring. With **Transparent window** on, a folder header (e.g. "Editing") is clear like the rest of the sidebar instead of a dark square band; rows that scroll under the sticky header are blurred.
+- **Why:** Elias, 4 Nov 2026 (screen recording of Codync's "Editing" section + OpenBot screenshots): OpenBot's fold felt abrupt (upstream: height 160 ms, fade 120 ms, so the rows vanished before the space closed), and the folder header showed as a dark band over the glass.
+- **How (portable):** the fold is a one-row grid (`grid-template-rows: 1fr ↔ 0fr`) plus opacity; both get the same duration and Codync's spring as a CSS `linear(…)` easing (16 stops, slight overshoot). Reduced motion keeps upstream's "no transition". The sticky folder header painted the opaque sidebar color (`--openbot-bg-sidebar`), which equals the card only when the window is opaque; in glass mode it is `transparent` + `backdrop-filter: blur(24px)`, and a drop-target header gets only the accent tint.
+- **Here:** `src/renderer/src/styles/fork-sidebar.css`, imported last in `src/renderer/src/styles.css`. No markup change.
+- **Not done:** Codync's chevron + row count on folder headers (OpenBot keeps its folder icon); the drag preview of a row (the outlined row while dragging) is upstream's and unchanged.
+- **Check:** glass on, a folder with rows: its header has no dark band; click it twice: rows fold and unfold smoothly, sections below glide. Scroll a long folder: rows under the header are blurred, not sharp.
+
+---
+
 ## Checked, not needed
 
 - **Several agents use the computer at once (Codync entry 9 / ADR 0006):** OpenBot has no lock between agents. Each provider starts its own `cua-driver mcp` proxy on the shared daemon (`src/main/cua-driver-runtime.ts`), and the action tap (`src/main/cua-driver-action-tap.ts`) only watches calls for the rim and cursor; it refuses and delays nothing. So several agents can already work at once, in different apps or the same one (no "another agent is using this app" guard). The only rule: an agent's task threads get no Computer Use, so one agent's own chat holds its screen work (`#sessionAgent` in `thread-lifecycle.ts`). Checked 2026-11-03; skipped. If two agents clashing in one app becomes a problem, Codync's per-app hold (look-only free, `pid` + background holds that app 20 s, foreground/untargeted holds all) would go in the tap's `data` handler, which sees each call's `name` and `args`.

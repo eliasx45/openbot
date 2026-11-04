@@ -1,0 +1,55 @@
+/* Fork (docs/fork/FEATURES.md entry 17): the sidebar's folders and sections.
+ *
+ * 1. Open and close like Codync's sections: the rows' height and fade move together, 300 ms on
+ *    Codync's spring (`--spring` in Codync's `theme.css`). Upstream ran the height for 160 ms and the
+ *    fade for 120 ms, so the rows were gone before the space closed.
+ * 2. In the transparent window the sidebar is clear, so a folder's sticky header must not paint the
+ *    opaque sidebar color: it showed as a dark band. It stays clear and blurs the rows that scroll
+ *    under it instead of covering them. */
+
+:root {
+  --fork-sidebar-spring: linear(
+    0,
+    0.0712,
+    0.2244,
+    0.3992,
+    0.5638,
+    0.7018,
+    0.8077,
+    0.8834,
+    0.9342,
+    0.9663,
+    0.9853,
+    0.9958,
+    1.0009,
+    1.0028,
+    1.0029,
+    1
+  );
+  --fork-sidebar-fold-duration: 300ms;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sidebar-section-collapse {
+    transition-property: grid-template-rows, opacity;
+    transition-duration: var(--fork-sidebar-fold-duration);
+    transition-timing-function: var(--fork-sidebar-spring);
+  }
+
+  .sidebar-section-chevron {
+    transition:
+      opacity var(--openbot-duration-hover) ease-out,
+      transform var(--fork-sidebar-fold-duration) var(--fork-sidebar-spring);
+  }
+}
+
+:root[data-openbot-window-glass] .sidebar:not(.sidebar-compact) .sidebar-folder > header {
+  background: transparent;
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+}
+
+/* As specific as the rule above, and after it, so a drop target keeps its tint. */
+:root[data-openbot-window-glass] .sidebar .sidebar-folder.sidebar-section-agent-drop-target header {
+  background: var(--openbot-accent-soft);
+}

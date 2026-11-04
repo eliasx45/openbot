@@ -83,6 +83,8 @@
 @import "@openbot/ui/skill-preview.css";
 /* After the page styles: the transparent window replaces their backgrounds. */
 @import "./styles/window-glass.css";
+/* Fork: after app-shell.css and window-glass.css, whose sidebar rules it replaces. */
+@import "./styles/fork-sidebar.css";
 
 @source "../../../packages/ui/src";
 
