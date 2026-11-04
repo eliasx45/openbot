@@ -1,4 +1,4 @@
-import { APP_INTERFACE_SIZES, type AppInterfaceSize, type AppVariant } from "@openbot/contracts/ipc";
+import { APP_INTERFACE_SIZES, type AppInterfaceSize, type AppVariant, type AvatarColor } from "@openbot/contracts/ipc";
 import {
   Item,
   ItemActions,
@@ -14,9 +14,11 @@ import {
   SettingsSection,
   SliderField,
   SwitchField,
+  toast,
 } from "@openbot/ui";
 import { AppearanceSelect } from "@openbot/ui/features/settings/AppearanceSelect";
 import type { GeneralSettingsValue } from "@openbot/ui/features/settings/app-settings";
+import { OwnChatColorTrigger } from "@openbot/ui/features/settings/ChatColorSetting";
 import { LanguageSelect } from "@openbot/ui/features/settings/LanguageSelect";
 import { LogoColorPicker } from "@openbot/ui/features/settings/LogoColorPicker";
 import { SendShortcutSelect } from "@openbot/ui/features/settings/SendShortcutSelect";
@@ -41,6 +43,9 @@ interface SettingsGeneralTabProps {
   selectMount: HTMLElement | undefined;
   onUpdateSetting: <Key extends keyof GeneralSettingsValue>(key: Key, value: GeneralSettingsValue[Key]) => void;
   onUpdateSettings: (patch: Partial<GeneralSettingsValue>) => void;
+  /** The chat color of the account, or null for none. */
+  chatColor: AvatarColor | null;
+  onSetChatColor: (color: AvatarColor | null) => Promise<void>;
 }
 
 export function SettingsGeneralTab(props: SettingsGeneralTabProps) {
@@ -49,7 +54,13 @@ export function SettingsGeneralTab(props: SettingsGeneralTabProps) {
   const logoColor = useLogoColorChoice();
   const interfaceSize = useInterfaceSizeChoice();
   const glassContrast = useGlassContrastChoice();
-  const { format } = useText();
+  const { format, errorMessage } = useText();
+  const saveChatColor = (color: AvatarColor | null) =>
+    void props
+      .onSetChatColor(color)
+      .catch((error: unknown) =>
+        toast.error(errorMessage(error, i18n.t("settings.preferences.saveFailed")), { error }),
+      );
   const interfaceSizeLabel = (value: AppInterfaceSize | undefined) =>
     value === undefined ? "" : format.percent(value / 100);
   /** macOS always keeps running after the window closes. There the switch moves OpenBot from the Dock to the menu bar. */
@@ -139,6 +150,15 @@ export function SettingsGeneralTab(props: SettingsGeneralTabProps) {
               </Show>
             </ItemContent>
             <LogoColorPicker value={logoColor.color()} onChange={logoColor.changeColor} />
+          </Item>
+          <Item data-settings-row="settings.chatColor.title" class="settings-modal-row">
+            <ItemContent>
+              <ItemTitle>{i18n.t("settings.chatColor.title")}</ItemTitle>
+              <ItemDescription>{i18n.t("settings.chatColor.description")}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <OwnChatColorTrigger value={props.chatColor} onChange={saveChatColor} />
+            </ItemActions>
           </Item>
         </ItemGroup>
       </SettingsSection>

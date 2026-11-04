@@ -97,7 +97,7 @@ export const messages = defineMessages("agentSettings", {
   "agentSettings.backupModels.unavailable": "Not available now · skipped",
   "agentSettings.backupModels.withAccount": "{model} · {account}",
   "agentSettings.backupModels.note":
-    "{name} never switches after it starts to write. It goes back to {model} when the limit ends, or 10 minutes after a provider error.",
+    "When a usage limit stops {name} after it starts to work, {name} continues the same work on the first available model in the order. It goes back to {model} when the limit ends, or 10 minutes after a provider error.",
   "agentSettings.groups.brain": "Brain",
   "agentSettings.groups.knows": "Knows",
   "agentSettings.groups.does": "Does",
@@ -130,6 +130,9 @@ export const messages = defineMessages("agentSettings", {
   "agentSettings.avatar.resetToId": "Reset to ID",
   "agentSettings.avatar.shape": "Shape",
   "agentSettings.avatar.shuffle": "Random face",
+  "agentSettings.avatar.style": "Avatar style",
+  "agentSettings.avatar.stylePlush": "Plush",
+  "agentSettings.avatar.styleFlat": "Flat",
   "agentSettings.avatar.shapes": "Avatar shapes",
   "agentSettings.avatar.shapeOption": "Shape {number}",
   "agentSettings.avatar.eyes": "Eyes",
