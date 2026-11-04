@@ -34,6 +34,13 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6830840733",
+        "ascApiKeyPath": "/Users/elias/.appstoreconnect/private_keys/AuthKey_Z6HB82959X.p8",
+        "ascApiKeyId": "Z6HB82959X",
+        "ascApiKeyIssuerId": "23d99afe-f709-4772-8975-f0cd556326ae"
+      }
+    }
   }
 }
