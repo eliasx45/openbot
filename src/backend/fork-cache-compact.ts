@@ -10,11 +10,21 @@
  * like the wake of `wait_until`: it runs in the agent's own session and its text is the whole prompt.
  * A chat quiet for more than an hour (the Mac slept) is not compacted: its cache is cold already, and
  * a compaction then costs about what the next message would.
+ *
+ * `/keepwarm [2h]` keeps the whole chat instead, for a window the user chooses: while it is quiet,
+ * OpenBot sends it a short ping 50 minutes after its last turn, which reads the context from the
+ * cache and so keeps it one more hour. When the window ends, the compaction above takes over.
  */
 
 import { createOpenBotLogger } from "@openbot/logging";
 
 export const FORK_COMPACT_ROUTINE_ID = "fork-compact";
+export const FORK_KEEPWARM_ROUTINE_ID = "fork-keepwarm";
+
+/** A delivery of this class: its text is the whole prompt, and it runs in the agent's own session. */
+export function isForkCacheRoutine(routineId: string | undefined): boolean {
+  return routineId === FORK_COMPACT_ROUTINE_ID || routineId === FORK_KEEPWARM_ROUTINE_ID;
+}
 /** The context size from which a compaction pays for itself. Elias chose 100k (4 Nov 2026). */
 export const FORK_COMPACT_MIN_TOKENS = 100_000;
 /**
@@ -24,6 +34,10 @@ export const FORK_COMPACT_MIN_TOKENS = 100_000;
 const TEST_QUIET_MINUTES = Number(process.env.OPENBOT_FORK_COMPACT_QUIET_MINUTES) || 0;
 const QUIET_FROM_MS = (TEST_QUIET_MINUTES > 0 ? TEST_QUIET_MINUTES : 55) * 60_000;
 const QUIET_UNTIL_MS = QUIET_FROM_MS + 5 * 60_000;
+/** A keep-warm ping goes 5 minutes before the compaction would (test switch: at half of it). */
+const PING_FROM_MS = TEST_QUIET_MINUTES > 0 ? QUIET_FROM_MS / 2 : QUIET_FROM_MS - 5 * 60_000;
+export const KEEPWARM_DEFAULT_MS = 2 * 60 * 60_000;
+export const KEEPWARM_MAX_MS = 12 * 60 * 60_000;
 const CHECK_MS = TEST_QUIET_MINUTES > 0 ? 15_000 : 60_000;
 
 const logger = createOpenBotLogger("fork-cache-compact");
@@ -37,6 +51,8 @@ export interface ForkCacheCompactHooks {
   busy(agentId: string): boolean;
   /** Queues the `/compact` delivery in the agent's own chat. */
   compact(agentId: string, input: { runId: string; tokens: number }): void;
+  /** Queues the keep-warm ping in the agent's own chat. */
+  ping(agentId: string, input: { runId: string; until: number }): void;
   isRunning(): boolean;
 }
 
@@ -45,6 +61,8 @@ export class ForkCacheCompact {
   readonly #timer: ReturnType<typeof setInterval>;
   /** When the last turn of the agent's own chat ended; only those chats are compacted. */
   readonly #endedAt = new Map<string, number>();
+  /** The end of each agent's `/keepwarm` window. In memory: a restart ends every window. */
+  readonly #warmUntil = new Map<string, number>();
 
   constructor(hooks: ForkCacheCompactHooks) {
     this.#hooks = hooks;
@@ -57,6 +75,27 @@ export class ForkCacheCompact {
     this.#endedAt.set(agentId, Date.now());
   }
 
+  /** Whether the agent's own chat runs on Claude, the only provider with this cache handling. */
+  supports(agentId: string): boolean {
+    return this.#hooks.claudeAgentIds().includes(agentId);
+  }
+
+  /** Starts (or replaces) the agent's keep-warm window; `null` ends it. Returns the window's end. */
+  keepWarm(agentId: string, durationMs: number | null): number | null {
+    if (durationMs === null) {
+      this.#warmUntil.delete(agentId);
+      return null;
+    }
+    const until = Date.now() + Math.min(Math.max(durationMs, 60_000), KEEPWARM_MAX_MS);
+    this.#warmUntil.set(agentId, until);
+    return until;
+  }
+
+  warmUntil(agentId: string): number | null {
+    const until = this.#warmUntil.get(agentId);
+    return until !== undefined && until > Date.now() ? until : null;
+  }
+
   dispose(): void {
     clearInterval(this.#timer);
   }
@@ -64,14 +103,23 @@ export class ForkCacheCompact {
   #check(): void {
     if (!this.#hooks.isRunning()) return;
     const now = Date.now();
+    for (const [agentId, until] of this.#warmUntil) if (until <= now) this.#warmUntil.delete(agentId);
     for (const agentId of this.#hooks.claudeAgentIds()) {
       const endedAt = this.#endedAt.get(agentId);
       if (endedAt === undefined) continue;
       const quiet = now - endedAt;
-      if (quiet < QUIET_FROM_MS) continue;
-      // One try per quiet stretch: the compaction turn sets a new end, and a cold cache waits for the user.
+      const until = this.#warmUntil.get(agentId);
+      // Inside a keep-warm window the ping replaces the compaction; the ping turn sets a new end.
+      const warm = until !== undefined;
+      if (quiet < (warm ? PING_FROM_MS : QUIET_FROM_MS)) continue;
+      // One try per quiet stretch: the turn it starts sets a new end, and a cold cache waits for the user.
       this.#endedAt.delete(agentId);
       if (quiet >= QUIET_UNTIL_MS || this.#hooks.busy(agentId)) continue;
+      if (warm) {
+        logger.info("Pinging a quiet chat to keep its prompt cache warm.", { agentId, until });
+        this.#hooks.ping(agentId, { runId: `${agentId}:${endedAt}`, until });
+        continue;
+      }
       const tokens = this.#hooks.contextTokens(agentId);
       if (tokens === null || tokens < FORK_COMPACT_MIN_TOKENS) continue;
       logger.info("Compacting a quiet chat before its prompt cache goes cold.", { agentId, tokens });
@@ -83,4 +131,26 @@ export class ForkCacheCompact {
 /** The prompt of the compaction turn. Claude Code runs a prompt that starts with `/compact` as its command. */
 export function forkCompactPrompt(): string {
   return "/compact Keep what the user asked for and decided, the open work and its next steps, file paths, names and numbers. Drop tool output that was only read once.";
+}
+
+/**
+ * The prompt of a keep-warm ping: a cache read of the whole context, and as the answer the quiet
+ * routine marker, so the chat keeps only the collapsed routine row.
+ */
+export function forkKeepWarmPrompt(): string {
+  return "[OpenBot keep-warm ping: this message only keeps the prompt cache warm. Do nothing else and call no tool. Reply with exactly: [[no-update]]]";
+}
+
+/**
+ * The window of `/keepwarm <rest>`: `off` → null, nothing → the default, `2h`, `90m`, `1h30m`, `3`
+ * (hours). Undefined when the text is not a duration.
+ */
+export function parseKeepWarm(rest: string): number | null | undefined {
+  const text = rest.trim().toLowerCase();
+  if (text === "") return KEEPWARM_DEFAULT_MS;
+  if (text === "off" || text === "stop") return null;
+  if (/^\d+(?:\.\d+)?$/u.test(text)) return Number(text) * 60 * 60_000;
+  const match = /^(?:(\d+(?:\.\d+)?)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?$/u.exec(text);
+  if (!match || (match[1] === undefined && match[2] === undefined)) return undefined;
+  return (Number(match[1] ?? 0) * 60 + Number(match[2] ?? 0)) * 60_000;
 }

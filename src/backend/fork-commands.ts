@@ -10,6 +10,7 @@
 
 import type { QueueDelivery } from "@openbot/contracts/ipc";
 import type { AgentOwnCommand } from "./fork-agent-skills";
+import { parseKeepWarm } from "./fork-cache-compact";
 import { forkHub } from "./fork-hub";
 
 export const FORK_COMMANDS: AgentOwnCommand[] = [
@@ -21,9 +22,14 @@ export const FORK_COMMANDS: AgentOwnCommand[] = [
   { name: "setup", description: "The agent interviews you and sets itself up for a job", builtin: true },
   { name: "learn", description: "Turn this chat (or a folder or URL) into a reusable skill", builtin: true },
   { name: "memory", description: "Show the latest changes to the agent's memory, and undo one", builtin: true },
+  {
+    name: "keepwarm",
+    description: "Keep this chat's prompt cache warm while it is quiet, then compact. /keepwarm 2h, /keepwarm off",
+    builtin: true,
+  },
 ];
 
-const COMMAND = /^\/(goal|setup|learn|memory)(?=$|\s)\s*([\s\S]*)$/u;
+const COMMAND = /^\/(goal|setup|learn|memory|keepwarm)(?=$|\s)\s*([\s\S]*)$/u;
 
 /**
  * The provider text of a user's message in an agent's own chat, with the fork's additions: a fork
@@ -40,6 +46,7 @@ export function forkUserPrompt(delivery: QueueDelivery, typed: string, text: str
     if (name === "setup") prompt = setupPrompt(rest.trim());
     if (name === "learn") prompt = learnPrompt(rest.trim());
     if (name === "memory") prompt = memoryPrompt(rest.trim());
+    if (name === "keepwarm") prompt = keepWarmPrompt(agentId, rest);
   }
   const recalled = command ? null : (forkHub.memory?.recallBlock(agentId, typed) ?? null);
   const footer = forkHub.goals?.footer(agentId, true) ?? null;
@@ -105,6 +112,27 @@ function learnPrompt(request: string): string {
     "",
     "When done, tell the user the skill name and one line about what it captured.",
   ].join("\n");
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md, entry 15): sets the agent's keep-warm window, then asks for a one-line
+ * confirmation. That turn is warm already, so it costs about what a ping does.
+ */
+function keepWarmPrompt(agentId: string, rest: string): string {
+  const compact = forkHub.cacheCompact;
+  if (!compact?.supports(agentId)) {
+    return "[/keepwarm] The user asked OpenBot to keep this chat's prompt cache warm. That works only for Claude agents, and you are not one. Tell the user so in one short line.";
+  }
+  const duration = parseKeepWarm(rest);
+  if (duration === undefined) {
+    return `[/keepwarm] The user typed "/keepwarm ${rest.trim()}", which is not a duration. Tell them in one short line: /keepwarm (2 hours), /keepwarm 3h, /keepwarm 90m, /keepwarm off.`;
+  }
+  const until = compact.keepWarm(agentId, duration);
+  if (until === null) {
+    return "[/keepwarm off] OpenBot stopped keeping this chat's prompt cache warm. From now on a chat with 100k tokens or more is compacted after 55 quiet minutes. Confirm in one short line.";
+  }
+  const time = new Date(until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `[/keepwarm] OpenBot keeps this chat's prompt cache warm until ${time}: while the chat is quiet, it sends a short ping every 50 minutes, so the whole conversation stays and the next message is cheap. After ${time}, a chat with 100k tokens or more is compacted after 55 quiet minutes. Confirm in one short line, with the time.`;
 }
 
 function memoryPrompt(rest: string): string {

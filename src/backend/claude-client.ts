@@ -274,8 +274,11 @@ interface ThreadRuntime {
  * How long a thread with no turn keeps its `claude` process. Each process holds hundreds of MB with
  * its MCP servers, and the SDK resumes the same session from disk, so an idle thread costs only a
  * slower first message when the user comes back.
+ * Fork (docs/fork/FEATURES.md, entry 15): one hour, the life of Claude's prompt cache (upstream: 10
+ * minutes). The compaction at 55 quiet minutes and the keep-warm pings then reach a running process,
+ * and the idle limit below still keeps at most two. Elias chose it (4 Nov 2026; 64 GB Mac).
  */
-const CLAUDE_THREAD_IDLE_RELEASE_MS = 10 * 60_000;
+const CLAUDE_THREAD_IDLE_RELEASE_MS = 60 * 60_000;
 
 /**
  * How many idle threads keep their `claude` process before the timeout. A user who runs one turn on

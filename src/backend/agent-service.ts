@@ -241,7 +241,13 @@ import type { ConversationMarkerExclusions } from "./conversation-read-store";
 import type { ProviderSession } from "./database/provider-sessions";
 import { reportOriginalFailure } from "./effect-boundary";
 import { type AgentOwnCommand, cleanAgentCommands } from "./fork-agent-skills";
-import { FORK_COMPACT_ROUTINE_ID, ForkCacheCompact, forkCompactPrompt } from "./fork-cache-compact";
+import {
+  FORK_COMPACT_ROUTINE_ID,
+  FORK_KEEPWARM_ROUTINE_ID,
+  ForkCacheCompact,
+  forkCompactPrompt,
+  forkKeepWarmPrompt,
+} from "./fork-cache-compact";
 import { ClaudeCodeMcpMirror, claudeCodeMcpOffPath, claudeCodeUserConfigPath } from "./fork-claude-code-mcp";
 import { ForkComposio } from "./fork-composio";
 import { ForkGoals } from "./fork-goals";
@@ -805,26 +811,20 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         Boolean(this.#conversation.workingSnapshot(agentId)?.activeTurnId) ||
         this.#mailbox.unresolvedDeliveries().some(({ delivery }) => delivery.recipientAgentId === agentId) ||
         this.#compaction.heldThreads(agentId).length > 0,
-      compact: (agentId, { runId, tokens }) => {
-        Effect.runFork(
-          this.#routines
-            .enqueueHandoff({
-              run: {
-                id: runId,
-                routineId: FORK_COMPACT_ROUTINE_ID,
-                routineName: `🗜 Compact before the cache goes cold (${Math.round(tokens / 1000)}k tokens)`,
-                scheduledFor: new Date().toISOString(),
-              },
-              agentId,
-              text: forkCompactPrompt(),
-              idempotencyKey: `fork-compact:${runId}`,
-            })
-            .pipe(
-              Effect.catch((failure) => Effect.sync(() => this.#emitError("fork_compact", failure.cause, agentId))),
-              Effect.forkIn(this.#scope, { startImmediately: true }),
-            ),
-        );
-      },
+      compact: (agentId, { runId, tokens }) =>
+        this.#forkCacheTurn(agentId, {
+          runId,
+          routineId: FORK_COMPACT_ROUTINE_ID,
+          routineName: `🗜 Compact before the cache goes cold (${Math.round(tokens / 1000)}k tokens)`,
+          text: forkCompactPrompt(),
+        }),
+      ping: (agentId, { runId, until }) =>
+        this.#forkCacheTurn(agentId, {
+          runId,
+          routineId: FORK_KEEPWARM_ROUTINE_ID,
+          routineName: `♨️ Keep the cache warm (until ${new Date(until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})`,
+          text: forkKeepWarmPrompt(),
+        }),
       isRunning: () => this.#initialized && !this.#stopping,
     });
     this.#hostedSites = new HostedSiteCoordinator({
@@ -1234,6 +1234,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           // Fork: the wake of a watched wait has no run, and its answer is never quiet.
           const sender = this.#mailbox.getDelivery(deliveryId)?.delivery.sender;
           if (sender?.kind === "routine" && sender.routineId === FORK_WAIT_ROUTINE_ID) return false;
+          if (this.#forkKeepWarmDelivery(deliveryId)) return true;
           const run = this.#routines.runForDelivery(deliveryId);
           return run === null || quietRoutineRun(run);
         },
@@ -1619,7 +1620,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         turnModel: (agentId, turnId) => this.#drain.modelForTurn(agentId, turnId),
         mayFailOver: (agentId) => this.#usageLimitBackup(agentId) !== undefined,
         requeueChannelDelivery: (deliveryId, continueWork) => this.#requeueChannelDelivery(deliveryId, continueWork),
-        quietRoutineDelivery: (deliveryId) => this.#routines.quietRunForDelivery(deliveryId),
+        // Fork: a keep-warm ping has no run, and its answer is never news (docs/fork/FEATURES.md, entry 15).
+        quietRoutineDelivery: (deliveryId) =>
+          this.#forkKeepWarmDelivery(deliveryId) || this.#routines.quietRunForDelivery(deliveryId),
         takeRoutinePreview: (deliveryId) => this.#routines.takePreviewBeforeRun(deliveryId),
         closeRoutineSession: (externalThreadId) => this.#threads.closeRoutineThread(externalThreadId),
         conversationTurnEnded: (agentId, sideThreadId, counts, memoryCommitted) =>
@@ -5358,6 +5361,35 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       );
   }
 
+  #forkKeepWarmDelivery(deliveryId: string): boolean {
+    const sender = this.#mailbox.getDelivery(deliveryId)?.delivery.sender;
+    return sender?.kind === "routine" && sender.routineId === FORK_KEEPWARM_ROUTINE_ID;
+  }
+
+  /** Fork (docs/fork/FEATURES.md, entry 15): queues a compaction or a keep-warm ping in the agent's own chat. */
+  #forkCacheTurn(
+    agentId: string,
+    input: { runId: string; routineId: string; routineName: string; text: string },
+  ): void {
+    Effect.runFork(
+      this.#routines
+        .enqueueHandoff({
+          run: {
+            id: input.runId,
+            routineId: input.routineId,
+            routineName: input.routineName,
+            scheduledFor: new Date().toISOString(),
+          },
+          agentId,
+          text: input.text,
+          idempotencyKey: `${input.routineId}:${input.runId}`,
+        })
+        .pipe(
+          Effect.catch((failure) => Effect.sync(() => this.#emitError("fork_compact", failure.cause, agentId))),
+          Effect.forkIn(this.#scope, { startImmediately: true }),
+        ),
+    );
+  }
   #emitError(code: string, error: unknown, agentId?: string, context?: FailureContext): void {
     this.emit("failure", {
       ...context,
