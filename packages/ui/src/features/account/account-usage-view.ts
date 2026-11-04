@@ -244,7 +244,7 @@ export function accountUsageRowLabel(
     return t(loading ? "account.usage.row.loading" : "account.usage.row.unavailable", { name: row.name });
   const parts = [row.name];
   for (const window of row.windows) {
-    parts.push(t("account.usage.row.window", { window: window.label, percent: window.remainingPercent }));
+    parts.push(t("account.usage.row.windowUsed", { window: window.label, percent: 100 - window.remainingPercent }));
     if (window.resetsAtLabel) parts.push(t("account.usage.row.resets", { time: window.resetsAtLabel }));
   }
   return parts.join(", ");

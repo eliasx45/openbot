@@ -108,7 +108,10 @@ export function AccountUsageDetails(props: {
   );
 }
 
-/** The limit windows of one account: a bar, the amount left and the time to the reset of each. */
+/**
+ * The limit windows of one account: a bar, the amount used and the time to the reset of each.
+ * Fork: the bar and the number show what is used (100 − left), as Claude's usage view does.
+ */
 export function AccountUsageWindowList(props: { windows: readonly AccountUsageWindowRow[]; now: number }) {
   const text = useText();
   const { t } = text;
@@ -119,10 +122,13 @@ export function AccountUsageWindowList(props: { windows: readonly AccountUsageWi
           <span class="account-usage-window" data-usage-tone={usageWindow.tone}>
             <span class="account-usage-window-label">{usageWindow.label}</span>
             <span class="account-usage-window-bar" aria-hidden="true">
-              <span class="account-usage-window-fill" style={{ "inline-size": `${usageWindow.remainingPercent}%` }} />
+              <span
+                class="account-usage-window-fill"
+                style={{ "inline-size": `${100 - usageWindow.remainingPercent}%` }}
+              />
             </span>
             <strong class="account-usage-window-remaining">
-              {text.format.percent(usageWindow.remainingPercent / 100)}
+              {text.format.percent((100 - usageWindow.remainingPercent) / 100)}
             </strong>
             <span
               class="account-usage-window-reset"

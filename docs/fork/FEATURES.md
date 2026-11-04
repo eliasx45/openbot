@@ -166,6 +166,17 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 
 ---
 
+## 18. Usage shows what is used, like Claude
+
+- **Get:** the rail's usage rings, their hover card, the usage popover and the low-limit badge in Settings › Providers show the **used** part of each limit: "5-hour 33 %" with a bar that fills up, and a ring arc that grows as you use it. Upstream showed what is left (67 %), the opposite of Claude's own usage view. All providers (Claude accounts, Codex, Grok…).
+- **Why:** Elias, 4 Nov 2026: next to Claude's "5-hour limit 34 %" the rail's "67 %" was confusing; he is used to Claude's view.
+- **How (portable):** the reading keeps its wire meaning (`remainingPercent`); only the display shows `100 − remainingPercent`. Colors still warn from what is left (below 30 % left warning, 10 % critical). New English keys `account.usage.row.windowUsed` ("{window} {percent}% used") and `provider.settings.usageLowUsed`; the old "left" keys are removed in every language, so other languages show the English text until they are translated (a translation of "left" next to a used number would be wrong).
+- **Here:** `AccountUsageWindowList` in `packages/ui/src/features/account/AccountUsageDetails.tsx`; `accountUsageRowLabel` in `account-usage-view.ts`; `UsageRings` in `packages/ui/src/features/window/PageRail.tsx`; `LowUsageBadge` in `packages/ui/src/features/settings/ProviderSettingsPage.tsx`; i18n `en/account.ts`, `en/provider.ts`.
+- **Not done:** the iPhone app (plan-limit rings and screen still show what is left); custom agents' own usage text (written by the agent).
+- **Check:** hover a Claude ring in the rail: the card says the same % as Claude's own Plan usage limits; the ring arc is short when little is used.
+
+---
+
 ## Checked, not needed
 
 - **Several agents use the computer at once (Codync entry 9 / ADR 0006):** OpenBot has no lock between agents. Each provider starts its own `cua-driver mcp` proxy on the shared daemon (`src/main/cua-driver-runtime.ts`), and the action tap (`src/main/cua-driver-action-tap.ts`) only watches calls for the rim and cursor; it refuses and delays nothing. So several agents can already work at once, in different apps or the same one (no "another agent is using this app" guard). The only rule: an agent's task threads get no Computer Use, so one agent's own chat holds its screen work (`#sessionAgent` in `thread-lifecycle.ts`). Checked 2026-11-03; skipped. If two agents clashing in one app becomes a problem, Codync's per-app hold (look-only free, `pid` + background holds that app 20 s, foreground/untargeted holds all) would go in the tap's `data` handler, which sees each call's `name` and `args`.

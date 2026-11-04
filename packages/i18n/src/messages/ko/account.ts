@@ -23,7 +23,6 @@ export const messages = {
   "account.usage.row.unavailable": "{name}, 사용할 수 없음",
   "account.usage.row.notReported": "{name}, 사용량 보고되지 않음",
   "account.usage.row.loading": "{name}, 불러오는 중",
-  "account.usage.row.window": "{window} {percent}% 남음",
   "account.usage.row.resets": "{time} 초기화",
   "account.usage.resetsAt": "{time} 초기화",
   "account.usage.resetIn.minutes": "{minutes}분",

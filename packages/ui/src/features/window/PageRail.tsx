@@ -81,7 +81,9 @@ function UsageRings(props: {
       name: format.list(rows().map((row) => row.name)),
       windows: rows()
         .flatMap((row) => row.windows)
-        .map((window) => t("account.usage.row.window", { window: window.label, percent: window.remainingPercent }))
+        .map((window) =>
+          t("account.usage.row.windowUsed", { window: window.label, percent: 100 - window.remainingPercent }),
+        )
         .join(", "),
     });
   const ringRow = () =>
@@ -116,7 +118,7 @@ function UsageRings(props: {
                 r={outerRadius - index * RING.spacing}
                 stroke-width={RING.stroke}
               />
-              <Show when={window().remainingPercent > 0}>
+              <Show when={window().remainingPercent < 100}>
                 <circle
                   class="window-rail-usage-arc"
                   data-usage-tone={window().tone}
@@ -126,7 +128,7 @@ function UsageRings(props: {
                   stroke-width={RING.stroke}
                   stroke-linecap="round"
                   pathLength={100}
-                  stroke-dasharray={`${window().remainingPercent} 100`}
+                  stroke-dasharray={`${100 - window().remainingPercent} 100`}
                 />
               </Show>
             </g>

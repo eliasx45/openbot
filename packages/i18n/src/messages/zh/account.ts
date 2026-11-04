@@ -23,7 +23,6 @@ export const messages = {
   "account.usage.row.unavailable": "{name}，不可用",
   "account.usage.row.notReported": "{name}，未报告用量",
   "account.usage.row.loading": "{name}，加载中",
-  "account.usage.row.window": "{window}剩余 {percent}%",
   "account.usage.row.resets": "{time} 重置",
   "account.usage.resetsAt": "{time} 重置",
   "account.usage.resetIn.minutes": "{minutes} 分钟",

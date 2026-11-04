@@ -23,7 +23,6 @@ export const messages = {
   "account.usage.row.unavailable": "{name}, no disponible",
   "account.usage.row.notReported": "{name}, uso no informado",
   "account.usage.row.loading": "{name}, cargando",
-  "account.usage.row.window": "{window} {percent}% restante",
   "account.usage.row.resets": "se restablece el {time}",
   "account.usage.resetsAt": "Se restablece el {time}",
   "account.usage.resetIn.minutes": "{minutes} min",

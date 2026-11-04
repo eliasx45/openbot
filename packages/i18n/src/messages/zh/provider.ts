@@ -247,7 +247,6 @@ export const messages = {
   "provider.settings.disconnectOthers": "在你重新连接 {provider} 之前，其他 {provider} 账号会等待。",
   "provider.settings.disconnectLocal": "OpenBot 会在这台电脑上退出 {provider}。终端中的 {provider} CLI 也会退出。",
   "provider.settings.disconnectHost": "OpenBot 会在服务器上退出 {provider}。",
-  "provider.settings.usageLow": "剩余 {percent} · {window}",
   "provider.settings.usageOf": "{name} 的用量",
   "provider.settings.signIn": "登录",
   "provider.settings.apiKey": "API 密钥",

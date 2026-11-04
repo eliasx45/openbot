@@ -243,7 +243,6 @@ export const messages = {
   "provider.settings.disconnectLocal":
     "OpenBot이 이 컴퓨터에서 {provider}에서 로그아웃합니다. 터미널의 {provider} CLI도 로그아웃됩니다.",
   "provider.settings.disconnectHost": "OpenBot이 서버에서 {provider}에서 로그아웃합니다.",
-  "provider.settings.usageLow": "{percent} 남음 · {window}",
   "provider.settings.usageOf": "{name} 사용량",
   "provider.settings.signIn": "로그인",
   "provider.settings.apiKey": "API 키",

@@ -262,7 +262,7 @@ export const messages = defineMessages("provider", {
   "provider.settings.disconnectLocal":
     "OpenBot signs {provider} out on this computer. The {provider} CLI in your terminal also signs out.",
   "provider.settings.disconnectHost": "OpenBot signs {provider} out on the server.",
-  "provider.settings.usageLow": "{percent} left · {window}",
+  "provider.settings.usageLowUsed": "{percent} used · {window}",
   "provider.settings.usageOf": "Usage of {name}",
   "provider.settings.signIn": "Sign-in",
   "provider.settings.apiKey": "API key",

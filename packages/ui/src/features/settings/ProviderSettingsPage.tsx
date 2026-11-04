@@ -1041,8 +1041,8 @@ function LowUsageBadge(props: { reading: AccountUsageProviderRow; name: string; 
           class: "provider-settings-usage-badge",
         })}
       >
-        {t("provider.settings.usageLow", {
-          percent: format.percent(limit().remainingPercent / 100),
+        {t("provider.settings.usageLowUsed", {
+          percent: format.percent((100 - limit().remainingPercent) / 100),
           window: limit().label,
         })}
       </Popover.Trigger>

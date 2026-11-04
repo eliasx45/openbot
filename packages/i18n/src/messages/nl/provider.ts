@@ -236,7 +236,6 @@ export const messages = {
   "provider.settings.disconnectLocal":
     "OpenBot meldt {provider} af op deze computer. De {provider}-CLI in je terminal wordt ook afgemeld.",
   "provider.settings.disconnectHost": "OpenBot meldt {provider} af op de server.",
-  "provider.settings.usageLow": "{percent} over · {window}",
   "provider.settings.usageOf": "Gebruik van {name}",
   "provider.settings.signIn": "Inloggen",
   "provider.settings.apiKey": "API-sleutel",

@@ -286,7 +286,6 @@ export const messages = {
   "provider.settings.disconnectLocal":
     "يسجّل OpenBot الخروج من {provider} على هذا الحاسوب. ويُسجَّل الخروج أيضًا من {provider} CLI في الطرفية.",
   "provider.settings.disconnectHost": "يسجّل OpenBot الخروج من {provider} على الخادم.",
-  "provider.settings.usageLow": "متبقٍ {percent} · {window}",
   "provider.settings.usageOf": "استخدام {name}",
   "provider.settings.signIn": "تسجيل الدخول",
   "provider.settings.apiKey": "مفتاح API",
