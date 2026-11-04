@@ -5,6 +5,7 @@
  * clears it at stop. See docs/fork/FEATURES.md.
  */
 
+import type { ForkCacheCompact } from "./fork-cache-compact";
 import type { ForkComposio } from "./fork-composio";
 import type { ForkGoals } from "./fork-goals";
 import type { ForkMemory } from "./fork-memory";
@@ -13,4 +14,5 @@ export const forkHub: {
   goals: ForkGoals | null;
   memory: ForkMemory | null;
   composio: ForkComposio | null;
-} = { goals: null, memory: null, composio: null };
+  cacheCompact: ForkCacheCompact | null;
+} = { goals: null, memory: null, composio: null, cacheCompact: null };

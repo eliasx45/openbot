@@ -980,7 +980,13 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
           // The SDK deletes NODE_OPTIONS from the environment of the CLI. On a server the agent
           // environment has the CPU limit module there (`agentProcessEnvironment`), so it goes into
           // the flag settings, whose `env` the CLI gives to the Bash tool and its hooks.
-          ...(nodeOptions ? { settings: { env: { NODE_OPTIONS: nodeOptions } } } : {}),
+          // Fork (docs/fork/FEATURES.md, "Compact before the cache goes cold"): Elias's Claude Code
+          // `cache-tax` mod drops a message once when the cache is cold, and no routine, wake or goal
+          // turn sends it again. OpenBot compacts a quiet chat instead (`ForkCacheCompact`).
+          settings: {
+            ...(nodeOptions ? { env: { NODE_OPTIONS: nodeOptions } } : {}),
+            enabledPlugins: { "cache-tax@claude-code-mods": false },
+          },
           ...(config.workspaceOnly
             ? {
                 sandbox: claudeWorkspaceSandbox(config.additionalDirectories, config.excludedFolders),

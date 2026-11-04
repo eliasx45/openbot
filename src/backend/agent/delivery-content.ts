@@ -14,6 +14,7 @@ import { redactText } from "@openbot/logging";
 import { wokenWaitsPromptText } from "../agent-waits/agent-waits";
 import { FORK_WAIT_ROUTINE_ID } from "../agent-waits/fork-wait-conditions";
 import { agentSkillTagName, expandAgentCommandTags } from "../fork-agent-skills";
+import { FORK_COMPACT_ROUTINE_ID } from "../fork-cache-compact";
 import { forkTeammatePrompt, forkUserPrompt } from "../fork-commands";
 import { homeSkillRoot, homeSkillTagSlug } from "../home-skills";
 import type { DeliveryContext } from "../mailbox-store";
@@ -240,8 +241,12 @@ export function deliveryPromptInput(context: DeliveryContext, sources: DeliveryP
       .join("\n");
     if (sources.executionText === undefined) text = forkTeammatePrompt(delivery.recipientAgentId, text);
   }
-  // Fork: a watched wait ended. Its text is already the whole prompt (`ForkWaitConditions`).
-  if (delivery.sender.kind === "routine" && delivery.sender.routineId === FORK_WAIT_ROUTINE_ID) {
+  // Fork: a watched wait ended, or a quiet chat compacts. Its text is already the whole prompt
+  // (`ForkWaitConditions`, `ForkCacheCompact`).
+  if (
+    delivery.sender.kind === "routine" &&
+    (delivery.sender.routineId === FORK_WAIT_ROUTINE_ID || delivery.sender.routineId === FORK_COMPACT_ROUTINE_ID)
+  ) {
     text = displayText;
   } else if (delivery.sender.kind === "routine") {
     const run = sources.routineRun;

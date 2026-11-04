@@ -1217,6 +1217,8 @@ export class TurnLifecycle {
       if (routineSession && routineDelivery && outcome === "completed" && !quiet && !markerAnswer && latestAssistant)
         yield* this.#hooks.routineAnswered(agentId, routineDelivery, latestAssistant.text);
       const laneTaskId = taskTurn ? this.#taskForThread(agentId, threadId) : null;
+      // Fork (docs/fork/FEATURES.md, "Compact before the cache goes cold"): the own chat's cache was written now.
+      if (!channelTurn && !routineSession && !taskTurn) forkHub.cacheCompact?.turnEnded(agentId);
       // Fork (docs/fork/FEATURES.md, "/goal"): a running goal continues the turn in the same session.
       const goalTurn =
         !channelTurn && !routineSession && !taskTurn && deliveries.length > 0

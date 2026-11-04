@@ -241,6 +241,7 @@ import type { ConversationMarkerExclusions } from "./conversation-read-store";
 import type { ProviderSession } from "./database/provider-sessions";
 import { reportOriginalFailure } from "./effect-boundary";
 import { type AgentOwnCommand, cleanAgentCommands } from "./fork-agent-skills";
+import { FORK_COMPACT_ROUTINE_ID, ForkCacheCompact, forkCompactPrompt } from "./fork-cache-compact";
 import { ClaudeCodeMcpMirror, claudeCodeMcpOffPath, claudeCodeUserConfigPath } from "./fork-claude-code-mcp";
 import { ForkComposio } from "./fork-composio";
 import { ForkGoals } from "./fork-goals";
@@ -790,6 +791,41 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         appendMessage: (agentId, message) => this.#appendSystemMessage(agentId, message, "thread.memory-reviewed"),
         warn: (message, error) => logger.warn(message, { error: toLogValue(error) }),
       },
+    });
+    // Fork (docs/fork/FEATURES.md, "Compact before the cache goes cold").
+    forkHub.cacheCompact = new ForkCacheCompact({
+      claudeAgentIds: () =>
+        this.#store
+          .list()
+          .filter((agent) => this.#providers.clientForAgent(agent)?.contextCompaction === "native")
+          .map((agent) => agent.id),
+      contextTokens: (agentId) =>
+        this.#compaction.snapshot().find((state) => state.agentId === agentId)?.usage?.usedTokens ?? null,
+      busy: (agentId) =>
+        Boolean(this.#conversation.workingSnapshot(agentId)?.activeTurnId) ||
+        this.#mailbox.unresolvedDeliveries().some(({ delivery }) => delivery.recipientAgentId === agentId) ||
+        this.#compaction.heldThreads(agentId).length > 0,
+      compact: (agentId, { runId, tokens }) => {
+        Effect.runFork(
+          this.#routines
+            .enqueueHandoff({
+              run: {
+                id: runId,
+                routineId: FORK_COMPACT_ROUTINE_ID,
+                routineName: `🗜 Compact before the cache goes cold (${Math.round(tokens / 1000)}k tokens)`,
+                scheduledFor: new Date().toISOString(),
+              },
+              agentId,
+              text: forkCompactPrompt(),
+              idempotencyKey: `fork-compact:${runId}`,
+            })
+            .pipe(
+              Effect.catch((failure) => Effect.sync(() => this.#emitError("fork_compact", failure.cause, agentId))),
+              Effect.forkIn(this.#scope, { startImmediately: true }),
+            ),
+        );
+      },
+      isRunning: () => this.#initialized && !this.#stopping,
     });
     this.#hostedSites = new HostedSiteCoordinator({
       store,
@@ -4337,6 +4373,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     this.#waitConditions.dispose();
     forkHub.memory?.dispose();
     forkHub.memory = null;
+    forkHub.cacheCompact?.dispose();
+    forkHub.cacheCompact = null;
     forkHub.goals = null;
     forkHub.composio = null;
     this.#browser.clearControls();
