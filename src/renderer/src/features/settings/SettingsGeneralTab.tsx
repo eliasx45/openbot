@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
   SettingsSection,
+  SliderField,
   SwitchField,
 } from "@openbot/ui";
 import { AppearanceSelect } from "@openbot/ui/features/settings/AppearanceSelect";
@@ -22,6 +23,7 @@ import { SendShortcutSelect } from "@openbot/ui/features/settings/SendShortcutSe
 import { useText } from "@openbot/ui/text";
 import { Show } from "solid-js";
 import { useAppearanceChoice } from "../../appearance-choice";
+import { GLASS_CONTRAST_MAX, GLASS_CONTRAST_MIN, useGlassContrastChoice } from "../../fork-glass-contrast";
 import { useI18n } from "../../i18n-context";
 import { useInterfaceSizeChoice } from "../../interface-size";
 import { useLogoColorChoice } from "../../logo-color";
@@ -46,6 +48,7 @@ export function SettingsGeneralTab(props: SettingsGeneralTabProps) {
   const appearance = useAppearanceChoice();
   const logoColor = useLogoColorChoice();
   const interfaceSize = useInterfaceSizeChoice();
+  const glassContrast = useGlassContrastChoice();
   const { format } = useText();
   const interfaceSizeLabel = (value: AppInterfaceSize | undefined) =>
     value === undefined ? "" : format.percent(value / 100);
@@ -80,6 +83,22 @@ export function SettingsGeneralTab(props: SettingsGeneralTabProps) {
               label={i18n.t("settings.appearance.transparentWindow.title")}
               description={i18n.t("settings.appearance.transparentWindow.description")}
             />
+          </Show>
+          <Show when={props.platform === "darwin" && appearance.transparentWindow()}>
+            <Item data-settings-row="settings.appearance.glassContrast.title" class="settings-modal-row">
+              <ItemContent>
+                <SliderField
+                  label={i18n.t("settings.appearance.glassContrast.title")}
+                  description={i18n.t("settings.appearance.glassContrast.description")}
+                  value={glassContrast.contrast()}
+                  minValue={GLASS_CONTRAST_MIN}
+                  maxValue={GLASS_CONTRAST_MAX}
+                  formatValue={(value) => format.percent(value / 100)}
+                  onChange={glassContrast.change}
+                  onChangeEnd={glassContrast.changeEnd}
+                />
+              </ItemContent>
+            </Item>
           </Show>
           <Item data-settings-row="settings.language.title" class="settings-modal-row">
             <ItemContent>

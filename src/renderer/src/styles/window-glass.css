@@ -4,8 +4,18 @@
  * not change, so dialogs, menus, tooltips, toasts, the composer and the cards stay solid. A browser
  * tab, an iframe or a canvas stays opaque: CSS cannot make a native view clear. */
 :root[data-openbot-window-glass] {
-  --window-glass-frame: color-mix(in srgb, var(--openbot-bg-frame) 20%, transparent);
-  --window-glass-card: color-mix(in srgb, var(--openbot-bg-canvas) 45%, transparent);
+  /* Fork: Settings › Appearance › Contrast sets `--window-glass-contrast` (0–1, `fork-glass-contrast.ts`).
+   * 0 keeps upstream's tint; 1 makes the frame and the card opaque. */
+  --window-glass-frame: color-mix(
+    in srgb,
+    var(--openbot-bg-frame) calc(20% + 80% * var(--window-glass-contrast, 0)),
+    transparent
+  );
+  --window-glass-card: color-mix(
+    in srgb,
+    var(--openbot-bg-canvas) calc(45% + 55% * var(--window-glass-contrast, 0)),
+    transparent
+  );
 }
 
 :root[data-openbot-window-glass] body {

@@ -15,6 +15,9 @@ export const messages = defineMessages("settings", {
   "settings.appearance.transparentWindow.title": "Transparent window",
   "settings.appearance.transparentWindow.description":
     "Show the blurred desktop behind the window. Websites and menus then use the app theme.",
+  "settings.appearance.glassContrast.title": "Contrast",
+  "settings.appearance.glassContrast.description":
+    "How much of the desktop shows through. At 100 % the window is solid.",
   "settings.interfaceSize.title": "Interface size",
   "settings.interfaceSize.description": "The size of text and controls in OpenBot.",
   "settings.logoColor.title": "Logo color",

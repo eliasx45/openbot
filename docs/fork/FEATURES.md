@@ -144,6 +144,17 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 
 ---
 
+## 16. Contrast slider for the transparent window
+
+- **Get:** Settings › General › Appearance › **Contrast** (macOS, shown while **Transparent window** is on). Drag 0–100 %: 0 = upstream's glass, 100 % = a solid window like Codync's dark one (black frame, dark-grey card). Each step shows at once; the release saves it.
+- **Why:** Elias, 4 Nov 2026: the glass let too much of the desktop through next to Codync's high-contrast window, and he wanted to set it himself. Codync itself has no slider (only Light/Dark/System on solid colors).
+- **How (portable):** one CSS variable `--window-glass-contrast` (0–1) on the root. The glass tints become `color-mix(frame calc(20% + 80%·c), transparent)` and `color-mix(canvas calc(45% + 55%·c), transparent)`. The value is a main-window preference of this computer, so it stays in browser storage (`openbot.fork.glassContrast`) and is applied before the first paint; no IPC or main setting.
+- **Here:** `src/renderer/src/fork-glass-contrast.ts` (`syncGlassContrast`, `useGlassContrastChoice`); called in `src/renderer/src/index.tsx`; row in `src/renderer/src/features/settings/SettingsGeneralTab.tsx` (`SliderField` from `@openbot/ui`); variable in `src/renderer/src/styles/window-glass.css`; i18n `settings.appearance.glassContrast.*` (English only).
+- **Not done:** contrast for the opaque window (already solid); joined web/phone clients; the macOS blur strength itself (native, not CSS).
+- **Check:** turn on Transparent window, drag Contrast to 100 %: the desktop no longer shows through the sidebar or the card. Quit and reopen: the value stays.
+
+---
+
 ## Checked, not needed
 
 - **Several agents use the computer at once (Codync entry 9 / ADR 0006):** OpenBot has no lock between agents. Each provider starts its own `cua-driver mcp` proxy on the shared daemon (`src/main/cua-driver-runtime.ts`), and the action tap (`src/main/cua-driver-action-tap.ts`) only watches calls for the rim and cursor; it refuses and delays nothing. So several agents can already work at once, in different apps or the same one (no "another agent is using this app" guard). The only rule: an agent's task threads get no Computer Use, so one agent's own chat holds its screen work (`#sessionAgent` in `thread-lifecycle.ts`). Checked 2026-11-03; skipped. If two agents clashing in one app becomes a problem, Codync's per-app hold (look-only free, `pid` + background holds that app 20 s, foreground/untargeted holds all) would go in the tap's `data` handler, which sees each call's `name` and `args`.

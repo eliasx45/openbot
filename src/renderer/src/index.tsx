@@ -8,6 +8,7 @@ import { App } from "./App";
 import { startActionSounds } from "./action-sounds";
 import { syncAppearance } from "./appearance-choice";
 import { readChatWindowTarget } from "./features/window/chat-window";
+import { syncGlassContrast } from "./fork-glass-contrast";
 import { syncLogoColor } from "./logo-color";
 import "./styles.css";
 
@@ -21,6 +22,7 @@ if (!root) {
 performance.mark("openbot:renderer-start");
 installPointerFocusGuard();
 syncAppearance({ windowGlass: true });
+syncGlassContrast();
 syncLogoColor();
 startActionSounds();
 
