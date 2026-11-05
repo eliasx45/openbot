@@ -406,9 +406,12 @@ export function ChatScrollRail(props: ChatScrollRailProps) {
       if (!track || !(item instanceof HTMLElement)) return;
       setHead({ top: item.offsetTop, length: item.offsetHeight });
       if (track.scrollHeight <= track.clientHeight) return;
-      if (item.offsetTop < track.scrollTop) track.scrollTop = item.offsetTop;
-      else if (item.offsetTop + item.offsetHeight > track.scrollTop + track.clientHeight)
-        track.scrollTop = item.offsetTop + item.offsetHeight - track.clientHeight;
+      // The track's padding is room for the glow past the list's ends, so a section in view stays clear of it.
+      const bleed = Number.parseFloat(getComputedStyle(track).paddingTop) || 0;
+      const top = item.offsetTop - bleed;
+      const bottom = item.offsetTop + item.offsetHeight + bleed;
+      if (top < track.scrollTop) track.scrollTop = top;
+      else if (bottom > track.scrollTop + track.clientHeight) track.scrollTop = bottom - track.clientHeight;
     },
   );
 

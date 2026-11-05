@@ -232,6 +232,28 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Here:** `rememberClosed`, `reopenClosed`, `isReopenTabShortcut` and the `keydown` listener in `src/renderer/src/features/agent-threads/agent-thread-tabs.ts`; `close` / `closeSide` record, the internal `closeTab` / `closeSideTab` (used by archive and delete) do not.
 - **Check:** in Bot Bot's chat open two thread tabs, close one with ×: ⇧⌘T opens it again as the open tab. Close two, press ⇧⌘T twice: both come back, newest first. Move one to the side panel, close it there: ⇧⌘T puts it back in the side panel. Archive a thread: ⇧⌘T does not bring it back. Open the full browser view, close a browser tab: ⇧⌘T reopens the browser tab, not a thread.
 
+## 25. The chat's scroll rail keeps its glow at both ends
+
+- **Why:** Elias, 5 Nov 2026 (screenshot): at the bottom of a chat the reading head's dot and glow on the right-edge scroll rail were cut off flat ("cutoff of the glow here too"). The same cut hit the top end (head at the start of the first section).
+- **How (portable):** a scrolling box (`overflow-y: auto`) clips at its padding box, and the head and the active bar glow up to ~15px past the list's ends (and a blurred shadow fades a little further). The track reaches out further than that with a negative block margin and pads it back (`margin-block: -24px; padding-block: 24px`), so the glow fits inside the clip while the list, the bars and the layout around them stay put. The code that scrolls a long list to keep the current section in view subtracts that padding, so a section is not tucked under it.
+- **Here:** `.chat-scroll-rail-track` (`--chat-scroll-rail-bleed`) in `packages/ui/src/features/conversation/styles/scroll-rail.css`; the keep-in-view effect in `packages/ui/src/features/conversation/ChatScrollRail.tsx`. The public site's reading rail (`apps/auth-api/src/styles.css`, `.reading-progress-list`) does not scroll, so it never clipped.
+- **Not done:** the glow's right side still ends at the transcript scroller's own edge (the rail sits in its side padding).
+- **Check:** open a chat long enough for the rail, scroll to the very bottom: the dot at the end of the last bar shows its full round glow below it. Scroll to the very top: the dot at the start of the first bar shows its glow above it. In a chat with more sections than the rail holds, step through sections: the current one stays fully in view.
+
+## 26. A link's site icon hides the chain symbol under it
+
+- **Why:** Elias, 5 Nov 2026 (screenshot of a Drive link in chat): the chain symbol showed through the Drive favicon's transparent parts and touched the URL.
+- **How (portable):** the favicon is drawn over the fallback symbol; once it loads, the icon box gets `data-favicon` and the symbol goes `visibility: hidden`. A failed favicon is removed and the symbol shows again. The phone app already did this (`chat-link-icon.tsx`).
+- **Here:** `MessageLink` in `packages/ui/src/features/conversation/RichMessageText.tsx`; `.message-link-icon[data-favicon]` in `styles/message-content.css`. Test: `src/renderer/src/features/conversation/MessageLinkFavicon.test.tsx`.
+- **Check:** a chat message with a Google Drive link: only the Drive logo shows before the URL, no chain behind it. A link to a site with no favicon still shows the chain.
+
+## 27. Click an unsent image in the message box to view it big
+
+- **Why:** Elias, 5 Nov 2026: a screenshot added to the message box, not sent yet, should open big on click "the same exact way" a sent image does, with the same animation.
+- **How (portable):** the composer's image chip is a button that opens the same `ImageLightbox` as sent images, with the box's other images as siblings and the chip as origin and `thumbnail`, so it zooms out of and back into the chip. No download in this viewer: the file is not sent yet.
+- **Here:** `ComposerAttachmentRow` in `packages/ui/src/features/conversation/ComposerAttachmentRow.tsx` (`macWindowControls` passed from `ConversationComposer.tsx` and `AgentThreadView.tsx`); `.composer-attachment-open` in `styles/composer.css`. Test: `src/renderer/src/features/conversation/ComposerAttachmentLightbox.test.tsx`.
+- **Check:** paste two screenshots into the message box, click the second: it zooms open from the chip like a sent image, ← → steps between both, Esc/click closes back into the chip. The × on the chip still removes it without opening the viewer.
+
 ---
 
 ## Checked, not needed

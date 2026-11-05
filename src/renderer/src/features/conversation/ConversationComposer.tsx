@@ -636,6 +636,7 @@ export function ConversationComposer() {
             onRetryUpload={retryUpload}
             removeDisabled={voicePhase() === "transcribing" || savePending()}
             onRemove={(attachment) => removeAttachment(attachment.id)}
+            macWindowControls={props.platform === "darwin"}
           />
           <div class="composer-input-label">
             <ComposerEditor

@@ -1076,6 +1076,19 @@
   object-fit: cover;
 }
 
+/* An image not sent yet opens in the image viewer, like a sent one. */
+.composer-attachment-open {
+  padding: 0;
+  border: 0;
+  cursor: zoom-in;
+  font: inherit;
+}
+
+.composer-attachment-open:focus-visible {
+  outline: 2px solid var(--openbot-text-secondary);
+  outline-offset: 2px;
+}
+
 /* A pasted image that is still importing: its local preview, dimmed, under a spinner. */
 .composer-attachment[data-pending] .composer-attachment-preview img {
   opacity: 0.5;

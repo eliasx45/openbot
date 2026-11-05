@@ -344,6 +344,9 @@ export function MessageLink(props: {
   isolate?: boolean | undefined;
   onOpenLink: (url: string) => void;
 }) {
+  // The link symbol shows until the favicon loads, and when it does not. Drawn under a favicon with
+  // transparent parts, it would show through it.
+  const [faviconShown, setFaviconShown] = createSignal(false);
   return (
     <a
       class="message-link"
@@ -357,16 +360,23 @@ export function MessageLink(props: {
         props.onOpenLink(props.url);
       }}
     >
-      <span class="message-link-icon" aria-hidden="true">
+      <span class="message-link-icon" aria-hidden="true" data-favicon={faviconShown() ? "" : undefined}>
         <LinkIcon />
         <Show when={props.favicon !== false}>
           <img
+            ref={(image) => {
+              if (image.complete && image.naturalWidth > 0) setFaviconShown(true);
+            }}
             src={faviconUrl(props.url)}
             alt=""
             loading="lazy"
             decoding="async"
             referrerpolicy="no-referrer"
-            onError={(event) => event.currentTarget.remove()}
+            onLoad={() => setFaviconShown(true)}
+            onError={(event) => {
+              setFaviconShown(false);
+              event.currentTarget.remove();
+            }}
           />
         </Show>
       </span>

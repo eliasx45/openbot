@@ -1016,6 +1016,10 @@
   opacity: 0.72;
 }
 
+.message-link-icon[data-favicon] .message-link-fallback {
+  visibility: hidden;
+}
+
 .message-link:hover {
   color: var(--openbot-text-primary);
   text-decoration-color: currentColor;

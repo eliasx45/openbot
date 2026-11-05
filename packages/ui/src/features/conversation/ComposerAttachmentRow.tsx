@@ -1,9 +1,10 @@
 import type { DraftAttachment } from "@openbot/contracts/ipc";
 import { Button, CircleAlert, ImageRemoveButton, RadialProgress, RotateCcw, Spinner } from "@openbot/ui";
-import { For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { useText } from "../../text";
 import { fileBadge } from "./AttachmentCards";
 import { attachmentReferenceTone } from "./AttachmentReference";
+import { ImageLightbox, type ImageLightboxOpening, isLightboxImage } from "./ImageLightbox";
 
 /** A pasted image that is still importing, with its local preview. */
 export interface ComposerPendingImage {
@@ -38,25 +39,54 @@ export function ComposerAttachmentRow(props: {
   onRemove: (attachment: DraftAttachment) => void;
   onRemoveUpload?: ((uploadId: string) => void) | undefined;
   onRetryUpload?: ((uploadId: string) => void) | undefined;
+  /** The window draws the macOS window controls over the top start corner, so the viewer leaves room. */
+  macWindowControls?: boolean | undefined;
 }) {
   const { t, format } = useText();
+  // An image not sent yet opens in the same viewer as a sent one, with the other images of the box.
+  const [lightbox, setLightbox] = createSignal<ImageLightboxOpening | null>(null);
+  let row: HTMLDivElement | undefined;
+  const openImage = (attachment: DraftAttachment, origin: HTMLElement) => {
+    const images = props.attachments.filter(isLightboxImage);
+    const index = images.findIndex((image) => image.id === attachment.id);
+    if (index >= 0) setLightbox({ images, index, origin });
+  };
+  const thumbnail = (attachment: DraftAttachment) =>
+    row?.querySelector<HTMLElement>(`[data-attachment-id="${CSS.escape(attachment.id)}"]`) ?? undefined;
   return (
     <Show when={props.attachments.length > 0 || (props.pending?.length ?? 0) > 0 || (props.uploads?.length ?? 0) > 0}>
-      <div class="composer-attachments">
+      <div class="composer-attachments" ref={(element) => (row = element)}>
         <For each={props.attachments}>
           {(attachment) => {
             // An image with no preview (the web client) shows as a file, with its name.
             const chip = () => (attachment.kind === "image" && attachment.previewUrl ? "image" : "file");
             return (
               <div class="composer-attachment ui-removable-image" data-kind={chip()}>
-                <span
-                  class="composer-attachment-preview"
-                  data-file-tone={chip() === "file" ? attachmentReferenceTone(attachment.name) : undefined}
+                <Show
+                  when={chip() === "image" && isLightboxImage(attachment)}
+                  fallback={
+                    <span
+                      class="composer-attachment-preview"
+                      data-file-tone={chip() === "file" ? attachmentReferenceTone(attachment.name) : undefined}
+                    >
+                      <Show when={chip() === "image"} fallback={fileBadge(attachment)}>
+                        <img src={attachment.previewUrl ?? ""} alt="" />
+                      </Show>
+                    </span>
+                  }
                 >
-                  <Show when={chip() === "image"} fallback={fileBadge(attachment)}>
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    class="composer-attachment-preview composer-attachment-open"
+                    data-attachment-id={attachment.id}
+                    data-cuelume-tap="open"
+                    aria-label={t("chat.image.preview", { name: attachment.name })}
+                    onClick={(event) => openImage(attachment, event.currentTarget)}
+                  >
                     <img src={attachment.previewUrl ?? ""} alt="" />
-                  </Show>
-                </span>
+                  </Button>
+                </Show>
                 <Show when={chip() === "file"}>
                   <span class="composer-attachment-copy">
                     <strong title={attachment.name}>{attachment.name}</strong>
@@ -89,6 +119,17 @@ export function ComposerAttachmentRow(props: {
           )}
         </For>
       </div>
+      <Show when={lightbox()}>
+        {(opening) => (
+          <ImageLightbox
+            opening={opening()}
+            thumbnail={thumbnail}
+            canDownload={() => false}
+            macWindowControls={props.macWindowControls}
+            onClose={() => setLightbox(null)}
+          />
+        )}
+      </Show>
     </Show>
   );
 }

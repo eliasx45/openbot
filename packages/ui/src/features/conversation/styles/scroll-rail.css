@@ -113,11 +113,19 @@
 
 /* Each section keeps room for its title. A chat with more sections than the rail holds scrolls the
    track inside the rail, so every section stays in reach; the track keeps the current one in view.
-   The reading head scrolls with the list. */
+   The reading head scrolls with the list.
+   A scrolling track clips what it holds, and the head and the active bar glow past the ends of the
+   list: at the top of the first section and the bottom of the last. The track reaches out by the
+   glow's width into the space around it and pads it back, so the glow fits inside the clip and the
+   list stays where it was. */
 .chat-scroll-rail-track {
+  --chat-scroll-rail-bleed: var(--openbot-space-6);
+
   position: relative;
   flex: 1;
   min-height: 0;
+  margin-block: calc(-1 * var(--chat-scroll-rail-bleed));
+  padding-block: var(--chat-scroll-rail-bleed);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
