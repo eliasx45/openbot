@@ -125,6 +125,10 @@ mac:
       to: remote-desktop-runtime
     - from: build/cua-driver/darwin/${arch}
       to: cua-driver/darwin/${arch}
+    # Fork (docs/fork/FEATURES.md entry 36): the "From iPhone" helper (Continuity Camera), built by
+    # `bun run prepare:iphone-photo`.
+    - from: .openbot-build/iphone-photo
+      to: iphone-photo
   # The Computer Use driver arrives signed by Cua AI with the hardened runtime, a secure timestamp
   # and `com.apple.security.automation.apple-events`. Re-signing it with OpenBot's inherited
   # entitlements would drop that entitlement and break the driver's Automation route, so its own

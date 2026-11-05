@@ -64,6 +64,7 @@ export * from "./ipc-host-timezone";
 export * from "./ipc-host-update";
 export * from "./ipc-hosted-sites";
 export * from "./ipc-instance-transfer";
+export * from "./ipc-iphone-photo";
 export * from "./ipc-link-account";
 export * from "./ipc-machine-resources";
 export * from "./ipc-marketplace-agents";

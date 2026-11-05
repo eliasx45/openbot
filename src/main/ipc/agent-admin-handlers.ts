@@ -90,6 +90,7 @@ import type { AgentMarketplaceService } from "../agent-marketplace-service";
 import type { AgentTemplateService } from "../agent-template-service";
 import type { BrowserProfileService } from "../browser-profile-service";
 import type { ChromeImportService } from "../chrome-import";
+import type { IphonePhotoService } from "../iphone-photo";
 import {
   decodeAgentHostSettingsFromHost,
   decodeRemoteAgentFastModeSettings,
@@ -127,6 +128,7 @@ interface AgentAdminIpcDependencies {
   browserProfiles: BrowserProfileService;
   /** Fork (FEATURES.md 30): Chrome sign-ins of this computer. */
   chromeImport: ChromeImportService;
+  iphonePhoto: Pick<IphonePhotoService, "take">;
   skills: Pick<SkillMarketplaceService, "listInstalled" | "install" | "uninstall" | "setEnabled">;
   marketplaceAgents: Pick<AgentMarketplaceService, "install">;
   agentTemplates: Pick<AgentTemplateService, "install" | "preview" | "publish" | "unpublish">;
@@ -149,6 +151,7 @@ export function agentAdminIpcHandlers({
   hostSettings,
   browserProfiles,
   chromeImport,
+  iphonePhoto,
   skills,
   marketplaceAgents,
   agentTemplates,
@@ -326,6 +329,11 @@ export function agentAdminIpcHandlers({
       signInWithChrome: scopedHandler((value) => requireString(value, "tabId"), {
         local: (tabId) => chromeImport.signInTab(tabId),
         remote: () => chromeOnlyHere(),
+      }),
+      takeIphonePhoto: scopedQueryHandler({
+        local: () => iphonePhoto.take(),
+        // The iPhone pairs with this Mac, not with a joined server's host.
+        remote: () => ({ outcome: "unavailable" }),
       }),
       getAgentBrowserProfileChoices: scopedHandler((value) => requireString(value, "agentId"), {
         local: (agentId) => ({ agentId, profileIds: chromeImport.agentChoices(agentId) }),

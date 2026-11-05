@@ -122,6 +122,7 @@ steps() {
     bun run prepare:remote-desktop-runtime
     bun run verify:remote-desktop-runtime
     bun run prepare:cua-driver
+    bun run prepare:iphone-photo
     bun run build
     rm -rf dist/mac-arm64
     # shellcheck disable=SC2086 # word-split flags

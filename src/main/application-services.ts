@@ -42,6 +42,7 @@ import {
   HOSTED_UPDATE_TRIGGER,
   HostedUpdateAdapter,
 } from "./hosted-update-adapter";
+import { createIphonePhotoService, type IphonePhotoService } from "./iphone-photo";
 import { LicenseDesktopService } from "./license-service";
 import { LocalSignInWindows } from "./local-sign-in-window";
 import { LocalSkillLibrary } from "./local-skill-library";
@@ -651,6 +652,7 @@ export interface ApplicationServices {
   browserProfiles: BrowserProfileService;
   /** Fork (FEATURES.md 30): Chrome sign-ins imported into browser profiles. */
   chromeImport: ChromeImportService;
+  iphonePhoto: IphonePhotoService;
   language: LanguageService;
   logoColor: LogoColorService;
   appearance: AppearanceService;
@@ -2565,6 +2567,8 @@ export async function createApplicationServices({
   });
   agentExtraProfiles = (agentId) => chromeImport.agentChoices(agentId);
   teardown.push(TEARDOWN_ORDER.browser - 0.5, "the Chrome import notes", () => chromeImport.dispose());
+  const iphonePhoto = createIphonePhotoService({ testImage: process.env.OPENBOT_FORK_IPHONE_PHOTO_TEST_IMAGE });
+  teardown.push(TEARDOWN_ORDER.browser - 0.5, "the iPhone photo helper", () => iphonePhoto.dispose());
   // A computer that comes online or goes offline changes the proxy list.
   browserEgress.on("changed", () => service.notifyBrowserProfilesChanged());
   const customProviderChanges = createCustomProviderChanges({ service, customProviders, providerRuntimes });
@@ -3789,6 +3793,7 @@ export async function createApplicationServices({
     agentInstructions,
     browserProfiles,
     chromeImport,
+    iphonePhoto,
     language,
     logoColor,
     appearance,

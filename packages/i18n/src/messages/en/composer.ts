@@ -76,6 +76,13 @@ export const messages = defineMessages("composer", {
   "composer.placeholder.answer": "Type your answer",
   "composer.add.label": "Add to prompt",
   "composer.add.image": "Attach image",
+  "composer.add.iphonePhoto": "From iPhone",
+  "composer.iphonePhoto.waiting": "Take the photo on your iPhone…",
+  "composer.iphonePhoto.noDevice":
+    "No iPhone found. Keep it near this Mac, unlocked, on the same Apple Account, with Wi-Fi and Bluetooth on.",
+  "composer.iphonePhoto.timeout": "No photo came from the iPhone. Try again.",
+  "composer.iphonePhoto.unavailable": "Photos from the iPhone need OpenBot on a Mac.",
+  "composer.iphonePhoto.failed": "Could not read the photo from the iPhone.",
   "composer.add.skill": "Use a skill",
   "composer.add.context": "Add context",
   "composer.upload.cancel": "Cancel upload",

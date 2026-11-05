@@ -363,6 +363,7 @@ import type {
   InstanceTransferResult,
   InstanceTransferSummary,
 } from "./ipc-instance-transfer";
+import type { IphonePhotoResult } from "./ipc-iphone-photo";
 import type { LinkAccountStatus } from "./ipc-link-account";
 import type { MachineAlertSettings, MachineMetrics } from "./ipc-machine-resources";
 import type {
@@ -1995,6 +1996,8 @@ export const IPC_ENDPOINTS = {
     resyncChromeProfile: scopedRequest<string, ChromeSyncCounts>()("agent:admin:resync-chrome-profile"),
     getChromeSignInSite: scopedRequest<string, string | null>()("agent:admin:get-chrome-sign-in-site"),
     signInWithChrome: scopedRequest<string, ChromeSignInResult>()("agent:admin:sign-in-with-chrome"),
+    // Fork (FEATURES.md 36): a photo from the iPhone through Continuity Camera. This computer only.
+    takeIphonePhoto: scopedQuery<IphonePhotoResult>()("agent:admin:take-iphone-photo"),
     getAgentBrowserProfileChoices: scopedRequest<string, AgentBrowserProfileChoices>()(
       "agent:admin:get-browser-profile-choices",
     ),

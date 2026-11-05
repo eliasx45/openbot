@@ -2292,6 +2292,8 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       signInWithChrome: async () => {
         throw new Error("Chrome is not on this computer.");
       },
+      // Fork (FEATURES.md 36): the preview has no iPhone.
+      takeIphonePhoto: async () => ({ outcome: "unavailable" }),
       getAgentBrowserProfileChoices: async (agentId) => ({ agentId, profileIds: [] }),
       updateAgentBrowserProfileChoices: async (input) => input,
       updateAgentAdminSettings: async ({ agentId, access, autoApprove }) => {

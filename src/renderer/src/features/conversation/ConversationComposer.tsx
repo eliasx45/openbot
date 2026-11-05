@@ -16,7 +16,7 @@ import {
 } from "@openbot/contracts/team-protocol/current";
 import { sourceText } from "@openbot/i18n/source";
 import { spentUsageWindow } from "@openbot/team-client/plan-limits";
-import { Button, Input } from "@openbot/ui";
+import { Button, Input, toast } from "@openbot/ui";
 import { AwaitingReplies } from "@openbot/ui/features/conversation/AwaitingReplies";
 import { ComposerAddMenu } from "@openbot/ui/features/conversation/ComposerAddMenu";
 import { ComposerAttachmentRow } from "@openbot/ui/features/conversation/ComposerAttachmentRow";
@@ -159,6 +159,37 @@ export function ConversationComposer() {
     };
   };
   const openVoiceConversation = () => (voiceConversationAvailable() ? () => openSidePanelPane("voice") : undefined);
+  /**
+   * Fork (docs/fork/FEATURES.md entry 36): a photo taken on the iPhone through Continuity Camera. It joins the
+   * draft as a pasted image does, at the end of the text. Only this Mac's own server pairs with the iPhone.
+   */
+  const takeIphonePhoto = () =>
+    channel || props.runtime || props.server?.kind !== "local" || props.platform !== "darwin"
+      ? undefined
+      : () => void addIphonePhoto();
+  const IPHONE_PHOTO_NOTICES = {
+    noDevice: "composer.iphonePhoto.noDevice",
+    timeout: "composer.iphonePhoto.timeout",
+    unavailable: "composer.iphonePhoto.unavailable",
+    failed: "composer.iphonePhoto.failed",
+  } as const;
+  async function addIphonePhoto(): Promise<void> {
+    const waiting = toast.loading(t("composer.iphonePhoto.waiting"));
+    try {
+      const result = await window.openbot.agent.takeIphonePhoto();
+      if (result.outcome === "picked") {
+        const end = currentDraft().text.length;
+        const photo = new File([new Uint8Array(result.bytes)], result.name, { type: "image/jpeg" });
+        await pasteFiles([photo], { start: end, end });
+      } else if (result.outcome !== "dismissed") {
+        toast.warning(t(IPHONE_PHOTO_NOTICES[result.outcome]));
+      }
+    } catch {
+      toast.warning(t("composer.iphonePhoto.failed"));
+    } finally {
+      toast.dismiss(waiting);
+    }
+  }
   // A pending Save keeps its exact request for retry. Block changes until retry or cancel.
   const savePending = () => Boolean(editingDeliveryId() && editingPendingSave());
   // One chip for each file of each import. Only a single-file import knows the bytes of its file.
@@ -728,6 +759,7 @@ export function ConversationComposer() {
               onPickSkill={pickSkill}
               onSideQuestion={askSideQuestion()}
               onVoice={openVoiceConversation()}
+              onIphonePhoto={takeIphonePhoto()}
             />
             <div class="composer-primary-actions">
               <Show

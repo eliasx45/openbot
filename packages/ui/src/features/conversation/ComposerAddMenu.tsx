@@ -1,4 +1,4 @@
-import { AudioLines, DropdownMenu, File, Image, MessageCircleQuestionMark, Plus, Puzzle } from "@openbot/ui";
+import { AudioLines, Camera, DropdownMenu, File, Image, MessageCircleQuestionMark, Plus, Puzzle } from "@openbot/ui";
 import { useText } from "@openbot/ui/text";
 import { Show } from "solid-js";
 
@@ -15,6 +15,11 @@ export interface ComposerAddMenuProps {
   onSideQuestion?: (() => void) | undefined;
   /** Without it, no voice conversation item. */
   onVoice?: (() => void) | undefined;
+  /**
+   * Fork (docs/fork/FEATURES.md entry 36): opens Continuity Camera to take a photo on the iPhone. Only on
+   * this Mac's own server. Without it, no "From iPhone" item.
+   */
+  onIphonePhoto?: (() => void) | undefined;
 }
 
 /** The "+" menu of a message box: files, skills, and the side panes of the agent. */
@@ -60,6 +65,20 @@ export function ComposerAddMenu(props: ComposerAddMenuProps) {
               <Image aria-hidden="true" />
               <span>{t("composer.add.image")}</span>
             </DropdownMenu.Item>
+          </Show>
+          <Show when={props.onIphonePhoto}>
+            {(take) => (
+              <DropdownMenu.Item
+                disabled={props.attachDisabled ?? false}
+                onSelectAfterClose={() => {
+                  // The menu gives the focus back first; Continuity Camera's menu opens at the pointer after that.
+                  requestAnimationFrame(() => take()());
+                }}
+              >
+                <Camera aria-hidden="true" />
+                <span>{t("composer.add.iphonePhoto")}</span>
+              </DropdownMenu.Item>
+            )}
           </Show>
           <Show when={props.onPickSkill}>
             <DropdownMenu.Item
