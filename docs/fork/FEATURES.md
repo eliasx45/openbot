@@ -191,6 +191,17 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 
 ---
 
+## 20. Chat videos play when the MP4 index is at the end
+
+- **Get:** an MP4 in a chat (e.g. an agent's `H1-glitch-hit-before-after.mp4`) plays and seeks, also when it was exported without `-movflags +faststart`.
+- **Why:** Elias, 5 Nov 2026: a video from Vegapunk stayed at 0:00 with no duration. Its `moov` index was after `mdat`, and the `openbot-attachment` protocol sent only the whole file from byte 0 (status 200, no `Accept-Ranges`), so Chromium could not jump to the index.
+- **How (portable):** `fileResponse` takes the request's `Range` header. One `bytes=a-b`, `a-` or `-n` range answers 206 with `Content-Range` and only those bytes; a range past the end answers 416; no header, multi-range or a bad value send the whole file as before. Every answer has `Accept-Ranges: bytes`. Only the local attachment protocol passes the header (avatars and logos keep 200).
+- **Here:** `src/main/file-response.ts`, `src/main/session-configuration.ts` (`openbot-attachment`).
+- **Not done:** `openbot-remote-attachment` (attachments from another server) still downloads the whole file and answers 200.
+- **Check:** open Tapa Lead's chat, press play on `H1-glitch-hit-before-after.mp4` (Update from Vegapunk, 11:16 AM): it shows 0:11 and plays; drag the bar to seek.
+
+---
+
 ## Checked, not needed
 
 - **Several agents use the computer at once (Codync entry 9 / ADR 0006):** OpenBot has no lock between agents. Each provider starts its own `cua-driver mcp` proxy on the shared daemon (`src/main/cua-driver-runtime.ts`), and the action tap (`src/main/cua-driver-action-tap.ts`) only watches calls for the rim and cursor; it refuses and delays nothing. So several agents can already work at once, in different apps or the same one (no "another agent is using this app" guard). The only rule: an agent's task threads get no Computer Use, so one agent's own chat holds its screen work (`#sessionAgent` in `thread-lifecycle.ts`). Checked 2026-11-03; skipped. If two agents clashing in one app becomes a problem, Codync's per-app hold (look-only free, `pid` + background holds that app 20 s, foreground/untargeted holds all) would go in the tap's `data` handler, which sees each call's `name` and `args`.
