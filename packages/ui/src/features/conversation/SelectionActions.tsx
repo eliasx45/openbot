@@ -97,6 +97,12 @@ export function MessageSelectionActions(props: {
   onSend: (messageId: string, body: string) => Promise<boolean>;
   /** Puts the selected text in the composer as a quote. Without it, the toolbar has no Quote action. */
   onQuote?: ((messageId: string, text: string) => void) | undefined;
+  /**
+   * Fork: puts the selected text and the typed note above the composer input, to go with the next
+   * message. False when the note cannot wait; the toolbar then sends it at once. Without it, a typed
+   * note sends at once.
+   */
+  onQueueNote?: ((messageId: string, text: string, note: string) => boolean) | undefined;
   quoteShortcut?: QuoteShortcutModifier;
 }) {
   const [selection, setSelection] = createSignal<MessageTextSelection | null>(null);
@@ -217,6 +223,11 @@ export function MessageSelectionActions(props: {
           onDismiss={dismiss}
           onSend={props.onSend}
           onQuote={props.onQuote ? quote : undefined}
+          onQueueNote={
+            props.onQueueNote
+              ? (note) => props.onQueueNote?.(active().messageId, active().text, note) === true
+              : undefined
+          }
           quoteShortcut={props.quoteShortcut}
         />
       )}
@@ -232,6 +243,8 @@ export function SelectionActionsBar(props: {
   onDismiss: () => void;
   onSend: (messageId: string, body: string) => Promise<boolean>;
   onQuote?: (() => void) | undefined;
+  /** Fork: adds the typed note to the composer. False sends the note at once. */
+  onQueueNote?: ((note: string) => boolean) | undefined;
   quoteShortcut?: QuoteShortcutModifier | undefined;
 }) {
   const { t } = useText();
@@ -382,6 +395,24 @@ export function SelectionActionsBar(props: {
     }
   };
 
+  /*
+   * Fork: Enter and the arrow add the note to the composer, as in Claude's desktop app. The modifier
+   * of the quote chord (Command on macOS) with Enter sends it at once, as before.
+   */
+  const addNote = (instruction: string) => {
+    const normalized = instruction.trim();
+    if (!normalized || mode() === "sending") return;
+    if (props.onQueueNote?.(normalized)) props.onDismiss();
+    else void submit(normalized);
+  };
+
+  const sendsNow = (event: KeyboardEvent) =>
+    event.key === "Enter" &&
+    !event.isComposing &&
+    (props.quoteShortcut === "meta" ? event.metaKey : event.ctrlKey) &&
+    !event.altKey &&
+    !event.shiftKey;
+
   return (
     <Portal>
       <Show when={props.fallbackHighlight}>
@@ -478,7 +509,7 @@ export function SelectionActionsBar(props: {
                   }}
                   onSubmit={(event) => {
                     event.preventDefault();
-                    void submit(prompt());
+                    addNote(prompt());
                   }}
                 >
                   <Input
@@ -487,6 +518,11 @@ export function SelectionActionsBar(props: {
                     placeholder={t("chat.selection.describe")}
                     maxlength={maximumInstructionLength()}
                     onValueChange={updatePrompt}
+                    onKeyDown={(event) => {
+                      if (!props.onQueueNote || !sendsNow(event)) return;
+                      event.preventDefault();
+                      void submit(prompt());
+                    }}
                   />
                 </form>
               </div>
@@ -581,10 +617,15 @@ export function SelectionActionsBar(props: {
                   variant="ghost"
                   type="button"
                   class="selection-actions-send"
-                  aria-label={t("chat.selection.send")}
+                  aria-label={t(props.onQueueNote ? "chat.selection.addNote" : "chat.selection.send")}
+                  title={
+                    props.onQueueNote
+                      ? t(props.quoteShortcut === "meta" ? "chat.selection.sendNowMac" : "chat.selection.sendNowOther")
+                      : undefined
+                  }
                   tabindex={hasPrompt() ? undefined : -1}
                   onPointerDown={(event) => event.preventDefault()}
-                  onClick={() => void submit(prompt())}
+                  onClick={() => addNote(prompt())}
                 >
                   <SendIcon />
                 </Button>

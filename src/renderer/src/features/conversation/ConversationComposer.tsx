@@ -29,6 +29,7 @@ import {
   ComposerUsageLimitNotice,
 } from "@openbot/ui/features/conversation/ComposerNotice";
 import { ComposerReplyPreview } from "@openbot/ui/features/conversation/ComposerReplyPreview";
+import { ComposerSelectionNotes } from "@openbot/ui/features/conversation/ComposerSelectionNotes";
 import { ComposerSendControl } from "@openbot/ui/features/conversation/ComposerSendControl";
 import {
   ComposerCompactionNotice,
@@ -108,6 +109,8 @@ export function ConversationComposer() {
     submitComposer,
     steerComposer,
     composerAnswersPrompt,
+    removeSelectionNote,
+    editSelectionNote,
     submitting,
     rowDraftAttachments,
     currentPastePreviews,
@@ -505,6 +508,16 @@ export function ConversationComposer() {
                 skills={installedSkills()}
                 disabled={voicePhase() === "transcribing"}
                 onCancel={() => updateCurrentDraft({ replyToMessageId: null })}
+              />
+            )}
+          </Show>
+          <Show when={currentDraft().selectionNotes?.length ? currentDraft().selectionNotes : undefined}>
+            {(notes) => (
+              <ComposerSelectionNotes
+                notes={notes()}
+                disabled={voicePhase() === "transcribing" || savePending()}
+                onRemove={removeSelectionNote}
+                onEdit={editSelectionNote}
               />
             )}
           </Show>

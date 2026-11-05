@@ -35,6 +35,7 @@ export function ConversationView(props: ConversationProps) {
     sidePanelOpen,
     handleChatSearchShortcut,
     sendSelectionInstruction,
+    queueSelectionNote,
     quoteSelection,
     setConversationPanelElement,
     setDropActive,
@@ -114,6 +115,7 @@ export function ConversationView(props: ConversationProps) {
           disabled={!conversationOwnerId(props) || props.channel?.readOnly() === true || !agentReady() || submitting()}
           onSend={sendSelectionInstruction}
           onQuote={quoteSelection}
+          onQueueNote={queueSelectionNote}
           quoteShortcut={(props.platform ?? currentDevicePlatform()) === "darwin" ? "meta" : "ctrl"}
         />
         <Show when={dropActive()}>

@@ -1,5 +1,6 @@
 import { rewriteAttachmentReferences } from "@openbot/contracts/attachment-references";
 import { isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
+import type { SelectionNote } from "@openbot/contracts/selection-instruction";
 import { createEffect, onCleanup } from "solid-js";
 import { EMPTY_DRAFT } from "./composer-draft";
 import { composerDraftKey } from "./conversation-keys";
@@ -33,7 +34,7 @@ interface ComposerDraftOwner {
 /**
  * Unsent composer text from the last session, so an update mid-message loses nothing.
  *
- * Only the text is kept. The main process deletes draft attachment files at startup, so a restored
+ * Only the text is kept, and (fork) the notes about selected text of the agent and channel drafts. The main process deletes draft attachment files at startup, so a restored
  * attachment would point at nothing: its inline reference becomes its name. A reply target is not
  * kept either, because the message it names may not be loaded, and the user could not see or cancel
  * the reply.
@@ -122,10 +123,13 @@ export function writeComposerDraftsOnChange(owner: ComposerDraftOwner): void {
   });
 }
 
-function storableDrafts(drafts: Drafts): Record<string, { text: string }> {
+/* Fork: the notes about selected text stay with the text (docs/fork/FEATURES.md, "Selection notes"). */
+function storableDrafts(drafts: Drafts): Record<string, { text: string; selectionNotes?: SelectionNote[] }> {
   return Object.fromEntries(
     Object.entries(drafts).flatMap(([key, draft]) => {
       const text = rewriteAttachmentReferences(draft.text, () => null);
+      const notes = draft.selectionNotes;
+      if (notes?.length) return [[key, { text, selectionNotes: notes }]];
       return text.trim() ? [[key, { text }]] : [];
     }),
   );
@@ -141,10 +145,20 @@ function decodeDrafts(value: unknown): Drafts {
   return Object.fromEntries(
     Object.entries(value).flatMap(([key, draft]) =>
       isDynamicRecord(draft) && isString(draft.text)
-        ? [[key, { text: draft.text, attachments: [], replyToMessageId: null }]]
+        ? [[key, { text: draft.text, attachments: [], replyToMessageId: null, ...decodeNotes(draft.selectionNotes) }]]
         : [],
     ),
   );
+}
+
+function decodeNotes(value: unknown): { selectionNotes?: SelectionNote[] } {
+  if (!Array.isArray(value)) return {};
+  const notes = value.flatMap((item): SelectionNote[] =>
+    isDynamicRecord(item) && isString(item.id) && isString(item.quoteId) && isString(item.quote) && isString(item.note)
+      ? [{ id: item.id, quoteId: item.quoteId, quote: item.quote, note: item.note }]
+      : [],
+  );
+  return notes.length > 0 ? { selectionNotes: notes } : {};
 }
 
 function decodeThreadDrafts(value: unknown): Drafts {

@@ -38,6 +38,31 @@ export function serializeFileSelectionInstruction(instruction: string, quote: st
   return `${serializeChatTagReference("quote", limitedQuoteText(quote.trim()), quoteId)}\n\n${instruction.trim()}`;
 }
 
+/**
+ * Fork: a note about selected text that waits in the composer. `quoteId` is the message id, or the
+ * file quote id of a file passage. `quote` is the selected text, limited as a quote tag keeps it.
+ */
+export interface SelectionNote {
+  id: string;
+  quoteId: string;
+  quote: string;
+  note: string;
+}
+
+/**
+ * Fork: the message that the composer sends with its notes. Each note is a quote tag, the same marker
+ * that Quote puts in the composer, and then the note. The provider reads each tag as a block quote.
+ * The text that the user typed comes last.
+ */
+export function serializeSelectionNotes(notes: readonly SelectionNote[], text: string): string {
+  const parts = notes.map(
+    (item) =>
+      `${serializeChatTagReference("quote", limitedQuoteText(item.quote.trim()), item.quoteId)}\n\n${item.note.trim()}`,
+  );
+  if (text.trim()) parts.push(text.trim());
+  return parts.join("\n\n");
+}
+
 export function parseSelectionInstruction(body: string): SelectionInstruction | null {
   const separator = body.lastIndexOf("\n\n>");
   if (separator <= 0) return null;
