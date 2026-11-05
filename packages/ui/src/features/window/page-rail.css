@@ -70,6 +70,18 @@
   font: inherit;
   cursor: pointer;
   -webkit-app-region: no-drag;
+  /* A stacking context, so the hit area below stays under the icon. */
+  isolation: isolate;
+}
+
+/* Each button takes half of the gap above and below it as its hit area. The pointer then goes from
+ * one button straight to the next: no frame with no hover fill, an arrow cursor and a closing
+ * tooltip between them. */
+.window-rail-group .window-rail-button::after {
+  position: absolute;
+  z-index: -1;
+  inset: calc(var(--openbot-space-1-5) / -2) 0;
+  content: "";
 }
 
 @media (hover: hover) and (pointer: fine) {

@@ -17,6 +17,11 @@
   align-items: center;
   gap: 3px;
   margin-inline-start: 4px;
+  /* The header moves the window, and the window gives mouse events over a drag area to the window
+     manager, not to the page. The gaps between the tabs were in that area, so the page did not see
+     the pointer there: a tab could keep its hover after the pointer left it, and the cursor changed
+     to an arrow. The tab row is not a drag area; the rest of the header still moves the window. */
+  -webkit-app-region: no-drag;
 }
 
 /* The agent's name is the first tab, for the agent's own chat, with the shape of the thread tabs. */
@@ -197,6 +202,16 @@
   transition:
     color var(--sliding-tabs-duration) var(--sliding-tabs-ease),
     transform var(--sliding-tabs-duration) var(--sliding-tabs-ease);
+}
+
+/* Each tab takes half of the gap on each side as its hit area, so the pointer goes from one tab
+   straight to the next, with no frame on no tab between them. The tab is a stacking context (the
+   sliding tabs give it a z-index), so the area is under the parts of the tab. */
+.agent-threads-tab.ui-sliding-tabs-trigger::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0 calc(var(--openbot-space-1) / -2);
+  content: "";
 }
 
 .agent-threads-tab-title {

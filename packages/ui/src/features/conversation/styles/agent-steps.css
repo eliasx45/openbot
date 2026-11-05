@@ -20,8 +20,22 @@
 }
 
 .agent-activity-content .agent-steps-toggle {
+  position: static;
   flex: 0 0 auto;
   color: var(--openbot-text-muted);
+}
+
+/* The chevron follows the end of the label, and the label changes length while the agent works. A
+   hit area of the chevron's size moved away from a still pointer, so the hover and the click
+   flickered. The whole line is the hit area of the toggle: the line does not move under the pointer. */
+.agent-activity-content:has(> .agent-steps-toggle) {
+  position: relative;
+}
+
+.agent-activity-content .agent-steps-toggle::after {
+  position: absolute;
+  inset: 0;
+  content: "";
 }
 
 /* The open list is not a lit toggle, so the chevron has no fill. */

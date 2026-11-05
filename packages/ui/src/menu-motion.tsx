@@ -261,7 +261,21 @@ function holdInPlace(from: HeldSubmenu): void {
   const widths = itemWidths(from.panel);
   from.itemWidths = widths;
   const moving = from.moving;
-  if (!moving) return;
+  if (!moving) {
+    // The pointer has left the trigger of this tooltip. Its content starts to fade now, not when the
+    // next panel is placed: on a busy computer that took some frames, and the old name stayed on
+    // screen at full strength next to the button the pointer had left.
+    if (from.own)
+      for (const [index, item] of Array.from(from.panel.children).entries())
+        item.animate(
+          [
+            { opacity: 1, ...itemWidth(from, widths[index]) },
+            { opacity: 0, ...itemWidth(from, widths[index]) },
+          ],
+          { duration: SWAP_MS, easing: SWAP_EASE, fill: "forwards" },
+        );
+    return;
+  }
   const hold: KeyframeAnimationOptions = { duration: 0, fill: "forwards" };
   from.panel.animate([{ transform: translate(moving.rect, natural), ...size(moving.rect), ...moving.surface }], hold);
   for (const [index, item] of Array.from(from.panel.children).entries())
@@ -291,6 +305,12 @@ function whenPlaced(panel: HTMLElement, then: () => void, frame = 0): void {
     return;
   }
   requestAnimationFrame(() => whenPlaced(panel, then, frame + 1));
+}
+
+/** The opacity that an element shows now, with its running animations. */
+function currentOpacity(element: Element): number {
+  const value = Number.parseFloat(getComputedStyle(element).opacity);
+  return Number.isFinite(value) ? value : 1;
 }
 
 function handOff(from: HeldSubmenu, panel: HTMLElement): void {
@@ -364,9 +384,12 @@ function handOff(from: HeldSubmenu, panel: HTMLElement): void {
     ).onfinish = () => from.copy.remove();
     for (const [index, item] of Array.from(from.panel.children).entries()) {
       const width = itemWidth(from, oldWidths[index]);
+      // A tooltip's items started to fade while the copy waited. They go on from where they are.
+      const opacity = from.own ? currentOpacity(item) : (from.moving?.itemOpacity ?? 1);
+      if (from.own) for (const animation of item.getAnimations()) animation.cancel();
       item.animate(
         [
-          { opacity: from.moving?.itemOpacity ?? 1, filter: "blur(0px)", ...width },
+          { opacity, filter: "blur(0px)", ...width },
           { opacity: 0, filter: SWAP_BLUR, ...width, ...(large ? { offset: LARGE_RESIZE_OUT_END } : {}) },
           ...(large ? [{ opacity: 0, filter: SWAP_BLUR, ...width }] : []),
         ],

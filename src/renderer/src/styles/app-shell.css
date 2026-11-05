@@ -1982,6 +1982,19 @@ textarea {
   margin-top: 4px;
 }
 
+/* No dead space between two rows. In the gap the pointer was on no row: the hover fill went off,
+   the cursor became an arrow, and both came back on the next row only after the next frame that
+   the window drew, so on a busy computer the fill seemed to stay behind the pointer. A row takes
+   the gap above it as its hit area. The hit area is under the row (z-index -1 in the item, which
+   is a stacking context through its transform), so the parts of the row keep their own pointer. */
+.sidebar-agent-item + .sidebar-agent-item .agent-row::after,
+.sidebar-person-item + .sidebar-person-item .person-row::after {
+  position: absolute;
+  z-index: -1;
+  inset: -4px 0 0;
+  content: "";
+}
+
 .sidebar-agent-item-dragging {
   will-change: transform;
 }
@@ -2113,6 +2126,15 @@ textarea {
   opacity: 1;
   transform: translate3d(var(--sidebar-drag-x), var(--sidebar-drag-y), 0);
   transition: transform var(--openbot-duration-normal) var(--openbot-ease-out);
+}
+
+/* As the rows above: each tile takes half of the 8px gap around it, so the pointer is never between
+   two tiles. */
+.sidebar-pinned-item .sidebar-pinned-row::after {
+  position: absolute;
+  z-index: -1;
+  inset: -4px;
+  content: "";
 }
 
 .agent-row.sidebar-pinned-row {
