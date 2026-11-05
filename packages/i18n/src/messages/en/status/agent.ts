@@ -100,7 +100,7 @@ export const messages = defineMessages("status.agent", {
   "status.agent.branchTitle": "Branched chat",
   // Fork: goal mode (docs/fork/FEATURES.md, "/goal").
   "status.agent.goalTurn": "🎯 Goal turn {current} of {limit}: {next}",
-  "status.agent.goalTurnNoStep": "🎯 Goal turn {current} of {limit}",
+  "status.agent.goalTurnNoStep": "🎯 Goal turn {current} of {limit}.",
   "status.agent.goalResumed": "🎯 Goal resumed (turn {current} of {limit}): {goal}",
   "status.agent.goalReplaced": "🎯 Goal replaced: {goal}",
   "status.agent.goalWaits": "🎯 Goal waits: {detail}",
