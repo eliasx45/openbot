@@ -703,8 +703,10 @@ export function createComputerUseHighlightWindow(bounds: Rectangle): BrowserWind
   // build would hide the Dock icon and every OpenBot window for a moment.
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
   // Nothing on this surface may be pressed, and it covers another application's whole window, so
-  // every event is handed straight on to the window below it.
-  window.setIgnoreMouseEvents(true, { forward: true });
+  // every event is handed straight on to the window below it. No `forward`: a forwarded move reached
+  // this page, which has nothing under the pointer, so it set the arrow cursor on every move while
+  // the window below set its own, and the pointer flipped between the two over links and buttons.
+  window.setIgnoreMouseEvents(true);
   // The rim uses window bounds in DIP as CSS pixels, so it must not follow the main window zoom.
   window.webContents.setZoomMode("isolated");
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));

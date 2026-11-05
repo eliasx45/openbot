@@ -263,6 +263,15 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Not done:** the side panel's tab row (its tab list fills the header, so `no-drag` would stop the window drag there).
 - **Check:** while an agent works with steps, keep the pointer still on the chevron through several status changes: the chevron keeps its hover fill, one click opens the steps. Move the pointer slowly down the sidebar rows and across the pinned tiles: the fill goes from one row to the next with no frame of no fill and no arrow cursor. Move across the header thread tabs and up out of them into the header: the hover goes off at once; the empty header still drags the window. Move down the left rail: the tooltip label of the left button fades at once and the panel moves to the next.
 
+## 29. The pointer no longer flips between arrow and hand
+
+- **Why:** Elias, 5 Nov 2026 (recordings): with the pointer still on a button or link, it flipped between the arrow and the hand every few frames while the hover fill stayed on. "u and me are fighting for the cursor."
+- **Cause:** the Computer Use rim overlay (one transparent, floating, click-through window per display, covering the whole desktop, on screen whenever built) was click-through with `forward: true`. Forwarded moves reached its page, which is `pointer-events: none` with nothing under the pointer, so it set the arrow on every move while the window below set its own cursor.
+- **How (portable):** a click-through overlay that never reacts to the pointer uses `setIgnoreMouseEvents(true)` without `forward`; forwarding is only for a surface that must notice hover.
+- **Here:** `createComputerUseHighlightWindow` in `src/main/main-window.ts`.
+- **Not done:** the Dynamic Island windows keep `forward: true` (they need moves to open on hover). On a display without a notch the collapsed island window (58pt tall) overlaps the top of the chat header, so the top half of the thread tabs under it may still flip.
+- **Check:** with OpenBot running (rim overlays built), rest the pointer on the "show steps" chevron while an agent works, on a sidebar row, on a link: the hand stays, no flicker to the arrow. Computer Use still draws the rim and agent cursor and nothing on the overlay takes a click.
+
 ---
 
 ## Checked, not needed
