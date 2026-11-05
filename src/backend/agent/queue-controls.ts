@@ -322,6 +322,25 @@ export class QueueControls {
       );
     yield* this.#mailbox.markRunning(input.deliveryId, turnId).pipe(toQueueOperationFailed);
     yield* queueStep(() => {
+      // The mailbox copies leave out task messages, so a message steered into a side thread is written
+      // into the thread here, as the drain writes the message that starts a thread turn. Without it the
+      // message left the queue and showed nowhere.
+      const steered = publicThreadId !== agent.threadId ? this.#mailbox.getDelivery(input.deliveryId)?.delivery : null;
+      if (steered && !snapshot.messages.some((message) => message.id === steered.id))
+        snapshot.messages.push({
+          id: steered.id,
+          author: steered.sender.kind === "agent" ? "agent" : "user",
+          source: steered.sender.kind === "agent" ? "agent" : "user",
+          ...(steered.sender.kind === "agent" ? { senderAgentId: steered.sender.agentId } : {}),
+          replyToMessageId: steered.replyToMessageId,
+          attachments: steered.attachments,
+          delivery: { id: steered.id, status: "running", position: null },
+          turnId,
+          text: steered.text,
+          // The steer time, so the message follows what the turn wrote before it (#1540).
+          createdAt: new Date().toISOString(),
+          status: "completed",
+        });
       this.#mailboxSync.syncMailboxMessages(snapshot);
       this.#mailboxSync.emitQueue(agent.id);
       this.#conversation.emitConversation(snapshot, "queue.message-steered", { deliveryId: input.deliveryId });
