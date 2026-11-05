@@ -26,7 +26,7 @@ export function isForkCacheRoutine(routineId: string | undefined): boolean {
   return routineId === FORK_COMPACT_ROUTINE_ID || routineId === FORK_KEEPWARM_ROUTINE_ID;
 }
 /** The context size from which a compaction pays for itself. Elias chose 100k (4 Nov 2026). */
-export const FORK_COMPACT_MIN_TOKENS = 100_000;
+const FORK_COMPACT_MIN_TOKENS = 100_000;
 /**
  * Claude's prompt cache lives one hour; the compaction runs in the last minutes of it. Test switch:
  * `OPENBOT_FORK_COMPACT_QUIET_MINUTES=2` compacts after 2 quiet minutes.
@@ -36,8 +36,8 @@ const QUIET_FROM_MS = (TEST_QUIET_MINUTES > 0 ? TEST_QUIET_MINUTES : 55) * 60_00
 const QUIET_UNTIL_MS = QUIET_FROM_MS + 5 * 60_000;
 /** A keep-warm ping goes 5 minutes before the compaction would (test switch: at half of it). */
 const PING_FROM_MS = TEST_QUIET_MINUTES > 0 ? QUIET_FROM_MS / 2 : QUIET_FROM_MS - 5 * 60_000;
-export const KEEPWARM_DEFAULT_MS = 2 * 60 * 60_000;
-export const KEEPWARM_MAX_MS = 12 * 60 * 60_000;
+const KEEPWARM_DEFAULT_MS = 2 * 60 * 60_000;
+const KEEPWARM_MAX_MS = 12 * 60 * 60_000;
 const CHECK_MS = TEST_QUIET_MINUTES > 0 ? 15_000 : 60_000;
 
 const logger = createOpenBotLogger("fork-cache-compact");

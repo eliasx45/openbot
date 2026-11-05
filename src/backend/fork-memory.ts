@@ -404,7 +404,7 @@ function isJournalEntry(value: unknown): value is JournalEntry {
 }
 
 /** Content words of a message, each once, at most 16. */
-export function recallTerms(text: string): string[] {
+function recallTerms(text: string): string[] {
   const words = text.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [];
   return [...new Set(words.filter((word) => !STOP_WORDS.has(word)))].slice(0, 16);
 }

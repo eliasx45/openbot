@@ -27,7 +27,7 @@ import { registerMcpSecretValues } from "./mcp-redaction";
 
 const API = "https://backend.composio.dev/api/v3.1";
 const FILE = "fork-composio.json";
-export const COMPOSIO_SERVER_NAME = "composio";
+const COMPOSIO_SERVER_NAME = "composio";
 
 /** The line for the developer instructions, when the session is there. */
 export const COMPOSIO_INSTRUCTIONS =
@@ -135,7 +135,7 @@ export class ForkComposio {
 }
 
 /** One Composio user for this Mac, shared with Ghostpoint. */
-export function composioUserId(): string {
+function composioUserId(): string {
   const name = userInfo()
     .username.toLowerCase()
     .replace(/[^a-z0-9_-]/gu, "");

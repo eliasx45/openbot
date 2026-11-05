@@ -34,7 +34,7 @@ export interface AgentOwnCommand {
   builtin?: boolean;
 }
 
-export const AGENT_SKILL_ID_PREFIX = "agent:";
+const AGENT_SKILL_ID_PREFIX = "agent:";
 
 /**
  * Claude Code commands that make no sense in OpenBot, as claude-agent-acp leaves them out

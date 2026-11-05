@@ -208,6 +208,13 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Here:** `packages/contracts/src/ipc-voice.ts` + `ipc-endpoints.ts`, `src/preload/index.ts`, `src/main/ipc/voice-inputs.ts` + `voice-handlers.ts`, `src/backend/agent/live-voice.ts` (`preview`, `speak`, `#open`), `src/backend/agent-service.ts`, `src/renderer/src/features/settings/live-voice-preview.ts` + `SettingsVoiceTab.tsx`, `src/renderer/src/preview/mock-voice.ts`.
 - **Check:** Settings → Voice → Live voice: pick Vale. Within ~3 s you hear "Hello. This is how your replies will sound." in that voice; the button shows Stop while it plays and Listen after. Pick Ember: the voice changes. Listen replays; Stop cuts it. No agent chat gets a new message.
 
+## 22. CI on the fork: knip clean, no Discord post
+
+- **Why:** Elias, 5 Nov 2026: CI failed on the fork's `main` after the push. `knip` found 9 exports in `fork-*.ts` that nothing outside their file uses. The upstream "Announce mobile release on Discord" workflow also ran, and it failed because the fork has no `DISCORD_MOBILE_RELEASE_*` secrets.
+- **How (portable):** fork modules export only what other files import. An upstream workflow that needs upstream secrets runs only when `github.repository == 'nightly-labs/openbot'` (the pattern of `release-regression.yml` and `provider-cli-canary.yml`).
+- **Here:** `src/backend/fork-agent-skills.ts`, `fork-cache-compact.ts`, `fork-composio.ts`, `fork-goals.ts`, `fork-memory.ts`; `.github/workflows/mobile-release-announcement.yml` (`detect` job; `announce` needs it, so it skips too).
+- **Check:** the next push to `main`: the CI run passes "Check unused files and dependencies", and the Discord workflow shows its jobs as skipped.
+
 ---
 
 ## Checked, not needed

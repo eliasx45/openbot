@@ -26,7 +26,7 @@ import { type OpenBotToolResponse, openBotToolFailure, openBotToolResult } from 
 import type { DynamicToolCallParams } from "./protocol";
 
 export const GOAL_STATUS_TOOL = "goal_status";
-export const DEFAULT_GOAL_TURNS = 25;
+const DEFAULT_GOAL_TURNS = 25;
 const MAX_GOAL_TURNS = 200;
 const FILE = "fork-goals.json";
 /** How long a command line waits for its turn to start before it is appended on its own. */
@@ -393,7 +393,7 @@ export class ForkGoals {
 }
 
 /** The prompt of one goal turn. */
-export function goalPrompt(goal: Goal, note: string | null): string {
+function goalPrompt(goal: Goal, note: string | null): string {
   const left = goal.maxTurns - goal.turn;
   return [
     "[Goal mode] The user gave you a goal. Keep working on it turn after turn: OpenBot starts your next turn by itself after each one, until you report the goal completed, needing the user, or blocked.",
