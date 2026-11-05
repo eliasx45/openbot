@@ -988,6 +988,10 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
       ...(claudeTakesPromptSnapshotFlag(this.#cli.version) ? { "system-prompt-snapshot": "off" } : {}),
       // The CLI loads this file and the SDK's own `--mcp-config` value together.
       ...(mcpConfigFile ? { "mcp-config": mcpConfigFile } : {}),
+      // Fork (docs/fork/FEATURES.md, "Agents show their reasoning while they work"): in SDK mode
+      // the CLI asks the API to omit thinking, and the `showThinkingSummaries` setting does not
+      // change that. So a long tool-only stretch showed no progress.
+      "thinking-display": "summarized",
     };
     const claudeQuery = yield* providerSync(() =>
       this.#createQuery({

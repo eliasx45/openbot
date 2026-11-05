@@ -362,6 +362,14 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Here:** `src/main/push-notifications.ts` (`WAITING_REQUEST_IDLE_MS`, `#keepWaiting`, `#sendWaiting`, `requestStillWaits`), options `hostIdleSeconds` / `idleRequestAfterMs` in `src/main/host-service.ts`, set in `src/main/application-services.ts`. Doc: `docs/architecture/channels-and-messaging.md`.
 - **Check:** iPhone app registered and in the background. At the Mac, make an agent ask a question (ask_user); keep using the Mac 10 s, then leave it untouched 2+ min: the phone gets the question once. Again, but answer on the Mac before 2 min: nothing on the phone.
 
+## 38. Agents show their reasoning while they work
+
+- **Get:** Claude agents stream a summary of their thinking, so a long run of tool calls with no text still shows what the agent is doing.
+- **Why:** Elias, 5 Nov 2026: "are agents working/moving or stuck? feels like bugs". Vegapunk's row showed "Now the R4 gaps…" from 22:35 while it worked until 23:00. 697 of 716 thinking blocks in 2 h were empty. In SDK mode the CLI asks the API to omit thinking. OpenBot already renders `thinking_delta`.
+- **How (portable):** `ClaudeClient` adds the CLI flag `--thinking-display summarized` to `extraArgs`. Tested 5 Nov 2026 (CLI `-p`, stream-json): with the flag, the thinking block has text; with only `showThinkingSummaries: true` in the settings, or no setting, it is empty. Running agents get it only after OpenBot restarts their query.
+- **Here:** `src/backend/claude-client.ts` (`extraArgs`).
+- **Check:** send an agent a task that needs several tool calls. Thinking text shows in its chat while it works, and new `thinking` blocks in its transcript `.jsonl` have text.
+
 ---
 
 ## Checked, not needed
