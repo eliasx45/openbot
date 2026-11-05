@@ -69,7 +69,7 @@ export interface BrowserProfilesPanelProps {
   menuMount?: HTMLElement | undefined;
   /** The saved proxies, when the server has proxy routes. Undefined hides the proxy choice. */
   proxies?: BrowserProfileProxies | undefined;
-  /** Fork (FEATURES.md 30): Chrome sign-ins, for this computer's own server only. */
+  /** Fork (FEATURES.md 32): Chrome sign-ins, for this computer's own server only. */
   chrome?: BrowserProfilesChrome | undefined;
 }
 

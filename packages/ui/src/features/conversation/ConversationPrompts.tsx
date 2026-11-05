@@ -268,7 +268,7 @@ interface BrowserTakeoverCardProps {
    */
   signInBlocked?: { server: string; signingIn: boolean } | undefined;
   /**
-   * Fork (FEATURES.md 30): copies Chrome's sign-in for the page's site into the tab's profile and
+   * Fork (FEATURES.md 32): copies Chrome's sign-in for the page's site into the tab's profile and
    * reloads it. Present only when that profile is linked to a Chrome profile.
    */
   onUseChromeSignIn?: (() => Promise<boolean>) | undefined;

@@ -126,7 +126,7 @@ interface AgentAdminIpcDependencies {
   settings: AgentAdminSettingsService;
   hostSettings: AgentHostSettingsService;
   browserProfiles: BrowserProfileService;
-  /** Fork (FEATURES.md 30): Chrome sign-ins of this computer. */
+  /** Fork (FEATURES.md 32): Chrome sign-ins of this computer. */
   chromeImport: ChromeImportService;
   iphonePhoto: Pick<IphonePhotoService, "take">;
   skills: Pick<SkillMarketplaceService, "listInstalled" | "install" | "uninstall" | "setEnabled">;

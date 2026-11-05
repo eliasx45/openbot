@@ -53,7 +53,7 @@ const browserTargetSchema = z.discriminatedUnion("kind", [
 ]);
 
 const vaultText = z.string().max(VAULT_TEXT_LIMIT).optional();
-/** Fork (FEATURES.md 30): the browser profile a new tab opens in, by name. */
+/** Fork (FEATURES.md 32): the browser profile a new tab opens in, by name. */
 const optionalProfileName = z.string().max(60).optional();
 
 const vaultContactShape = {

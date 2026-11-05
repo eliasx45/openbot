@@ -2282,7 +2282,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         emitAgentEvent({ type: "browser-profiles-changed" });
       },
       listBrowserTabProfiles: async () => [],
-      // Fork (FEATURES.md 30): the preview has no Chrome.
+      // Fork (FEATURES.md 32): the preview has no Chrome.
       listChromeProfiles: async () => ({ available: false, profiles: [] }),
       listChromeSites: async () => [],
       importChromeProfiles: async () => ({ profiles: [] }),

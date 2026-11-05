@@ -194,7 +194,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
       return store.follow(() => readChoice(() => undefined));
     },
   );
-  // Fork (FEATURES.md 30): the other named profiles this agent may open a tab in. This computer only.
+  // Fork (FEATURES.md 32): the other named profiles this agent may open a tab in. This computer only.
   const [extraProfiles, setExtraProfiles] = createSignal<readonly string[]>([]);
   createEffect(
     () => ({ agentId: props.agent.id, local: props.localHost === true }),

@@ -650,7 +650,7 @@ export interface ApplicationServices {
   /** The instruction file of each agent, for the desktop page and `agent-instructions-v1`. */
   agentInstructions: AgentInstructionsFiles;
   browserProfiles: BrowserProfileService;
-  /** Fork (FEATURES.md 30): Chrome sign-ins imported into browser profiles. */
+  /** Fork (FEATURES.md 32): Chrome sign-ins imported into browser profiles. */
   chromeImport: ChromeImportService;
   iphonePhoto: IphonePhotoService;
   language: LanguageService;
@@ -1225,7 +1225,7 @@ export async function createApplicationServices({
   const browserProxyCipher = safeStorageCipher("error.app.secretStorageUnavailable");
   // The agent service starts after the browser: a proxy failure before it has no open list to update.
   let browserProxyStatusChanged = () => {};
-  // Fork (FEATURES.md 30): the extra named profiles of each agent, set when the Chrome import starts.
+  // Fork (FEATURES.md 32): the extra named profiles of each agent, set when the Chrome import starts.
   let agentExtraProfiles = (_agentId: string): string[] => [];
   const browser = new BrowserHost(mainWindow, store.downloadsRoot, join(app.getPath("userData"), BROWSER_STATE_FILE), {
     memoryLow: () => (hostMemory?.level() ?? "ok") !== "ok",

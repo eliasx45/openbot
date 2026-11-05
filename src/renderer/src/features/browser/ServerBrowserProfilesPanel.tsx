@@ -12,7 +12,7 @@ export interface ServerBrowserProfilesOptions {
   store: Omit<BrowserProfilesStore, "assign">;
   /** The agents of the same server, for the names in the delete question. */
   listAgents: () => Promise<readonly Pick<AgentSummary, "id" | "name">[]>;
-  /** Fork (FEATURES.md 30): Chrome sign-ins, for this computer's own server only. */
+  /** Fork (FEATURES.md 32): Chrome sign-ins, for this computer's own server only. */
   chrome?: ChromeImportPort | undefined;
 }
 

@@ -1986,7 +1986,7 @@ export const IPC_ENDPOINTS = {
       "agent:admin:set-browser-computer-sharing",
     ),
     listBrowserTabProfiles: scopedQuery<BrowserTabProfile[]>()("agent:admin:list-browser-tab-profiles"),
-    // Fork (FEATURES.md 30): Chrome sign-ins. Only this computer's own server answers them.
+    // Fork (FEATURES.md 32): Chrome sign-ins. Only this computer's own server answers them.
     listChromeProfiles: scopedQuery<ChromeProfileList>()("agent:admin:list-chrome-profiles"),
     listChromeSites: scopedRequest<string, ChromeSite[]>()("agent:admin:list-chrome-sites"),
     importChromeProfiles: scopedRequest<ImportChromeProfilesInput, ChromeImportResult>()(

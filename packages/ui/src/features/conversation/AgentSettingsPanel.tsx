@@ -222,7 +222,7 @@ export interface AgentBrowserProfileOptions {
   /** Opens the profiles in the settings of the computer that runs the agent. */
   onManage: (trigger: HTMLElement) => void;
   /**
-   * Fork (FEATURES.md 30): the other named profiles the agent may open a tab in, chosen per tab by
+   * Fork (FEATURES.md 32): the other named profiles the agent may open a tab in, chosen per tab by
    * the account a task needs. Absent where the host cannot keep them.
    */
   extra?: { profileIds: readonly string[]; onChange: (profileIds: string[]) => Promise<void> } | undefined;

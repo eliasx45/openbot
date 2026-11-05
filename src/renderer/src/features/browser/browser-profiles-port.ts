@@ -99,7 +99,7 @@ export function desktopBrowserProfileCalls(serverId?: string): BrowserProfileCal
   };
 }
 
-/** Fork (FEATURES.md 30): the Chrome sign-ins of this computer. Only its own server has them. */
+/** Fork (FEATURES.md 32): the Chrome sign-ins of this computer. Only its own server has them. */
 export interface ChromeImportPort {
   listProfiles(): Promise<ChromeProfileList>;
   listSites(chromeDir: string): Promise<ChromeSite[]>;

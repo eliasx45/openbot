@@ -23,7 +23,7 @@ export function ConversationBrowserTakeover() {
   } = useConversationViewScope();
   const { t, errorMessage } = useText();
   const runtime = conversationRuntime(props);
-  // Fork (FEATURES.md 30): the site whose Chrome sign-in the takeover tab can take. This computer only.
+  // Fork (FEATURES.md 32): the site whose Chrome sign-in the takeover tab can take. This computer only.
   const [chromeSite, setChromeSite] = createSignal<string | null>(null);
   createEffect(
     () => (props.server?.kind === "local" ? props.browserTakeover?.tabId : undefined),

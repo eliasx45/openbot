@@ -529,7 +529,7 @@ export class BrowserHost {
       /** Whether a named profile still exists. A tab never opens in a deleted profile. */
       profileExists?: (profileId: string) => boolean;
       /**
-       * Fork (FEATURES.md 30): the named profiles an agent can choose per tab, its own profile first
+       * Fork (FEATURES.md 32): the named profiles an agent can choose per tab, its own profile first
        * when it is a named one. The `open` tool takes one of these names.
        */
       profileChoices?: (agentId: string) => { profileId: string; name: string; isDefault: boolean }[];
@@ -2785,7 +2785,7 @@ export class BrowserHost {
     agentId: string,
     profileName?: string,
   ): Effect.fn.Return<BrowserTabSession | undefined, BrowserOperationError> {
-    // Fork (FEATURES.md 30): a profile the agent chose by name, from the profiles it may use.
+    // Fork (FEATURES.md 32): a profile the agent chose by name, from the profiles it may use.
     const wanted = profileName?.trim().toLowerCase();
     if (wanted) {
       const choices = this.#profileChoices(agentId);
@@ -2983,7 +2983,7 @@ export class BrowserHost {
     return tab.privateSession ?? (tab.tabSession ? this.#persistentTabSession(tab.tabSession) : this.#session);
   }
 
-  /** Fork (FEATURES.md 30): the cookie store of a named profile, for the Chrome import. */
+  /** Fork (FEATURES.md 32): the cookie store of a named profile, for the Chrome import. */
   profileCookies(profileId: string): Cookies {
     return this.#persistentTabSession({ kind: "profile", profileId }).cookies;
   }
