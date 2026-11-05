@@ -6,8 +6,14 @@ import {
   type BrowserProxyList,
   type BrowserProxySummary,
   type BrowserTabProfile,
+  type ChromeImportResult,
+  type ChromeLink,
+  type ChromeProfileList,
+  type ChromeSite,
+  type ChromeSyncCounts,
   type ClearBrowserDataInput,
   type DeleteBrowserProxyInput,
+  type ImportChromeProfilesInput,
   LOCAL_SERVER_ID,
   type SaveBrowserProxyInput,
   type SetBrowserProfileProxyInput,
@@ -90,5 +96,25 @@ export function desktopBrowserProfileCalls(serverId?: string): BrowserProfileCal
       agent().onScopedEvent((scoped) => {
         if (scoped.serverId === eventServerId && scoped.event.type === "browser-profiles-changed") listener();
       }),
+  };
+}
+
+/** Fork (FEATURES.md 30): the Chrome sign-ins of this computer. Only its own server has them. */
+export interface ChromeImportPort {
+  listProfiles(): Promise<ChromeProfileList>;
+  listSites(chromeDir: string): Promise<ChromeSite[]>;
+  importProfiles(input: ImportChromeProfilesInput): Promise<ChromeImportResult>;
+  links(): Promise<ChromeLink[]>;
+  resync(profileId: string): Promise<ChromeSyncCounts>;
+}
+
+export function desktopChromeImportCalls(): ChromeImportPort {
+  const agent = () => window.openbot.agent;
+  return {
+    listProfiles: () => agent().listChromeProfiles(),
+    listSites: (chromeDir) => agent().listChromeSites(chromeDir),
+    importProfiles: (input) => agent().importChromeProfiles(input),
+    links: () => agent().listChromeLinks(),
+    resync: (profileId) => agent().resyncChromeProfile(profileId),
   };
 }

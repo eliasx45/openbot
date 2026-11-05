@@ -267,6 +267,11 @@ interface BrowserTakeoverCardProps {
    * sign-in on this computer; `signingIn` is true while that sign-in is open.
    */
   signInBlocked?: { server: string; signingIn: boolean } | undefined;
+  /**
+   * Fork (FEATURES.md 30): copies Chrome's sign-in for the page's site into the tab's profile and
+   * reloads it. Present only when that profile is linked to a Chrome profile.
+   */
+  onUseChromeSignIn?: (() => Promise<boolean>) | undefined;
   browserSecret?: {
     loadPreview?: (tabId: string) => Promise<BrowserPreview>;
     /** Offer "Save to Vault" for a password. */
@@ -299,8 +304,13 @@ export function BrowserTakeoverCard(props: BrowserTakeoverCardProps) {
 
 function BrowserManualTakeoverCard(props: BrowserTakeoverCardProps) {
   const { t } = useText();
-  const [submitting, setSubmitting] = createSignal<"complete" | "cancel" | null>(null);
+  const [submitting, setSubmitting] = createSignal<"complete" | "cancel" | "chrome" | null>(null);
   const pageDetails = createMemo(() => browserPageDetails(props.tab, t));
+  const useChrome = async (signIn: () => Promise<boolean>) => {
+    if (submitting() || props.decision) return;
+    setSubmitting("chrome");
+    if (!(await signIn())) setSubmitting(null);
+  };
   const completed = () => props.decision === "complete";
   const cancelled = () => props.decision === "cancel";
   const accessibleLabel = () =>
@@ -447,6 +457,22 @@ function BrowserManualTakeoverCard(props: BrowserTakeoverCardProps) {
               when={props.signInBlocked && props.onSignInLocally}
               fallback={
                 <>
+                  <Show when={props.onUseChromeSignIn}>
+                    {(signIn) => (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        type="button"
+                        class="approval-button"
+                        loading={submitting() === "chrome"}
+                        loadingLabel={t("prompt.browser.returning")}
+                        disabled={Boolean(submitting())}
+                        onClick={() => void useChrome(signIn())}
+                      >
+                        {t("browser.chrome.useSignIn")}
+                      </Button>
+                    )}
+                  </Show>
                   <Show when={props.onSignInLocally}>
                     {(signIn) => (
                       <Button

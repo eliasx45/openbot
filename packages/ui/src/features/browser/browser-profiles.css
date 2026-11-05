@@ -159,3 +159,46 @@
   margin-inline-start: auto;
   color: var(--openbot-text-muted);
 }
+
+/* Fork (docs/fork/FEATURES.md 30): Import from Chrome, under the profile list. */
+.browser-chrome-import,
+.browser-chrome-import-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-2);
+}
+
+.browser-chrome-import-label {
+  margin-top: var(--openbot-space-1);
+  color: var(--openbot-text-muted);
+  font-weight: 500;
+}
+
+.browser-chrome-import-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.browser-chrome-import-pick {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--openbot-space-3);
+  cursor: pointer;
+}
+
+.browser-chrome-import-choice {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.browser-chrome-import-actions {
+  justify-content: flex-end;
+}
+
+/* A profile linked to Chrome: its Chrome name and last sync, then Re-sync. */
+.browser-chrome-link {
+  color: var(--openbot-text-muted);
+}

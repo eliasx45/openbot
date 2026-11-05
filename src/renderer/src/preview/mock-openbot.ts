@@ -2281,6 +2281,18 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         emitAgentEvent({ type: "browser-profiles-changed" });
       },
       listBrowserTabProfiles: async () => [],
+      // Fork (FEATURES.md 30): the preview has no Chrome.
+      listChromeProfiles: async () => ({ available: false, profiles: [] }),
+      listChromeSites: async () => [],
+      importChromeProfiles: async () => ({ profiles: [] }),
+      listChromeLinks: async () => [],
+      resyncChromeProfile: async () => ({ added: 0, updated: 0, kept: 0, unchanged: 0, skipped: 0 }),
+      getChromeSignInSite: async () => null,
+      signInWithChrome: async () => {
+        throw new Error("Chrome is not on this computer.");
+      },
+      getAgentBrowserProfileChoices: async (agentId) => ({ agentId, profileIds: [] }),
+      updateAgentBrowserProfileChoices: async (input) => input,
       updateAgentAdminSettings: async ({ agentId, access, autoApprove }) => {
         const agent = agents.find((candidate) => candidate.id === agentId);
         if (!agent) throw new Error("Agent not found");

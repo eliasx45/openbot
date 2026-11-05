@@ -34,6 +34,7 @@ import {
   browserProxyConnection,
   createBrowserProfileService,
 } from "./browser-profile-service";
+import { type ChromeImportService, createChromeImportService } from "./chrome-import";
 import { HostReleaseService, readInstallationMode } from "./host-release-service";
 import {
   CONTAINER_UPDATE_PATHS,
@@ -648,6 +649,8 @@ export interface ApplicationServices {
   /** The instruction file of each agent, for the desktop page and `agent-instructions-v1`. */
   agentInstructions: AgentInstructionsFiles;
   browserProfiles: BrowserProfileService;
+  /** Fork (FEATURES.md 30): Chrome sign-ins imported into browser profiles. */
+  chromeImport: ChromeImportService;
   language: LanguageService;
   logoColor: LogoColorService;
   appearance: AppearanceService;
@@ -1220,6 +1223,8 @@ export async function createApplicationServices({
   const browserProxyCipher = safeStorageCipher("error.app.secretStorageUnavailable");
   // The agent service starts after the browser: a proxy failure before it has no open list to update.
   let browserProxyStatusChanged = () => {};
+  // Fork (FEATURES.md 30): the extra named profiles of each agent, set when the Chrome import starts.
+  let agentExtraProfiles = (_agentId: string): string[] => [];
   const browser = new BrowserHost(mainWindow, store.downloadsRoot, join(app.getPath("userData"), BROWSER_STATE_FILE), {
     memoryLow: () => (hostMemory?.level() ?? "ok") !== "ok",
     browserProfile: (agentId) => {
@@ -1227,6 +1232,17 @@ export async function createApplicationServices({
       return agent ? agentBrowserProfile(agent) : { kind: "shared" };
     },
     profileExists: (profileId) => browserProfileStore.get(profileId) !== undefined,
+    profileChoices: (agentId) => {
+      const agent = store.list().find((candidate) => candidate.id === agentId);
+      const own = agent ? agentBrowserProfile(agent) : { kind: "shared" as const };
+      const ids = [...(own.kind === "profile" ? [own.profileId] : []), ...agentExtraProfiles(agentId)];
+      return [...new Set(ids)].flatMap((profileId) => {
+        const profile = browserProfileStore.get(profileId);
+        return profile
+          ? [{ profileId, name: profile.name, isDefault: own.kind === "profile" && own.profileId === profileId }]
+          : [];
+      });
+    },
     profileProxy: (profileId) => browserProxyConnection(browserProxyStore, browserProxyCipher, profileId),
     onProxyStatusChanged: () => browserProxyStatusChanged(),
     computerExit: (memberId) => browserEgress.exit(memberId),
@@ -2516,6 +2532,39 @@ export async function createApplicationServices({
     onChanged: () => service.notifyBrowserProfilesChanged(),
   });
   browserProxyStatusChanged = () => service.notifyBrowserProfilesChanged();
+  const chromeImport = createChromeImportService({
+    dataDir: join(app.getPath("userData"), "fork-chrome-import"),
+    profileCookies: (profileId) => browser.profileCookies(profileId),
+    createProfile: async (name) => {
+      // A name that is taken gets a number, as Chrome does for its own profiles.
+      const taken = new Set(browserProfileStore.list().map((profile) => profile.name.toLowerCase()));
+      let candidate = name;
+      for (let index = 2; taken.has(candidate.toLowerCase()); index += 1) candidate = `${name.slice(0, 55)} (${index})`;
+      const created = await runCauseEffect(browserProfiles.create(candidate));
+      return { id: created.id, name: created.name };
+    },
+    deleteProfile: (profileId) => runCauseEffect(browserProfiles.delete(profileId)),
+    profileName: (profileId) => browserProfileStore.get(profileId)?.name,
+    profileExists: (profileId) => browserProfileStore.get(profileId) !== undefined,
+    tab: (tabId) => {
+      const tab = browser.listTabs().find((candidate) => candidate.id === tabId);
+      if (!tab) return undefined;
+      const tabSession = browser.listTabSessions().find((entry) => entry.tabId === tabId)?.tabSession;
+      return { url: tab.url, profileId: tabSession?.kind === "profile" ? tabSession.profileId : undefined };
+    },
+    reloadTab: (tabId) => runCauseEffect(browser.reload(tabId)),
+    // Codex asks for Touch ID before an import too. A Mac without Touch ID goes on to the Keychain question.
+    confirmUser: async () => {
+      if (process.env.OPENBOT_FORK_SKIP_TOUCH_ID === "1" || !systemPreferences.canPromptTouchID()) return;
+      try {
+        await systemPreferences.promptTouchID(sourceText("error.backend.chromeImportConfirm"));
+      } catch {
+        throw new Error(sourceText("error.backend.chromeImportCancelled"));
+      }
+    },
+  });
+  agentExtraProfiles = (agentId) => chromeImport.agentChoices(agentId);
+  teardown.push(TEARDOWN_ORDER.browser - 0.5, "the Chrome import notes", () => chromeImport.dispose());
   // A computer that comes online or goes offline changes the proxy list.
   browserEgress.on("changed", () => service.notifyBrowserProfilesChanged());
   const customProviderChanges = createCustomProviderChanges({ service, customProviders, providerRuntimes });
@@ -3739,6 +3788,7 @@ export async function createApplicationServices({
     agentFolders,
     agentInstructions,
     browserProfiles,
+    chromeImport,
     language,
     logoColor,
     appearance,

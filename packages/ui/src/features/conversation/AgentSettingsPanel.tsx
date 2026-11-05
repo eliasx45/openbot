@@ -43,6 +43,7 @@ import {
   ArrowLeftRight,
   Bell,
   Button,
+  Checkbox,
   ConfirmDialog,
   Cpu,
   ErrorReference,
@@ -112,6 +113,7 @@ import {
 } from "solid-js";
 import { useText } from "../../text";
 import { avatarColorChoiceLabel } from "../agents/avatar-hue-label";
+import { BrowserProfileDot } from "../browser/BrowserProfileColor";
 import { SERVER_NOTIFICATION_LEVEL_LABELS } from "../servers/ServerActionItems";
 import { AgentChatColorRow } from "../settings/ChatColorSetting";
 import { type AgentFolderCalls, AgentFoldersPage, AgentFoldersRow, createAgentFolders } from "./AgentFolders";
@@ -219,6 +221,11 @@ export interface AgentBrowserProfileOptions {
   onCreate: (name: string) => Promise<string>;
   /** Opens the profiles in the settings of the computer that runs the agent. */
   onManage: (trigger: HTMLElement) => void;
+  /**
+   * Fork (FEATURES.md 30): the other named profiles the agent may open a tab in, chosen per tab by
+   * the account a task needs. Absent where the host cannot keep them.
+   */
+  extra?: { profileIds: readonly string[]; onChange: (profileIds: string[]) => Promise<void> } | undefined;
 }
 
 export interface AgentNotificationLevelOptions {
@@ -1632,6 +1639,42 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                   </span>
                 </div>
               </SettingsLinkGroup>
+              <Show when={props.browserProfiles?.extra ? props.browserProfiles : undefined}>
+                {(options) => (
+                  <Show when={(options().profiles ?? []).filter((profile) => profile.id !== draft.browserProfile)}>
+                    {(others) => (
+                      <Show when={others().length > 0}>
+                        <fieldset class="agent-settings-more-profiles">
+                          <legend>{t("agentSettings.browserProfile.more")}</legend>
+                          <Text as="p" variant="caption" tone="muted">
+                            {t("agentSettings.browserProfile.moreHint")}
+                          </Text>
+                          <For each={others()} keyed={(profile) => profile.id}>
+                            {(profile) => (
+                              <div class="agent-settings-more-profile">
+                                <Checkbox
+                                  id={`agent-more-profile-${profile().id}`}
+                                  checked={options().extra?.profileIds.includes(profile().id) ?? false}
+                                  onChange={() => {
+                                    const extra = options().extra;
+                                    if (!extra) return;
+                                    const ids = extra.profileIds.includes(profile().id)
+                                      ? extra.profileIds.filter((id) => id !== profile().id)
+                                      : [...extra.profileIds, profile().id];
+                                    void extra.onChange(ids);
+                                  }}
+                                />
+                                <BrowserProfileDot hue={profile().hue} />
+                                <label for={`agent-more-profile-${profile().id}`}>{profile().name}</label>
+                              </div>
+                            )}
+                          </For>
+                        </fieldset>
+                      </Show>
+                    )}
+                  </Show>
+                )}
+              </Show>
               <Show when={props.busyMessageModeEditable && steerUnsupported()}>
                 <Text as="p" class="agent-settings-runtime-note" variant="caption" tone="muted">
                   {t("agentSettings.busyMessage.steerUnsupported", {

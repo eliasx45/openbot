@@ -1,9 +1,10 @@
-import type { AgentSummary } from "@openbot/contracts/ipc";
-import { BrowserProfilesPanel } from "@openbot/ui/features/browser/BrowserProfilesPanel";
+import type { AgentSummary, ChromeLink } from "@openbot/contracts/ipc";
+import { type BrowserProfilesChrome, BrowserProfilesPanel } from "@openbot/ui/features/browser/BrowserProfilesPanel";
 import type { BrowserProfileProxies } from "@openbot/ui/features/browser/BrowserProxies";
 import { useText } from "@openbot/ui/text";
 import { createEffect, createSignal } from "solid-js";
 import { actionToast } from "../../action-toast";
+import type { ChromeImportPort } from "./browser-profiles-port";
 import type { BrowserProfilesStore } from "./stores/browser-profiles-store";
 
 export interface ServerBrowserProfilesOptions {
@@ -11,6 +12,8 @@ export interface ServerBrowserProfilesOptions {
   store: Omit<BrowserProfilesStore, "assign">;
   /** The agents of the same server, for the names in the delete question. */
   listAgents: () => Promise<readonly Pick<AgentSummary, "id" | "name">[]>;
+  /** Fork (FEATURES.md 30): Chrome sign-ins, for this computer's own server only. */
+  chrome?: ChromeImportPort | undefined;
 }
 
 /**
@@ -24,6 +27,10 @@ export function ServerBrowserProfilesPanel(
 ) {
   const { t, errorMessage } = useText();
   const [agentNames, setAgentNames] = createSignal<ReadonlyMap<string, string>>(new Map());
+  const [chromeLinks, setChromeLinks] = createSignal<readonly ChromeLink[]>([]);
+  const readChromeLinks = () => {
+    props.chrome?.links().then(setChromeLinks, () => undefined);
+  };
   let request = 0;
   createEffect(
     () => props.store,
@@ -40,6 +47,7 @@ export function ServerBrowserProfilesPanel(
         },
         () => undefined,
       );
+      readChromeLinks();
       return store.follow();
     },
   );
@@ -57,6 +65,23 @@ export function ServerBrowserProfilesPanel(
       onSetSharing: props.store.setSharing,
     };
   };
+  const chromeProps = (): BrowserProfilesChrome | undefined => {
+    const chrome = props.chrome;
+    if (!chrome) return undefined;
+    return {
+      links: chromeLinks(),
+      calls: chrome,
+      onImported: () => {
+        void props.store.refresh();
+        readChromeLinks();
+      },
+      onResync: async (profileId) => {
+        const counts = await chrome.resync(profileId);
+        readChromeLinks();
+        return counts;
+      },
+    };
+  };
   return (
     <BrowserProfilesPanel
       profiles={props.store.state.profiles}
@@ -71,6 +96,7 @@ export function ServerBrowserProfilesPanel(
       onDelete={props.store.remove}
       menuMount={props.menuMount}
       proxies={proxies()}
+      chrome={chromeProps()}
     />
   );
 }

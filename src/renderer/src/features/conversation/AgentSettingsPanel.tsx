@@ -194,6 +194,21 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
       return store.follow(() => readChoice(() => undefined));
     },
   );
+  // Fork (FEATURES.md 30): the other named profiles this agent may open a tab in. This computer only.
+  const [extraProfiles, setExtraProfiles] = createSignal<readonly string[]>([]);
+  createEffect(
+    () => ({ agentId: props.agent.id, local: props.localHost === true }),
+    ({ agentId, local }) => {
+      setExtraProfiles([]);
+      if (!local) return;
+      window.openbot.agent.getAgentBrowserProfileChoices(agentId).then(
+        (choices) => {
+          if (choices.agentId === props.agent.id) setExtraProfiles(choices.profileIds);
+        },
+        () => undefined,
+      );
+    },
+  );
   const browserProfileOptions = (): AgentBrowserProfileOptions | undefined => {
     const store = browserProfiles();
     const manage = props.onManageBrowserProfiles;
@@ -208,6 +223,19 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
       },
       onCreate: store.create,
       onManage: manage,
+      extra:
+        props.localHost === true
+          ? {
+              profileIds: extraProfiles(),
+              onChange: async (profileIds) => {
+                const saved = await window.openbot.agent.updateAgentBrowserProfileChoices({
+                  agentId: props.agent.id,
+                  profileIds,
+                });
+                setExtraProfiles(saved.profileIds);
+              },
+            }
+          : undefined,
     };
   };
   const memoriesPort = createMemo(() => agentMemoriesPort(props.agent.id, props.agent.name, props.memoryLimit ?? null));

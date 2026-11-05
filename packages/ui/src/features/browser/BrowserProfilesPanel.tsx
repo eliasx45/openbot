@@ -4,6 +4,9 @@ import {
   type BrowserProfileSummary,
   type BrowserProxySummary,
   browserProxyAddressText,
+  type ChromeImportResult,
+  type ChromeLink,
+  type ChromeSyncCounts,
 } from "@openbot/contracts/ipc";
 import {
   Button,
@@ -32,6 +35,7 @@ import { errorReference, type UserErrorDetails } from "@openbot/user-errors";
 import type { JSX } from "@solidjs/web";
 import { createStore, For, Show } from "solid-js";
 import { useText } from "../../text";
+import { BrowserChromeImport, type BrowserChromeImportCalls } from "./BrowserChromeImport";
 import { BrowserProfileColorMenu, BrowserProfileDot } from "./BrowserProfileColor";
 import {
   BrowserComputerShareDialog,
@@ -65,6 +69,15 @@ export interface BrowserProfilesPanelProps {
   menuMount?: HTMLElement | undefined;
   /** The saved proxies, when the server has proxy routes. Undefined hides the proxy choice. */
   proxies?: BrowserProfileProxies | undefined;
+  /** Fork (FEATURES.md 30): Chrome sign-ins, for this computer's own server only. */
+  chrome?: BrowserProfilesChrome | undefined;
+}
+
+export interface BrowserProfilesChrome {
+  links: readonly ChromeLink[];
+  calls: BrowserChromeImportCalls;
+  onImported: (result: ChromeImportResult) => void;
+  onResync: (profileId: string) => Promise<ChromeSyncCounts>;
 }
 
 interface BrowserProfilesDraft {
@@ -84,6 +97,8 @@ interface BrowserProfilesDraft {
   sharing: { assignTo: string | null } | null;
   busy: boolean;
   failure: UserErrorDetails | null;
+  /** The last Chrome re-sync, as the user reads it. */
+  resynced: string | null;
 }
 
 /**
@@ -104,6 +119,7 @@ export function BrowserProfilesPanel(props: BrowserProfilesPanelProps) {
     sharing: null,
     busy: false,
     failure: null,
+    resynced: null,
   });
 
   /** Runs one change. A failure stays in the panel; the store keeps the last list. */
@@ -258,6 +274,41 @@ export function BrowserProfilesPanel(props: BrowserProfilesPanelProps) {
       tabs: t("browser.profiles.tabs", { count: profile.tabCount }),
     });
 
+  const chromeLink = (profileId: string) => props.chrome?.links.find((link) => link.profileId === profileId);
+  const chromeText = (link: ChromeLink) =>
+    [
+      t("browser.chrome.linked", { browser: link.browser, name: link.chromeName }),
+      link.chromeMissing
+        ? t("browser.chrome.missing")
+        : link.lastSyncAt
+          ? t("browser.chrome.syncedAt", {
+              time: format.date(link.lastSyncAt, { dateStyle: "short", timeStyle: "short" }),
+            })
+          : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+  async function resync(profile: BrowserProfileSummary): Promise<void> {
+    const chrome = props.chrome;
+    if (!chrome) return;
+    let counts: ChromeSyncCounts | undefined;
+    const done = await run(async () => {
+      counts = await chrome.onResync(profile.id);
+    });
+    if (done && counts) {
+      const result = counts;
+      setDraft((state) => {
+        state.resynced = t("browser.chrome.resynced", {
+          name: profile.name,
+          updated: result.updated,
+          kept: result.kept,
+          added: result.added,
+        });
+      });
+    }
+  }
+
   const deletedAgents = () => {
     const confirming = draft.confirming;
     if (confirming?.kind !== "delete") return [];
@@ -325,8 +376,24 @@ export function BrowserProfilesPanel(props: BrowserProfilesPanelProps) {
                         <ItemContent>
                           <ItemTitle>{profile.name}</ItemTitle>
                           <ItemDescription>{usage(profile)}</ItemDescription>
+                          <Show when={chromeLink(profile.id)}>
+                            {(link) => (
+                              <ItemDescription class="browser-chrome-link">{chromeText(link())}</ItemDescription>
+                            )}
+                          </Show>
                         </ItemContent>
                         <ItemActions>
+                          <Show when={chromeLink(profile.id) && !chromeLink(profile.id)?.chromeMissing}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={draft.busy}
+                              aria-label={t("browser.chrome.resyncLabel", { name: profile.name })}
+                              onClick={() => void resync(profile)}
+                            >
+                              {t("browser.chrome.resync")}
+                            </Button>
+                          </Show>
                           <Show when={proxyOf(profile.id)}>{(proxy) => <BrowserProxyBadge proxy={proxy()} />}</Show>
                           <BrowserProfileRowMenu
                             name={profile.name}
@@ -423,6 +490,12 @@ export function BrowserProfilesPanel(props: BrowserProfilesPanelProps) {
           {t("browser.profiles.create")}
         </Button>
       </form>
+      <Show when={draft.resynced}>{(resynced) => <Text variant="caption">{resynced()}</Text>}</Show>
+      <Show when={props.chrome}>
+        {(chrome) => (
+          <BrowserChromeImport calls={chrome().calls} onImported={chrome().onImported} disabled={draft.busy} />
+        )}
+      </Show>
     </>
   );
 

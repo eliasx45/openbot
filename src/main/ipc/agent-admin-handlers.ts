@@ -24,10 +24,13 @@ import {
   decodeHostBrowserTabProfiles,
   decodeInstalledSkills,
   type InstalledSkill,
+  parseAgentBrowserProfileChoices,
   parseBrowserProfileId,
   parseBrowserProfileName,
+  parseChromeDir,
   parseClearBrowserDataInput,
   parseDeleteBrowserProxyInput,
+  parseImportChromeProfilesInput,
   parseSaveBrowserProxyInput,
   parseSetBrowserProfileProxyInput,
   parseUpdateAgentAdminSettingsInput,
@@ -86,6 +89,7 @@ import type { AgentHostSettingsService } from "../agent-host-settings";
 import type { AgentMarketplaceService } from "../agent-marketplace-service";
 import type { AgentTemplateService } from "../agent-template-service";
 import type { BrowserProfileService } from "../browser-profile-service";
+import type { ChromeImportService } from "../chrome-import";
 import {
   decodeAgentHostSettingsFromHost,
   decodeRemoteAgentFastModeSettings,
@@ -121,10 +125,17 @@ interface AgentAdminIpcDependencies {
   settings: AgentAdminSettingsService;
   hostSettings: AgentHostSettingsService;
   browserProfiles: BrowserProfileService;
+  /** Fork (FEATURES.md 30): Chrome sign-ins of this computer. */
+  chromeImport: ChromeImportService;
   skills: Pick<SkillMarketplaceService, "listInstalled" | "install" | "uninstall" | "setEnabled">;
   marketplaceAgents: Pick<AgentMarketplaceService, "install">;
   agentTemplates: Pick<AgentTemplateService, "install" | "preview" | "publish" | "unpublish">;
   remoteServers: AgentAdminRemoteServers;
+}
+
+/** The Chrome calls read Chrome on this computer; a joined server's host has its own. */
+function chromeOnlyHere(): never {
+  throw new Error(sourceText("error.backend.chromeImportThisComputerOnly"));
 }
 
 function decodeRemoteInstalledSkill(value: unknown): InstalledSkill {
@@ -137,6 +148,7 @@ export function agentAdminIpcHandlers({
   settings,
   hostSettings,
   browserProfiles,
+  chromeImport,
   skills,
   marketplaceAgents,
   agentTemplates,
@@ -286,6 +298,42 @@ export function agentAdminIpcHandlers({
           throw new Error(sourceText("error.team.agentSettingsUnsupported"));
         },
         remote: ({ sharing }, serverId) => runCauseEffect(remoteServers.setBrowserComputerSharing(serverId, sharing)),
+      }),
+      listChromeProfiles: scopedQueryHandler({
+        local: () => chromeImport.listProfiles(),
+        remote: () => chromeOnlyHere(),
+      }),
+      listChromeSites: scopedHandler(parseChromeDir, {
+        local: (dir) => chromeImport.listSites(dir),
+        remote: () => chromeOnlyHere(),
+      }),
+      importChromeProfiles: scopedHandler(parseImportChromeProfilesInput, {
+        local: (input) => chromeImport.importProfiles(input),
+        remote: () => chromeOnlyHere(),
+      }),
+      listChromeLinks: scopedQueryHandler({
+        local: () => chromeImport.links(),
+        remote: () => [],
+      }),
+      resyncChromeProfile: scopedHandler(parseBrowserProfileId, {
+        local: (profileId) => chromeImport.resync(profileId),
+        remote: () => chromeOnlyHere(),
+      }),
+      getChromeSignInSite: scopedHandler((value) => requireString(value, "tabId"), {
+        local: (tabId) => chromeImport.signInSite(tabId),
+        remote: () => null,
+      }),
+      signInWithChrome: scopedHandler((value) => requireString(value, "tabId"), {
+        local: (tabId) => chromeImport.signInTab(tabId),
+        remote: () => chromeOnlyHere(),
+      }),
+      getAgentBrowserProfileChoices: scopedHandler((value) => requireString(value, "agentId"), {
+        local: (agentId) => ({ agentId, profileIds: chromeImport.agentChoices(agentId) }),
+        remote: (agentId) => ({ agentId, profileIds: [] }),
+      }),
+      updateAgentBrowserProfileChoices: scopedHandler(parseAgentBrowserProfileChoices, {
+        local: (input) => chromeImport.setAgentChoices(input),
+        remote: () => chromeOnlyHere(),
       }),
       listBrowserTabProfiles: scopedQueryHandler({
         local: () => browserProfiles.tabProfiles(),

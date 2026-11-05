@@ -266,6 +266,16 @@ import type {
   SetChannelImageInput,
 } from "./ipc-chat-channels";
 import type {
+  AgentBrowserProfileChoices,
+  ChromeImportResult,
+  ChromeLink,
+  ChromeProfileList,
+  ChromeSignInResult,
+  ChromeSite,
+  ChromeSyncCounts,
+  ImportChromeProfilesInput,
+} from "./ipc-chrome-import";
+import type {
   CancelMessageLinkInput,
   ConversationFileSearchPage,
   ConversationPage,
@@ -1968,6 +1978,22 @@ export const IPC_ENDPOINTS = {
       "agent:admin:set-browser-computer-sharing",
     ),
     listBrowserTabProfiles: scopedQuery<BrowserTabProfile[]>()("agent:admin:list-browser-tab-profiles"),
+    // Fork (FEATURES.md 30): Chrome sign-ins. Only this computer's own server answers them.
+    listChromeProfiles: scopedQuery<ChromeProfileList>()("agent:admin:list-chrome-profiles"),
+    listChromeSites: scopedRequest<string, ChromeSite[]>()("agent:admin:list-chrome-sites"),
+    importChromeProfiles: scopedRequest<ImportChromeProfilesInput, ChromeImportResult>()(
+      "agent:admin:import-chrome-profiles",
+    ),
+    listChromeLinks: scopedQuery<ChromeLink[]>()("agent:admin:list-chrome-links"),
+    resyncChromeProfile: scopedRequest<string, ChromeSyncCounts>()("agent:admin:resync-chrome-profile"),
+    getChromeSignInSite: scopedRequest<string, string | null>()("agent:admin:get-chrome-sign-in-site"),
+    signInWithChrome: scopedRequest<string, ChromeSignInResult>()("agent:admin:sign-in-with-chrome"),
+    getAgentBrowserProfileChoices: scopedRequest<string, AgentBrowserProfileChoices>()(
+      "agent:admin:get-browser-profile-choices",
+    ),
+    updateAgentBrowserProfileChoices: scopedRequest<AgentBrowserProfileChoices, AgentBrowserProfileChoices>()(
+      "agent:admin:update-browser-profile-choices",
+    ),
     getAgentAdminSettings: scopedRequest<string, AgentAdminSettings>()("agent:admin:get-settings"),
     updateAgentAdminSettings: scopedRequest<UpdateAgentAdminSettingsInput, AgentAdminSettings>()(
       "agent:admin:update-settings",

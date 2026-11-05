@@ -40,6 +40,7 @@ import {
   app,
   BrowserWindow,
   type BrowserWindowConstructorOptions,
+  type Cookies,
   clipboard,
   type DownloadItem,
   type Event as ElectronEvent,
@@ -452,6 +453,7 @@ export class BrowserHost {
   readonly #tabSessions = new Map<string, Session>();
   readonly #browserProfile: (agentId: string) => AgentBrowserProfile;
   readonly #profileExists: (profileId: string) => boolean;
+  readonly #profileChoices: (agentId: string) => { profileId: string; name: string; isDefault: boolean }[];
   readonly #profileProxy: (profileId: string) => BrowserProxyConnection | null;
   readonly #onProxyStatusChanged: () => void;
   readonly #computerExit: (memberId: string) => RelayExit;
@@ -527,6 +529,11 @@ export class BrowserHost {
       /** Whether a named profile still exists. A tab never opens in a deleted profile. */
       profileExists?: (profileId: string) => boolean;
       /**
+       * Fork (FEATURES.md 30): the named profiles an agent can choose per tab, its own profile first
+       * when it is a named one. The `open` tool takes one of these names.
+       */
+      profileChoices?: (agentId: string) => { profileId: string; name: string; isDefault: boolean }[];
+      /**
        * The proxy of a named profile, with its password, or null for the proxy settings of the
        * computer. It throws when the password cannot be read: the tab then does not open.
        */
@@ -546,6 +553,7 @@ export class BrowserHost {
     this.#memoryLow = options.memoryLow ?? (() => false);
     this.#browserProfile = options.browserProfile ?? (() => ({ kind: "shared" }));
     this.#profileExists = options.profileExists ?? (() => false);
+    this.#profileChoices = options.profileChoices ?? (() => []);
     this.#profileProxy = options.profileProxy ?? (() => null);
     this.#onProxyStatusChanged = options.onProxyStatusChanged ?? (() => {});
     this.#computerExit = options.computerExit ?? (() => () => Promise.reject(new Error("No computer exit")));
@@ -875,8 +883,9 @@ export class BrowserHost {
     ownerThreadId: string | null = null,
     ownerAgentId: string | null = null,
     focus = false,
+    profileName?: string,
   ): Effect.fn.Return<BrowserTab, BrowserOperationError> {
-    return yield* this.#open(url, ownerThreadId, ownerAgentId, focus);
+    return yield* this.#open(url, ownerThreadId, ownerAgentId, focus, undefined, profileName);
   }).bind(this);
 
   /**
@@ -900,6 +909,7 @@ export class BrowserHost {
     ownerAgentId: string | null,
     focus: boolean,
     privateSession?: Session,
+    profileName?: string,
   ): Effect.fn.Return<BrowserTab, BrowserOperationError> {
     if (!this.#hasTabCapacity(ownerThreadId, ownerAgentId)) {
       return yield* browserFailure(
@@ -910,7 +920,8 @@ export class BrowserHost {
     if (this.#memoryLow()) return yield* browserFailure(new Error(sourceText("error.backend.browserLowMemory")));
     const normalizedUrl = yield* browserSync(() => normalizeBrowserUrl(url));
     const previouslyFocused = focus ? null : this.#focusedContentsOutsideTabs();
-    const tabSession = privateSession || !ownerAgentId ? undefined : yield* this.#agentTabSession(ownerAgentId);
+    const tabSession =
+      privateSession || !ownerAgentId ? undefined : yield* this.#agentTabSession(ownerAgentId, profileName);
     yield* this.#applyProfileProxy(tabSession);
     const tab = this.#createTab(
       randomUUID(),
@@ -1942,7 +1953,7 @@ export class BrowserHost {
   readonly #toolHandlers: BrowserToolHandlers = {
     open: ({ args }, params) =>
       Effect.gen({ self: this }, function* () {
-        const tab = yield* this.open(args.url, params.threadId, params.ownerAgentId ?? null);
+        const tab = yield* this.open(args.url, params.threadId, params.ownerAgentId ?? null, false, args.profile);
         this.#controls.updateTab(params, tab.id);
         return textResult({ tab });
       }),
@@ -1952,7 +1963,14 @@ export class BrowserHost {
         const control = {
           sessions: this.getControlState().sessions.filter((session) => session.threadId === params.threadId),
         };
-        return textResult({ ...this.#toolTabs(params), control });
+        const browserProfiles = params.ownerAgentId ? this.#profileChoices(params.ownerAgentId) : [];
+        return textResult({
+          ...this.#toolTabs(params),
+          control,
+          ...(browserProfiles.length > 1
+            ? { browserProfiles: browserProfiles.map(({ name, isDefault }) => ({ name, default: isDefault })) }
+            : {}),
+        });
       }),
     snapshot: ({ args }, params) =>
       Effect.gen({ self: this }, function* () {
@@ -2765,7 +2783,26 @@ export class BrowserHost {
   readonly #agentTabSession = Effect.fn("BrowserHost.agentTabSession")(function* (
     this: BrowserHost,
     agentId: string,
+    profileName?: string,
   ): Effect.fn.Return<BrowserTabSession | undefined, BrowserOperationError> {
+    // Fork (FEATURES.md 30): a profile the agent chose by name, from the profiles it may use.
+    const wanted = profileName?.trim().toLowerCase();
+    if (wanted) {
+      const choices = this.#profileChoices(agentId);
+      const choice = choices.find((entry) => entry.name.toLowerCase() === wanted || entry.profileId === wanted);
+      if (!choice)
+        return yield* browserFailure(
+          new Error(
+            sourceText("error.backend.chromeImportProfileNotAllowed", {
+              name: profileName ?? "",
+              names: choices.map((entry) => entry.name).join(", ") || "-",
+            }),
+          ),
+        );
+      if (!this.#profileExists(choice.profileId))
+        return yield* browserFailure(new Error(sourceText("error.backend.browserProfileMissing")));
+      return { kind: "profile", profileId: choice.profileId };
+    }
     const profile = this.#browserProfile(agentId);
     if (profile.kind === "shared") return undefined;
     if (profile.kind === "agent") return { kind: "agent", key: agentBrowserSessionKey(agentId) };
@@ -2944,6 +2981,11 @@ export class BrowserHost {
 
   #tabSession(tab: Pick<BrowserHostTab, "privateSession" | "tabSession">): Session {
     return tab.privateSession ?? (tab.tabSession ? this.#persistentTabSession(tab.tabSession) : this.#session);
+  }
+
+  /** Fork (FEATURES.md 30): the cookie store of a named profile, for the Chrome import. */
+  profileCookies(profileId: string): Cookies {
+    return this.#persistentTabSession({ kind: "profile", profileId }).cookies;
   }
 
   #persistentTabSession(tabSession: BrowserTabSession): Session {

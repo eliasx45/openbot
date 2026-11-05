@@ -239,4 +239,7 @@ export const messages = defineMessages("agentSettings", {
   "agentSettings.browserProfile.manage": "Manage",
   "agentSettings.runtime.workspaceEnforcedProcess":
     "The whole {provider} process runs in a sandbox, so a write outside fails. Available on macOS only.",
+  "agentSettings.browserProfile.more": "More profiles",
+  "agentSettings.browserProfile.moreHint":
+    "The agent can open a tab in any profile you select here, by the account the task needs. The profile above stays the default.",
 });

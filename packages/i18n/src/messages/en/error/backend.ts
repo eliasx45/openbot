@@ -375,4 +375,16 @@ export const messages = defineMessages("error.backend", {
     "This agent has {count} open tasks. Close a task, then start or open another one.",
   "error.backend.taskRemoteUnsupported": "Tasks are only available for agents on this computer.",
   "error.backend.taskStartFailed": "OpenBot could not start the task. Do the work in this turn instead.",
+  "error.backend.chromeImportKeychain":
+    "OpenBot could not read the Chrome Safe Storage key. In the Keychain question, select Always Allow, then try again.",
+  "error.backend.chromeImportProfileMissing":
+    "OpenBot could not find this Chrome profile. Open it in Chrome once, then try again.",
+  "error.backend.chromeImportNotLinked": "This browser profile is not linked to a Chrome profile.",
+  "error.backend.chromeImportNoSignIn":
+    "Chrome has no sign-in for {site}. Sign in to {site} in Chrome, then try again.",
+  "error.backend.chromeImportThisComputerOnly": "Chrome sign-ins are only available for the server on this computer.",
+  "error.backend.chromeImportProfileNotAllowed":
+    "This agent cannot use the browser profile “{name}”. Use one of these: {names}.",
+  "error.backend.chromeImportConfirm": "import your browser sign-ins",
+  "error.backend.chromeImportCancelled": "The import was cancelled. Nothing was imported.",
 });

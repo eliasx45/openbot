@@ -53,6 +53,8 @@ const browserTargetSchema = z.discriminatedUnion("kind", [
 ]);
 
 const vaultText = z.string().max(VAULT_TEXT_LIMIT).optional();
+/** Fork (FEATURES.md 30): the browser profile a new tab opens in, by name. */
+const optionalProfileName = z.string().max(60).optional();
 
 const vaultContactShape = {
   fullName: vaultText.describe("Contact: the full name."),
@@ -199,8 +201,9 @@ export function parseBrowserStep(value: unknown): BrowserStep {
 const BROWSER_TOOL_DEFINITIONS = [
   browserTool({
     name: "open",
-    description: "Open an HTTP(S) URL in a new persistent private-browser tab.",
-    shape: { url: requiredString(INPUT_LIMITS.browserUrl) },
+    description:
+      "Open an HTTP(S) URL in a new persistent private-browser tab. When `status` lists browserProfiles, pass `profile` with the name of the one whose signed-in account the task needs; without it the tab opens in the default profile.",
+    shape: { url: requiredString(INPUT_LIMITS.browserUrl), profile: optionalProfileName },
   }),
   browserTool({
     name: "list_tabs",

@@ -1620,3 +1620,25 @@
 .memory-journal-after {
   color: var(--openbot-text-primary);
 }
+
+/* Fork (docs/fork/FEATURES.md 30): the other browser profiles the agent may open a tab in. */
+.agent-settings-more-profiles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.agent-settings-more-profiles legend {
+  padding: 0;
+  font-weight: 600;
+}
+
+.agent-settings-more-profile {
+  display: flex;
+  align-items: center;
+  gap: var(--openbot-space-2);
+  cursor: pointer;
+}
