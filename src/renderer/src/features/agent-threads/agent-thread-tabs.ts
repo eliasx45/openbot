@@ -20,6 +20,21 @@ import {
 const NO_TABS: AgentThreadTabs = { open: [], active: null, side: [] };
 /** The window that shows the Undo toast finishes the delete. Another window waits this much longer. */
 const OTHER_WINDOW_DELAY_MS = 5_000;
+/** Closed tabs that ⇧⌘T can open again, newest last, as in a browser. */
+const MAX_CLOSED_TABS = 25;
+
+interface ClosedTab {
+  agentId: string;
+  id: string;
+  side: boolean;
+}
+
+/** ⇧⌘T, or Ctrl+Shift+T on Windows and Linux. */
+export function isReopenTabShortcut(
+  event: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">,
+): boolean {
+  return event.key?.toLowerCase() === "t" && (event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey;
+}
 
 export interface AgentThreadTabsOptions {
   serverId: () => string;
@@ -47,6 +62,16 @@ export function createAgentThreadTabs(options: AgentThreadTabsOptions) {
   /** The message that a side thread scrolls to when it shows, after a click on "Branched from". */
   const [messageFocus, setMessageFocus] = createSignal<ThreadMessageFocus | null>(null);
   const sessionStart = new Date().toISOString();
+  let closedTabs: ClosedTab[] = [];
+
+  function rememberClosed(agentId: string, ids: readonly string[], side: boolean): void {
+    const tabs = ids
+      .filter((id) => id !== MAIN_THREAD_ID && id !== DRAFT_THREAD_ID)
+      .map((id) => ({ agentId, id, side }));
+    if (tabs.length === 0) return;
+    const reopened = new Set(tabs.map((tab) => tab.id));
+    closedTabs = [...closedTabs.filter((tab) => !reopened.has(tab.id)), ...tabs].slice(-MAX_CLOSED_TABS);
+  }
 
   const storedTabs = (agentId: string): AgentThreadTabs => tabsByServer()[serverId()]?.[agentId] ?? NO_TABS;
   const task = (agentId: string, id: string): AgentTask | undefined =>
@@ -149,6 +174,11 @@ export function createAgentThreadTabs(options: AgentThreadTabsOptions) {
 
   /** Closes a tab only. The thread stays in the thread list. The tab to its left opens. */
   function close(agentId: string, id: string): void {
+    rememberClosed(agentId, [id], false);
+    closeTab(agentId, id);
+  }
+
+  function closeTab(agentId: string, id: string): void {
     if (id === MAIN_THREAD_ID) return;
     const order = tabOrder(agentId);
     const index = order.indexOf(id);
@@ -158,12 +188,18 @@ export function createAgentThreadTabs(options: AgentThreadTabsOptions) {
   }
 
   function closeOthers(agentId: string, id: string): void {
+    rememberClosed(
+      agentId,
+      tabOrder(agentId).filter((entry) => entry !== id),
+      false,
+    );
     setOrder(agentId, id === MAIN_THREAD_ID ? [MAIN_THREAD_ID] : [MAIN_THREAD_ID, id], id);
   }
 
   function closeToTheRight(agentId: string, id: string): void {
     const order = tabOrder(agentId);
     const next = order.slice(0, order.indexOf(id) + 1);
+    rememberClosed(agentId, order.slice(order.indexOf(id) + 1), false);
     const current = activeId(agentId);
     setOrder(agentId, next, next.includes(current) ? current : id);
   }
@@ -202,6 +238,11 @@ export function createAgentThreadTabs(options: AgentThreadTabsOptions) {
 
   /** Closes a side panel tab. The thread stays in the thread list. */
   function closeSide(agentId: string, id: string): void {
+    rememberClosed(agentId, [id], true);
+    closeSideTab(agentId, id);
+  }
+
+  function closeSideTab(agentId: string, id: string): void {
     const active = activeId(agentId);
     writeTabs(agentId, {
       open: keptIds(agentId),
@@ -221,8 +262,8 @@ export function createAgentThreadTabs(options: AgentThreadTabsOptions) {
   /** Archives a thread. Its tab closes when the host archived it; the thread then shows in the archived list. */
   async function archive(agentId: string, id: string): Promise<void> {
     if (!(await tasks.closeTask(agentId, id)) || !scopeIsCurrent()) return;
-    if (storedTabs(agentId).side.includes(id)) closeSide(agentId, id);
-    else close(agentId, id);
+    if (storedTabs(agentId).side.includes(id)) closeSideTab(agentId, id);
+    else closeTab(agentId, id);
   }
 
   /** Restores an archived thread and opens it. */
@@ -270,7 +311,7 @@ export function createAgentThreadTabs(options: AgentThreadTabsOptions) {
     const wasActive = activeId(agentId) === id;
     const index = tabOrder(agentId).indexOf(id);
     const restore = entry.state !== "closed";
-    close(agentId, id);
+    closeTab(agentId, id);
     setHiddenThread(id, true);
 
     function showTab(): void {
@@ -431,6 +472,43 @@ export function createAgentThreadTabs(options: AgentThreadTabsOptions) {
     await restore(agentId, id);
   }
 
+  /**
+   * Opens the agent's last closed tab again, in the chat or the side panel where it was. A thread that
+   * was archived, deleted or opened again since is skipped. Returns false when no tab is left.
+   */
+  function reopenClosed(agentId: string): boolean {
+    for (let index = closedTabs.length - 1; index >= 0; index--) {
+      const tab = closedTabs[index];
+      if (!tab || tab.agentId !== agentId) continue;
+      closedTabs = closedTabs.filter((_, at) => at !== index);
+      if (!shown(agentId, tab.id)) continue;
+      if (tab.side) {
+        if (sideIds(agentId).includes(tab.id)) continue;
+        const active = activeId(agentId);
+        writeTabs(agentId, {
+          open: keptIds(agentId).filter((entry) => entry !== tab.id),
+          active: active === MAIN_THREAD_ID || active === tab.id ? null : active,
+          side: [...keptSideIds(agentId), tab.id],
+        });
+      } else {
+        if (openIds(agentId).includes(tab.id) && activeId(agentId) === tab.id) continue;
+        open(agentId, tab.id);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  const handleReopenShortcut = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.isComposing || !isReopenTabShortcut(event)) return;
+    const agentId = activeAgentId();
+    if (!agentId) return;
+    event.preventDefault();
+    reopenClosed(agentId);
+  };
+  window.addEventListener("keydown", handleReopenShortcut);
+  onCleanup(() => window.removeEventListener("keydown", handleReopenShortcut));
+
   /** Removes the tabs of a deleted agent. */
   function forgetAgent(agentId: string): void {
     forgetPendingThreadDeletes(serverId(), agentId);
@@ -503,6 +581,7 @@ export function createAgentThreadTabs(options: AgentThreadTabsOptions) {
     toChat,
     closeSide,
     moveSide,
+    reopenClosed,
     archive,
     restore,
     rename,
