@@ -156,6 +156,7 @@ export type BrowserControlDetailAction =
   | "set-checked"
   | "drag"
   | "upload-files"
+  | "download"
   | "wait-for"
   | "evaluate"
   | "set-environment"

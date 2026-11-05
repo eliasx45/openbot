@@ -52,6 +52,7 @@ const CONTROL_DETAIL_ACTIONS: readonly BrowserControlDetailAction[] = [
   "set-checked",
   "drag",
   "upload-files",
+  "download",
   "wait-for",
   "evaluate",
   "set-environment",

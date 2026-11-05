@@ -20,6 +20,7 @@ export const messages = {
   "browser.action.setChecked": "Bir denetim değiştiriliyor…",
   "browser.action.drag": "Sürükleniyor…",
   "browser.action.uploadFiles": "Dosyalar yükleniyor…",
+  "browser.action.download": "Dosya indiriliyor…",
   "browser.action.waitFor": "Sayfa bekleniyor…",
   "browser.action.evaluate": "Sayfada JavaScript çalıştırılıyor…",
   "browser.action.setEnvironment": "Görüntü alanı değiştiriliyor…",

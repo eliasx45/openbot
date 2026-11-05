@@ -19,6 +19,7 @@ export const messages = defineMessages("browser", {
   "browser.action.setChecked": "Changing a control…",
   "browser.action.drag": "Dragging…",
   "browser.action.uploadFiles": "Uploading files…",
+  "browser.action.download": "Downloading a file…",
   "browser.action.waitFor": "Waiting for the page…",
   "browser.action.evaluate": "Evaluating page JavaScript…",
   "browser.action.setEnvironment": "Changing the viewport…",

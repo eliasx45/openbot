@@ -20,6 +20,7 @@ export const messages = {
   "browser.action.setChecked": "Bedieningselement wijzigen…",
   "browser.action.drag": "Slepen…",
   "browser.action.uploadFiles": "Bestanden uploaden…",
+  "browser.action.download": "Bestand downloaden…",
   "browser.action.waitFor": "Wachten op de pagina…",
   "browser.action.evaluate": "JavaScript van de pagina uitvoeren…",
   "browser.action.setEnvironment": "Viewport wijzigen…",

@@ -20,6 +20,7 @@ export const messages = {
   "browser.action.setChecked": "Modifica di un controllo…",
   "browser.action.drag": "Trascinamento…",
   "browser.action.uploadFiles": "Caricamento dei file…",
+  "browser.action.download": "Download di un file…",
   "browser.action.waitFor": "Attesa della pagina…",
   "browser.action.evaluate": "Esecuzione del JavaScript della pagina…",
   "browser.action.setEnvironment": "Modifica del viewport…",

@@ -20,6 +20,7 @@ export const messages = {
   "browser.action.setChecked": "Steuerelement wird geändert…",
   "browser.action.drag": "Wird gezogen…",
   "browser.action.uploadFiles": "Dateien werden hochgeladen…",
+  "browser.action.download": "Datei wird heruntergeladen…",
   "browser.action.waitFor": "Warten auf die Seite…",
   "browser.action.evaluate": "JavaScript der Seite wird ausgewertet…",
   "browser.action.setEnvironment": "Ansichtsbereich wird geändert…",

@@ -20,6 +20,7 @@ export const messages = {
   "browser.action.setChecked": "正在更改控件…",
   "browser.action.drag": "正在拖拽…",
   "browser.action.uploadFiles": "正在上传文件…",
+  "browser.action.download": "正在下载文件…",
   "browser.action.waitFor": "正在等待页面…",
   "browser.action.evaluate": "正在执行页面 JavaScript…",
   "browser.action.setEnvironment": "正在调整视口…",

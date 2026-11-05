@@ -21,6 +21,7 @@ export const BROWSER_ACTION_LABELS = {
   "set-checked": "browser.action.setChecked",
   drag: "browser.action.drag",
   "upload-files": "browser.action.uploadFiles",
+  download: "browser.action.download",
   "wait-for": "browser.action.waitFor",
   evaluate: "browser.action.evaluate",
   "set-environment": "browser.action.setEnvironment",

@@ -20,6 +20,7 @@ export const messages = {
   "browser.action.setChecked": "جارٍ تغيير عنصر تحكم…",
   "browser.action.drag": "جارٍ السحب…",
   "browser.action.uploadFiles": "جارٍ رفع الملفات…",
+  "browser.action.download": "جارٍ تنزيل ملف…",
   "browser.action.waitFor": "جارٍ انتظار الصفحة…",
   "browser.action.evaluate": "جارٍ تقييم JavaScript في الصفحة…",
   "browser.action.setEnvironment": "جارٍ تغيير منفذ العرض…",
