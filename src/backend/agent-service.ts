@@ -58,6 +58,7 @@ import type {
   DeleteSharedTableInput,
   DraftAttachment,
   DuplicateAgentResult,
+  FileChipTarget,
   GenerateAgentProfileInput,
   HiddenAgentsSnapshot,
   HostAnalyticsInput,
@@ -290,6 +291,7 @@ import {
   type ResolvedSharedFile,
   resolveSharedFile,
   resolveWorkspaceFile,
+  workspacePathResolves,
 } from "./workspace-paths";
 
 const logger = createOpenBotLogger("agent-service");
@@ -3833,6 +3835,36 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       Effect.mapError(
         (failure) => new AgentLifecycleFailed({ operation: "resolve local workspace file", cause: failure.cause }),
       ),
+    );
+  }).bind(this);
+
+  /**
+   * Whether each file that a chat code span names opens for the local user, with the rules of
+   * `resolveLocalWorkspaceFile` and `listLocalWorkspaceDirectory`: outside the workspace only when
+   * access is unrestricted, and a bare name also from the thread's tool history. Read-only.
+   */
+  readonly checkFileChips = Effect.fn("AgentService.checkFileChips")(function* (
+    this: AgentService,
+    agentId: string | undefined,
+    files: readonly FileChipTarget[],
+  ) {
+    const agent = agentId === undefined ? undefined : this.#store.list().find((candidate) => candidate.id === agentId);
+    const options = agent && {
+      allowOutside: !workspaceAccessEnforced(agent),
+      fileHistory: this.#turn.fileHistory.paths(agent.id, agent.threadId),
+    };
+    return yield* Effect.forEach(
+      files,
+      (file) =>
+        file.kind === "shared"
+          ? resolveSharedFile(this.#store.sharedRoot, file.path, { allowDirectory: true }).pipe(
+              Effect.as(true),
+              Effect.orElseSucceed(() => false),
+            )
+          : agent && options
+            ? workspacePathResolves(agent, file.path, options)
+            : Effect.succeed(false),
+      { concurrency: 8 },
     );
   }).bind(this);
 

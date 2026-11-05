@@ -57,6 +57,7 @@ import { useConversationViewScope } from "./conversation-scope";
 import { agentSkillsMode } from "./installed-skills-source";
 import { MarketplaceSuggestionChatCard, marketplaceSuggestionKnown } from "./MarketplaceSuggestionChatCard";
 import { McpSignInChatCard } from "./McpSignInChatCard";
+import { createMessageFileChips } from "./message-file-chips";
 import { createMessageImageFiles } from "./message-image-files";
 import { RoutineChatCard } from "./RoutineChatCard";
 import { createChatWebhookRoutines, RoutineWebhookChatCard } from "./RoutineWebhookChatCard";
@@ -324,6 +325,8 @@ export function ConversationTimeline() {
   const runtime = conversationRuntime(props);
   // The browser client reads a host file whole, with no size limit, so a named image stays a chip there.
   const loadImageFile = props.runtime ? undefined : createMessageImageFiles(runtime.agent);
+  // Without a check (the browser client), every file name that a code span shows stays a chip.
+  const checkFileChip = runtime.agent.checkFileChips ? createMessageFileChips(runtime.agent) : undefined;
   const instructionsCalls = agentInstructionsCalls();
   /** View and Undo on an instructions change line: the file is in the workspace on this computer. */
   const localInstructionsCalls = () =>
@@ -419,6 +422,15 @@ export function ConversationTimeline() {
             onOpenSharedFile={openSharedFile}
             // A workspace path is in the workspace of the agent that wrote it, as in a channel.
             onOpenWorkspaceFile={(path) => openWorkspaceFile(path, undefined, current().exchange?.senderAgentId)}
+            checkFileChip={
+              checkFileChip &&
+              ((file) =>
+                checkFileChip(file, {
+                  serverId: props.server?.id ?? "local",
+                  messageId: current().id,
+                  agentId: current().exchange?.senderAgentId,
+                }))
+            }
             onOpenQuote={openQuote}
             onOpenTag={openTaggedReference}
             macWindowControls={props.platform === "darwin"}
@@ -1329,6 +1341,15 @@ export function ConversationTimeline() {
                             mediaSource={runtime.attachmentMedia}
                             downloads={attachmentDownloads}
                             macWindowControls={props.platform === "darwin"}
+                            checkFileChip={
+                              checkFileChip &&
+                              ((file) =>
+                                checkFileChip(file, {
+                                  serverId: props.server?.id ?? "local",
+                                  messageId: message()?.id ?? initialMessage.id,
+                                  agentId: workspaceAgentId(),
+                                }))
+                            }
                             loadImageFile={
                               loadImageFile &&
                               ((file) =>

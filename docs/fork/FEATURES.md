@@ -272,6 +272,14 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Not done:** the Dynamic Island windows keep `forward: true` (they need moves to open on hover). On a display without a notch the collapsed island window (58pt tall) overlaps the top of the chat header, so the top half of the thread tabs under it may still flip.
 - **Check:** with OpenBot running (rim overlays built), rest the pointer on the "show steps" chevron while an agent works, on a sidebar row, on a link: the hand stays, no flicker to the arrow. Computer Use still draws the rim and agent cursor and nothing on the overlay takes a click.
 
+## 30. The selection toolbar opens over file chips and code, and takes the keyboard
+
+- **Why:** Elias, 5 Nov 2026 (two recordings): the "Describe edits · Quote · Explain · Improve" toolbar did not open for a selection over a file chip (`ALG3 TD1.pdf`) or a line with code spans (`Shared`, `:1230`), and when it opened he had to click in "Describe edits" before he could type.
+- **Cause:** `messageTextSelection` refused any selection that touched `a, button, [role="button"], .message-citation`. A file chip (`LocalFileLink`) is a `<button>`, so every selection over a chip failed. Chromium (tested headless with the real message CSS) selected plain `<code>` spans with no problem. The code-span cases in the recording are not explained by this check (unconfirmed).
+- **How (portable):** refuse only selections that touch form fields (`input, textarea, select, [contenteditable="true"]`). Links, chips, code and citations are message text. The chip's badge is `user-select: none`, so `Selection.toString()` gives the chip's label only. A chip click that ends a text selection does not open the file. A selection made with the pointer focuses the instruction field (`preventScroll`). The selection keeps its cloned range and the CSS highlight, so typing does not change what the edit refers to. A keyboard selection keeps the focus, so Shift and the arrow keys still extend it.
+- **Here:** `EDITABLE_SELECTOR`, `captureSelection(fromPointer)` and `focusInstruction` in `packages/ui/src/features/conversation/SelectionActions.tsx`; `selectionTouches` in `LocalFileLink`, `packages/ui/src/features/conversation/MarkdownMessageText.tsx`.
+- **Check:** in an agent message, drag over an inline code span, over a PDF chip, and across both: the toolbar opens with the caret in "Describe edits". Type at once: the text goes into the field and the highlight stays. Quote puts exactly the selected text (chip label, no "PDF" badge) in the composer. Esc closes the toolbar. A plain click on a chip opens the file with no toolbar. A plain caret click does not move the focus.
+
 ---
 
 ## 25. Agents download files to a path they choose
@@ -281,6 +289,18 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **How (portable):** start the URL as a download of the tab's own web contents (Electron `webContents.downloadURL`, so the session cookies apply), and match it in the session's one `will-download` handler by tab and first URL. Only a matched agent request may set the path; page downloads keep the old rule (Downloads, new name). An existing folder keeps the server's sanitized name and adds " (2)"; another path is the file itself, its folder must exist, and an existing file fails unless `overwrite`. Relative paths fail. A Workspace only agent may write only its sandbox roots plus Downloads. The same 2 GB / 4 active / no-secret-tab limits apply; a timeout (default 120 s) or a cancelled call cancels the download.
 - **Here:** `src/backend/browser-downloads.ts` (path rules), `download` handler and `will-download` in `src/backend/browser-host.ts`, schema in `src/backend/browser-tools.ts`, roots in `src/backend/agent/openbot-tool-router.ts`, label `browser.action.download` (14 locales), guidance line in `src/backend/agent/tool-guidance.ts`, budget in `tools/agent-context/budget.json`.
 - **Check:** `bun run test:browser -- --scenario=download-tool` (writes `.openbot-build/browser-download-tool.json`).
+
+---
+
+## 31. A file name in a code span is a chip only when the file exists
+
+- **Get:** `` `notes.md` ``, `` `~/Downloads/a.pdf` `` or a shared file shows as a clickable file chip only when the click would open it. A name with nothing behind it (such as a Google Drive name `` `ALG3 TD1.pdf` ``) stays plain code: no chip, no "Nothing exists at …" error.
+- **Why:** any code span with a known extension became a chip, and nothing checked the file, so clicks on Drive or web names failed.
+- **How (portable):** the code span shows as code first, then asks main once, in a batch, which named files resolve, with the same resolver and options as the click (`resolveWorkspacePath`: Full access → anywhere, Workspace only → inside the workspace; bare names in the workspace, the message's folder, or the thread's file history; shared files through `resolveSharedFile`). Every refusal answers false, so a Workspace only agent cannot tell "outside" from "missing". Answers are cached per message; a streaming message asks nothing until it ends. A joined server or the browser client has no check: its names stay chips as before.
+- **Here:** `agent:check-file-chips` (`checkFileChips` in `packages/contracts/src/ipc-endpoints.ts`, `parseCheckFileChips` in `src/main/ipc/agent-inputs.ts`, handler in `src/main/ipc/attachment-handlers.ts`, `AgentService.checkFileChips`, `workspacePathResolves` in `src/backend/workspace-paths.ts`), batching in `src/renderer/src/features/conversation/message-file-chips.ts`, `MentionedFileChip` in `packages/ui/src/features/conversation/MarkdownMessageText.tsx`. Agent guidance line in `src/backend/agent/developer-instructions.ts` (budget raised by hand, +154 bytes, in `tools/agent-context/budget.json`).
+- **Check:** an agent writes `` `ALG3 TD1.pdf` `` (missing), a real full path like `` `~/Downloads/<file>.pdf` ``, and the bare name of a file in its folder: the first is plain code, the other two are chips that open the file.
+
+---
 
 ## 32. Import browser sign-ins into browser profiles; an agent can use several profiles
 

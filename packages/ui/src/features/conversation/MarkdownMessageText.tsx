@@ -5,7 +5,7 @@ import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import { Button, Checkbox } from "@openbot/ui";
 import { Dynamic } from "@solidjs/web";
 import { Marked, type Token, type Tokens, type TokensList } from "marked";
-import { createMemo, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { textDirection } from "../../content-direction";
 import { useText } from "../../text";
 import { AttachmentReferenceVisual, attachmentReferenceTone } from "./AttachmentReference";
@@ -33,6 +33,12 @@ type MarkdownMessageTextProps = Omit<RichMessageTextProps, "showCitationFooter">
    * text, with no highlight, toolbar or live preview.
    */
   excerpt?: boolean | undefined;
+  /**
+   * Whether a file that a code span names opens, as its chip click resolves it. Only a file that
+   * resolves shows as a chip; the others, and all of them until the answer comes, show as code.
+   * `null` keeps them code and asks nothing, for a streaming message. Absent, every file name is a chip.
+   */
+  checkFileChip?: ((file: MessageImageFile) => Promise<boolean>) | null | undefined;
 };
 
 type MarkdownContentProps = Omit<
@@ -243,6 +249,7 @@ export function MarkdownMessageText(props: MarkdownMessageTextProps) {
       onOpenQuote: props.onOpenQuote,
       onOpenTag: props.onOpenTag,
       linkFavicons: props.linkFavicons,
+      checkFileChip: props.checkFileChip,
       fileDirectory: fileDirectory(),
     }),
   );
@@ -282,6 +289,7 @@ export function MarkdownInlineText(
     onOpenQuote: props.onOpenQuote,
     onOpenTag: props.onOpenTag,
     linkFavicons: props.linkFavicons,
+    checkFileChip: props.checkFileChip,
     fileDirectory: messageFileDirectory(props.body),
   });
   return <MarkdownInline tokens={tokens()} content={contentProps()} />;
@@ -655,19 +663,18 @@ function MarkdownInline(props: {
           case "codespan": {
             if (!tokenIs(token, "codespan")) return token.raw;
             const file = mentionedFileTarget(token.text, props.content.fileDirectory);
-            return file && file.kind === "shared" && props.content.onOpenSharedFile ? (
-              <LocalFileLink
-                path={file.path}
+            const open =
+              file?.kind === "shared"
+                ? props.content.onOpenSharedFile
+                : file?.kind === "workspace"
+                  ? props.content.onOpenWorkspaceFile
+                  : undefined;
+            return file && open ? (
+              <MentionedFileChip
+                file={file}
                 label={token.text}
-                kind="shared"
-                onOpen={props.content.onOpenSharedFile}
-              />
-            ) : file && file.kind === "workspace" && props.content.onOpenWorkspaceFile ? (
-              <LocalFileLink
-                path={file.path}
-                label={token.text}
-                kind="workspace"
-                onOpen={props.content.onOpenWorkspaceFile}
+                onOpen={open}
+                check={() => props.content.checkFileChip}
               />
             ) : (
               <code dir="ltr">{token.text}</code>
@@ -1066,7 +1073,12 @@ function LocalFileLink(props: {
       aria-label={label()}
       title={props.path}
       data-cuelume-tap="open"
-      onClick={() => props.onOpen(props.path)}
+      onClick={(event) => {
+        // A drag that selects text and ends on the chip also clicks it. That selection is for the
+        // selection actions, so only a plain click opens the file.
+        if (selectionTouches(event.currentTarget)) return;
+        props.onOpen(props.path);
+      }}
     >
       <AttachmentReferenceVisual name={name} />
       <span class="inline-file-reference-name" dir="auto">
@@ -1074,6 +1086,16 @@ function LocalFileLink(props: {
       </span>
     </Button>
   );
+}
+
+function selectionTouches(element: Element): boolean {
+  const selection = element.ownerDocument.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return false;
+  try {
+    return selection.getRangeAt(0).intersectsNode(element);
+  } catch {
+    return false;
+  }
 }
 
 function sharedFileTarget(value: string): string | null {
@@ -1242,6 +1264,49 @@ function mentionedFileTarget(value: string, directory: FileDirectoryContext | nu
     path: `${directory.path.replace(/[/\\]+$/u, "")}${separator}${path}`,
     kind: directory.kind,
   };
+}
+
+/**
+ * A file that a code span names: a chip when the file resolves, else plain code. A streaming message
+ * passes `null` as the check and asks nothing.
+ */
+function MentionedFileChip(props: {
+  file: FileDirectoryContext;
+  label: string;
+  onOpen: (path: string) => void;
+  check: () => MarkdownContentProps["checkFileChip"];
+}) {
+  const [resolves, setResolves] = createSignal(props.check() === undefined);
+  createEffect(
+    () => props.check(),
+    (check) => {
+      if (check === undefined) {
+        setResolves(true);
+        return;
+      }
+      if (check === null) {
+        setResolves(false);
+        return;
+      }
+      // A new check function for the same file keeps the shown state until it answers, so a row that
+      // renders again does not flicker. The caller memoizes the answers.
+      let current = true;
+      void check(props.file).then(
+        (answer) => {
+          if (current) setResolves(answer);
+        },
+        () => undefined,
+      );
+      return () => {
+        current = false;
+      };
+    },
+  );
+  return (
+    <Show when={resolves()} fallback={<code dir="ltr">{props.label}</code>}>
+      <LocalFileLink path={props.file.path} label={props.label} kind={props.file.kind} onOpen={props.onOpen} />
+    </Show>
+  );
 }
 
 const IMAGE_FILE_PATTERN = /\.(?:avif|gif|jpe?g|png|svg|webp)$/iu;

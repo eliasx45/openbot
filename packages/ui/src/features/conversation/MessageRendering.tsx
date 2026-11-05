@@ -324,6 +324,11 @@ export function MessageBody(props: {
    */
   frame?: ((content: JSX.Element, imagesOnly: () => boolean) => JSX.Element) | undefined;
   /**
+   * Whether a file that a code span names opens, so that only those show as chips. Absent, every file
+   * name is a chip. While the message streams, the names show as code and nothing is asked.
+   */
+  checkFileChip?: ((file: MessageImageFile) => Promise<boolean>) | undefined;
+  /**
    * Reads an image file that an agent message names, for a preview under the text. Resolves the
    * image as a `data:` URL, or `null` when it cannot show. Absent, a named file is only a chip.
    */
@@ -427,6 +432,8 @@ export function MessageBody(props: {
     },
     { equals: (previous, next) => imageFileKeys(previous) === imageFileKeys(next) },
   );
+  // `null` while the message streams: a file named in a growing reply is asked once, when it ends.
+  const fileChipCheck = () => props.checkFileChip && (props.message.streaming === true ? null : props.checkFileChip);
   const [fileImages, setFileImages] = createSignal<AttachmentSummary[]>([]);
   createEffect(
     () => ({ files: namedImageFiles(), load: untrack(() => props.loadImageFile) }),
@@ -560,6 +567,7 @@ export function MessageBody(props: {
       onOpenWorkspaceFile={props.onOpenWorkspaceFile}
       onOpenQuote={props.onOpenQuote}
       onOpenTag={props.onOpenTag}
+      checkFileChip={fileChipCheck()}
     />
   );
 
@@ -728,6 +736,7 @@ export function MessageBody(props: {
                             onOpenWorkspaceFile={props.onOpenWorkspaceFile}
                             onOpenQuote={props.onOpenQuote}
                             onOpenTag={props.onOpenTag}
+                            checkFileChip={fileChipCheck()}
                             showCitationFooter={index === lastTextBlockIndex()}
                             streaming={streamingBody.revealing() && index === contentBlocks().length - 1}
                             streamingTailAfter={textTailAfter()[index]}

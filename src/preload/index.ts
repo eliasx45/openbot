@@ -42,6 +42,7 @@ import {
   decodeChromeSyncCounts,
   decodeCompanySignInScimToken,
   decodeCompanySignInSettings,
+  decodeFileChipCheckResult,
   decodeHermesImportPreview,
   decodeHermesImportResult,
   decodeHostAgentMemoryLimit,
@@ -1388,6 +1389,7 @@ const openbotApi: OpenBotDesktopApi = {
       previewWorkspaceFile: decodeFilePreview,
       releaseFilePreview: decodeVoid,
       listWorkspaceDirectory: decodeWorkspaceDirectory,
+      checkFileChips: decodeFileChipCheckResult,
     }),
     ...agentFoldersGroup,
     ...bridgeGroup(IPC_ENDPOINTS.agentInstructions, {

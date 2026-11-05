@@ -92,6 +92,8 @@ export interface ChatMessageRowProps {
   mediaSource?: AttachmentMediaSource | undefined;
   /** The download state of attachments from a joined server. */
   downloads?: AttachmentDownloads | undefined;
+  /** Whether a file that a code span names opens. Absent, every file name is a chip. */
+  checkFileChip?: ((file: MessageImageFile) => Promise<boolean>) | undefined;
   /** Reads an image file that an agent message names, for a preview under the text. */
   loadImageFile?: ((file: MessageImageFile) => Promise<string | null>) | undefined;
   onDownloadImageFile?: ((file: MessageImageFile) => void) | undefined;
@@ -213,6 +215,7 @@ export function ChatMessageRow(props: ChatMessageRowProps): JSX.Element {
       onDownload={props.onDownload}
       mediaSource={props.mediaSource}
       downloads={props.downloads}
+      checkFileChip={props.checkFileChip}
       loadImageFile={props.loadImageFile}
       onDownloadImageFile={props.onDownloadImageFile}
       macWindowControls={props.macWindowControls}

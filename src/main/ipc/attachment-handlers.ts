@@ -54,6 +54,7 @@ import {
   agentRequest,
   parseAttachmentData,
   parseAttachmentId,
+  parseCheckFileChips,
   parseChooseAttachments,
   parseDownloadAttachments,
   parseFilePreviewPageUrl,
@@ -77,6 +78,7 @@ export interface AttachmentIpcDependencies {
     | "resolveSharedFile"
     | "resolveLocalWorkspaceFile"
     | "listLocalWorkspaceDirectory"
+    | "checkFileChips"
   >;
   mailbox: Pick<MailboxStore, "resolveAttachment">;
   remoteServers: Pick<
@@ -277,6 +279,11 @@ export function attachmentIpcHandlers({
             }),
           );
         },
+      }),
+      checkFileChips: scopedHandler(parseCheckFileChips, {
+        local: (parsed) => runCauseEffect(service.checkFileChips(parsed.agentId, parsed.files)),
+        // A joined server has no check route, so its file names stay chips, as before the check.
+        remote: async (parsed) => parsed.files.map(() => true),
       }),
       previewSharedFile: scopedHandler(parsePreviewSharedFile, {
         local: async (parsed) => {
