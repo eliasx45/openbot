@@ -49,4 +49,21 @@ describe("renderer permissions", () => {
       ),
     ).toBe(false);
   });
+
+  it("allows fullscreen only for the trusted renderer's main frame", () => {
+    const mainFrame = { requestingUrl: developmentUrl, isMainFrame: true };
+    expect(canRequestRendererPermission("fullscreen", mainFrame, developmentUrl)).toBe(true);
+    expect(canCheckRendererPermission("fullscreen", developmentUrl, {}, developmentUrl)).toBe(true);
+    expect(
+      canRequestRendererPermission("fullscreen", { requestingUrl: developmentUrl, isMainFrame: false }, developmentUrl),
+    ).toBe(false);
+    expect(
+      canRequestRendererPermission(
+        "fullscreen",
+        { requestingUrl: "https://example.com", isMainFrame: true },
+        developmentUrl,
+      ),
+    ).toBe(false);
+    expect(canCheckRendererPermission("fullscreen", "https://example.com", {}, developmentUrl)).toBe(false);
+  });
 });
