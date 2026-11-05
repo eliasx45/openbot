@@ -64,13 +64,20 @@ final class PhotoView: NSView, NSServicesMenuRequestor {
   func writeSelection(to pasteboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> Bool { false }
 }
 
+/// A borderless window can't become key by default. Continuity Camera enables its iPhone items only
+/// for a requestor in the KEY window's responder chain, so this window must be allowed to be key.
+final class KeyWindow: NSWindow {
+  override var canBecomeKey: Bool { true }
+  override var canBecomeMain: Bool { true }
+}
+
 final class Delegate: NSObject, NSApplicationDelegate {
   var window: NSWindow?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     // A 1×1 clear window at the pointer: the menu opens there, and its view is the requestor.
     let at = NSEvent.mouseLocation
-    let window = NSWindow(
+    let window = KeyWindow(
       contentRect: NSRect(x: at.x, y: at.y - 1, width: 1, height: 1), styleMask: .borderless,
       backing: .buffered, defer: false)
     window.isOpaque = false
@@ -83,8 +90,25 @@ final class Delegate: NSObject, NSApplicationDelegate {
     NSApp.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)
     window.makeFirstResponder(view)
-    // The menu tracks in a run loop of its own: open it on the next turn, not inside launch.
-    DispatchQueue.main.async { self.popMenu(window: window, view: view) }
+    // The menu tracks in a run loop of its own: open it on a later turn, not inside launch, and only
+    // once this app is active and the window is key (macOS may give activation a moment).
+    waitForKey(window: window, view: view, tries: 40)
+  }
+
+  func waitForKey(window: NSWindow, view: PhotoView, tries: Int) {
+    if (NSApp.isActive && window.isKeyWindow) || tries == 0 {
+      FileHandle.standardError.write(
+        "iphone-photo: active=\(NSApp.isActive) key=\(window.isKeyWindow) firstResponder=\(window.firstResponder === view)\n"
+          .data(using: .utf8)!)
+      if window.firstResponder !== view { window.makeFirstResponder(view) }
+      popMenu(window: window, view: view)
+      return
+    }
+    NSApp.activate(ignoringOtherApps: true)
+    window.makeKeyAndOrderFront(nil)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.025) {
+      self.waitForKey(window: window, view: view, tries: tries - 1)
+    }
   }
 
   func popMenu(window: NSWindow, view: PhotoView) {

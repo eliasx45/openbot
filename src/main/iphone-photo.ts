@@ -48,7 +48,7 @@ export function createIphonePhotoService(options: { testImage?: string | undefin
     const args = [out, "--wait", String(WAIT_SECONDS)];
     if (options.testImage) args.push("--test-image", options.testImage);
     const outcome = await new Promise<string>((done) => {
-      const child = spawn(helper, args, { stdio: ["ignore", "pipe", "ignore"] });
+      const child = spawn(helper, args, { stdio: ["ignore", "pipe", "inherit"] });
       running = child;
       let output = "";
       child.stdout?.on("data", (chunk: Buffer) => {
