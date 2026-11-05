@@ -105,6 +105,7 @@ export const messages = {
     "Het contextvenster van een model moet een geheel aantal tokens zijn van {min} tot {max}.",
   "error.provider.maxOutputInvalid":
     "De maximale output van een model moet een geheel aantal tokens zijn van {min} tot {max}.",
+  "error.provider.reasoningEffortsInvalid": "De redeneerniveaus van een model zijn niet geldig.",
   "error.provider.headersTooMany": "Er zijn te veel headers.",
   "error.provider.headerNameCharacter": "Een headernaam bevat een teken dat HTTP niet toestaat.",
   "error.provider.headerNameTooLong": "Een headernaam is te lang.",
@@ -213,6 +214,8 @@ export const messages = {
     "De modelaanbieder had een storing aan zijn kant. Het ligt niet aan je verbinding. Probeer het later opnieuw of kies een ander model.\n{detail}",
   "error.provider.opencodeNetwork":
     "OpenCode kon geen verbinding maken met de modelaanbieder. Controleer de netwerkverbinding van de computer waarop OpenBot draait en probeer het opnieuw.\n{detail}",
+  "error.provider.codexStateBusy":
+    "ChatGPT bereidt na een eerdere start nog de lokale geschiedenis voor. Wacht een paar minuten en probeer het opnieuw.",
   "error.provider.opencodeDatabaseNewer":
     "OpenCode kon de database niet openen, omdat een nieuwere versie van OpenCode deze heeft gewijzigd. Werk OpenCode bij naar versie 2 of nieuwer en probeer het opnieuw.",
   "error.provider.opencodeNoAnswer":
@@ -427,6 +430,9 @@ export const messages = {
     "De aangepaste agent is gewijzigd tijdens de installatie. Probeer het opnieuw.",
   "error.provider.registryInstallFailed":
     "De installatie van de agent is mislukt. De vorige installatie is ongewijzigd.",
+  "error.provider.hermesInstallFailed":
+    "Hermes Agent is niet geïnstalleerd. Probeer het opnieuw, of gebruik de installatiegids.",
+  "error.provider.hermesNeedsGitCurl": "Hermes Agent heeft git en curl nodig. Installeer ze en probeer het opnieuw.",
   "error.provider.registryRemoveBusy":
     "Wacht tot de installatie van de agent en het actieve ACP-werk klaar zijn voordat je de agent verwijdert.",
 } as const satisfies PartialTranslation<typeof source>;

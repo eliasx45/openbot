@@ -504,8 +504,17 @@ mark of each open side thread, and a move of one. The marks are rows of `project
 under the side thread's own `threadId`, so the member's devices share them and no migration was
 needed. A desktop marks the open thread read while its window has focus (`markTaskRead` over IPC, or
 the route for a joined server); the phone marks it while the thread screen is in front, and shows a
-dot on the agent's name for an open thread with unread agent messages. The host sends no event when
-a mark moves; a client reads the marks again when `agent-tasks-changed` arrives or a screen that
+dot on the agent's name for an open thread with unread agent messages. The desktop reads the marks
+with `listTaskReads` (`agent:tasks:reads` over IPC, or the `reads` route for a joined server). It shows
+a dot on the tab and the menu row of an idle thread with unread agent messages, and adds those
+messages to the unread count of the agent's sidebar row (`agentUnreadReplies` in
+`conversation-context.tsx`). The Dynamic Island keeps the chat-only count: it shows and opens a
+message of the agent's chat, and a side thread's messages are not in it. "Mark all read" still reads
+only the agent's chat. The desktop reads the marks of an agent only after it reads that agent's thread
+list, so after a start an agent that is not open adds no thread messages to its count until a thread
+event arrives or the person opens it. The host sends no event when
+a mark moves; a client reads the marks again when `agent-tasks-changed` arrives with a thread whose state, outcome or
+last change moved (not for a progress line), or a screen that
 shows them opens. The optional `agent-thread-files-v1` capability
 (`packages/contracts/src/team-protocol/agent-thread-files-v1.ts`, host route `routeAgentThreadFiles` in
 `src/main/team-api/route-agent-threads.ts`) adds `POST /v1/agent-threads/{start-with-files,send-with-files}`:
@@ -949,8 +958,8 @@ in `.agents/skills` and `.claude/skills` that OpenBot does not manage. Workspace
 and leave out `.openbot/`, the skill folders, links, and every path `isUnsafeArchivePath` refuses
 (`.git`, `node_modules`, `.env*`, private keys, nested archives). Server settings are optional: MCP servers,
 custom model providers, custom ACP agents (as a warning, see below), sidebar sections and routine flows
-between exported agents. A custom provider model keeps its optional `contextWindow`; an app that
-does not know the field ignores it.
+between exported agents. A custom provider model keeps its optional `contextWindow`, `maxOutput`
+and `reasoningEfforts`; an app that does not know a field ignores it.
 
 No secret is in the file: MCP variable and header values are empty, custom providers have no key or
 headers, custom agents keep only the names of their variables, and `signedIn` lists provider ids,

@@ -21,6 +21,7 @@ import {
   decodeAgentTaskLimitSettings,
   decodeBrowserProfileList,
   decodeBrowserProfileSummary,
+  decodeBrowserProxySummary,
   decodeBrowserTabProfiles,
   decodeChannel,
   decodeChannelMemories,
@@ -50,6 +51,8 @@ import {
   decodeMcpSignInRelayPage,
   decodeMcpSignInStates,
   decodeMcpTestResult,
+  decodeOptionalBrowserComputerSharing,
+  decodeOptionalBrowserProxyList,
   decodeOptionalMachineMetrics,
   decodeOptionalStorageDisk,
   decodeOptionalStorageUsage,
@@ -186,6 +189,7 @@ import {
   decodeRemoteDesktopTestFromMain,
   decodeRemoteNetworkRouteState,
   decodeRemoteSessionReusePreference,
+  decodeSentMessageStats,
   decodeSpeechAudio,
   decodeSpeechModelStatus,
   decodeSpeechSettings,
@@ -230,6 +234,7 @@ import {
 import {
   decodeAgentTask,
   decodeAgentTaskReadState,
+  decodeAgentTaskReadStates,
   decodeAgentTasks,
   decodeAttachment,
   decodeAttachmentDownloadProgress,
@@ -265,6 +270,11 @@ import {
   decodeWhatsAppLinkStateReply,
   decodeWhatsAppOverviewReply,
 } from "./messaging-decoding";
+import {
+  decodePasswordManagerChange,
+  decodePasswordManagerResponse,
+  decodePasswordManagerResponses,
+} from "./password-manager-decoding";
 import { decodeProviderRuntimeSnapshot } from "./provider-runtime";
 import { decodeRoutineFlowCanvas, decodeRoutineFlowLink } from "./routine-flow-decoding";
 import {
@@ -630,6 +640,7 @@ const agentGroup = bridgeGroup(IPC_ENDPOINTS.agent, {
   reopenTask: decodeVoid,
   renameTask: decodeVoid,
   deleteTask: decodeVoid,
+  listTaskReads: decodeAgentTaskReadStates,
   markTaskRead: decodeAgentTaskReadState,
   acknowledgeFailedTurn: decodeVoid,
   cancelQueuedMessage: decodeVoid,
@@ -713,6 +724,7 @@ const openbotApi: OpenBotDesktopApi = {
     getAnalyticsDefault: decodeAnalyticsPreference,
     analyticsPreference: decodeAnalyticsPreference,
     setAnalyticsPreference: decodeAnalyticsPreference,
+    reportRendererTiming: decodeVoid,
     getApprovalAutomation: decodeApprovalAutomationPreference,
     approvalAutomation: decodeApprovalAutomationPreference,
     getBusyMessageModePreference: decodeBusyMessageModePreference,
@@ -742,6 +754,7 @@ const openbotApi: OpenBotDesktopApi = {
     openSettings: decodeVoid,
     openUpdateSettings: decodeVoid,
     openExternal: decodeVoid,
+    getSentMessageStats: decodeSentMessageStats,
     openUrl: decodeVoid,
     getExternalLinkPreference: decodeExternalLinkPreference,
     setExternalLinkPreference: decodeExternalLinkPreference,
@@ -972,6 +985,21 @@ const openbotApi: OpenBotDesktopApi = {
     cancel: decodeLinkAccountStatus,
     disconnect: decodeLinkAccountStatus,
     changed: decodeLinkAccountStatus,
+  }),
+  // A status never holds a key or a password. A `changed` event for a manager that this build does
+  // not know is dropped.
+  passwordManagers: bridgeGroup(IPC_ENDPOINTS.passwordManagers, {
+    list: decodePasswordManagerResponses,
+    connect: decodePasswordManagerResponse,
+    cancel: decodePasswordManagerResponse,
+    disconnect: decodePasswordManagerResponse,
+    openSignIn: decodeVoid,
+    changed: dropInvalid(decodePasswordManagerChange),
+    hostList: decodePasswordManagerResponses,
+    hostConnect: decodePasswordManagerResponse,
+    hostCancel: decodePasswordManagerResponse,
+    hostDisconnect: decodePasswordManagerResponse,
+    hostOpenSignIn: decodeVoid,
   }),
   bitwardenConnector: bridgeGroup(IPC_ENDPOINTS.bitwardenConnector, {
     status: decodeBitwardenConnectorStatus,
@@ -1312,6 +1340,12 @@ const openbotApi: OpenBotDesktopApi = {
       deleteBrowserProfile: decodeVoid,
       getAgentBrowserProfile: decodeAgentBrowserProfile,
       updateAgentBrowserProfile: decodeAgentBrowserProfile,
+      listBrowserProxies: decodeOptionalBrowserProxyList,
+      saveBrowserProxy: decodeBrowserProxySummary,
+      deleteBrowserProxy: decodeVoid,
+      setBrowserProfileProxy: decodeVoid,
+      getBrowserComputerSharing: decodeOptionalBrowserComputerSharing,
+      setBrowserComputerSharing: decodeVoid,
       listBrowserTabProfiles: decodeBrowserTabProfiles,
       updateAgentAdminSettings: decodeAgentAdminSettings,
       listAgentSkills: decodeInstalledSkillsFromMain,

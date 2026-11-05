@@ -89,6 +89,9 @@ export function ConversationComposer() {
     props,
     quoteRequest,
     openQuote,
+    taggableBrowserTabs,
+    taggableThreads,
+    openTaggedReference,
     queuePanelVisible,
     releaseCutAttachments,
     removeAttachment,
@@ -669,6 +672,9 @@ export function ConversationComposer() {
               skillPickerRequest={skillPickerRequest()}
               quoteRequest={quoteRequest()}
               onOpenQuote={openQuote}
+              browserTabs={taggableBrowserTabs()}
+              threads={taggableThreads()}
+              onOpenTag={openTaggedReference}
               onValueChange={(text) => {
                 updateCurrentDraft({ text });
                 updateTeamTyping(text);

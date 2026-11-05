@@ -118,6 +118,7 @@ export const messages = {
   "marketplace.app.telegramTagline": "Grupy i czaty prywatne w Telegramie",
   "marketplace.app.whatsappTagline": "Własny czat i dozwolone osoby w WhatsApp",
   "marketplace.app.bitwardenTagline": "Loguj się do witryn danymi logowania z udostępnionego folderu",
+  "marketplace.app.protonPassTagline": "Loguj się do witryn danymi logowania z udostępnionego sejfu",
   "marketplace.app.onePasswordCategory": "Zarządzanie logowaniem i danymi uwierzytelniającymi",
   "marketplace.app.yourApps": "Twoje aplikacje",
   "marketplace.app.addCustom": "Dodaj własną",
@@ -417,6 +418,14 @@ export const messages = {
   "marketplace.plugin.todoist.prompt.today": "Które zadania w Todoist mają termin na dziś?",
   "marketplace.plugin.todoist.prompt.capture": "Dodaj te punkty do działania do mojej skrzynki odbiorczej w Todoist.",
   "marketplace.plugin.todoist.prompt.overdue": "Przenieś moje zaległe zadania w Todoist na jutro.",
+  "marketplace.plugin.ticktick.tagline": "Zadania, listy, nawyki i skupienie",
+  "marketplace.plugin.ticktick.description":
+    "TickTick pozwala agentom wyszukiwać i filtrować zadania, dodawać i zmieniać zadania oraz zarządzać listami, sekcjami, folderami, tagami i komentarzami. Agenci mogą też czytać i zmieniać nawyki oraz sesje skupienia, a także czytać wydarzenia z kalendarzy połączonych z TickTick. Każdy użytkownik loguje się do własnego konta TickTick w przeglądarce. Agenci dostają dostęp do odczytu i zapisu: mogą kończyć, przenosić i usuwać zadania oraz usuwać tagi i sesje skupienia.",
+  "marketplace.plugin.ticktick.app":
+    "Zadania, listy, nawyki i sesje skupienia przez serwer MCP TickTick z logowaniem w przeglądarce.",
+  "marketplace.plugin.ticktick.prompt.today": "Które zadania w TickTick mają termin na dziś?",
+  "marketplace.plugin.ticktick.prompt.capture": "Dodaj te punkty do działania do mojej skrzynki w TickTick.",
+  "marketplace.plugin.ticktick.prompt.week": "Które zadania w TickTick zostały ukończone w zeszłym tygodniu?",
   "marketplace.plugin.trello.tagline": "Tablice, listy i karty",
   "marketplace.plugin.trello.description":
     "Trello pozwala agentom wyszukiwać i czytać tablice, listy, karty, listy kontrolne i komentarze, tworzyć tablice i karty, przenosić listy i karty, oznaczać karty jako ukończone oraz dodawać listy kontrolne, komentarze i etykiety. Agenci mogą też czytać i dodawać karty w skrzynce odbiorczej Trello użytkownika oraz czytać wydarzenia z Plannera, które mogą pochodzić z połączonego kalendarza Google lub Outlook. Każdy użytkownik loguje się na własne konto Trello przez przeglądarkę i wybiera obszary robocze na ekranie zgody. Agenci mają w tych obszarach roboczych te same uprawnienia co użytkownik. Mogą archiwizować karty i listy, ale serwer nie może niczego trwale usunąć.",

@@ -105,6 +105,7 @@ export const messages = {
   "error.provider.modelIdDuplicate": "У двух моделей одинаковый ID.",
   "error.provider.contextWindowInvalid": "Контекстное окно модели должно быть целым числом токенов от {min} до {max}.",
   "error.provider.maxOutputInvalid": "Максимальный вывод модели должен быть целым числом токенов от {min} до {max}.",
+  "error.provider.reasoningEffortsInvalid": "Уровни усилий модели недопустимы.",
   "error.provider.headersTooMany": "Слишком много заголовков.",
   "error.provider.headerNameCharacter": "В имени заголовка есть символ, недопустимый в HTTP.",
   "error.provider.headerNameTooLong": "Имя заголовка слишком длинное.",
@@ -207,6 +208,8 @@ export const messages = {
     "У провайдера моделей произошёл сбой на его стороне. Дело не в вашем соединении. Повторите попытку позже или выберите другую модель.\n{detail}",
   "error.provider.opencodeNetwork":
     "OpenCode не смог подключиться к провайдеру моделей. Проверьте сетевое подключение компьютера, где работает OpenBot, и повторите попытку.\n{detail}",
+  "error.provider.codexStateBusy":
+    "ChatGPT ещё готовит локальную историю после предыдущего запуска. Подождите несколько минут и повторите попытку.",
   "error.provider.opencodeDatabaseNewer":
     "OpenCode не смог открыть свою базу данных, потому что её изменила более новая версия OpenCode. Обновите OpenCode до версии 2 или новее и повторите попытку.",
   "error.provider.opencodeNoAnswer":
@@ -418,6 +421,9 @@ export const messages = {
   "error.provider.registryPrerequisite": "Установите {tool} на хост, прежде чем устанавливать этого агента.",
   "error.provider.registryBindingChanged": "Пользовательский агент изменился во время установки. Повторите попытку.",
   "error.provider.registryInstallFailed": "Не удалось установить агента. Предыдущая установка не изменена.",
+  "error.provider.hermesInstallFailed":
+    "Hermes Agent не установлен. Попробуйте ещё раз или воспользуйтесь инструкцией по установке.",
+  "error.provider.hermesNeedsGitCurl": "Hermes Agent нужны git и curl. Установите их и попробуйте ещё раз.",
   "error.provider.registryRemoveBusy":
     "Дождитесь окончания установки агента и активной работы ACP, прежде чем удалять его.",
 } as const satisfies PartialTranslation<typeof source>;

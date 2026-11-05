@@ -111,6 +111,7 @@ export const messages = {
     "A janela de contexto de um modelo deve ser um número inteiro de tokens entre {min} e {max}.",
   "error.provider.maxOutputInvalid":
     "A saída máxima de um modelo deve ser um número inteiro de tokens entre {min} e {max}.",
+  "error.provider.reasoningEffortsInvalid": "Os níveis de esforço de um modelo não são válidos.",
   "error.provider.headersTooMany": "Há cabeçalhos demais.",
   "error.provider.headerNameCharacter": "O nome de um cabeçalho contém um caractere não permitido pelo HTTP.",
   "error.provider.headerNameTooLong": "O nome de um cabeçalho é muito longo.",
@@ -216,6 +217,8 @@ export const messages = {
     "Ocorreu uma falha no provedor do modelo. Sua conexão não é a causa. Tente novamente mais tarde ou escolha outro modelo.\n{detail}",
   "error.provider.opencodeNetwork":
     "O OpenCode não conseguiu se conectar ao provedor do modelo. Verifique a conexão de rede do computador que executa o OpenBot e tente novamente.\n{detail}",
+  "error.provider.codexStateBusy":
+    "O ChatGPT ainda está preparando o histórico local após uma inicialização anterior. Aguarde alguns minutos e tente novamente.",
   "error.provider.opencodeDatabaseNewer":
     "O OpenCode não conseguiu abrir o banco de dados porque uma versão mais recente do OpenCode o alterou. Atualize o OpenCode para a versão 2 ou posterior e tente novamente.",
   "error.provider.opencodeNoAnswer":
@@ -426,6 +429,8 @@ export const messages = {
   "error.provider.registryPrerequisite": "Instale {tool} no computador anfitrião antes de instalar este agente.",
   "error.provider.registryBindingChanged": "O agente personalizado mudou durante a instalação. Tente de novo.",
   "error.provider.registryInstallFailed": "A instalação do agente falhou. A instalação anterior permanece inalterada.",
+  "error.provider.hermesInstallFailed": "O Hermes Agent não foi instalado. Tente de novo ou use o guia de instalação.",
+  "error.provider.hermesNeedsGitCurl": "O Hermes Agent precisa de git e curl. Instale-os e tente de novo.",
   "error.provider.registryRemoveBusy":
     "Aguarde a instalação do agente e o trabalho ACP ativo terminarem antes de removê-lo.",
 } as const satisfies PartialTranslation<typeof source>;
