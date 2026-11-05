@@ -16,6 +16,7 @@ import type { AgentMessage, AgentProfile } from "../../data";
 import { useText } from "../../text";
 import { AgentAvatar } from "../agents/AgentAvatar";
 import type { AttachmentDownloads, AttachmentMediaSource } from "./AttachmentCards";
+import type { FileChipPeek } from "./FilePagePeek";
 import type { MessageImageFile } from "./MarkdownMessageText";
 import { conversationBubbleVariant, MessageBody } from "./MessageRendering";
 
@@ -94,6 +95,10 @@ export interface ChatMessageRowProps {
   downloads?: AttachmentDownloads | undefined;
   /** Whether a file that a code span names opens. Absent, every file name is a chip. */
   checkFileChip?: ((file: MessageImageFile) => Promise<boolean>) | undefined;
+  /** Reads one page of a named PDF for the peek over its chip. Absent, a chip has no peek. */
+  previewFileChip?:
+    | ((file: MessageImageFile, page: number, signal: AbortSignal) => Promise<FileChipPeek | null>)
+    | undefined;
   /** Reads an image file that an agent message names, for a preview under the text. */
   loadImageFile?: ((file: MessageImageFile) => Promise<string | null>) | undefined;
   onDownloadImageFile?: ((file: MessageImageFile) => void) | undefined;
@@ -216,6 +221,7 @@ export function ChatMessageRow(props: ChatMessageRowProps): JSX.Element {
       mediaSource={props.mediaSource}
       downloads={props.downloads}
       checkFileChip={props.checkFileChip}
+      previewFileChip={props.previewFileChip}
       loadImageFile={props.loadImageFile}
       onDownloadImageFile={props.onDownloadImageFile}
       macWindowControls={props.macWindowControls}

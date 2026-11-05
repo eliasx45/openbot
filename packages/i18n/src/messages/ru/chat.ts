@@ -373,6 +373,7 @@ export const messages = {
   "chat.file.openShared": "Открыть общий файл {name}",
   "chat.file.openWorkspace": "Открыть файл рабочего пространства {name}",
   "chat.file.openWorkspaceFolder": "Открыть папку рабочего пространства {name}",
+  "chat.file.pagePeek": "Страница {page} из {total}",
   "chat.file.openAttached": "Открыть прикреплённый файл {name}",
   "chat.reference.kind.agent": "Агент",
   "chat.reference.kind.mcp": "Сервер MCP",

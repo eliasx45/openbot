@@ -41,6 +41,7 @@ import { ComparisonTable } from "./ComparisonTable";
 import { BranchIcon, CheckIcon, CopyIcon, PlusIcon, ReactionIcon, ReplyIcon, StopIcon } from "./ConversationIcons";
 import { createSmoothHeightResize } from "./createSmoothHeightResize";
 import { DataTable, type MessageContentBlock, messageContentBlocks, reuseUnchangedBlocks } from "./DataTable";
+import type { FileChipPeek } from "./FilePagePeek";
 import { messageFileReferences } from "./FileReference";
 import { ImageGeneration } from "./ImageGeneration";
 import { ImageGallery, ImageLightbox, type ImageLightboxOpening, isLightboxImage } from "./ImageLightbox";
@@ -328,6 +329,10 @@ export function MessageBody(props: {
    * name is a chip. While the message streams, the names show as code and nothing is asked.
    */
   checkFileChip?: ((file: MessageImageFile) => Promise<boolean>) | undefined;
+  /** Reads one page of a named PDF for the peek over its chip. Absent, a chip has no peek. */
+  previewFileChip?:
+    | ((file: MessageImageFile, page: number, signal: AbortSignal) => Promise<FileChipPeek | null>)
+    | undefined;
   /**
    * Reads an image file that an agent message names, for a preview under the text. Resolves the
    * image as a `data:` URL, or `null` when it cannot show. Absent, a named file is only a chip.
@@ -568,6 +573,7 @@ export function MessageBody(props: {
       onOpenQuote={props.onOpenQuote}
       onOpenTag={props.onOpenTag}
       checkFileChip={fileChipCheck()}
+      previewFileChip={props.previewFileChip}
     />
   );
 
@@ -737,6 +743,7 @@ export function MessageBody(props: {
                             onOpenQuote={props.onOpenQuote}
                             onOpenTag={props.onOpenTag}
                             checkFileChip={fileChipCheck()}
+                            previewFileChip={props.previewFileChip}
                             showCitationFooter={index === lastTextBlockIndex()}
                             streaming={streamingBody.revealing() && index === contentBlocks().length - 1}
                             streamingTailAfter={textTailAfter()[index]}

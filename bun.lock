@@ -48,6 +48,7 @@
         "marked": "catalog:",
         "music-metadata": "catalog:",
         "p-queue": "catalog:",
+        "pdfjs-dist": "catalog:",
         "pino": "catalog:",
         "protobufjs": "catalog:",
         "qrcode": "catalog:",

@@ -288,6 +288,7 @@ export const messages = {
   "chat.file.openShared": "Paylaşılan dosyayı aç {name}",
   "chat.file.openWorkspace": "Çalışma alanı dosyasını aç {name}",
   "chat.file.openWorkspaceFolder": "Çalışma alanı klasörünü aç {name}",
+  "chat.file.pagePeek": "Sayfa {page} / {total}",
   "chat.file.openAttached": "Ekli dosyayı aç {name}",
   "chat.reference.kind.agent": "Ajan",
   "chat.reference.kind.mcp": "MCP sunucusu",

@@ -59,6 +59,7 @@ import { MarketplaceSuggestionChatCard, marketplaceSuggestionKnown } from "./Mar
 import { McpSignInChatCard } from "./McpSignInChatCard";
 import { createMessageFileChips } from "./message-file-chips";
 import { createMessageImageFiles } from "./message-image-files";
+import { createMessagePdfPages } from "./message-pdf-pages";
 import { RoutineChatCard } from "./RoutineChatCard";
 import { createChatWebhookRoutines, RoutineWebhookChatCard } from "./RoutineWebhookChatCard";
 import { desktopChatEventRoutinesApi } from "./routine-webhooks-api";
@@ -327,6 +328,10 @@ export function ConversationTimeline() {
   const loadImageFile = props.runtime ? undefined : createMessageImageFiles(runtime.agent);
   // Without a check (the browser client), every file name that a code span shows stays a chip.
   const checkFileChip = runtime.agent.checkFileChips ? createMessageFileChips(runtime.agent) : undefined;
+  // A PDF chip shows a page peek only for files on this computer: a joined server and the browser
+  // client keep their chips as before.
+  const pdfPages = props.runtime ? undefined : createMessagePdfPages(runtime.agent);
+  const showsPdfPeek = () => props.server?.kind === "local" && checkFileChip !== undefined;
   const instructionsCalls = agentInstructionsCalls();
   /** View and Undo on an instructions change line: the file is in the workspace on this computer. */
   const localInstructionsCalls = () =>
@@ -430,6 +435,21 @@ export function ConversationTimeline() {
                   messageId: current().id,
                   agentId: current().exchange?.senderAgentId,
                 }))
+            }
+            previewFileChip={
+              pdfPages && showsPdfPeek()
+                ? (file, page, signal) =>
+                    pdfPages(
+                      file,
+                      page,
+                      {
+                        serverId: props.server?.id ?? "local",
+                        messageId: current().id,
+                        agentId: current().exchange?.senderAgentId,
+                      },
+                      signal,
+                    )
+                : undefined
             }
             onOpenQuote={openQuote}
             onOpenTag={openTaggedReference}
@@ -1349,6 +1369,21 @@ export function ConversationTimeline() {
                                   messageId: message()?.id ?? initialMessage.id,
                                   agentId: workspaceAgentId(),
                                 }))
+                            }
+                            previewFileChip={
+                              pdfPages && showsPdfPeek()
+                                ? (file, page, signal) =>
+                                    pdfPages(
+                                      file,
+                                      page,
+                                      {
+                                        serverId: props.server?.id ?? "local",
+                                        messageId: message()?.id ?? initialMessage.id,
+                                        agentId: workspaceAgentId(),
+                                      },
+                                      signal,
+                                    )
+                                : undefined
                             }
                             loadImageFile={
                               loadImageFile &&

@@ -274,6 +274,7 @@ export const messages = {
   "chat.file.openShared": "공유 파일 {name} 열기",
   "chat.file.openWorkspace": "워크스페이스 파일 {name} 열기",
   "chat.file.openWorkspaceFolder": "워크스페이스 폴더 {name} 열기",
+  "chat.file.pagePeek": "{total}페이지 중 {page}페이지",
   "chat.file.openAttached": "첨부 파일 {name} 열기",
   "chat.reference.kind.agent": "에이전트",
   "chat.reference.kind.mcp": "MCP 서버",

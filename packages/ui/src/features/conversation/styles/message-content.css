@@ -1439,6 +1439,64 @@
   max-width: 240px;
 }
 
+/* The peek over a PDF chip: one page and its page count on an opaque frosted bubble. The trigger
+ * stays in inline flow, so the chip keeps its place and copied text keeps its line. */
+.message-file-peek-trigger {
+  display: inline;
+}
+
+.message-file-peek {
+  z-index: var(--openbot-layer-tooltip);
+  display: grid;
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - var(--openbot-space-4)));
+  gap: var(--openbot-space-1-5);
+  border-radius: var(--openbot-radius-card);
+  background: color-mix(in srgb, var(--openbot-bg-sheet) 94%, transparent);
+  box-shadow: var(--ui-menu-panel-shadow);
+  padding: var(--openbot-space-1-5);
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  pointer-events: none;
+  transform-origin: var(--kb-tooltip-content-transform-origin);
+  animation: ui-menu-in var(--ui-menu-duration) var(--ui-menu-ease) both;
+}
+
+.message-file-peek:not([data-expanded]) {
+  animation: ui-menu-out var(--ui-menu-duration) var(--ui-menu-ease) both;
+}
+
+.message-file-peek-page {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(420px, 60vh);
+  border-radius: var(--openbot-radius-sm);
+  /* A PDF page is paper: pdf.js paints its own page colour. */
+  background: var(--openbot-paper);
+  object-fit: contain;
+}
+
+.message-file-peek-page[data-loading] {
+  aspect-ratio: 1 / 1.414;
+  background: var(--openbot-glass-surface);
+}
+
+.message-file-peek-count {
+  padding-inline: var(--openbot-space-1);
+  color: var(--openbot-text-secondary);
+  font-size: var(--openbot-text-sm);
+  line-height: var(--openbot-leading-sm);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-file-peek,
+  .message-file-peek:not([data-expanded]) {
+    animation: none;
+  }
+}
+
 :is(
   .message-file-reference,
   .composer-file-reference,

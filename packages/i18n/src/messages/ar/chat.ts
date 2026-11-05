@@ -427,6 +427,7 @@ export const messages = {
   "chat.file.openShared": "فتح الملف المشترك {name}",
   "chat.file.openWorkspace": "فتح ملف مساحة العمل {name}",
   "chat.file.openWorkspaceFolder": "فتح مجلد مساحة العمل {name}",
+  "chat.file.pagePeek": "الصفحة {page} من {total}",
   "chat.file.openAttached": "فتح الملف المرفق {name}",
   "chat.reference.kind.agent": "وكيل",
   "chat.reference.kind.mcp": "خادم MCP",

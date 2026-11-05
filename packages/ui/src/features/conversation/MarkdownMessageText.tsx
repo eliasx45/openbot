@@ -12,6 +12,7 @@ import { AttachmentReferenceVisual, attachmentReferenceTone } from "./Attachment
 import { CodeBlock } from "./CodeBlock";
 import { CodePreview } from "./CodePreview";
 import type { MessageCodeBlock } from "./DataTable";
+import { type FileChipPeek, FilePagePeek } from "./FilePagePeek";
 import { MathFormula } from "./MathFormula";
 import { linkTitle, MessageLink, RichMessageText, type RichMessageTextProps, safeBrowserUrl } from "./RichMessageText";
 import {
@@ -39,6 +40,14 @@ type MarkdownMessageTextProps = Omit<RichMessageTextProps, "showCitationFooter">
    * `null` keeps them code and asks nothing, for a streaming message. Absent, every file name is a chip.
    */
   checkFileChip?: ((file: MessageImageFile) => Promise<boolean>) | null | undefined;
+  /**
+   * Reads one page of a PDF that a code span names, for a peek over its chip. Only a chip that the
+   * check resolved gets a peek. The signal aborts when the peek closes before the answer. `null`
+   * means the page does not show. Absent, a chip has no peek.
+   */
+  previewFileChip?:
+    | ((file: MessageImageFile, page: number, signal: AbortSignal) => Promise<FileChipPeek | null>)
+    | undefined;
 };
 
 type MarkdownContentProps = Omit<
@@ -250,6 +259,7 @@ export function MarkdownMessageText(props: MarkdownMessageTextProps) {
       onOpenTag: props.onOpenTag,
       linkFavicons: props.linkFavicons,
       checkFileChip: props.checkFileChip,
+      previewFileChip: props.previewFileChip,
       fileDirectory: fileDirectory(),
     }),
   );
@@ -290,6 +300,7 @@ export function MarkdownInlineText(
     onOpenTag: props.onOpenTag,
     linkFavicons: props.linkFavicons,
     checkFileChip: props.checkFileChip,
+    previewFileChip: props.previewFileChip,
     fileDirectory: messageFileDirectory(props.body),
   });
   return <MarkdownInline tokens={tokens()} content={contentProps()} />;
@@ -662,7 +673,8 @@ function MarkdownInline(props: {
             );
           case "codespan": {
             if (!tokenIs(token, "codespan")) return token.raw;
-            const file = mentionedFileTarget(token.text, props.content.fileDirectory);
+            const span = fileChipPage(token.text);
+            const file = mentionedFileTarget(span.name, props.content.fileDirectory);
             const open =
               file?.kind === "shared"
                 ? props.content.onOpenSharedFile
@@ -672,9 +684,11 @@ function MarkdownInline(props: {
             return file && open ? (
               <MentionedFileChip
                 file={file}
+                page={span.page}
                 label={token.text}
                 onOpen={open}
                 check={() => props.content.checkFileChip}
+                peek={() => props.content.previewFileChip}
               />
             ) : (
               <code dir="ltr">{token.text}</code>
@@ -1266,15 +1280,31 @@ function mentionedFileTarget(value: string, directory: FileDirectoryContext | nu
   };
 }
 
+const PDF_PAGE_PATTERN = /^(.+\.pdf)#page=(\d{1,6})$/iu;
+const PDF_FILE_PATTERN = /\.pdf$/iu;
+
+/**
+ * A PDF name with a page, such as `notes.pdf#page=3`, names the file and the page that its peek
+ * shows. Other text names page 1.
+ */
+function fileChipPage(value: string): { name: string; page: number } {
+  const match = PDF_PAGE_PATTERN.exec(value.trim());
+  const page = Number(match?.[2]);
+  return match?.[1] && page >= 1 ? { name: match[1], page } : { name: value, page: 1 };
+}
+
 /**
  * A file that a code span names: a chip when the file resolves, else plain code. A streaming message
- * passes `null` as the check and asks nothing.
+ * passes `null` as the check and asks nothing. A PDF chip that the check resolved shows a page peek
+ * on hover when a reader is given.
  */
 function MentionedFileChip(props: {
   file: FileDirectoryContext;
+  page: number;
   label: string;
   onOpen: (path: string) => void;
   check: () => MarkdownContentProps["checkFileChip"];
+  peek: () => MarkdownContentProps["previewFileChip"];
 }) {
   const [resolves, setResolves] = createSignal(props.check() === undefined);
   createEffect(
@@ -1302,9 +1332,23 @@ function MentionedFileChip(props: {
       };
     },
   );
+  const chip = () => (
+    <LocalFileLink path={props.file.path} label={props.label} kind={props.file.kind} onOpen={props.onOpen} />
+  );
+  // Without a check, a chip can name a missing file, so it gets no peek.
+  const reader = () => (props.check() && PDF_FILE_PATTERN.test(props.file.path) ? props.peek() : undefined);
   return (
     <Show when={resolves()} fallback={<code dir="ltr">{props.label}</code>}>
-      <LocalFileLink path={props.file.path} label={props.label} kind={props.file.kind} onOpen={props.onOpen} />
+      <Show when={reader()} fallback={chip()}>
+        {(read) => (
+          <FilePagePeek
+            name={fileReferenceName(props.file.path)}
+            load={(signal) => read()(props.file, props.page, signal)}
+          >
+            {chip()}
+          </FilePagePeek>
+        )}
+      </Show>
     </Show>
   );
 }
@@ -1315,6 +1359,8 @@ const IMAGE_FILE_LIMIT = INPUT_LIMITS.attachments;
 
 /** A local image file that a message names, in a code span or a file link. */
 export type MessageImageFile = FileDirectoryContext;
+
+export type { FileChipPeek };
 
 /**
  * The image files that the text blocks of a message name in code spans and file links, in order,

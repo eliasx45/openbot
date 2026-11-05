@@ -275,6 +275,7 @@ export const messages = {
   "chat.file.openShared": "打开共享文件 {name}",
   "chat.file.openWorkspace": "打开工作区文件 {name}",
   "chat.file.openWorkspaceFolder": "打开工作区文件夹 {name}",
+  "chat.file.pagePeek": "第 {page} 页，共 {total} 页",
   "chat.file.openAttached": "打开附件 {name}",
   "chat.reference.kind.agent": "助手",
   "chat.reference.kind.mcp": "MCP 服务器",

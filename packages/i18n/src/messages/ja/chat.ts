@@ -267,6 +267,7 @@ export const messages = {
   "chat.file.openShared": "共有ファイル {name} を開く",
   "chat.file.openWorkspace": "ワークスペースのファイル {name} を開く",
   "chat.file.openWorkspaceFolder": "ワークスペースのフォルダー {name} を開く",
+  "chat.file.pagePeek": "{total} ページ中 {page} ページ",
   "chat.file.openAttached": "添付ファイル {name} を開く",
   "chat.reference.kind.agent": "エージェント",
   "chat.reference.kind.mcp": "MCP サーバー",
