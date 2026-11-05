@@ -20,6 +20,7 @@ import { ConversationQuestionPrompt } from "./ConversationQuestionPrompt";
 import { latestVisibleAgentMessageId } from "./conversation-read-state";
 import { useConversationViewScope } from "./conversation-scope";
 import type { ConversationThreads } from "./conversation-types";
+import { iphonePhotoAvailable, takeIphonePhoto } from "./iphone-photo";
 import { useThreadMcpSignInCard } from "./McpSignInChatCard";
 import { createTurnSteps } from "./turn-steps";
 
@@ -78,6 +79,13 @@ export function ConversationThread() {
   } = useConversationViewScope();
   const { t, errorMessage } = useText();
   const [picker, setPicker] = createSignal<HTMLInputElement>();
+  /** Fork (docs/fork/FEATURES.md entry 36): a photo from the iPhone joins the open thread's draft, at its end. */
+  const addIphonePhoto = async () => {
+    const photo = await takeIphonePhoto(t);
+    if (!photo) return;
+    const end = draft()?.text.length ?? 0;
+    await threadComposer.pasteFiles([photo], { start: end, end }, undefined);
+  };
   /** A failed answer shows here, where the person answered, and not in the agent's own chat. */
   const failureToast = (fallback: AppTextKey) => ({
     onError: (error: unknown) => {
@@ -288,6 +296,11 @@ export function ConversationThread() {
                 : attachmentAction(attachment, "open")
             }
             onAttachFiles={current().threads.acceptsFiles ? openPicker : undefined}
+            onIphonePhoto={
+              current().threads.acceptsFiles && iphonePhotoAvailable(props.server, props.platform)
+                ? () => void addIphonePhoto()
+                : undefined
+            }
             onSideQuestion={askSideQuestion()}
             voice={voice()}
             focusRequest={focusRequest()}

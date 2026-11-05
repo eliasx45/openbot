@@ -76,6 +76,11 @@ export interface TaskFiles {
 export type TasksVoiceAdapter = TasksVoice & { submit: () => void };
 
 interface TasksViewProps {
+  /**
+   * Fork (docs/fork/FEATURES.md entry 36): takes a photo on the iPhone for an open task's draft. Only this
+   * Mac's own server on desktop gives it.
+   */
+  takeIphonePhoto?: (() => Promise<File | undefined>) | undefined;
   serverId: string;
   hostName: string;
   onBack?: (() => void) | undefined;
@@ -755,6 +760,16 @@ export function TasksView(props: TasksViewProps) {
               onRemoveAttachment={filesAccepted() ? (attachment) => removeFile(taskId, attachment) : undefined}
               onPasteFiles={
                 filesAccepted() ? (files, selection, text) => pasteFiles(taskId, files, selection, text) : undefined
+              }
+              onIphonePhoto={
+                filesAccepted() && props.takeIphonePhoto
+                  ? () =>
+                      void props.takeIphonePhoto?.().then((photo) => {
+                        if (!photo) return;
+                        const end = textOf(taskId).length;
+                        return pasteFiles(taskId, [photo], { start: end, end });
+                      })
+                  : undefined
               }
               onDraftChange={(text) =>
                 setState((draft) => {

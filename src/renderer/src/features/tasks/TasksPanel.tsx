@@ -1,3 +1,4 @@
+import { LOCAL_SERVER_ID } from "@openbot/contracts/ipc";
 import { currentText } from "@openbot/ui/text";
 import { createSignal, onCleanup } from "solid-js";
 import { actionToast } from "../../action-toast";
@@ -16,6 +17,7 @@ import { createAttachmentDownloads } from "../conversation/attachment-downloads"
 import { EMPTY_DRAFT } from "../conversation/composer-draft";
 import { composerDraftKey } from "../conversation/conversation-keys";
 import type { ComposerDraft } from "../conversation/conversation-types";
+import { iphonePhotoAvailable, takeIphonePhoto } from "../conversation/iphone-photo";
 import { createVoiceStore, VOICE_LEVEL_COUNT, type VoiceStoreDeps } from "../conversation/stores/voice-store";
 import { TasksView, type TasksVoiceAdapter, type TasksVoiceControls } from "./TasksView";
 import { desktopTasksSource } from "./tasks-port";
@@ -64,6 +66,14 @@ export function TasksPanel(props: TasksPanelProps) {
       voice={createTasksVoice}
       onOpenLink={(url) => void appPort().openUrl(url)}
       onAttachmentAction={attachmentFiles.open}
+      takeIphonePhoto={
+        iphonePhotoAvailable(
+          props.serverId === LOCAL_SERVER_ID ? { kind: "local" } : undefined,
+          platform.appInfo()?.platform,
+        )
+          ? () => takeIphonePhoto(currentText().t)
+          : undefined
+      }
       downloads={attachmentFiles.downloads}
       files={{
         accepted: threads.filesAccepted,

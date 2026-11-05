@@ -60,6 +60,9 @@ export function createIphonePhotoService(options: { testImage?: string | undefin
       child.on("close", () => {
         clearTimeout(stop);
         if (running === child) running = undefined;
+        // The helper took the focus to own the menu. Give it back to OpenBot's window, so the person
+        // can type at once. (A replaced helper is not the running one: the newer menu keeps the focus.)
+        if (running === undefined && !options.testImage) app.focus({ steal: true });
         const match = /"outcome":"([A-Za-z]+)"/u.exec(output);
         done(match?.[1] && HELPER_OUTCOMES.has(match[1]) ? match[1] : "dismissed");
       });

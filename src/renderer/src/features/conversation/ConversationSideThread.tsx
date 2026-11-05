@@ -15,6 +15,7 @@ import { usePlatform } from "../../platform";
 import { latestVisibleAgentMessageId } from "./conversation-read-state";
 import { useConversationViewScope } from "./conversation-scope";
 import type { SideThread } from "./conversation-types";
+import { iphonePhotoAvailable, takeIphonePhoto } from "./iphone-photo";
 import { useThreadMcpSignInCard } from "./McpSignInChatCard";
 import { createTurnSteps } from "./turn-steps";
 
@@ -91,6 +92,13 @@ export function ConversationSideThread(props: { threadId: string }) {
   const draft = () => {
     const key = draftKey();
     return key ? threadComposer.draft(key) : undefined;
+  };
+  /** Fork (docs/fork/FEATURES.md entry 36): a photo from the iPhone joins this thread's draft, at its end. */
+  const addIphonePhoto = async () => {
+    const photo = await takeIphonePhoto(t);
+    if (!photo) return;
+    const end = draft()?.text.length ?? 0;
+    await threadComposer.pasteFiles([photo], { start: end, end }, draftKey());
   };
   /** Sends the draft of this thread. Without its key, a send would take the draft of the chat's thread. */
   function sendSide(side: SideThread, text: string): Promise<boolean> {
@@ -174,6 +182,11 @@ export function ConversationSideThread(props: { threadId: string }) {
             pendingImages={threadComposer.pendingImages(draftKey())}
             onRemoveAttachment={(attachment) => threadComposer.removeAttachment(draftKey(), attachment.id)}
             onPasteFiles={(files, selection, text) => threadComposer.pasteFiles(files, selection, draftKey(), text)}
+            onIphonePhoto={
+              view.threads?.acceptsFiles && iphonePhotoAvailable(view.server, view.platform)
+                ? () => void addIphonePhoto()
+                : undefined
+            }
             onDraftChange={(text) => threadComposer.setText(draftKey(), text)}
             onOpenDraftAttachment={(attachment) =>
               canPreviewAttachment(attachment)

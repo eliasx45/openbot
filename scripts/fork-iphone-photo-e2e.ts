@@ -12,7 +12,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { chromium, type Page } from "playwright-core";
 
 const port = Number(process.argv.find((arg) => arg.startsWith("--port="))?.slice(7) ?? 9333);
 const root = join(import.meta.dir, "..");
@@ -27,6 +27,37 @@ function check(name: string, ok: boolean, detail: unknown): void {
 
 function runHelper(args: string[]): string {
   return spawnSync(helper, args, { encoding: "utf8", timeout: 10_000 }).stdout.trim();
+}
+
+/** The photo chips on screen: visible leaf elements whose text is a photo's file name. */
+function chipCount(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      [...document.querySelectorAll("body *")].filter(
+        (node) =>
+          node.childElementCount === 0 &&
+          node.getClientRects().length > 0 &&
+          /iPhone photo .+\.jpg/u.test(node.textContent ?? ""),
+      ).length,
+  );
+}
+
+/** Waits for more photo chips than `before`. */
+function chipAdded(page: Page, before: number): Promise<boolean> {
+  return page
+    .waitForFunction(
+      (count) =>
+        [...document.querySelectorAll("body *")].filter(
+          (node) =>
+            node.childElementCount === 0 &&
+            node.getClientRects().length > 0 &&
+            /iPhone photo .+\.jpg/u.test(node.textContent ?? ""),
+        ).length > count,
+      before,
+      { timeout: 20_000 },
+    )
+    .then(() => true)
+    .catch(() => false);
 }
 
 async function main(): Promise<void> {
@@ -62,18 +93,31 @@ async function main(): Promise<void> {
     result,
   );
 
+  // The agent's own chat, also when an earlier run left a thread tab open.
+  const mainChat = page.getByRole("button", { name: "Open main chat" });
+  if (await mainChat.count()) await mainChat.first().click();
+
   // The + menu of the open chat: "From iPhone" puts the photo in the draft.
+  const mainBefore = await chipCount(page);
   await page.getByRole("button", { name: "Add to prompt" }).first().click();
   const item = page.getByRole("menuitem", { name: "From iPhone" });
   check("the + menu has From iPhone", (await item.count()) === 1, {});
   await item.click();
-  const chip = page.getByText(/iPhone photo .+\.jpg/u).first();
-  const shown = await chip
-    .waitFor({ timeout: 20_000 })
-    .then(() => true)
-    .catch(() => false);
-  check("the photo joins the draft", shown, { text: shown ? await chip.textContent() : null });
+  check("the photo joins the draft", await chipAdded(page, mainBefore), { before: mainBefore });
   await page.screenshot({ path: join(outDir, "fork-iphone-photo-e2e.png") });
+
+  // A thread's message box: "New thread" opens a draft thread tab, whose + menu has "From iPhone" too.
+  await page.getByRole("button", { name: "New thread" }).first().click();
+  const threadBox = page.getByRole("textbox", { name: /^New thread with / });
+  await threadBox.waitFor({ timeout: 20_000 });
+  const chipsBefore = await chipCount(page);
+  await page.getByRole("button", { name: "Add to prompt" }).last().click();
+  const threadItem = page.getByRole("menuitem", { name: "From iPhone" });
+  check("a thread's + menu has From iPhone", (await threadItem.count()) === 1, {});
+  await threadItem.click();
+  const threadShown = await chipAdded(page, chipsBefore);
+  check("the photo joins the thread's draft", threadShown, { chipsBefore });
+  await page.screenshot({ path: join(outDir, "fork-iphone-photo-thread-e2e.png") });
 
   const report = { at: new Date().toISOString(), passed: checks.every((entry) => entry.ok), checks };
   mkdirSync(outDir, { recursive: true });

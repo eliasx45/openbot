@@ -173,6 +173,8 @@ export interface AgentThreadViewProps {
   onOpenDraftAttachment?: ((attachment: DraftAttachment) => void) | undefined;
   /** Opens the file picker. Without it, the "+" menu has no image or context item. */
   onAttachFiles?: (() => void) | undefined;
+  /** Fork (docs/fork/FEATURES.md entry 36): takes a photo on the iPhone. Without it, the "+" menu has no "From iPhone". */
+  onIphonePhoto?: (() => void) | undefined;
   /** Opens the agent's side question with the draft. Without it, the "+" menu has no side question. */
   onSideQuestion?: (() => void) | undefined;
   /** Without it, the message box has no microphone. */
@@ -754,6 +756,7 @@ export function AgentThreadView(props: AgentThreadViewProps) {
               onOpenChange={setAddMenuOpen}
               disabled={sending() || voicePhase() === "transcribing"}
               onAttach={props.onAttachFiles}
+              onIphonePhoto={props.onIphonePhoto}
               onPickSkill={() => setSkillPickerRequest((current) => current + 1)}
               onSideQuestion={props.onSideQuestion}
             />
