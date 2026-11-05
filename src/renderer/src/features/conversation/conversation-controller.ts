@@ -70,6 +70,11 @@ interface ConversationResources {
     }
   >;
   importTargetAgents: Map<string, { agentId: string; serverId: string }>;
+  /**
+   * The chat of a sidebar row that files were dropped on, for the imports that the drop starts. The
+   * sidebar sets it before the preload starts them, in the same task, and clears it after the task.
+   */
+  sidebarDropTarget: { agentId: string; serverId: string } | undefined;
   seenMessageIds: Set<string>;
   typingIdleTimer: ReturnType<typeof setTimeout> | undefined;
   typingAgentId: string | null;
@@ -288,6 +293,7 @@ export function createStableConversationState(
     turnRuntimes: new Map(),
     browserOpenRequests: new Map(),
     importTargetAgents: new Map<string, { agentId: string; serverId: string }>(),
+    sidebarDropTarget: undefined,
     seenMessageIds: new Set<string>(),
     typingIdleTimer: undefined,
     typingAgentId: null,

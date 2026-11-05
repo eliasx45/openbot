@@ -14,6 +14,7 @@ import type { SidebarProps } from "./sidebar-types";
 import { createSidebarAnnouncementStore } from "./stores/announcement-store";
 import { createSidebarDataStore } from "./stores/data-store";
 import { createSidebarDragStateStore } from "./stores/drag-state-store";
+import { createSidebarFileDropTargets } from "./stores/file-drop-store";
 import { createSidebarLayoutActions } from "./stores/layout-actions";
 import { createSidebarPendingStore } from "./stores/pending-store";
 
@@ -139,6 +140,8 @@ export function createSidebarScope(props: SidebarProps) {
     visibleSectionIds,
   });
 
+  const { createFileDropTarget } = createSidebarFileDropTargets({ props, dragActive: () => dragActive() });
+
   onCleanup(() => {
     stopSidebarDragging();
     scrollFades.stop();
@@ -167,6 +170,7 @@ export function createSidebarScope(props: SidebarProps) {
     closeDelete,
     confirmDelete,
     confirmSectionDelete,
+    createFileDropTarget,
     customSectionById,
     deleteError,
     deleteTarget,

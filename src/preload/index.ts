@@ -556,9 +556,16 @@ async function runAttachmentImport(
   }
 }
 
+/**
+ * The conversation, or a sidebar chat row that has `data-openbot-file-drop`. The renderer opens the
+ * chat of the row and names it as the target of the import that starts.
+ */
 function isConversationDropTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Node)) return false;
+  const element = target instanceof Element ? target : target.parentElement;
+  if (element?.closest("[data-openbot-file-drop]")) return true;
   const conversation = document.querySelector(".conversation-panel");
-  return target instanceof Node && Boolean(conversation?.contains(target));
+  return Boolean(conversation?.contains(target));
 }
 
 window.addEventListener("dragover", (event) => {

@@ -34,6 +34,12 @@ export type SidebarView = "agents" | "routines";
  */
 export const SIDEBAR_HIDDEN_GROUP_OPEN_ID = "hidden-agents:open";
 
+/** The agent or channel of a row that files were dropped on. */
+export interface SidebarFileDropChat {
+  kind: "agent" | "channel";
+  id: string;
+}
+
 export interface SidebarProps {
   /** The switch over the list is shown only when the caller handles `onViewChange`. */
   view?: SidebarView | undefined;
@@ -99,6 +105,11 @@ export interface SidebarProps {
   onReorderPinned: (items: SidebarPinnedItem[]) => void;
   onReorderPeople: (memberIds: string[]) => void;
   onSelectAgent: (agentId: string) => void;
+  /**
+   * Files were dropped on the row of an agent or a channel. Without it, a row does not take files.
+   * The desktop preload imports the files; this names the chat that gets them.
+   */
+  onDropFiles?: ((chat: SidebarFileDropChat) => void) | undefined;
   onSelectPerson: (memberId: string) => void;
   onPreloadDirectConversation?: (() => void) | undefined;
   /** Whether this server currently accepts new agents. Desktop keeps the default enabled. */

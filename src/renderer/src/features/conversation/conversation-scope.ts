@@ -1173,12 +1173,14 @@ export function createConversationViewScope(props: ConversationProps) {
       const retried = event.type === "started" ? attachmentUploads.get(event.requestId) : undefined;
       const threadKey = event.type === "started" ? undefined : threadComposer.releaseImport(event.requestId);
       if (event.type === "started") {
+        // Files dropped on a sidebar row go to the chat of the row, which opens in this same task.
+        const sidebarTarget = retried ? undefined : resources.sidebarDropTarget;
         // A side thread covers the agent's own chat, so a file dropped or picked there goes to the thread.
-        if (!retried && threadComposer.openDraftKey() !== undefined) {
+        if (!retried && !sidebarTarget && threadComposer.openDraftKey() !== undefined) {
           if (threadComposer.claimImport(event.requestId, event.serverId)) importSounds.started(event.requestId);
           return;
         }
-        const target = retried?.target ?? currentTarget();
+        const target = retried?.target ?? sidebarTarget ?? currentTarget();
         if (target?.serverId === event.serverId) {
           resources.importTargetAgents.set(event.requestId, target);
           clearConversationError(target);

@@ -27,6 +27,7 @@ import { useSidebarScope } from "./sidebar-scope";
  */
 export function SidebarAgentRow(rowProps: { agent: AgentProfile; waiting?: boolean; userHidden?: boolean }) {
   const {
+    createFileDropTarget,
     dragOffset,
     draggedChatId,
     endChatDragging,
@@ -37,6 +38,7 @@ export function SidebarAgentRow(rowProps: { agent: AgentProfile; waiting?: boole
     userHiddenSince,
   } = useSidebarScope();
   const { t, format } = useText();
+  const fileDrop = createFileDropTarget(() => ({ kind: "agent", id: rowProps.agent.id }));
   const title = () => rowProps.agent.title.trim();
   const lockLabel = () => agentAccessLockLabel(rowProps.agent, t);
   const accessLabel = () => (lockLabel() ? `. ${lockLabel()}` : "");
@@ -86,6 +88,7 @@ export function SidebarAgentRow(rowProps: { agent: AgentProfile; waiting?: boole
           {
             "agent-row-active": props.activeAgentId === rowProps.agent.id,
             "sidebar-agent-row-dragging": draggedChatId() === rowProps.agent.id,
+            "agent-row-file-drop-target": fileDrop.active(),
           },
         ]}
         aria-label={`${rowProps.agent.name}${title() ? `, ${title()}` : ""}${accessLabel()}${windowLabel()}${labelDetail()}${stateLabel() ? `. ${stateLabel()}` : ""}`}
@@ -178,6 +181,10 @@ export function SidebarAgentRow(rowProps: { agent: AgentProfile; waiting?: boole
       draggable={draggable() ? "true" : "false"}
       onDragStart={(event: DragEvent & { currentTarget: HTMLElement }) => startChatDragging(event, rowProps.agent.id)}
       onDragEnd={endChatDragging}
+      data-openbot-file-drop={fileDrop.enabled() ? "" : undefined}
+      onDragOver={fileDrop.onDragOver}
+      onDragLeave={fileDrop.onDragLeave}
+      onDrop={fileDrop.onDrop}
     >
       <Show when={wait()} fallback={row()}>
         {(current) => (

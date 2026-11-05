@@ -1535,6 +1535,13 @@ textarea {
   box-shadow: inset 0 0 0 1px var(--openbot-accent-strong);
 }
 
+/* A chat row that files from outside the sidebar are dragged over. The drop attaches them in its chat. */
+.agent-row.agent-row-file-drop-target,
+.agent-row.agent-row-file-drop-target:hover {
+  background: var(--openbot-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--openbot-accent-strong);
+}
+
 /* The tint is clear, so the outline takes the colour the tint makes over the surface under it. A
    color-mix blends a clear colour and does not lay it over the other, but for a tint of alpha a, a share
    of 1 / (2 - a) made opaque gives the same colour. 54% is within two steps of that for the 12% and

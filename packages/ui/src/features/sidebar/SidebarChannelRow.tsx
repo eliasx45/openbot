@@ -22,6 +22,7 @@ import { useSidebarScope } from "./sidebar-scope";
 /** `waiting` is set by the "Needs you" group, as on `SidebarAgentRow`. */
 export function SidebarChannelRow(rowProps: { channel: ChannelSummary; waiting?: boolean }) {
   const {
+    createFileDropTarget,
     dragOffset,
     draggedChatId,
     endChatDragging,
@@ -31,6 +32,10 @@ export function SidebarChannelRow(rowProps: { channel: ChannelSummary; waiting?:
     startChatDragging,
   } = useSidebarScope();
   const { t, format } = useText();
+  // A deleted channel takes no message, so it takes no file.
+  const fileDrop = createFileDropTarget(() =>
+    rowProps.channel.archived ? undefined : { kind: "channel", id: rowProps.channel.id },
+  );
   const active = () => props.activeChannelId === rowProps.channel.id;
   const channelWait = () => props.channelWaits?.[rowProps.channel.id];
   const badgeState = createMemo(() => sidebarUnreadBadge(rowProps.channel.unreadCount, channelWait()));
@@ -69,6 +74,7 @@ export function SidebarChannelRow(rowProps: { channel: ChannelSummary; waiting?:
           {
             "agent-row-active": active(),
             "sidebar-agent-row-dragging": draggedChatId() === rowProps.channel.id,
+            "agent-row-file-drop-target": fileDrop.active(),
           },
         ]}
         aria-label={`${rowProps.channel.name}${title() ? `, ${title()}` : ""}${labelPreview()}${waitLabel()}`}
@@ -139,6 +145,10 @@ export function SidebarChannelRow(rowProps: { channel: ChannelSummary; waiting?:
       draggable={draggable() ? "true" : "false"}
       onDragStart={(event: DragEvent & { currentTarget: HTMLElement }) => startChatDragging(event, rowProps.channel.id)}
       onDragEnd={endChatDragging}
+      data-openbot-file-drop={fileDrop.enabled() ? "" : undefined}
+      onDragOver={fileDrop.onDragOver}
+      onDragLeave={fileDrop.onDragLeave}
+      onDrop={fileDrop.onDrop}
     >
       <Show when={wait()} fallback={row()}>
         {(current) => (

@@ -23,6 +23,7 @@ import type { SidebarChatItem } from "./sidebar-types";
 
 export function SidebarPinnedGroup() {
   const {
+    createFileDropTarget,
     emptyPinnedDropVisible,
     dragOffset,
     dragOverPinnedKey,
@@ -63,6 +64,7 @@ export function SidebarPinnedGroup() {
               const key = () => sidebarPinnedItemKey(item.ref);
               const name = () => chatName(item.chat);
               const active = () => chatIsActive(item.chat);
+              const fileDrop = createFileDropTarget(() => ({ kind: item.chat.kind, id: item.chat.id }));
               // A pinned chat that waits stays in its tile, so the tile says what it waits for.
               const channelWait = () => (item.chat.kind === "channel" ? props.channelWaits?.[item.chat.id] : undefined);
               /* A pinned channel shows its unread count as a pinned agent does. */
@@ -107,6 +109,10 @@ export function SidebarPinnedGroup() {
                     });
                   }}
                   onDragEnd={stopSidebarDragging}
+                  data-openbot-file-drop={fileDrop.enabled() ? "" : undefined}
+                  onDragOver={fileDrop.onDragOver}
+                  onDragLeave={fileDrop.onDragLeave}
+                  onDrop={fileDrop.onDrop}
                   onKeyDown={(event) => {
                     if (!event.altKey) return;
                     if (event.key === "ArrowLeft") {
@@ -125,7 +131,7 @@ export function SidebarPinnedGroup() {
                       class={[
                         buttonVariants({ variant: "ghost" }),
                         "agent-row sidebar-pinned-row",
-                        { "agent-row-active": active() },
+                        { "agent-row-active": active(), "agent-row-file-drop-target": fileDrop.active() },
                       ]}
                       aria-label={rowLabel()}
                       title={stateLabel() || undefined}

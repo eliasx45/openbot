@@ -7,6 +7,7 @@ import { SidebarMachineCard } from "@openbot/ui/features/sidebar/SidebarMachineC
 import { SidebarMobileAppCard } from "@openbot/ui/features/sidebar/SidebarMobileAppCard";
 import { SidebarStorageCard } from "@openbot/ui/features/sidebar/SidebarStorageCard";
 import { computeSidebarAgentStates, sidebarChannelWaits } from "@openbot/ui/features/sidebar/sidebar-agent-states";
+import type { SidebarFileDropChat } from "@openbot/ui/features/sidebar/sidebar-types";
 import { teamMemberName } from "@openbot/ui/features/team/TeamPersonAvatar";
 import { useText } from "@openbot/ui/text";
 import { createEffect, createMemo, createSignal, onSettled, Show } from "solid-js";
@@ -25,6 +26,7 @@ import { agentThreadAttention } from "../agents/agent-thread-attention";
 import { useAgents } from "../agents/agents-context";
 import { useChannels } from "../channels/channels-context";
 import { useConversation } from "../conversation/conversation-context";
+import { useConversationController } from "../conversation/conversation-controller-context";
 import { useDirectMessages } from "../conversation/direct-messages-context";
 import { useServerActions } from "../servers/server-actions";
 import { serverRoleCanAdminister } from "../servers/server-capabilities";
@@ -112,6 +114,27 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
           if (selectAgent(agentId)) agentThreads.startNew(agentId);
         }
       : undefined;
+  const conversationController = useConversationController();
+  /**
+   * Files dropped on a chat row. The preload starts their imports after this handler, in the same
+   * task, and the open conversation gives them the chat of the row. That chat opens in the next task,
+   * as on a click, so the open conversation is still there to take the imports. Then the cursor goes
+   * to its message box. On the row of the open chat, the drop is the same as a drop on its message box.
+   */
+  const dropFilesOnChat = (chat: SidebarFileDropChat) => {
+    const { resources, setComposerFocusRequest } = conversationController;
+    const openChatId = chat.kind === "channel" ? channels.state.selectedId : activeAgentRowId();
+    const target = chat.id === openChatId ? undefined : { agentId: chat.id, serverId: activeServerId() };
+    resources.sidebarDropTarget = target;
+    const focusComposer = () => setTimeout(() => setComposerFocusRequest((value) => value + 1), 0);
+    setTimeout(() => {
+      if (resources.sidebarDropTarget === target) resources.sidebarDropTarget = undefined;
+      if (chat.kind === "channel") void channels.open(chat.id).then(focusComposer);
+      else if (selectAgent(chat.id)) focusComposer();
+    }, 0);
+  };
+  /** The agent that the sidebar marks as open. A channel or a direct chat covers the agent chat. */
+  const activeAgentRowId = () => (activeDirectMember() || channels.state.selectedId ? "" : (activeAgent()?.id ?? ""));
   /** What Back opens: the list of an open settings detail page, or else the previous chat. */
   const backTarget = (): { name: string } | null => {
     const pageBack = chatHistory.pageBack();
@@ -314,7 +337,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
             : undefined
         }
         agents={agentList()}
-        activeAgentId={activeDirectMember() || channels.state.selectedId ? "" : (activeAgent()?.id ?? "")}
+        activeAgentId={activeAgentRowId()}
         showPeople={props.peopleEnabled}
         people={directPeople()}
         directThreads={directThreads()}
@@ -341,6 +364,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
         onReorderPinned={reorderPinnedSidebarItems}
         onReorderPeople={reorderSidebarPeople}
         onSelectAgent={selectAgent}
+        onDropFiles={platform.chatWindow ? undefined : dropFilesOnChat}
         onSelectPerson={(memberId) => void selectDirectMember(memberId)}
         onPreloadDirectConversation={props.peopleEnabled ? () => void DirectConversation.preload() : undefined}
         onCreateAgent={() => {
