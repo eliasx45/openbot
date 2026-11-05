@@ -557,7 +557,9 @@ import type {
   SpeechSettings,
   VoiceApiKeyInput,
   VoiceLiveEvent,
+  VoiceLivePreview,
   VoiceLiveSession,
+  VoiceLiveSpeak,
   VoiceLiveStart,
   VoiceLiveStop,
   VoiceModelRequest,
@@ -948,6 +950,13 @@ export const IPC_ENDPOINTS = {
     startLive: request<VoiceLiveStart, VoiceLiveSession>()("voice:start-live"),
     /** Ends a live voice session. It does nothing when the session ended already. */
     stopLive: request<VoiceLiveStop, void>()("voice:stop-live"),
+    /**
+     * Starts a sample call of a Codex live voice on a thread outside every chat, for Settings. It ends
+     * with `stopLive`, and its events come as `liveEvent`.
+     */
+    previewLive: request<VoiceLivePreview, VoiceLiveSession>()("voice:preview-live"),
+    /** Has the voice of a live session read a text aloud as it is. */
+    speakLive: request<VoiceLiveSpeak, void>()("voice:speak-live"),
     liveEvent: event<VoiceLiveEvent>()("voice:live-event"),
   },
   dynamicIsland: {

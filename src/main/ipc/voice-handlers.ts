@@ -27,6 +27,8 @@ import {
   parseSpeechInput,
   parseSpeechSettings,
   parseVoiceApiKey,
+  parseVoiceLivePreview,
+  parseVoiceLiveSpeak,
   parseVoiceLiveStart,
   parseVoiceLiveStop,
   parseVoiceModelRequest,
@@ -45,7 +47,10 @@ export interface VoiceIpcDependencies {
   /** The user's own server. While one of its routes is on, it replaces the model on this computer. */
   server: VoiceServerService;
   /** Keeps a voice turn's recording as an attachment draft. Voice turns go to this computer's host only. */
-  service: Pick<AgentService, "prepareVoiceRecording" | "startLiveVoice" | "stopLiveVoice">;
+  service: Pick<
+    AgentService,
+    "prepareVoiceRecording" | "startLiveVoice" | "stopLiveVoice" | "previewLiveVoice" | "speakLiveVoice"
+  >;
 }
 
 export function voiceIpcHandlers({
@@ -174,6 +179,21 @@ export function voiceIpcHandlers({
         liveSessions.get(sender)?.delete(sessionId);
         return runCauseEffect(service.stopLiveVoice(sessionId));
       }),
+      // A sample of the voice that Settings picks. Only the sample sentence goes to OpenAI: no microphone.
+      previewLive: eventPayloadHandler(parseVoiceLivePreview, async (event, input): Promise<VoiceLiveSession> => {
+        if (!speech.getSettings().codexLive) throw new Error(sourceText("error.voice.live.off"));
+        const session = await runCauseEffect(service.previewLiveVoice(input));
+        if (event.sender.isDestroyed()) {
+          await runCauseEffect(service.stopLiveVoice(session.sessionId));
+          throw new Error(sourceText("error.voice.live.disconnected"));
+        }
+        watchLiveOwner(event.sender, session.sessionId);
+        return session;
+      }),
+      speakLive: payloadHandler(
+        parseVoiceLiveSpeak,
+        ({ sessionId, text }): Promise<void> => runCauseEffect(service.speakLiveVoice(sessionId, text)),
+      ),
     },
   };
 }

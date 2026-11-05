@@ -908,6 +908,8 @@ const openbotApi: OpenBotDesktopApi = {
     serverSettings: decodeVoiceServerSettings,
     startLive: decodeVoiceLiveSession,
     stopLive: decodeVoid,
+    previewLive: decodeVoiceLiveSession,
+    speakLive: decodeVoid,
     liveEvent: decodeVoiceLiveEvent,
   }),
   auth: bridgeGroup(IPC_ENDPOINTS.auth, {

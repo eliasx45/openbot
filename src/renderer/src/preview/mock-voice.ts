@@ -258,6 +258,22 @@ export function createMockVoice(options: MockVoiceOptions, { emit, schedule }: M
       }, 1_000);
       return { sessionId, sdp: answer.sdp ?? "" };
     },
+    // A sample answers like a call, and ends after a second: there is no voice to play.
+    previewLive: async ({ sdp }) => {
+      const answerer = new RTCPeerConnection();
+      await answerer.setRemoteDescription({ type: "offer", sdp });
+      const answer = await answerer.createAnswer();
+      await answerer.setLocalDescription(answer);
+      const sessionId = crypto.randomUUID();
+      liveAnswerers.set(sessionId, answerer);
+      return { sessionId, sdp: answer.sdp ?? "" };
+    },
+    speakLive: async ({ sessionId }) => {
+      schedule(() => {
+        if (!liveAnswerers.delete(sessionId)) return;
+        emit(liveListeners, { type: "ended", sessionId, error: null });
+      }, 1_000);
+    },
     stopLive: async ({ sessionId }) => {
       liveAnswerers.get(sessionId)?.close();
       liveAnswerers.delete(sessionId);

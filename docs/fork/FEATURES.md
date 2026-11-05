@@ -201,6 +201,13 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Full screen:** the video's full-screen button did nothing (Elias, 5 Nov 2026): the permission handler refused `fullscreen`. `renderer-permissions.ts` now allows `fullscreen` for the trusted renderer's main frame only; frames (visual replies) and other pages stay refused (`renderer-permissions.test.ts`).
 - **Check:** open Tapa Lead's chat, press play on `H1-glitch-hit-before-after.mp4` (Update from Vegapunk, 11:16 AM): it shows 0:11 and plays; drag the bar to seek; the full-screen button fills the screen and Esc leaves it.
 
+## 21. Listen to a Codex live voice in Settings
+
+- **Why:** Elias, 5 Nov 2026: picking a Codex live voice (Spruce, Ember, Vale…) in Settings → Voice played nothing, so he could not hear the voices before a call.
+- **How (portable):** picking a voice, or the new **Listen** button on the live-voice row, plays a sample. The renderer opens a WebRTC call with no microphone (`live-voice-preview.ts`); `voice.previewLive` starts Codex realtime v3 with that voice on an ephemeral Codex thread of the first Codex agent (no chat, no startup context, nothing added to any chat). When the call connects, `voice.speakLive` sends the sample sentence (`settings.voice.speech.sample`) through Codex App Server's experimental `thread/realtime/appendSpeech`. The call ends when the voice's turn is done (or after 20 s), with `thread/realtime/stop` and `thread/unsubscribe`. A sample ends any other live session. It needs Codex live voice on and one Codex agent.
+- **Here:** `packages/contracts/src/ipc-voice.ts` + `ipc-endpoints.ts`, `src/preload/index.ts`, `src/main/ipc/voice-inputs.ts` + `voice-handlers.ts`, `src/backend/agent/live-voice.ts` (`preview`, `speak`, `#open`), `src/backend/agent-service.ts`, `src/renderer/src/features/settings/live-voice-preview.ts` + `SettingsVoiceTab.tsx`, `src/renderer/src/preview/mock-voice.ts`.
+- **Check:** Settings → Voice → Live voice: pick Vale. Within ~3 s you hear "Hello. This is how your replies will sound." in that voice; the button shows Stop while it plays and Listen after. Pick Ember: the voice changes. Listen replays; Stop cuts it. No agent chat gets a new message.
+
 ---
 
 ## Checked, not needed

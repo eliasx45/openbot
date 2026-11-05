@@ -3,13 +3,14 @@ import type {
   AgentSummary,
   CodexLiveVoice,
   VoiceLiveEvent,
+  VoiceLivePreview,
   VoiceLiveSession,
   VoiceLiveStart,
 } from "@openbot/contracts/ipc";
 import { sourceText } from "@openbot/i18n/source";
 import { Deferred, Effect, Schema } from "effect";
 import type { AgentClient } from "../agent-client";
-import { type AppServerNotification, decodeRecordResponse, getString } from "../protocol";
+import { type AppServerNotification, decodeRecordResponse, decodeThreadResponse, getString } from "../protocol";
 
 /** How long Codex has to answer the WebRTC offer of a live voice session. */
 const ANSWER_TIMEOUT_MS = 20_000;
@@ -25,6 +26,8 @@ const liveFailure = (text: string) => new LiveVoiceFailed({ cause: new Error(tex
 
 export interface LiveVoiceHooks {
   agent(agentId: string): AgentSummary;
+  /** A Codex agent on this computer whose provider can run a voice sample, or undefined when there is none. */
+  previewAgent?(): AgentSummary | undefined;
   /** The agent's provider process, started when it is not running. */
   client(agent: AgentSummary): Effect.Effect<AgentClient, { readonly cause: unknown }>;
   /** The provider thread of the agent's chat, made or resumed. */
@@ -47,6 +50,16 @@ interface LiveSession {
   readonly answer: Deferred.Deferred<string, LiveVoiceFailed>;
   readonly release: () => void;
   readonly onExit: (error: Error) => void;
+  /** A voice sample from Settings: its thread is ephemeral and belongs to no chat. */
+  readonly preview: boolean;
+}
+
+interface LiveOpening {
+  readonly agentId: string;
+  readonly client: AgentClient;
+  readonly threadId: string;
+  readonly release: () => void;
+  readonly preview: boolean;
 }
 
 /**
@@ -96,30 +109,79 @@ export class LiveVoice {
       return { client, threadId };
     }).pipe(Effect.onError(() => Effect.sync(release)));
 
+    return yield* this.#open({ agentId: agent.id, ...started, release, preview: false }, input.sdp, voice);
+  });
+
+  /**
+   * A sample of `voice` for Settings, on an ephemeral thread of a Codex agent's provider. No chat
+   * sees it and no microphone joins it: the renderer has the voice read a sentence with `speak`.
+   */
+  readonly preview = Effect.fn("LiveVoice.preview")(function* (this: LiveVoice, input: VoiceLivePreview) {
+    const agent = this.#hooks.previewAgent?.();
+    if (!agent) return yield* liveFailure(sourceText("error.voice.live.codexOnly"));
+    for (const session of [...this.#sessions.values()]) yield* this.#stopSession(session);
+    const start = ++this.#starts;
+    const client = yield* this.#hooks
+      .client(agent)
+      .pipe(Effect.mapError((failure) => new LiveVoiceFailed({ cause: failure.cause })));
+    const response = yield* client
+      .request(
+        "thread/start",
+        { ephemeral: true, persistSession: false, sandbox: "read-only", approvalPolicy: "never" },
+        decodeThreadResponse,
+      )
+      .pipe(Effect.mapError((failure) => new LiveVoiceFailed({ cause: failure.cause })));
+    const threadId = response.thread.id;
+    if (start !== this.#starts) {
+      yield* client.request("thread/unsubscribe", { threadId }, decodeRecordResponse).pipe(Effect.ignore);
+      return yield* liveFailure(sourceText("error.voice.live.disconnected"));
+    }
+    return yield* this.#open(
+      { agentId: agent.id, client, threadId, release: () => undefined, preview: true },
+      input.sdp,
+      input.voice,
+    );
+  });
+
+  /** Has the voice of a session read `text` aloud as it is. */
+  readonly speak = Effect.fn("LiveVoice.speak")(function* (this: LiveVoice, sessionId: string, text: string) {
+    const session = this.#sessions.get(sessionId);
+    if (!session) return yield* liveFailure(sourceText("error.voice.live.disconnected"));
+    yield* session.client
+      .request("thread/realtime/appendSpeech", { threadId: session.threadId, text }, decodeRecordResponse)
+      .pipe(Effect.mapError((failure) => new LiveVoiceFailed({ cause: failure.cause })));
+  });
+
+  /** Registers the session and answers the renderer's offer through `thread/realtime/start`. */
+  readonly #open = Effect.fn("LiveVoice.open")(function* (
+    this: LiveVoice,
+    opening: LiveOpening,
+    offer: string,
+    voice: CodexLiveVoice | null,
+  ) {
     const id = randomUUID();
     const session: LiveSession = {
       id,
-      agentId: agent.id,
-      threadId: started.threadId,
-      client: started.client,
+      ...opening,
       answer: Deferred.makeUnsafe<string, LiveVoiceFailed>(),
-      release,
       onExit: () => this.#end(session, sourceText("error.voice.live.disconnected")),
     };
     this.#sessions.set(id, session);
-    started.client.once("exit", session.onExit);
+    session.client.once("exit", session.onExit);
 
     const sdp = yield* Effect.gen({ self: this }, function* () {
-      yield* started.client
+      yield* session.client
         .request(
           "thread/realtime/start",
           {
-            threadId: started.threadId,
+            threadId: session.threadId,
             outputModality: "audio",
-            transport: { type: "webrtc", sdp: input.sdp },
+            transport: { type: "webrtc", sdp: offer },
             // A ChatGPT login reaches only the AVAS calls, which refuse the default v1 protocol.
             version: "v3",
             ...(voice ? { voice } : {}),
+            // A sample has no chat to tell the voice about.
+            ...(session.preview ? { includeStartupContext: false } : {}),
           },
           decodeRecordResponse,
         )
@@ -168,7 +230,8 @@ export class LiveVoice {
         const text = getString(params, final ? "text" : "delta");
         if (!text) return;
         this.#hooks.emit({ type: "transcript", sessionId: session.id, role, text, final });
-        if (final && text.trim()) this.#hooks.addSpeech(session.agentId, session.threadId, role, text);
+        if (final && text.trim() && !session.preview)
+          this.#hooks.addSpeech(session.agentId, session.threadId, role, text);
         return;
       }
     }
@@ -201,6 +264,11 @@ export class LiveVoice {
     yield* session.client
       .request("thread/realtime/stop", { threadId: session.threadId }, decodeRecordResponse)
       .pipe(Effect.ignore);
+    // The ephemeral thread of a sample is not needed again.
+    if (session.preview)
+      yield* session.client
+        .request("thread/unsubscribe", { threadId: session.threadId }, decodeRecordResponse)
+        .pipe(Effect.ignore);
   });
 
   #end(session: LiveSession, error: string | null, announce = true): void {

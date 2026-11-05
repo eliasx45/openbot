@@ -40,10 +40,12 @@ import {
   SettingsSection,
   Square,
   SwitchField,
+  toast,
 } from "@openbot/ui";
 import { useText } from "@openbot/ui/text";
 import { createMemo, createSignal, createStore, For, Show } from "solid-js";
 import type { CodexLiveAccess } from "../speech/codex-live-access";
+import { createLiveVoicePreview } from "./live-voice-preview";
 import type { SettingsVoiceStore } from "./settings-voice-store";
 import { shortModel, VoiceServerDialog, voiceServerHost } from "./VoiceServerDialog";
 
@@ -259,6 +261,16 @@ export function SettingsVoiceTab(props: SettingsVoiceTabProps) {
     });
 
   const liveVoice = (): LiveVoiceChoice => speech().settings?.codexLiveVoice ?? "automatic";
+  // A sample of the live voice: it plays when the user picks a voice, and on Listen.
+  const livePreview = createLiveVoicePreview({
+    onError: (error) => {
+      toast.error(errorMessage(error, t("settings.voice.speech.listenFailed")), {
+        report: { operation: "settings", source: "system", cause_code: "unknown" },
+      });
+    },
+  });
+  const playLiveVoice = (voice: LiveVoiceChoice) =>
+    void livePreview.play(voice === "automatic" ? null : voice, t("settings.voice.speech.sample"));
   /** The voices' own names, which stay the same in each language. */
   const liveVoiceName = (voice: LiveVoiceChoice) =>
     voice === "automatic" ? t("settings.voice.language.automatic") : voice.charAt(0).toUpperCase() + voice.slice(1);
@@ -613,11 +625,29 @@ export function SettingsVoiceTab(props: SettingsVoiceTabProps) {
                 <ItemTitle>{t("settings.voice.speech.voice.title")}</ItemTitle>
               </ItemContent>
               <ItemActions>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  disabled={!speech().settings?.codexLive}
+                  onClick={() => (livePreview.playing() ? livePreview.stop() : playLiveVoice(liveVoice()))}
+                >
+                  <Show when={livePreview.playing()} fallback={<Play size={14} aria-hidden="true" />}>
+                    <Square size={14} aria-hidden="true" />
+                  </Show>
+                  {livePreview.playing()
+                    ? t("settings.voice.speech.voice.stop")
+                    : t("settings.voice.speech.voice.listen")}
+                </Button>
                 <Select<LiveVoiceChoice>
                   class="settings-modal-select"
                   options={["automatic", ...CODEX_LIVE_VOICES]}
                   value={liveVoice()}
-                  onChange={(next) => next && props.store.setCodexLiveVoice(next === "automatic" ? null : next)}
+                  onChange={(next) => {
+                    if (!next) return;
+                    props.store.setCodexLiveVoice(next === "automatic" ? null : next);
+                    playLiveVoice(next);
+                  }}
                   disabled={!speech().settings?.codexLive}
                   placement="bottom-end"
                   itemComponent={(selectProps) => (

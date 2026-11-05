@@ -15,6 +15,8 @@ import {
   VOICE_SERVER_LIMITS,
   VOICE_STREAM_LIMITS,
   type VoiceApiKeyInput,
+  type VoiceLivePreview,
+  type VoiceLiveSpeak,
   type VoiceLiveStart,
   type VoiceLiveStop,
   type VoiceModelRequest,
@@ -149,6 +151,21 @@ export function parseVoiceLiveStop(input: unknown): VoiceLiveStop {
   if (!isObject(input) || !isString(input.sessionId) || !input.sessionId)
     throw new Error("Live voice needs a session.");
   return { sessionId: input.sessionId };
+}
+
+export function parseVoiceLivePreview(input: unknown): VoiceLivePreview {
+  if (!isObject(input) || !isString(input.sdp) || !input.sdp) throw new Error("A live voice sample needs an offer.");
+  if (input.sdp.length > VOICE_LIVE_LIMITS.maximumSdpLength) throw new Error("The live voice offer is too long.");
+  if (!(input.voice === null || isCodexLiveVoice(input.voice)))
+    throw new Error("A live voice sample needs a known voice.");
+  return { sdp: input.sdp, voice: input.voice };
+}
+
+export function parseVoiceLiveSpeak(input: unknown): VoiceLiveSpeak {
+  if (!isObject(input) || !isString(input.sessionId) || !input.sessionId || !isString(input.text) || !input.text.trim())
+    throw new Error("Live voice needs a session and a text.");
+  if (input.text.length > VOICE_LIVE_LIMITS.maximumSpeakLength) throw new Error("The text to speak is too long.");
+  return { sessionId: input.sessionId, text: input.text };
 }
 
 export function parseSpeechInput(input: unknown): SpeechInput {

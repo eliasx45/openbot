@@ -16,6 +16,8 @@ import {
   parseSpeechInput,
   parseSpeechSettings,
   parseVoiceApiKey,
+  parseVoiceLivePreview,
+  parseVoiceLiveSpeak,
   parseVoiceLiveStart,
   parseVoiceLiveStop,
   parseVoiceModelRequest,
@@ -101,6 +103,8 @@ function registerVoice(
     setServer: payloadHandler(parseVoiceServerSave, () => null),
     startLive: payloadHandler(parseVoiceLiveStart, () => ({ sessionId: "live-1", sdp: "answer" })),
     stopLive: payloadHandler(parseVoiceLiveStop, () => undefined),
+    previewLive: payloadHandler(parseVoiceLivePreview, () => ({ sessionId: "live-2", sdp: "answer" })),
+    speakLive: payloadHandler(parseVoiceLiveSpeak, () => undefined),
   });
 }
 

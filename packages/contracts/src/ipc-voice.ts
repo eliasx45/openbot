@@ -467,6 +467,21 @@ export interface VoiceLiveStop {
 }
 
 /**
+ * A sample of a Codex live voice, for Settings. It runs on a thread of its own, outside every chat,
+ * and sends no microphone. `sdp` is the WebRTC offer, as in `VoiceLiveStart`.
+ */
+export interface VoiceLivePreview {
+  sdp: string;
+  voice: CodexLiveVoice | null;
+}
+
+/** Text that the voice of a live session reads aloud as it is, once the call is connected. */
+export interface VoiceLiveSpeak {
+  sessionId: string;
+  text: string;
+}
+
+/**
  * What a live voice session sends while it runs. A transcript part with `final: false` is new text
  * of the part that is spoken now; `final: true` gives the whole part. `ended` is the last event of a
  * session; `error` is null when the user or the app ended it.
@@ -478,6 +493,8 @@ export type VoiceLiveEvent =
 export const VOICE_LIVE_LIMITS = {
   /** A WebRTC offer of one audio track and one data channel is a few kilobytes. */
   maximumSdpLength: 65_536,
+  /** The longest text of one `speakLive` request: a sample sentence. */
+  maximumSpeakLength: 500,
 } as const;
 
 export interface SpeechModelStatus extends Omit<VoiceModelStatus, "modelId"> {

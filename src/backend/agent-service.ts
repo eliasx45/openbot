@@ -112,6 +112,7 @@ import type {
   UpdateQueuedMessageInput,
   UpdateRoutineInput,
   VoiceLiveEvent,
+  VoiceLivePreview,
   VoiceLiveSession,
   VoiceLiveStart,
 } from "@openbot/contracts/ipc";
@@ -1635,6 +1636,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         if (!agent) throw new Error(sourceText("error.agent.selectedGone"));
         return agent;
       },
+      previewAgent: () => this.#store.list().find((candidate) => candidate.provider === "codex"),
       // OpenBot stops an idle provider CLI; a typed message starts it again, and so does live voice.
       client: (agent) => this.#providers.ensureAgentClient(agent),
       ensureThread: (agent, client) => this.#threads.ensureThread(agent, client),
@@ -4659,6 +4661,24 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
 
   stopLiveVoice(sessionId: string): Effect.Effect<void> {
     return this.#liveVoice.stop(sessionId);
+  }
+
+  /** Starts a sample of a Codex live voice for Settings, outside every chat. */
+  previewLiveVoice(input: VoiceLivePreview): Effect.Effect<VoiceLiveSession, AgentLifecycleFailed> {
+    return this.#liveVoice
+      .preview(input)
+      .pipe(
+        Effect.mapError((failure) => new AgentLifecycleFailed({ operation: "previewLiveVoice", cause: failure.cause })),
+      );
+  }
+
+  /** Has the voice of a live session read `text` aloud. */
+  speakLiveVoice(sessionId: string, text: string): Effect.Effect<void, AgentLifecycleFailed> {
+    return this.#liveVoice
+      .speak(sessionId, text)
+      .pipe(
+        Effect.mapError((failure) => new AgentLifecycleFailed({ operation: "speakLiveVoice", cause: failure.cause })),
+      );
   }
 
   /**
