@@ -49,7 +49,7 @@ import { LocalSkillLibrary } from "./local-skill-library";
 import { localSkillTools } from "./local-skill-tools";
 import { MAC_PERMISSION_URLS } from "./mac-permission-urls";
 import { PushNotificationStore } from "./push-notification-store";
-import { DESKTOP_USE_MS } from "./push-notifications";
+import { DESKTOP_USE_MS, WAITING_REQUEST_IDLE_MS } from "./push-notifications";
 import { RemoteWorkflowError, toRemoteWorkflowError } from "./remote-service-effects";
 /**
  * The composition root. Every long-lived service the desktop app owns is built here, in one
@@ -2710,7 +2710,10 @@ export async function createApplicationServices({
     );
   // Development only: a shorter or longer time without input before a phone notifies, to test it.
   const awaySeconds = app.isPackaged ? Number.NaN : Number(process.env.OPENBOT_DEV_AWAY_SECONDS);
-  const awayAfterMs = Number.isInteger(awaySeconds) && awaySeconds > 0 ? awaySeconds * 1_000 : DESKTOP_USE_MS;
+  const devAway = Number.isInteger(awaySeconds) && awaySeconds > 0;
+  const awayAfterMs = devAway ? awaySeconds * 1_000 : DESKTOP_USE_MS;
+  // The same development time also sends a waiting request after that time without input.
+  const idleRequestAfterMs = devAway ? awayAfterMs : WAITING_REQUEST_IDLE_MS;
   // A server on this computer has no account session: the desktop app reads its directory for it.
   const localServerMembers = new LocalServerMembers(() => process.stdout.write(formatLocalServerMembersRequest()));
   const host = new HostService({
@@ -2906,6 +2909,8 @@ export async function createApplicationServices({
     sendPushNotification: (hostId, push) => centralAuth.sendPushNotification(hostId, push).pipe(toRemoteWorkflowError),
     pushNotificationStore,
     awayAfterMs,
+    idleRequestAfterMs,
+    hostIdleSeconds: () => powerMonitor.getSystemIdleTime(),
     // The owner is at this computer only with recent input, also when the window was left in focus.
     // Then the focused window shows the event, or the desktop notifies. When mute or the level of
     // this server keeps the desktop quiet about the event, the phone tells the owner.

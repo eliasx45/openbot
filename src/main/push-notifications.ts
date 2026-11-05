@@ -65,6 +65,14 @@ const HELD_EVENT_LIMIT = 20;
  * that it is back. The kept events wait this long, so the phone does not show them on screen.
  */
 const HELD_FLUSH_DELAY_MS = 3_000;
+/**
+ * A request that waits for the member (a question, an approval or a browser step) that came while the
+ * member was at a desktop app or at this computer goes to the phone when that computer had no input
+ * for this long and the request still waits. Replies do not, because the desktop showed them.
+ */
+export const WAITING_REQUEST_IDLE_MS = 2 * 60 * 1000;
+/** How often the host reads the idle time of this computer while a request waits for it. */
+const WAITING_REQUEST_POLL_MS = 15_000;
 /** A notification that the account service, Apple or Google did not take is sent again after these times. */
 const RESEND_DELAYS_MS = [10_000, 60_000] as const;
 
@@ -103,6 +111,10 @@ interface PushNotificationOptions {
   };
   /** Whether the member is at the computer of this host, where the desktop app shows the event. */
   atHostComputer(memberId: string, event: AgentEvent): boolean;
+  /** The seconds since the last input on the computer of this host, or `null` when the host cannot know. */
+  hostIdleSeconds?(): number | null;
+  /** How long a request kept for a member at a computer waits for no input. `WAITING_REQUEST_IDLE_MS` when not set. */
+  idleRequestAfterMs?: number;
   /**
    * Whether the session's phone shows a Live Activity of this host that shows this event, in place of
    * a notification. With `alert`, the activity lights up the screen and plays the sound.
@@ -139,6 +151,13 @@ interface HeldEvent {
   at: number;
 }
 
+/** A request that the phone did not get because the member was at a computer. */
+interface WaitingRequest {
+  event: AgentEvent;
+  /** `true` when the member was at the computer of this host, so its idle time counts too. */
+  atHost: boolean;
+}
+
 interface Registration {
   stored: StoredPushRegistration;
   capabilities: ReadonlySet<string>;
@@ -148,6 +167,8 @@ interface Registration {
   /** Events that came while the phone looked on screen, oldest first. */
   held: HeldEvent[];
   flushTimer: ReturnType<typeof setTimeout> | null;
+  /** Requests that go to the phone when the member leaves the computer, oldest first. */
+  waiting: WaitingRequest[];
 }
 
 /**
@@ -170,6 +191,9 @@ export class PushNotificationService {
   /** The last input on the computer of each desktop session (`computer-activity-v1`). Older entries go. */
   readonly #computerInput = new Map<string, { memberId: string; at: number }>();
   readonly #awayAfterMs: number;
+  readonly #idleRequestAfterMs: number;
+  /** Runs only while a phone has a waiting request. */
+  #idleTimer: ReturnType<typeof setInterval> | null = null;
   readonly #listener = (event: AgentEvent) => {
     this.#releaseAnswered(event);
     Effect.runFork(this.#deliver(event).pipe(Effect.forkIn(this.#scope, { startImmediately: true })));
@@ -185,6 +209,7 @@ export class PushNotificationService {
     this.#options = options;
     this.#now = options.now ?? Date.now;
     this.#awayAfterMs = options.awayAfterMs ?? DESKTOP_USE_MS;
+    this.#idleRequestAfterMs = options.idleRequestAfterMs ?? WAITING_REQUEST_IDLE_MS;
   }
 
   /**
@@ -278,6 +303,7 @@ export class PushNotificationService {
     for (const registration of this.#registrations.values()) this.#dropHeld(registration);
     this.#registrations.clear();
     this.#computerInput.clear();
+    this.#stopIdleTimer();
     yield* Fiber.awaitAll([...this.#saves]);
     yield* Scope.close(this.#scope, Exit.void);
     this.#scope = Scope.makeUnsafe();
@@ -294,6 +320,7 @@ export class PushNotificationService {
       connected,
       held: previous?.held ?? [],
       flushTimer: null,
+      waiting: previous?.waiting ?? [],
     });
     return true;
   }
@@ -327,9 +354,16 @@ export class PushNotificationService {
       }
       if (this.#options.hiddenAgentIds(protocol, registration.capabilities, memberId).has(subject.agentId))
         return false;
-      // A member at a desktop app sees the event there, and the phone would only repeat it.
+      // A member at a desktop app sees the event there, and the phone would only repeat it. A request
+      // that waits for the member goes to the phone when the member leaves that computer.
       const used = this.#lastUseElsewhere(memberId, sessionId);
-      return !((used !== null && now - used < this.#awayAfterMs) || this.#options.atHostComputer(memberId, event));
+      const usedElsewhere = used !== null && now - used < this.#awayAfterMs;
+      const atHost = this.#options.atHostComputer(memberId, event);
+      if (usedElsewhere || atHost) {
+        this.#keepWaiting(registration, received, atHost);
+        return false;
+      }
+      return true;
     });
     if (!targets.length) return;
     const agents = this.#options.agents.listAgents();
@@ -463,6 +497,49 @@ export class PushNotificationService {
   #dropHeld(registration: Registration): void {
     this.#clearFlush(registration);
     registration.held = [];
+    // The app on screen shows the waiting requests itself.
+    registration.waiting = [];
+  }
+
+  /** Keeps a request that waits for the member, so the phone gets it when the member leaves the computer. */
+  #keepWaiting(registration: Registration, event: AgentEvent, atHost: boolean): void {
+    const request = heldRequest(event);
+    if (!request) return;
+    const waiting = registration.waiting.filter((item) => !sameRequest(heldRequest(item.event), request));
+    waiting.push({ event, atHost });
+    registration.waiting = waiting.slice(-HELD_EVENT_LIMIT);
+    this.#idleTimer ??= setInterval(() => this.#sendWaiting(), WAITING_REQUEST_POLL_MS);
+  }
+
+  #stopIdleTimer(): void {
+    if (this.#idleTimer) clearInterval(this.#idleTimer);
+    this.#idleTimer = null;
+  }
+
+  /**
+   * Sends each waiting request that still waits after the member left the computer, one time only.
+   * `#deliver` checks the phone again: on screen, mute, level, hidden agent and Live Activity.
+   */
+  #sendWaiting(): void {
+    const registrations = [...this.#registrations.values()].filter((registration) => registration.waiting.length);
+    const now = this.#now();
+    const hostIdle = this.#options.hostIdleSeconds?.() ?? null;
+    const hostAway = hostIdle === null || hostIdle * 1_000 >= this.#idleRequestAfterMs;
+    let snapshot: ReturnType<PushNotificationAgents["getRuntimeSnapshot"]> | undefined;
+    for (const registration of registrations) {
+      const { memberId, sessionId } = registration.stored;
+      const used = this.#lastUseElsewhere(memberId, sessionId);
+      const awayElsewhere = used === null || now - used >= this.#idleRequestAfterMs;
+      const due = registration.waiting.filter((item) => awayElsewhere && (hostAway || !item.atHost));
+      if (!due.length) continue;
+      registration.waiting = registration.waiting.filter((item) => !due.includes(item));
+      snapshot ??= this.#options.agents.getRuntimeSnapshot();
+      for (const { event } of due) {
+        if (!requestStillWaits(event, snapshot)) continue;
+        Effect.runFork(this.#deliver(event, registration).pipe(Effect.forkIn(this.#scope, { startImmediately: true })));
+      }
+    }
+    if (![...this.#registrations.values()].some((registration) => registration.waiting.length)) this.#stopIdleTimer();
   }
 
   #clearFlush(registration: Registration): void {
@@ -478,10 +555,8 @@ export class PushNotificationService {
         : null;
     if (!answered) return;
     for (const registration of this.#registrations.values()) {
-      registration.held = registration.held.filter(({ event: held }) => {
-        const request = heldRequest(held);
-        return !request || request.agentId !== answered.agentId || request.requestId !== answered.requestId;
-      });
+      registration.held = registration.held.filter(({ event: held }) => !sameRequest(heldRequest(held), answered));
+      registration.waiting = registration.waiting.filter(({ event }) => !sameRequest(heldRequest(event), answered));
     }
   }
 
@@ -597,6 +672,27 @@ function heldRequest(event: AgentEvent): { agentId: string; requestId: string | 
     default:
       return null;
   }
+}
+
+function sameRequest(
+  request: { agentId: string; requestId: string | number } | null,
+  other: { agentId: string; requestId: string | number },
+): boolean {
+  return request !== null && request.agentId === other.agentId && request.requestId === other.requestId;
+}
+
+/**
+ * Whether the request of a kept event still waits. A request that the snapshot does not show still
+ * waits only when the snapshot is not complete. An answer also removes it when it comes (`#releaseAnswered`).
+ */
+function requestStillWaits(
+  event: AgentEvent,
+  snapshot: ReturnType<PushNotificationAgents["getRuntimeSnapshot"]>,
+): boolean {
+  const request = heldRequest(event);
+  if (!request) return false;
+  const pending = [...snapshot.pendingPrompts, ...snapshot.pendingApprovals, ...snapshot.pendingBrowserTakeovers];
+  return pending.some((item) => sameRequest(item, request)) || !snapshot.attentionComplete;
 }
 
 /** The agent and the kind of an event that can notify. `notificationForAgentEvent` decides the rest. */

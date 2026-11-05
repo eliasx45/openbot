@@ -226,6 +226,10 @@ interface HostServiceOptions {
   hostComputerInUse?: (event: AgentEvent) => boolean;
   /** How long after the member's last use of another app or computer a phone notifies. `DESKTOP_USE_MS` when not set. */
   awayAfterMs?: number;
+  /** The seconds since the last input on this computer. A request kept while the owner was here waits for it. */
+  hostIdleSeconds?: () => number;
+  /** How long a request kept for a member at a computer waits for no input. `WAITING_REQUEST_IDLE_MS` when not set. */
+  idleRequestAfterMs?: number;
   verifyRemoteSessionTicket?: (ticket: string) => Effect.Effect<VerifiedRemoteSessionTicket, RemoteWorkflowError>;
   endRemoteSession?: (sessionId: string) => Effect.Effect<void, RemoteWorkflowError>;
   remoteControlPlaneUrl?: string;
@@ -424,6 +428,8 @@ export class HostService extends EventEmitter<HostEvents> {
             },
             lastUseElsewhere: (memberId, sessionId) => this.#api.lastMemberUseElsewhere(memberId, sessionId),
             ...(options.awayAfterMs === undefined ? {} : { awayAfterMs: options.awayAfterMs }),
+            ...(options.idleRequestAfterMs === undefined ? {} : { idleRequestAfterMs: options.idleRequestAfterMs }),
+            ...(options.hostIdleSeconds === undefined ? {} : { hostIdleSeconds: options.hostIdleSeconds }),
             // The desktop app of this computer runs as the owner.
             atHostComputer: (memberId, event) =>
               memberId === options.store.getOwnerMemberId() && (options.hostComputerInUse?.(event) ?? false),

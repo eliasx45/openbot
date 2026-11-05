@@ -354,6 +354,16 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 
 ---
 
+## 37. A request that waited while you were at the Mac goes to the phone when the Mac is idle
+
+- **Get:** an agent question, an approval or a browser step that came while Elias was at the Mac (so the phone stayed quiet) goes to the phone after the Mac has had no input for 2 minutes, if nobody answered it. Answered on the Mac first, or the phone app on screen: nothing goes out. Replies and failed turns are unchanged.
+- **Why:** Elias, 5 Nov 2026: Tapa Lead asked a question at 9:18:57 PM while he was at the Mac; he left at ~9:24; the phone got later replies but never the question, still unanswered at 9:29. Upstream drops a request that is skipped because the owner is at the computer.
+- **How (portable):** in `PushNotificationService.#deliver`, a request (`heldRequest`: `prompt`, `approval`, `browser-takeover-requested`) skipped by `atHostComputer` or recent use elsewhere goes into `Registration.waiting` (one per request, at most 20). One 15 s interval runs only while something waits: when the Mac idle time (`powerMonitor.getSystemIdleTime`) and the use elsewhere are both ≥ `WAITING_REQUEST_IDLE_MS` (2 min), the request leaves the list and, if the runtime snapshot still lists it (or the snapshot is incomplete), `#deliver(event, registration)` runs again, which checks screen, mute, level, hidden agent and Live Activity as usual. `#releaseAnswered` (`agent-input-resolved`, also for approvals, and `browser-takeover-resolved`) and `#dropHeld` (phone on screen, removed) clear it. Dev: `OPENBOT_DEV_AWAY_SECONDS` also sets the idle time.
+- **Here:** `src/main/push-notifications.ts` (`WAITING_REQUEST_IDLE_MS`, `#keepWaiting`, `#sendWaiting`, `requestStillWaits`), options `hostIdleSeconds` / `idleRequestAfterMs` in `src/main/host-service.ts`, set in `src/main/application-services.ts`. Doc: `docs/architecture/channels-and-messaging.md`.
+- **Check:** iPhone app registered and in the background. At the Mac, make an agent ask a question (ask_user); keep using the Mac 10 s, then leave it untouched 2+ min: the phone gets the question once. Again, but answer on the Mac before 2 min: nothing on the phone.
+
+---
+
 ## Checked, not needed
 
 - **Several agents use the computer at once (Codync entry 9 / ADR 0006):** OpenBot has no lock between agents. Each provider starts its own `cua-driver mcp` proxy on the shared daemon (`src/main/cua-driver-runtime.ts`), and the action tap (`src/main/cua-driver-action-tap.ts`) only watches calls for the rim and cursor; it refuses and delays nothing. So several agents can already work at once, in different apps or the same one (no "another agent is using this app" guard). The only rule: an agent's task threads get no Computer Use, so one agent's own chat holds its screen work (`#sessionAgent` in `thread-lifecycle.ts`). Checked 2026-11-03; skipped. If two agents clashing in one app becomes a problem, Codync's per-app hold (look-only free, `pid` + background holds that app 20 s, foreground/untargeted holds all) would go in the tap's `data` handler, which sees each call's `name` and `args`.

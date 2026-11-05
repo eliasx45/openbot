@@ -88,7 +88,11 @@ desktop app had input, in any app, in the last 30 seconds (`computer-activity-v1
 [servers](servers.md#computer-activity)). The time is short because a task can end at any time after
 the member leaves the computer. An unpackaged app reads another time in whole seconds from
 `OPENBOT_DEV_AWAY_SECONDS`, for the host and for the desktop that reports its input, so a check
-need not wait 30 seconds. While the phone shows a Live Activity of
+need not wait 30 seconds. A question, an approval or a browser step that did not go out for this
+reason is kept: when that computer then has no input for 2 minutes (`WAITING_REQUEST_IDLE_MS`;
+`powerMonitor.getSystemIdleTime`, read every 15 seconds while a request is kept) and the request
+still waits, it goes to the phone once, with the usual checks. An answer, or the phone on screen,
+drops it. With `OPENBOT_DEV_AWAY_SECONDS`, that time replaces the 2 minutes. While the phone shows a Live Activity of
 this host that iOS still updates (8 hours from its start, which the phone gives because a host that
 restarted does not know it), and the next view of the activity shows the event, the host sends no
 notification (`LiveActivityPushService.showsEvent`). The view shows one item, so a reply while
