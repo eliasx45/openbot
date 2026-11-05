@@ -65,7 +65,10 @@ export function createComposerStore(deps: ComposerStoreDeps) {
     return deps.pastePreviews().filter((preview) => preview.draftKey === key);
   });
   const composerHasContent = createMemo(
-    () => Boolean(currentDraft().text.trim()) || currentDraft().attachments.length > 0,
+    () =>
+      Boolean(currentDraft().text.trim()) ||
+      currentDraft().attachments.length > 0 ||
+      Boolean(currentDraft().selectionNotes?.length),
   );
   const replyTarget = createMemo(() => {
     const id = currentDraft().replyToMessageId;
@@ -129,12 +132,16 @@ export function createComposerStore(deps: ComposerStoreDeps) {
   function clearSubmittedDraft(target: ConversationTarget, submitted: ComposerDraft): void {
     const key = composerDraftKey(target);
     const submittedAttachmentIds = new Set(submitted.attachments.map((attachment) => attachment.id));
+    const submittedNoteIds = new Set(submitted.selectionNotes?.map((item) => item.id));
     deps.setDrafts((current) => {
       const draft = current[key] ?? EMPTY_DRAFT;
+      // Fork: a note added while the message was on its way stays for the next message.
+      const notes = draft.selectionNotes?.filter((item) => !submittedNoteIds.has(item.id));
       const next: ComposerDraft = {
         text: draft.text === submitted.text ? "" : draft.text,
         attachments: draft.attachments.filter((attachment) => !submittedAttachmentIds.has(attachment.id)),
         replyToMessageId: draft.replyToMessageId === submitted.replyToMessageId ? null : draft.replyToMessageId,
+        ...(notes?.length ? { selectionNotes: notes } : {}),
       };
       return { ...current, [key]: next };
     });

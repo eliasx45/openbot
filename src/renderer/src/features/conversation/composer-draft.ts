@@ -24,6 +24,7 @@ export function copyComposerDraft(draft: ComposerDraft): ComposerDraft {
     text: draft.text,
     attachments: [...draft.attachments],
     replyToMessageId: draft.replyToMessageId,
+    ...(draft.selectionNotes?.length ? { selectionNotes: [...draft.selectionNotes] } : {}),
   };
 }
 

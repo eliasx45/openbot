@@ -5,7 +5,7 @@ import {
   rewriteAttachmentReferences,
   serializeAttachmentReference,
 } from "@openbot/contracts/attachment-references";
-import { fileQuoteTarget } from "@openbot/contracts/chat-tag-references";
+import { fileQuoteTarget, limitedQuoteText } from "@openbot/contracts/chat-tag-references";
 import { ATTACHMENT_LIMITS, INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import {
   type AttachmentDataInput,
@@ -13,6 +13,7 @@ import {
   LOCAL_SERVER_ID,
   type QueueDelivery,
 } from "@openbot/contracts/ipc";
+import { type SelectionNote, serializeSelectionNotes } from "@openbot/contracts/selection-instruction";
 import { TEAM_MESSAGE_CLIENT_ID_CAPABILITY } from "@openbot/contracts/team-protocol/current";
 import { isQueueEditRejected, TEAM_QUEUE_EDIT_CAPABILITY } from "@openbot/contracts/team-protocol/queue-edit-v1";
 import type { QuestionPromptComposerAnswer } from "@openbot/ui/components/QuestionPromptBubble";
@@ -784,7 +785,7 @@ export function createComposerActions(deps: ComposerActionsDeps) {
     const active = deps.currentTarget();
     if (deps.props.channel || !answer?.available() || !target || !active) return undefined;
     if (target.agentId !== active.agentId || target.serverId !== active.serverId) return undefined;
-    if (draft.attachments.length > 0 || draft.replyToMessageId) return undefined;
+    if (draft.attachments.length > 0 || draft.replyToMessageId || draft.selectionNotes?.length) return undefined;
     return answer;
   }
 
@@ -808,7 +809,10 @@ export function createComposerActions(deps: ComposerActionsDeps) {
     const agentId = targetOverride?.agentId ?? conversationOwnerId(deps.props);
     const target = targetOverride ?? (agentId ? { agentId, serverId: deps.props.server?.id ?? "local" } : undefined);
     const draft = copyComposerDraft(draftOverride ?? deps.currentDraft());
-    const text = expandComposerMentions(draft.text);
+    // Fork: the waiting notes about selected text go first, each a quote and its note.
+    const text = draft.selectionNotes?.length
+      ? serializeSelectionNotes(draft.selectionNotes, expandComposerMentions(draft.text))
+      : expandComposerMentions(draft.text);
     const promptAnswer = promptAnswerFor(draft, target);
     if (promptAnswer && target) {
       if (deps.submitting() || !promptAnswer.answer(text)) return false;
@@ -911,7 +915,7 @@ export function createComposerActions(deps: ComposerActionsDeps) {
     const target = deps.currentTarget();
     if (!target || deps.currentEditingDeliveryId()) return;
     const current = deps.currentDraft();
-    if (current.text.trim() || current.attachments.length > 0) return;
+    if (current.text.trim() || current.attachments.length > 0 || current.selectionNotes?.length) return;
     const removed = deps.pendingSends.remove(target, clientMessageId);
     if (!removed) return;
     discardVoiceRecording(removed);
@@ -999,6 +1003,50 @@ export function createComposerActions(deps: ComposerActionsDeps) {
     return true;
   }
 
+  /**
+   * Fork: puts a note about selected text above the input, where it waits for the next send. False
+   * when it cannot wait: while the composer edits a queued message (that edit keeps only its text),
+   * or when the message would pass the length limit. The caller then sends the note at once.
+   */
+  function queueSelectionNote(quoteId: string, quote: string, note: string): boolean {
+    const target = deps.currentTarget();
+    const normalized = note.trim();
+    if (!target || !normalized || deps.currentEditingDeliveryId()) return false;
+    const draft = deps.currentDraft();
+    const item: SelectionNote = { id: crypto.randomUUID(), quoteId, quote: limitedQuoteText(quote), note: normalized };
+    const notes = [...(draft.selectionNotes ?? []), item];
+    if (serializeSelectionNotes(notes, draft.text).length > INPUT_LIMITS.messageText) return false;
+    updateSelectionNotes(target, () => notes);
+    return true;
+  }
+
+  function removeSelectionNote(id: string): void {
+    const target = deps.currentTarget();
+    if (target) updateSelectionNotes(target, (notes) => notes.filter((item) => item.id !== id));
+  }
+
+  /** An empty note keeps its old text: × removes a note. */
+  function editSelectionNote(id: string, note: string): void {
+    const target = deps.currentTarget();
+    const normalized = note.trim();
+    if (target && normalized)
+      updateSelectionNotes(target, (notes) =>
+        notes.map((item) => (item.id === id ? { ...item, note: normalized } : item)),
+      );
+  }
+
+  function updateSelectionNotes(
+    target: ConversationTarget,
+    update: (notes: readonly SelectionNote[]) => SelectionNote[],
+  ): void {
+    const key = composerDraftKey(target);
+    deps.setDrafts((current) => {
+      const { selectionNotes, ...draft } = current[key] ?? EMPTY_DRAFT;
+      const notes = update(selectionNotes ?? []);
+      return { ...current, [key]: notes.length > 0 ? { ...draft, selectionNotes: notes } : draft };
+    });
+  }
+
   /** A message that a card in the chat sends for the user, such as Continue after a sign-in. */
   function sendCardMessage(body: string): boolean {
     const target = deps.currentTarget();
@@ -1023,6 +1071,9 @@ export function createComposerActions(deps: ComposerActionsDeps) {
     steerComposer,
     composerAnswersPrompt,
     sendSelectionInstruction,
+    queueSelectionNote,
+    removeSelectionNote,
+    editSelectionNote,
     sendCardMessage,
     retryPendingSend,
     editPendingSend,

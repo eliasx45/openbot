@@ -115,6 +115,102 @@
   color: var(--openbot-text-secondary);
 }
 
+/* Fork: notes about selected text that wait for the next send (docs/fork/FEATURES.md, "Selection notes"). */
+.composer-selection-notes {
+  display: grid;
+  gap: 4px;
+  margin: 0 10px 6px;
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-control);
+  padding-block: 6px;
+  padding-inline: 12px 8px;
+  box-shadow: 0 7px 22px var(--openbot-shadow-popover-ambient);
+}
+
+.composer-selection-notes-count {
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+  font-weight: 550;
+  line-height: 14px;
+}
+
+.composer-selection-notes > ul {
+  display: grid;
+  max-height: 168px;
+  gap: 4px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.composer-selection-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.composer-selection-note > div {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  border-left: 2px solid var(--openbot-border);
+  padding-left: 8px;
+}
+
+.composer-selection-note q {
+  overflow: hidden;
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+  line-height: var(--openbot-leading-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-selection-note q::before,
+.composer-selection-note q::after {
+  content: none;
+}
+
+.composer-selection-note .composer-selection-note-text {
+  height: auto;
+  min-height: 0;
+  justify-content: flex-start;
+  overflow: hidden;
+  padding: 0;
+  color: var(--openbot-text-secondary);
+  font-size: var(--openbot-text-md);
+  font-weight: 400;
+  line-height: var(--openbot-leading-md);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-selection-note .composer-selection-note-text:hover {
+  background: transparent;
+  color: var(--openbot-text-primary);
+}
+
+.composer-selection-note > button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: var(--openbot-radius-pill);
+  background: transparent;
+  padding: 0;
+  color: var(--openbot-text-muted);
+}
+
+.composer-selection-note > button:hover {
+  background: var(--openbot-border);
+  color: var(--openbot-text-secondary);
+}
+
 .composer {
   position: relative;
   z-index: 11;

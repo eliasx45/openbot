@@ -29,6 +29,7 @@ import type {
   UpdateAgentInput,
   WorkspaceDirectory,
 } from "@openbot/contracts/ipc";
+import type { SelectionNote } from "@openbot/contracts/selection-instruction";
 import type { ConversationUiBlock } from "@openbot/contracts/ui-blocks";
 import type { AgentMessage, AgentProfile, ComposerSection } from "@openbot/ui/data";
 import type { BrowserViewRuntime } from "@openbot/ui/features/browser/BrowserLiveView";
@@ -386,6 +387,8 @@ export interface ComposerDraft {
   text: string;
   attachments: DraftAttachment[];
   replyToMessageId: string | null;
+  /** Fork: notes about selected text that wait above the input and go first in the next message. */
+  selectionNotes?: SelectionNote[] | undefined;
 }
 
 /**
