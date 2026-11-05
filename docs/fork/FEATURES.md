@@ -274,6 +274,14 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 
 ---
 
+## 25. Agents download files to a path they choose
+
+- **Get:** `openbot_browser.download({ tabId, url, saveTo?, overwrite?, timeoutMs? })`. The agent saves a file from a site, signed in as the tab, into a folder or file path it picks, and gets `{ path, size, status, mimeType }` back.
+- **Why:** before, a file came only from a click in the page and always landed in `~/OpenBot/Downloads`; the agent had to move it and could not use the tab's sign-in from a shell.
+- **How (portable):** start the URL as a download of the tab's own web contents (Electron `webContents.downloadURL`, so the session cookies apply), and match it in the session's one `will-download` handler by tab and first URL. Only a matched agent request may set the path; page downloads keep the old rule (Downloads, new name). An existing folder keeps the server's sanitized name and adds " (2)"; another path is the file itself, its folder must exist, and an existing file fails unless `overwrite`. Relative paths fail. A Workspace only agent may write only its sandbox roots plus Downloads. The same 2 GB / 4 active / no-secret-tab limits apply; a timeout (default 120 s) or a cancelled call cancels the download.
+- **Here:** `src/backend/browser-downloads.ts` (path rules), `download` handler and `will-download` in `src/backend/browser-host.ts`, schema in `src/backend/browser-tools.ts`, roots in `src/backend/agent/openbot-tool-router.ts`, label `browser.action.download` (14 locales), guidance line in `src/backend/agent/tool-guidance.ts`, budget in `tools/agent-context/budget.json`.
+- **Check:** `bun run test:browser -- --scenario=download-tool` (writes `.openbot-build/browser-download-tool.json`).
+
 ## Checked, not needed
 
 - **Several agents use the computer at once (Codync entry 9 / ADR 0006):** OpenBot has no lock between agents. Each provider starts its own `cua-driver mcp` proxy on the shared daemon (`src/main/cua-driver-runtime.ts`), and the action tap (`src/main/cua-driver-action-tap.ts`) only watches calls for the rim and cursor; it refuses and delays nothing. So several agents can already work at once, in different apps or the same one (no "another agent is using this app" guard). The only rule: an agent's task threads get no Computer Use, so one agent's own chat holds its screen work (`#sessionAgent` in `thread-lifecycle.ts`). Checked 2026-11-03; skipped. If two agents clashing in one app becomes a problem, Codync's per-app hold (look-only free, `pid` + background holds that app 20 s, foreground/untargeted holds all) would go in the tap's `data` handler, which sees each call's `name` and `args`.

@@ -47,6 +47,8 @@ export function browserControlAction(call: BrowserToolCall): BrowserControlActio
       return "type";
     case "wait_for":
       return "snapshot";
+    case "download":
+      return "snapshot";
     case "evaluate":
       return "snapshot";
     case "set_environment":
@@ -81,6 +83,8 @@ export function browserControlDetailAction(tool: string): BrowserControlDetailAc
       return "upload-files";
     case "wait_for":
       return "wait-for";
+    case "download":
+      return "download";
     case "evaluate":
       return "evaluate";
     case "set_environment":

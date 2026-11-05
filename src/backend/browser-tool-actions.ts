@@ -14,6 +14,11 @@ export interface BrowserDynamicToolHooks {
   onUserControl?: (tabId: string) => Effect.Effect<DynamicToolResult>;
   /** The saved cards that `fill_card` types. With none, `fill_card` fills nothing. */
   cardVault?: BrowserCardVault | undefined;
+  /**
+   * The folders that `download` may write besides the Downloads folder, for an agent with Workspace
+   * access. Undefined: any folder.
+   */
+  downloadRoots?: readonly string[] | undefined;
 }
 
 /** The saved cards that `fill_card` types, and the owner's approval of each page that they go to. */

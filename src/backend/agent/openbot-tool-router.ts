@@ -146,6 +146,7 @@ import {
 import { ToolOperationFailed, toolStep, toToolOperationFailed } from "./tool-operation";
 import type { AgentBrowserHost } from "./turn-lifecycle";
 import { handleUpdateAgentsTool } from "./update-agents-tool";
+import { checkAgentFolders, workspaceWritableRoots } from "./workspace-sandbox";
 
 const logger = createOpenBotLogger("openbot-tool-router");
 
@@ -513,6 +514,7 @@ export class OpenBotToolRouter {
                   return yield* this.#browser.handleDynamicTool(params, {
                     onUserControl: userControl,
                     cardVault: linkVault ?? this.#attention.cardVault(client, toolRequest, params),
+                    downloadRoots: params.tool === "download" ? yield* this.#downloadRoots(agentId) : undefined,
                   });
                 }
               }
@@ -1625,6 +1627,20 @@ export class OpenBotToolRouter {
       detail: { mcpServerId: config.id },
     });
   }
+
+  /**
+   * The folders that `openbot_browser.download` may write for a Workspace only agent, as its sandbox
+   * allows. Undefined for an agent with Full access, which may write anywhere.
+   */
+  readonly #downloadRoots = Effect.fn("OpenBotToolRouter.downloadRoots")(function* (
+    this: OpenBotToolRouter,
+    agentId: string,
+  ) {
+    const agent = this.#store.list().find((candidate) => candidate.id === agentId);
+    if (!agent || !workspaceAccessEnforced(agent)) return undefined;
+    yield* checkAgentFolders(agent);
+    return workspaceWritableRoots(agent, this.#store.sharedRoot);
+  });
 
   /**
    * Whether only a person in this computer's own chat asked for the turn. As for webhook routines: an

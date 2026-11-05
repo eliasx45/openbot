@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { constants } from "node:fs";
-import { mkdir, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, open, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -121,6 +121,34 @@ const server = createServer((request, response) => {
       "cache-control": "public, max-age=3600",
     });
     response.end(`<main>version:${cachedPageVersion}</main>`);
+    return;
+  }
+  if (url.pathname === "/download-sign-in") {
+    response.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "set-cookie": "openbot_download=signed-in; Path=/; SameSite=Lax",
+    });
+    response.end("<main>Signed in for downloads</main>");
+    return;
+  }
+  if (url.pathname === "/download-signed-in") {
+    // Only the tab's session has the cookie, so the content proves that the download used it.
+    const signedIn = request.headers.cookie?.includes("openbot_download=signed-in") === true;
+    response.writeHead(signedIn ? 200 : 403, {
+      "content-type": "text/plain",
+      "content-disposition": 'attachment; filename="signed-in.txt"',
+    });
+    response.end(signedIn ? "signed in download" : "signed out");
+    return;
+  }
+  if (url.pathname === "/download-slow") {
+    response.writeHead(200, {
+      "content-type": "application/octet-stream",
+      "content-disposition": 'attachment; filename="slow.bin"',
+      "content-length": "1000000",
+    });
+    // The body never ends, so only the tool's deadline ends the download.
+    response.write("first bytes");
     return;
   }
   if (url.pathname === "/download") {
@@ -456,6 +484,7 @@ const SCENARIOS = [
   "secret-handoff",
   "popups",
   "redirect-navigation",
+  "download-tool",
 ];
 
 void main().catch((error) => {
@@ -545,6 +574,8 @@ async function main(): Promise<void> {
           await runRedirectNavigationScenario(browser, origin);
         } else if (scenario === "typing-focus") {
           await runTypingFocusScenario(browser, origin);
+        } else if (scenario === "download-tool") {
+          await runDownloadToolScenario(browser, origin, temporaryRoot, downloadsRoot);
         } else {
           const { tab, contents } = await openTabWithContents(browser, `${origin}/v2`, "smoke-thread", "smoke-bot");
           try {
@@ -1952,6 +1983,7 @@ async function main(): Promise<void> {
     );
     await expectDownloadedFile(await secondDownload, join(downloadsRoot, "openbot-smoke (2).txt"), "second");
     process.stdout.write("BrowserHost: download passed.\n");
+    await runDownloadToolScenario(browser, origin, temporaryRoot, downloadsRoot);
 
     const toolResult = await runCauseEffect(
       browser.handleDynamicTool({
@@ -4468,6 +4500,90 @@ async function expectFailure(operation: () => Promise<unknown>): Promise<void> {
     return;
   }
   throw new Error("Expected operation to fail.");
+}
+
+/**
+ * `openbot_browser.download`: the tab's cookies apply, saveTo picks a folder or a file, an existing
+ * file stays unless overwrite is true, a bad path fails before the request, a Workspace agent writes
+ * only in its roots, and the deadline cancels the download.
+ */
+async function runDownloadToolScenario(
+  browser: BrowserHost,
+  origin: string,
+  temporaryRoot: string,
+  downloadsRoot: string,
+): Promise<void> {
+  const tab = await runCauseEffect(browser.open(`${origin}/download-sign-in`, "smoke-thread", "smoke-bot"));
+  const url = `${origin}/download-signed-in`;
+  // The tool reports the resolved path, and the temporary folder of macOS is behind a symlink.
+  await mkdir(join(temporaryRoot, "agent-downloads"), { recursive: true });
+  const folder = await realpath(join(temporaryRoot, "agent-downloads"));
+  const report: DynamicRecord[] = [];
+  const download = async (args: DynamicRecord, hooks?: Parameters<BrowserHost["handleDynamicTool"]>[1]) => {
+    const result = await callBrowserTool(browser, "download", { tabId: tab.id, url, ...args }, hooks);
+    report.push({ args, success: result.success, result: toolTextPayload(result) ?? toolError(result) });
+    return result;
+  };
+  const expectSaved = async (result: DynamicToolResult, path: string, step: string) => {
+    const payload = toolTextPayload(result);
+    assert.ok(result.success, `${step}: ${toolError(result)}`);
+    assert.equal(payload?.path, path, `${step}: the download went to ${String(payload?.path)}.`);
+    assert.equal(payload?.status, "completed", step);
+    assert.equal(payload?.size, "signed in download".length, step);
+    assert.equal(payload?.mimeType, "text/plain", step);
+    assert.equal(await readFile(path, "utf8"), "signed in download", `${step}: the tab's cookie was not sent.`);
+  };
+  const expectRefused = (result: DynamicToolResult, text: string, step: string) => {
+    assert.ok(!result.success, `${step} did not fail.`);
+    assert.ok(toolError(result).includes(text), `${step}: ${toolError(result)}`);
+  };
+
+  await expectSaved(await download({ saveTo: folder }), join(folder, "signed-in.txt"), "Folder download");
+  await expectSaved(await download({ saveTo: folder }), join(folder, "signed-in (2).txt"), "Second folder download");
+  await expectSaved(await download({}), join(downloadsRoot, "signed-in.txt"), "Default download");
+
+  const file = join(folder, "kept.txt");
+  await writeFile(file, "keep me");
+  expectRefused(await download({ saveTo: file }), "already exists", "A download onto an existing file");
+  assert.equal(await readFile(file, "utf8"), "keep me", "A download replaced a file without overwrite.");
+  await expectSaved(await download({ saveTo: file, overwrite: true }), file, "Overwrite download");
+  await expectSaved(await download({ saveTo: join(folder, "named.txt") }), join(folder, "named.txt"), "File download");
+
+  expectRefused(await download({ saveTo: "relative/file.txt" }), "absolute", "A relative saveTo");
+  expectRefused(await download({ saveTo: join(folder, "missing", "file.txt") }), "does not exist", "A missing folder");
+  await mkdir(join(temporaryRoot, "agent-workspace"), { recursive: true });
+  const workspace = await realpath(join(temporaryRoot, "agent-workspace"));
+  const confined = { downloadRoots: [workspace] };
+  expectRefused(
+    await download({ saveTo: folder }, confined),
+    "Workspace access",
+    "A Workspace agent outside its roots",
+  );
+  await expectSaved(
+    await download({ saveTo: workspace }, confined),
+    join(workspace, "signed-in.txt"),
+    "A Workspace agent in its workspace",
+  );
+  await expectSaved(
+    await download({}, confined),
+    join(downloadsRoot, "signed-in (2).txt"),
+    "A Workspace agent in Downloads",
+  );
+
+  const slow = await callBrowserTool(browser, "download", {
+    tabId: tab.id,
+    url: `${origin}/download-slow`,
+    saveTo: folder,
+    timeoutMs: 1_000,
+  });
+  report.push({ args: { url: "/download-slow", timeoutMs: 1_000 }, success: slow.success, result: toolError(slow) });
+  expectRefused(slow, "did not end within 1 s", "A download past its deadline");
+
+  await runCauseEffect(browser.close(tab.id));
+  const artifact = join(process.cwd(), ".openbot-build", "browser-download-tool.json");
+  await mkdir(join(process.cwd(), ".openbot-build"), { recursive: true });
+  await writeFile(artifact, `${JSON.stringify({ origin, steps: report }, null, 2)}\n`);
+  process.stdout.write(`BrowserHost: download tool passed (${artifact}).\n`);
 }
 
 interface FinishedDownload {

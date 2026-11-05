@@ -8,6 +8,7 @@ import {
 import { UI_BLOCK_LIMITS, UI_VAULT_REQUEST_KINDS } from "@openbot/contracts/ui-blocks";
 import { z } from "zod";
 import { advertisedJsonSchema } from "./agent/advertised-json-schema";
+import { BROWSER_DOWNLOAD_MAX_ACTIVE } from "./browser-downloads";
 import {
   BROWSER_FILL_FIELDS_MAX_FIELDS,
   BROWSER_FILL_FIELDS_MAX_TEXT_BYTES,
@@ -163,6 +164,9 @@ const evaluateFields = {
   awaitPromise: z.boolean().optional(),
   timeoutMs: timeout,
 };
+
+export const BROWSER_DOWNLOAD_DEFAULT_TIMEOUT_MS = 120_000;
+const BROWSER_DOWNLOAD_MAX_TIMEOUT_MS = 1_800_000;
 
 export const BROWSER_SCRIPT_MAX_STEPS = 200;
 const BROWSER_SCRIPT_MAX_CHARS = 20_000;
@@ -464,6 +468,30 @@ const BROWSER_TOOL_DEFINITIONS = [
     shape: {
       ...targetAction,
       paths: z.array(z.string().min(1).max(INPUT_LIMITS.path)).min(1).max(INPUT_LIMITS.attachments),
+    },
+  }),
+  browserTool({
+    name: "download",
+    description: `Download an HTTP(S) URL in the tab's browser session, with its cookies, and wait for the end. Returns path, size, status (completed, cancelled or interrupted) and mimeType. Default folder: OpenBot Downloads. At most 2 GB per file and ${BROWSER_DOWNLOAD_MAX_ACTIVE} downloads at once.`,
+    shape: {
+      tabId,
+      url: requiredString(INPUT_LIMITS.browserUrl),
+      saveTo: z
+        .string()
+        .min(1)
+        .max(INPUT_LIMITS.path)
+        .optional()
+        .describe(
+          "An absolute path. An existing folder keeps the server's file name, numbered when it is taken. Another path is the file: its folder must exist, and an existing file fails unless overwrite is true.",
+        ),
+      overwrite: z.boolean().optional().describe("Replace an existing file. Default false."),
+      timeoutMs: z
+        .number()
+        .int()
+        .min(1_000)
+        .max(BROWSER_DOWNLOAD_MAX_TIMEOUT_MS)
+        .optional()
+        .describe("Default 120000. The deadline cancels the download."),
     },
   }),
   browserTool({

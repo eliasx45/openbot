@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { isIP } from "node:net";
-import { basename, extname, join } from "node:path";
+import { join } from "node:path";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type {
   AgentBrowserProfile,
@@ -40,6 +41,7 @@ import {
   BrowserWindow,
   type BrowserWindowConstructorOptions,
   clipboard,
+  type DownloadItem,
   type Event as ElectronEvent,
   type Input,
   Menu,
@@ -64,6 +66,15 @@ import {
 import { BrowserControlSessions } from "./browser-control-sessions";
 import { browserViewCursor } from "./browser-cursor";
 import { BrowserDiagnostics } from "./browser-diagnostics";
+import {
+  agentDownloadPath,
+  BROWSER_DOWNLOAD_MAX_ACTIVE,
+  BROWSER_DOWNLOAD_MAX_BYTES,
+  type BrowserDownloadTarget,
+  resolveDownloadTarget,
+  safeDownloadName,
+  uniqueDownloadPath,
+} from "./browser-downloads";
 import { type BrowserOperationError, browserCall, browserFailure, browserSync } from "./browser-effects";
 import {
   type BrowserHostTab,
@@ -156,6 +167,7 @@ import {
   browserToolTimeout,
 } from "./browser-tool-actions";
 import {
+  BROWSER_DOWNLOAD_DEFAULT_TIMEOUT_MS,
   BROWSER_SCRIPT_DEFAULT_TIMEOUT_MS,
   BROWSER_SCRIPT_MAX_STEPS,
   type BrowserStep,
@@ -220,13 +232,30 @@ const VIEW_CONTEXT_MENU_MS = 1_500;
 const DIALOG_ACTION_WAIT_MS = 10_000;
 /** The `keyCode` of `sendInputEvent` for a key whose `Input.key` name is different. */
 const FORWARDED_KEY_CODES: Partial<Record<string, string>> = { ArrowLeft: "Left", ArrowRight: "Right" };
-/**
- * The download limits of one browser session, so that a page cannot fill the disk. A session
- * starts no new download while `MAX_ACTIVE_DOWNLOADS` are in progress, and a download larger
- * than `MAX_DOWNLOAD_BYTES` stops.
- */
-const MAX_ACTIVE_DOWNLOADS = 4;
-const MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024 * 1024;
+const MAX_ACTIVE_DOWNLOADS = BROWSER_DOWNLOAD_MAX_ACTIVE;
+const MAX_DOWNLOAD_BYTES = BROWSER_DOWNLOAD_MAX_BYTES;
+const DOWNLOAD_SIZE_LIMIT_ERROR = "The file is larger than the 2 GB download limit. OpenBot stopped the download.";
+
+/** How an agent's `download` call ended in `will-download`: refused there, or done. */
+type AgentDownloadOutcome =
+  | { kind: "refused"; message: string }
+  | {
+      kind: "done";
+      state: "completed" | "cancelled" | "interrupted";
+      path: string;
+      mimeType: string;
+      receivedBytes: number;
+      limitHit: boolean;
+    };
+
+/** A `download` call that waits for its `will-download`. A page download from the same tab does not match. */
+interface AgentDownloadRequest {
+  contents: WebContents;
+  url: string;
+  target: BrowserDownloadTarget;
+  item: DownloadItem | null;
+  outcome: Deferred.Deferred<AgentDownloadOutcome>;
+}
 
 export interface BrowserViewOptions {
   /** Hears the page's mouse cursor when it changes. Not called while a secret is on the page. */
@@ -453,6 +482,8 @@ export class BrowserHost {
   readonly #siteVisitListeners = new Set<(...args: BrowserHostEvents["siteVisited"]) => void>();
   readonly #controls = new BrowserControlSessions();
   readonly #reservedDownloadPaths = new Set<string>();
+  /** The agent `download` calls whose response has not arrived yet. */
+  readonly #agentDownloads = new Set<AgentDownloadRequest>();
   /** Downloads in progress in all sessions, so an agent's own session does not add to the limit. */
   #activeDownloads = 0;
   readonly #recorder: BrowserRecorder;
@@ -1491,6 +1522,43 @@ export class BrowserHost {
     }
   }
 
+  /**
+   * Starts `url` as a download of `contents`, in its session, and waits for its end. A timeout or an
+   * interrupted tool call cancels it, so Chromium removes the part that it wrote.
+   */
+  readonly #agentDownload = Effect.fn("BrowserHost.agentDownload")(function* (
+    this: BrowserHost,
+    contents: WebContents,
+    url: string,
+    target: BrowserDownloadTarget,
+    timeoutMs: number,
+  ) {
+    const request: AgentDownloadRequest = { contents, url, target, item: null, outcome: Deferred.makeUnsafe() };
+    this.#agentDownloads.add(request);
+    return yield* browserSync(() => contents.downloadURL(url)).pipe(
+      Effect.andThen(Deferred.await(request.outcome)),
+      Effect.timeoutOption(timeoutMs),
+      Effect.ensuring(
+        Effect.sync(() => {
+          this.#agentDownloads.delete(request);
+          if (request.item?.getState() === "progressing") request.item.cancel();
+        }),
+      ),
+    );
+  });
+
+  /** The agent `download` call that started `item`, matched by its tab and its first URL. */
+  #takeAgentDownload(contents: WebContents, item: DownloadItem): AgentDownloadRequest | undefined {
+    const first = item.getURLChain()[0] ?? item.getURL();
+    const url = URL.canParse(first) ? new URL(first).href : first;
+    for (const request of this.#agentDownloads) {
+      if (request.contents !== contents || request.url !== url) continue;
+      this.#agentDownloads.delete(request);
+      return request;
+    }
+    return undefined;
+  }
+
   #requireNoSecretDocument(tab: BrowserHostTab, action: string): void {
     if ([...this.#connectedTabs(tab)].some((connected) => connected.secretDocument || connected.filledCard))
       throw new Error(
@@ -1963,6 +2031,39 @@ export class BrowserHost {
     set_checked: (call, params, hooks) => this.#runInputTool(call, params, hooks),
     drag: (call, params, hooks) => this.#runInputTool(call, params, hooks),
     upload_files: (call, params, hooks) => this.#runInputTool(call, params, hooks),
+    download: ({ args }, params, hooks) =>
+      Effect.gen({ self: this }, function* () {
+        yield* browserSync(() => this.#requireToolTab(params, args.tabId));
+        const url = yield* browserSync(() => normalizeBrowserUrl(args.url));
+        const target = yield* browserCall(() =>
+          resolveDownloadTarget(args.saveTo, args.overwrite ?? false, this.#downloadsRoot, hooks.downloadRoots),
+        );
+        // `will-download` refuses it too, but only after the request; this answers before it starts.
+        if (this.#activeDownloads >= MAX_ACTIVE_DOWNLOADS)
+          return yield* browserFailure(
+            new Error(`At most ${MAX_ACTIVE_DOWNLOADS} downloads run at once. Wait for one to end, then try again.`),
+          );
+        const tab = yield* this.#requireTab(args.tabId);
+        const timeoutMs = args.timeoutMs ?? BROWSER_DOWNLOAD_DEFAULT_TIMEOUT_MS;
+        const outcome = Option.getOrUndefined(yield* this.#agentDownload(tab.contents, url, target, timeoutMs));
+        if (!outcome)
+          return yield* browserFailure(
+            new Error(`The download did not end within ${timeoutMs / 1_000} s. OpenBot cancelled it.`),
+          );
+        if (outcome.kind === "refused") return yield* browserFailure(new Error(outcome.message));
+        if (outcome.limitHit) return yield* browserFailure(new Error(DOWNLOAD_SIZE_LIMIT_ERROR));
+        const size =
+          outcome.state === "completed" ? (yield* browserCall(() => stat(outcome.path))).size : outcome.receivedBytes;
+        return {
+          ...textResult({
+            path: outcome.path,
+            size,
+            status: outcome.state,
+            ...(outcome.mimeType ? { mimeType: outcome.mimeType } : {}),
+          }),
+          success: outcome.state === "completed",
+        };
+      }),
     fill_card: ({ args }, params, hooks) =>
       Effect.gen({ self: this }, function* () {
         yield* browserSync(() => this.#requireToolTab(params, args.tabId));
@@ -2969,32 +3070,52 @@ export class BrowserHost {
     );
     target.setPermissionCheckHandler((_webContents, permission) => isAllowedBrowserPermission(permission));
     target.on("will-download", (event, item, contents) => {
-      if ([...this.#tabs.values()].some((tab) => tab.secret && tab.contents === contents)) {
+      // Only the agent's own `download` call chooses a path. A page download always goes to Downloads.
+      const request = this.#takeAgentDownload(contents, item);
+      const refuse = (message: string) => {
         event.preventDefault();
-        return;
+        if (request) Deferred.doneUnsafe(request.outcome, Exit.succeed({ kind: "refused", message }));
+      };
+      if ([...this.#tabs.values()].some((tab) => tab.secret && tab.contents === contents))
+        return refuse("Downloads are blocked in a tab during a secure sign-in step.");
+      if (this.#activeDownloads >= MAX_ACTIVE_DOWNLOADS)
+        return refuse(`At most ${MAX_ACTIVE_DOWNLOADS} downloads run at once. Wait for one to end, then try again.`);
+      if (item.getTotalBytes() > MAX_DOWNLOAD_BYTES) return refuse(DOWNLOAD_SIZE_LIMIT_ERROR);
+      let downloadPath: string;
+      try {
+        downloadPath = request
+          ? agentDownloadPath(request.target, item.getFilename(), this.#reservedDownloadPaths)
+          : uniqueDownloadPath(this.#downloadsRoot, safeDownloadName(item.getFilename()), this.#reservedDownloadPaths);
+      } catch (error) {
+        return refuse(error instanceof Error ? error.message : String(error));
       }
-      if (this.#activeDownloads >= MAX_ACTIVE_DOWNLOADS || item.getTotalBytes() > MAX_DOWNLOAD_BYTES) {
-        event.preventDefault();
-        return;
-      }
-      const safeName = basename(item.getFilename()).replace(/[^a-zA-Z0-9._ -]/g, "_");
-      const downloadPath = uniqueDownloadPath(
-        this.#downloadsRoot,
-        safeName || `download-${Date.now()}`,
-        this.#reservedDownloadPaths,
-      );
       this.#reservedDownloadPaths.add(downloadPath);
       item.setSavePath(downloadPath);
       this.#activeDownloads += 1;
+      if (request) request.item = item;
+      let limitHit = false;
       // A server can send no size, or a wrong one, so the received bytes are checked as they arrive.
       item.on("updated", () => {
         if (item.getState() !== "progressing" || item.getReceivedBytes() <= MAX_DOWNLOAD_BYTES) return;
         logger.warn("Browser download stopped at the size limit", { limitBytes: MAX_DOWNLOAD_BYTES });
+        limitHit = true;
         item.cancel();
       });
-      item.once("done", () => {
+      item.once("done", (_doneEvent, state) => {
         this.#activeDownloads -= 1;
         this.#reservedDownloadPaths.delete(downloadPath);
+        if (!request) return;
+        Deferred.doneUnsafe(
+          request.outcome,
+          Exit.succeed({
+            kind: "done",
+            state,
+            path: downloadPath,
+            mimeType: item.getMimeType(),
+            receivedBytes: item.getReceivedBytes(),
+            limitHit,
+          }),
+        );
       });
     });
   }
@@ -3926,13 +4047,4 @@ function elementLine(element: BrowserElement): string {
   if (bounds) tokens.push(`bounds=${bounds.x},${bounds.y},${bounds.width},${bounds.height}`);
   if (frame) tokens.push(`frame=${frame.id}`, `frameUrl=${JSON.stringify(frame.url)}`);
   return tokens.join(" ");
-}
-
-function uniqueDownloadPath(root: string, name: string, reserved: Set<string>): string {
-  const extension = extname(name);
-  const stem = extension ? name.slice(0, -extension.length) : name;
-  for (let suffix = 1; ; suffix += 1) {
-    const candidate = join(root, suffix === 1 ? name : `${stem} (${suffix})${extension}`);
-    if (!reserved.has(candidate) && !existsSync(candidate)) return candidate;
-  }
 }
