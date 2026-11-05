@@ -9,6 +9,7 @@ import {
   type CancelAgentWaitInput,
   type CancelMessageLinkInput,
   type CancelQueuedMessageInput,
+  type CheckFileChipsInput,
   type ChooseAttachmentsInput,
   type CreateAgentInput,
   type CreateAgentMemoryInput,
@@ -23,7 +24,9 @@ import {
   type DeleteRoutineInput,
   type DownloadAttachmentsInput,
   type EditQueuedMessageInput,
+  FILE_CHIP_CHECK_LIMIT,
   type FileAction,
+  type FileChipTarget,
   type ImportAttachmentsInput,
   type InterruptTurnInput,
   isAgentAccess,
@@ -922,6 +925,20 @@ export function parseOpenWorkspaceFile(value: unknown): OpenWorkspaceFileInput {
     path: requireString(value.path, "path", INPUT_LIMITS.path),
     action: parseFileAction(value.action),
   };
+}
+
+const FILE_CHIP_KINDS: readonly FileChipTarget["kind"][] = ["shared", "workspace"];
+
+export function parseCheckFileChips(value: unknown): CheckFileChipsInput {
+  if (!isObject(value) || !Array.isArray(value.files) || value.files.length > FILE_CHIP_CHECK_LIMIT)
+    throw new Error("Invalid file chip check.");
+  const files = value.files.map((file: unknown): FileChipTarget => {
+    if (!isObject(file) || !isOneOf(FILE_CHIP_KINDS, file.kind)) throw new Error("Invalid file chip check.");
+    return { kind: file.kind, path: requireString(file.path, "path", INPUT_LIMITS.path) };
+  });
+  return value.agentId === undefined
+    ? { files }
+    : { agentId: requireString(value.agentId, "agentId", INPUT_LIMITS.identifier), files };
 }
 
 export function parsePreviewSharedFile(value: unknown): PreviewSharedFileInput {

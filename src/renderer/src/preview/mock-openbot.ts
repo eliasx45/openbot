@@ -59,6 +59,7 @@ import {
   type BusyMessageModePreference,
   browserProxyAddressText,
   type CentralAuthState,
+  type CheckFileChipsInput,
   type ClientAgentModelOption,
   type ClientAgentSummary,
   CONTEXT_RESET_ITEM_TYPE,
@@ -2881,6 +2882,8 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         return mockFilePreview(input.path, "workspace-file");
       },
       listWorkspaceDirectory: async (input: OpenWorkspaceFileInput) => mockWorkspaceDirectory(input.path),
+      // Every named file resolves in the preview, so its chips show as before the check.
+      checkFileChips: async (input: CheckFileChipsInput) => input.files.map(() => true),
       sendMessage: async (input: SendMessageInput) => {
         if (agents.some((agent) => agent.id === input.agentId && agent.hiddenAt !== undefined))
           throw new Error(sourceText("error.backend.recipientHidden"));

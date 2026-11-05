@@ -193,6 +193,7 @@ import type {
   AttachmentDataInput,
   AttachmentDownloadProgress,
   AttachmentImportProgress,
+  CheckFileChipsInput,
   ChooseAttachmentsInput,
   DownloadAttachmentsInput,
   DraftAttachment,
@@ -1797,6 +1798,12 @@ export const IPC_ENDPOINTS = {
     listWorkspaceDirectory: scopedRequest<OpenWorkspaceFileInput, WorkspaceDirectory>()(
       "agent:list-workspace-directory",
     ),
+    /**
+     * Whether each file that a code span names resolves as its chip click would, in the same order.
+     * Read-only. A workspace-only agent answers false for a path outside its workspace, as for a
+     * missing one.
+     */
+    checkFileChips: scopedRequest<CheckFileChipsInput, boolean[]>()("agent:check-file-chips"),
   },
   // The folders an agent can change besides its workspace. On a joined server the host serves them
   // through `agent-folders-v1`, for an owner or admin. The native picker shows only this computer, so

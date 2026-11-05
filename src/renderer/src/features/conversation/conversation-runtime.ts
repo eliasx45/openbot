@@ -41,7 +41,9 @@ export interface ConversationRuntime {
     // The progress and stop of an attachment download from a joined server. Absent, a card shows no progress.
     Partial<Pick<OpenBotDesktopApi["agent"], "stopAttachmentDownload" | "onAttachmentDownload">> &
     // Retry and remove of a failed file import. Absent, a failed upload chip has only its remove button.
-    Partial<Pick<OpenBotDesktopApi["agent"], "retryAttachmentImport" | "discardAttachmentImport">>;
+    Partial<Pick<OpenBotDesktopApi["agent"], "retryAttachmentImport" | "discardAttachmentImport">> &
+    // Whether a file that a code span names opens. Absent, every file name is a chip, as before the check.
+    Partial<Pick<OpenBotDesktopApi["agent"], "checkFileChips">>;
   browser: Pick<
     OpenBotDesktopApi["browser"],
     | "capturePreview"

@@ -131,6 +131,24 @@ export interface PreviewWorkspaceFileInput extends OpenWorkspaceFileInput {
   exactPath?: boolean;
 }
 
+/** A file that a code span in a message names, as its chip would open it. */
+export interface FileChipTarget {
+  kind: "shared" | "workspace";
+  path: string;
+}
+
+/** The most files that one file chip check reads. */
+export const FILE_CHIP_CHECK_LIMIT = 100;
+
+/**
+ * Asks which named files a chip can open. `agentId` is the agent whose workspace holds a workspace
+ * path; without it, only shared files can resolve.
+ */
+export interface CheckFileChipsInput {
+  agentId?: string;
+  files: FileChipTarget[];
+}
+
 /** The most entries one folder view shows. The rest are counted by `truncated`. */
 export const WORKSPACE_DIRECTORY_LIMIT = 500;
 
@@ -240,3 +258,10 @@ export function filePreviewKindForFile(name: string, mimeType: string): FilePrev
   if (mimeType.startsWith("text/") || mimeType === "application/json" || mimeType === "message/rfc822") return "text";
   return "none";
 }
+
+/** The answer of a file chip check: one flag for each file asked, in order. */
+export function isFileChipCheckResult(value: unknown): value is boolean[] {
+  return Array.isArray(value) && value.length <= FILE_CHIP_CHECK_LIMIT && value.every(isBoolean);
+}
+
+export const decodeFileChipCheckResult = guardedDecoder(isFileChipCheckResult, "file chip check");

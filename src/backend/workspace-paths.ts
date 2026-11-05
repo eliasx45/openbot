@@ -224,6 +224,22 @@ export const resolveWorkspaceFile = Effect.fn("Workspace.resolveWorkspaceFile")(
 });
 
 /**
+ * Whether a chip for this path opens something: a file, or a folder for the folder view. It uses the
+ * resolver and options of the click, so the chip shows only where the click works. Every refusal
+ * answers false, so a caller that may not go outside cannot tell a missing path from an outside one.
+ */
+export function workspacePathResolves(
+  agent: Pick<AgentSummary, "id" | "workspacePath">,
+  inputPath: string,
+  options: { allowOutside?: boolean; fileHistory?: readonly string[] } = {},
+): Effect.Effect<boolean> {
+  return resolveWorkspacePath(agent, inputPath, options).pipe(
+    Effect.map(({ metadata }) => metadata.isFile() || metadata.isDirectory()),
+    Effect.orElseSucceed(() => false),
+  );
+}
+
+/**
  * One folder of an agent's workspace, for the folder view of a chip. Each entry carries a path that the
  * file and folder routes accept again: relative to the workspace root when it is inside it. A link
  * whose target leaves the workspace is left out when the caller may not go outside, so a remote member
