@@ -1066,7 +1066,12 @@ function LocalFileLink(props: {
       aria-label={label()}
       title={props.path}
       data-cuelume-tap="open"
-      onClick={() => props.onOpen(props.path)}
+      onClick={(event) => {
+        // A drag that selects text and ends on the chip also clicks it. That selection is for the
+        // selection actions, so only a plain click opens the file.
+        if (selectionTouches(event.currentTarget)) return;
+        props.onOpen(props.path);
+      }}
     >
       <AttachmentReferenceVisual name={name} />
       <span class="inline-file-reference-name" dir="auto">
@@ -1074,6 +1079,16 @@ function LocalFileLink(props: {
       </span>
     </Button>
   );
+}
+
+function selectionTouches(element: Element): boolean {
+  const selection = element.ownerDocument.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return false;
+  try {
+    return selection.getRangeAt(0).intersectsNode(element);
+  } catch {
+    return false;
+  }
 }
 
 function sharedFileTarget(value: string): string | null {

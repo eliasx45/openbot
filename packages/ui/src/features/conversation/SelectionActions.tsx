@@ -18,8 +18,11 @@ const MESSAGE_TEXT_SELECTOR = "[data-selection-message-id]";
  * `data-selection-file-lines` marks text that is the file source, so a selection gives its lines.
  */
 const FILE_TEXT_SELECTOR = "[data-selection-file-quote]";
-const INTERACTIVE_SELECTOR =
-  'a, button, input, textarea, select, [contenteditable="true"], [role="button"], .message-citation';
+/**
+ * Form fields inside message text. A selection that touches one is not message text. Links, file
+ * chips, code spans and citations are message text: their visible text is part of the selection.
+ */
+const EDITABLE_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
 const HIGHLIGHT_NAME = "openbot-message-selection";
 const VIEWPORT_MARGIN = 12;
 const TOOLBAR_GAP = 8;
@@ -61,7 +64,7 @@ export function messageTextSelection(selection: Selection | null): MessageTextSe
     .toString()
     .replace(/\u00a0/gu, " ")
     .trim();
-  if (!messageId || !text || rangeIntersectsInteractiveContent(range, startBlock)) return null;
+  if (!messageId || !text || rangeIntersectsEditableContent(range, startBlock)) return null;
   return { messageId, text, range: range.cloneRange() };
 }
 
@@ -98,6 +101,9 @@ export function MessageSelectionActions(props: {
 }) {
   const [selection, setSelection] = createSignal<MessageTextSelection | null>(null);
   const [fallbackHighlight, setFallbackHighlight] = createSignal(false);
+  // A selection made with the pointer gives the instruction field the keyboard, so the person can
+  // type at once. A keyboard selection keeps the focus, so Shift and the arrow keys still extend it.
+  const [focusInstruction, setFocusInstruction] = createSignal(false);
   let lastContextKey: string | undefined;
 
   const clearSelection = () => {
@@ -120,7 +126,7 @@ export function MessageSelectionActions(props: {
     props.onQuote(active.messageId, active.text);
   };
 
-  const captureSelection = () => {
+  const captureSelection = (fromPointer: boolean) => {
     if (props.disabled) {
       clearSelection();
       return;
@@ -130,6 +136,8 @@ export function MessageSelectionActions(props: {
       clearSelection();
       return;
     }
+    setFocusInstruction(fromPointer);
+    // The selection keeps its own copy of the range: focus in the field clears the document selection.
     setSelection(next);
   };
 
@@ -171,7 +179,7 @@ export function MessageSelectionActions(props: {
     };
     const onPointerUp = (event: PointerEvent) => {
       if (event.target instanceof Element && event.target.closest(".selection-actions-layer")) return;
-      captureSelection();
+      captureSelection(true);
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -179,7 +187,7 @@ export function MessageSelectionActions(props: {
         return;
       }
       if (event.target instanceof Element && event.target.closest(".selection-actions-layer")) return;
-      captureSelection();
+      captureSelection(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (!selection() || !props.onQuote || !isQuoteShortcut(event, props.quoteShortcut ?? "ctrl")) return;
@@ -205,6 +213,7 @@ export function MessageSelectionActions(props: {
         <SelectionActionsBar
           selection={active()}
           fallbackHighlight={fallbackHighlight()}
+          focusInstruction={focusInstruction()}
           onDismiss={dismiss}
           onSend={props.onSend}
           onQuote={props.onQuote ? quote : undefined}
@@ -218,6 +227,8 @@ export function MessageSelectionActions(props: {
 export function SelectionActionsBar(props: {
   selection: MessageTextSelection;
   fallbackHighlight?: boolean;
+  /** Puts the keyboard focus in the instruction field when the selection opens or changes. */
+  focusInstruction?: boolean | undefined;
   onDismiss: () => void;
   onSend: (messageId: string, body: string) => Promise<boolean>;
   onQuote?: (() => void) | undefined;
@@ -234,6 +245,7 @@ export function SelectionActionsBar(props: {
   const [typingWidth, setTypingWidth] = createSignal<number | null>(null);
   let bar: HTMLDivElement | undefined;
   let content: HTMLDivElement | undefined;
+  let form: HTMLFormElement | undefined;
   let animationFrame: number | undefined;
   let previousSelectionKey = "";
 
@@ -308,6 +320,10 @@ export function SelectionActionsBar(props: {
       }
       previousSelectionKey = key;
       schedulePosition();
+      if (props.focusInstruction) {
+        // After the frame, so the idle field is mounted again when a new selection reset the mode.
+        requestAnimationFrame(() => form?.querySelector("input")?.focus({ preventScroll: true }));
+      }
     },
   );
 
@@ -454,6 +470,7 @@ export function SelectionActionsBar(props: {
                 }}
               >
                 <form
+                  ref={(element) => (form = element)}
                   class="selection-actions-form"
                   style={{
                     width:
@@ -627,8 +644,8 @@ function lineBreaks(value: string): number {
   return value.split("\n").length - 1;
 }
 
-function rangeIntersectsInteractiveContent(range: Range, root: HTMLElement): boolean {
-  return Array.from(root.querySelectorAll(INTERACTIVE_SELECTOR)).some((element) => {
+function rangeIntersectsEditableContent(range: Range, root: HTMLElement): boolean {
+  return Array.from(root.querySelectorAll(EDITABLE_SELECTOR)).some((element) => {
     try {
       return range.intersectsNode(element);
     } catch {

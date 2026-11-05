@@ -272,6 +272,14 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Not done:** the Dynamic Island windows keep `forward: true` (they need moves to open on hover). On a display without a notch the collapsed island window (58pt tall) overlaps the top of the chat header, so the top half of the thread tabs under it may still flip.
 - **Check:** with OpenBot running (rim overlays built), rest the pointer on the "show steps" chevron while an agent works, on a sidebar row, on a link: the hand stays, no flicker to the arrow. Computer Use still draws the rim and agent cursor and nothing on the overlay takes a click.
 
+## 30. The selection toolbar opens over file chips and code, and takes the keyboard
+
+- **Why:** Elias, 5 Nov 2026 (two recordings): the "Describe edits · Quote · Explain · Improve" toolbar did not open for a selection over a file chip (`ALG3 TD1.pdf`) or a line with code spans (`Shared`, `:1230`), and when it opened he had to click in "Describe edits" before he could type.
+- **Cause:** `messageTextSelection` refused any selection that touched `a, button, [role="button"], .message-citation`. A file chip (`LocalFileLink`) is a `<button>`, so every selection over a chip failed. Chromium (tested headless with the real message CSS) selected plain `<code>` spans with no problem. The code-span cases in the recording are not explained by this check (unconfirmed).
+- **How (portable):** refuse only selections that touch form fields (`input, textarea, select, [contenteditable="true"]`). Links, chips, code and citations are message text. The chip's badge is `user-select: none`, so `Selection.toString()` gives the chip's label only. A chip click that ends a text selection does not open the file. A selection made with the pointer focuses the instruction field (`preventScroll`). The selection keeps its cloned range and the CSS highlight, so typing does not change what the edit refers to. A keyboard selection keeps the focus, so Shift and the arrow keys still extend it.
+- **Here:** `EDITABLE_SELECTOR`, `captureSelection(fromPointer)` and `focusInstruction` in `packages/ui/src/features/conversation/SelectionActions.tsx`; `selectionTouches` in `LocalFileLink`, `packages/ui/src/features/conversation/MarkdownMessageText.tsx`.
+- **Check:** in an agent message, drag over an inline code span, over a PDF chip, and across both: the toolbar opens with the caret in "Describe edits". Type at once: the text goes into the field and the highlight stays. Quote puts exactly the selected text (chip label, no "PDF" badge) in the composer. Esc closes the toolbar. A plain click on a chip opens the file with no toolbar. A plain caret click does not move the focus.
+
 ---
 
 ## 25. Agents download files to a path they choose
