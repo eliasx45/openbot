@@ -3,7 +3,14 @@ import type { DraftAttachment } from "@openbot/contracts/ipc";
 import { referenceChipClasses } from "@openbot/ui/reference-chip";
 import { usesTouchLayout } from "@openbot/ui/utils";
 import { createStaticAvatarSvg } from "../../bloub-avatar";
-import type { ComposerAgent, ComposerBrowserTab, ComposerMcpServer, ComposerSkill, ComposerThread } from "../../data";
+import type {
+  ComposerAgent,
+  ComposerBrowserTab,
+  ComposerMcpServer,
+  ComposerSection,
+  ComposerSkill,
+  ComposerThread,
+} from "../../data";
 import { currentText } from "../../text";
 import { appendAttachmentReferenceVisual } from "./AttachmentReference";
 import { tabTitle } from "./composer-picker";
@@ -200,6 +207,16 @@ const SPLIT_GLYPH: GlyphShape[] = [
   ["path", { d: "m15 9 6-6" }],
 ];
 
+/* Fork: lucide's `Folder`, for a sidebar section tag. */
+const FOLDER_GLYPH: GlyphShape[] = [
+  [
+    "path",
+    {
+      d: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z",
+    },
+  ],
+];
+
 const GLYPH_ATTRIBUTES = {
   width: "24",
   height: "24",
@@ -299,13 +316,20 @@ export function createThreadToken(thread: ComposerThread): HTMLSpanElement {
   return token;
 }
 
+/** Fork: a sidebar section of the user's, by its section id. */
+export function createSectionToken(section: ComposerSection): HTMLSpanElement {
+  const token = document.createElement("span");
+  updateReferenceToken(token, "section", section.id, referenceName(section.name), true);
+  return token;
+}
+
 /*
  * A tab or a thread that is gone keeps its tag in the draft, drawn with the outline of a removed
  * skill. The provider then reads that it is closed or deleted.
  */
 function updateReferenceToken(
   token: HTMLSpanElement,
-  kind: "tab" | "thread",
+  kind: "tab" | "thread" | "section",
   id: string,
   name: string,
   available: boolean,
@@ -319,6 +343,9 @@ function updateReferenceToken(
   if (kind === "tab") {
     token.dataset.tabId = id;
     token.dataset.tabName = name;
+  } else if (kind === "section") {
+    token.dataset.sectionId = id;
+    token.dataset.sectionName = name;
   } else {
     token.dataset.threadId = id;
     token.dataset.threadName = name;
@@ -327,7 +354,9 @@ function updateReferenceToken(
   const label =
     kind === "tab"
       ? t(available ? "composer.token.tab" : "composer.token.unavailableTab", { name })
-      : t(available ? "composer.token.thread" : "composer.token.unavailableThread", { name });
+      : kind === "section"
+        ? t(available ? "composer.token.section" : "composer.token.unavailableSection", { name })
+        : t(available ? "composer.token.thread" : "composer.token.unavailableThread", { name });
   token.setAttribute("aria-label", label);
   if (!available) {
     token.textContent = name;
@@ -337,7 +366,11 @@ function updateReferenceToken(
   iconWrap.className = referenceChipClasses.icon;
   iconWrap.setAttribute("aria-hidden", "true");
   iconWrap.append(
-    kind === "tab" ? createChipGlyph("app-window", APP_WINDOW_GLYPH) : createChipGlyph("split", SPLIT_GLYPH),
+    kind === "tab"
+      ? createChipGlyph("app-window", APP_WINDOW_GLYPH)
+      : kind === "section"
+        ? createChipGlyph("folder", FOLDER_GLYPH)
+        : createChipGlyph("split", SPLIT_GLYPH),
   );
   const nameElement = document.createElement("span");
   nameElement.className = referenceChipClasses.name;
@@ -350,14 +383,16 @@ export function syncReferenceTokens(
   editor: HTMLDivElement,
   tabs: readonly ComposerBrowserTab[],
   threads: readonly ComposerThread[],
+  sections: readonly ComposerSection[] = [],
 ): void {
   const tabIds = new Set(tabs.map((tab) => tab.id));
   const threadIds = new Set(threads.map((thread) => thread.id));
-  for (const token of editor.querySelectorAll<HTMLSpanElement>("[data-tab-id], [data-thread-id]")) {
-    const kind = token.dataset.tabId ? "tab" : "thread";
-    const id = token.dataset.tabId ?? token.dataset.threadId ?? "";
-    const name = token.dataset.tabName ?? token.dataset.threadName ?? "";
-    const available = kind === "tab" ? tabIds.has(id) : threadIds.has(id);
+  const sectionIds = new Set(sections.map((section) => section.id));
+  for (const token of editor.querySelectorAll<HTMLSpanElement>("[data-tab-id], [data-thread-id], [data-section-id]")) {
+    const kind = token.dataset.tabId ? "tab" : token.dataset.sectionId ? "section" : "thread";
+    const id = token.dataset.tabId ?? token.dataset.sectionId ?? token.dataset.threadId ?? "";
+    const name = token.dataset.tabName ?? token.dataset.sectionName ?? token.dataset.threadName ?? "";
+    const available = kind === "tab" ? tabIds.has(id) : kind === "section" ? sectionIds.has(id) : threadIds.has(id);
     if (available === token.classList.contains(referenceChipClasses.root)) continue;
     updateReferenceToken(token, kind, id, name, available);
   }
@@ -436,6 +471,8 @@ export interface EditorTagSources {
   attachments: DraftAttachment[];
   browserTabs: ComposerBrowserTab[];
   threads: ComposerThread[];
+  /** Fork: the sidebar sections that `@` offers. */
+  sections?: ComposerSection[] | undefined;
 }
 
 export function renderEditorValue(
@@ -476,13 +513,19 @@ export function renderEditorValue(
       cursor = index + match[0].length;
       continue;
     }
-    if (semanticReference?.kind === "tab" || semanticReference?.kind === "thread") {
+    if (
+      semanticReference?.kind === "tab" ||
+      semanticReference?.kind === "thread" ||
+      semanticReference?.kind === "section"
+    ) {
       const token = document.createElement("span");
       const { kind, id } = semanticReference;
       const available =
         kind === "tab"
           ? sources.browserTabs.some((tab) => tab.id === id)
-          : sources.threads.some((thread) => thread.id === id);
+          : kind === "section"
+            ? (sources.sections ?? []).some((section) => section.id === id)
+            : sources.threads.some((thread) => thread.id === id);
       updateReferenceToken(token, kind, id, semanticReference.name, available);
       editor.append(token);
       cursor = index + match[0].length;

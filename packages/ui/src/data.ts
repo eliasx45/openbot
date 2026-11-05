@@ -331,3 +331,13 @@ export type ComposerBrowserTab = Pick<BrowserTab, "id" | "title" | "url">;
 
 /** A side thread of the agent that the composer can tag. Its id is the task id. */
 export type ComposerThread = Pick<AgentTask, "id" | "title" | "state" | "outcome" | "progress" | "error">;
+
+/**
+ * Fork: a sidebar section (folder) of the user's that the composer can tag. `detail` is what its row
+ * shows under the name, such as its agents.
+ */
+export interface ComposerSection {
+  id: string;
+  name: string;
+  detail?: string | undefined;
+}

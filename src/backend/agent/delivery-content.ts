@@ -104,7 +104,12 @@ export interface TagReferenceSource {
   tab(tabId: string): { title: string; url: string } | null;
   /** `detail` is the progress of a working thread, the error of a failed one, or the start of its last answer. */
   thread(taskId: string): { title: string; state: TaggedThreadState; detail: string | null } | null;
+  /** Fork: a sidebar section of the user's and its agents, in sidebar order. Null: the section is gone. */
+  section?(sectionId: string): { name: string; agents: Array<{ id: string; name: string }> } | null;
 }
+
+/** Fork: the most agents that a section tag names. `openbot.list_sections` lists all of them. */
+const TAG_SECTION_AGENT_LIMIT = 20;
 
 const TAG_TITLE_LIMIT = 80;
 const TAG_URL_LIMIT = 60;
@@ -137,7 +142,7 @@ function tagUrl(url: string): string {
  * (a provider handoff of an older message) the id alone follows the title.
  */
 function taggedReference(
-  reference: { kind: "tab" | "thread"; id: string; name: string },
+  reference: { kind: "tab" | "thread" | "section"; id: string; name: string },
   source: TagReferenceSource | undefined,
   seen: Set<string>,
 ): string {
@@ -152,12 +157,34 @@ function taggedReference(
     const url = tab.url ? `, ${tagUrl(tab.url)}` : "";
     return `${title} (browser tabId ${reference.id}${url})`;
   }
+  if (reference.kind === "section") return taggedSection(reference, source, repeat);
   const thread = source ? source.thread(reference.id) : { title: reference.name, state: null, detail: null };
   const title = `"${tagLine(thread?.title || reference.name, TAG_TITLE_LIMIT)}"`;
   if (!thread) return `${title} (deleted thread)`;
   if (repeat) return title;
   const detail = thread.detail ? `: ${tagLine(thread.detail, TAG_DETAIL_LIMIT)}` : "";
   return `${title} (thread taskId ${reference.id}${thread.state ? `, ${thread.state}${detail}` : ""})`;
+}
+
+/*
+ * Fork: a tagged sidebar section names its id and agents, so the agent can work in it (create an
+ * agent there with assign_agent_section, send to its agents) without a list_sections lookup first.
+ */
+function taggedSection(
+  reference: { id: string; name: string },
+  source: TagReferenceSource | undefined,
+  repeat: boolean,
+): string {
+  const section = source?.section ? source.section(reference.id) : { name: reference.name, agents: null };
+  const title = `"${tagLine(section?.name || reference.name, TAG_TITLE_LIMIT)}"`;
+  if (!section) return `${title} (deleted sidebar section)`;
+  if (repeat || !section.agents) return `${title} (sidebar section)`;
+  const agents = section.agents
+    .slice(0, TAG_SECTION_AGENT_LIMIT)
+    .map((agent) => `${tagLine(agent.name, TAG_TITLE_LIMIT)} ${agent.id}`);
+  const more = section.agents.length - agents.length;
+  const list = agents.length ? `; agents: ${agents.join(", ")}${more > 0 ? `, ${more} more` : ""}` : "; no agents yet";
+  return `${title} (sidebar section sectionId ${reference.id}${list})`;
 }
 
 const TEAMMATE_HEADER = "Message from OpenBot teammate";
@@ -454,7 +481,7 @@ export function displayMessageReferences(
       (reference) => {
         if (reference.kind === "agent") return agentNames.get(reference.id);
         // A person reads the name of a tab or a thread. A provider prompt also gets its id and state.
-        if (reference.kind === "tab" || reference.kind === "thread")
+        if (reference.kind === "tab" || reference.kind === "thread" || reference.kind === "section")
           return options.fileHeadings
             ? taggedReference({ kind: reference.kind, id: reference.id, name: reference.name }, options.tags, seen)
             : undefined;

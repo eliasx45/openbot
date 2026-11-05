@@ -48,6 +48,7 @@ export function ConversationThread() {
     mcpServers,
     taggableBrowserTabs,
     taggableThreads,
+    taggableSections,
     openTaggedReference,
     threadComposer,
     threadQueue,
@@ -270,6 +271,7 @@ export function ConversationThread() {
             mcpServers={mcpServers()}
             browserTabs={taggableBrowserTabs()}
             threads={taggableThreads()}
+            sections={taggableSections()}
             onOpenTag={openTaggedReference}
             draft={draft()?.text ?? ""}
             draftAttachments={draft()?.attachments}

@@ -16,6 +16,7 @@ import type {
   AgentProfile,
   ComposerBrowserTab,
   ComposerMcpServer,
+  ComposerSection,
   ComposerThread,
 } from "@openbot/ui/data";
 import { AgentActivityIndicator, nextAgentActivityLabel } from "@openbot/ui/features/conversation/AgentActivity";
@@ -143,6 +144,8 @@ export interface AgentThreadViewProps {
   browserTabs?: ComposerBrowserTab[] | undefined;
   /** The agent's side threads, newest first, for the `@` picker. The view leaves out its own thread. */
   threads?: ComposerThread[] | undefined;
+  /** Fork: the user's sidebar folders, for the `@` picker. */
+  sections?: ComposerSection[] | undefined;
   /** Shows the browser tab, or opens the thread by its task id, that a tag names. */
   onOpenTag?: ((kind: "tab" | "thread", id: string) => void) | undefined;
   /** The unsent text of this thread's message box. The host keeps it for each thread. */
@@ -727,6 +730,7 @@ export function AgentThreadView(props: AgentThreadViewProps) {
               mcpServers={props.mcpServers}
               browserTabs={props.browserTabs}
               threads={otherThreads()}
+              sections={props.sections}
               onOpenTag={props.onOpenTag}
               attachments={props.draftAttachments}
               value={props.draft}

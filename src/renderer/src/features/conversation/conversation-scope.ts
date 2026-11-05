@@ -1436,6 +1436,9 @@ export function createConversationViewScope(props: ConversationProps) {
           .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
   );
 
+  /* Fork: the sidebar folders that `@` tags. A channel tags none, as it tags no tab or thread. */
+  const taggableSections = createMemo(() => (props.channel ? [] : (props.mentionSections ?? [])));
+
   /** Shows the browser tab, or the side thread, that a tag names. A tab or a thread that is gone does nothing. */
   function openTaggedReference(kind: "tab" | "thread", id: string) {
     if (kind === "tab") {
@@ -2314,6 +2317,7 @@ export function createConversationViewScope(props: ConversationProps) {
     openQuote,
     taggableBrowserTabs,
     taggableThreads,
+    taggableSections,
     openTaggedReference,
     setActiveRightPanel,
     setBrowserAddress,

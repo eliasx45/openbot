@@ -5297,7 +5297,25 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           .messages[0]?.message.text;
         return { title: task.title, state: task.outcome === "completed" ? "done" : "stopped", detail: redact(answer) };
       },
+      // Fork: a tagged sidebar section (docs/fork/FEATURES.md, "`@` a sidebar section").
+      section: (sectionId) => this.#forkTaggedSection(sectionId),
     };
+  }
+
+  /** Fork: a sidebar section and its visible agents in sidebar order, or null when it is gone. */
+  #forkTaggedSection(sectionId: string): { name: string; agents: Array<{ id: string; name: string }> } | null {
+    const layout = this.#sidebarLayout?.getSnapshot();
+    const section = layout?.sections.find((entry) => entry.id === sectionId);
+    if (!layout || !section) return null;
+    const rank = (id: string) => {
+      const index = layout.agentOrder.indexOf(id);
+      return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+    };
+    const agents = this.listAgents()
+      .filter((agent) => agent.hiddenAt === undefined && layout.agentAssignments[agent.id] === section.id)
+      .sort((a, b) => rank(a.id) - rank(b.id))
+      .map((agent) => ({ id: agent.id, name: agent.name }));
+    return { name: section.name, agents };
   }
 
   /** The turn that the user stopped last in a lane: the agent's own chat, or one task. */

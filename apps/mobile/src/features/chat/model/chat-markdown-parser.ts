@@ -45,7 +45,10 @@ const markdown = new Marked({
         if (reference?.start === 0 && reference.kind === "quote")
           return { type: "text", raw: source.slice(0, reference.end), text: `“${reference.name}”` };
         // A browser tab or a thread of the agent is on the host only, so it reads as its name.
-        if (reference?.start === 0 && (reference.kind === "tab" || reference.kind === "thread"))
+        if (
+          reference?.start === 0 &&
+          (reference.kind === "tab" || reference.kind === "thread" || reference.kind === "section")
+        )
           return { type: "text", raw: source.slice(0, reference.end), text: reference.name };
       },
     },

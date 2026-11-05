@@ -23,7 +23,9 @@ export function mentionDraft(source: string) {
 
 function mentionText(reference: ChatTagReference): string {
   if (reference.kind === "quote") return `“${reference.name}”`;
-  return reference.kind === "tab" || reference.kind === "thread" ? reference.name : `@${reference.name}`;
+  return reference.kind === "tab" || reference.kind === "thread" || reference.kind === "section"
+    ? reference.name
+    : `@${reference.name}`;
 }
 
 // Preserve identities outside the edit. Editing a mention itself turns it into plain text.

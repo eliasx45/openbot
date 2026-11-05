@@ -1,7 +1,7 @@
 import { type ChatTagKind, chatTagReferences } from "@openbot/contracts/chat-tag-references";
 import type { AttachmentSummary } from "@openbot/contracts/ipc";
 import type { AppTextKey } from "@openbot/i18n";
-import { AppWindow, Blocks, Button, Puzzle, Split, TextQuote } from "@openbot/ui";
+import { AppWindow, Blocks, Button, Folder, Puzzle, Split, TextQuote } from "@openbot/ui";
 import { ReferenceChip } from "@openbot/ui/reference-chip";
 import { usesTouchLayout } from "@openbot/ui/utils";
 import type { JSX } from "@solidjs/web";
@@ -57,7 +57,7 @@ const UNAVAILABLE_TAG_LABELS = {
  * keeps the name it had when the message was sent, as an MCP server does: the message records what
  * the user asked.
  */
-type UnavailableTagKind = Exclude<ChatTagKind, "quote" | "tab" | "thread">;
+type UnavailableTagKind = Exclude<ChatTagKind, "quote" | "tab" | "thread" | "section">;
 
 export function RichMessageText(props: RichMessageTextProps) {
   const { t } = useText();
@@ -206,13 +206,16 @@ export function RichMessageText(props: RichMessageTextProps) {
           if (part.reference) {
             const reference = part.reference;
             const onOpenTag = props.onOpenTag;
+            // Fork: a sidebar section chip opens nothing.
+            const kind = reference.kind;
+            const open = onOpenTag && kind !== "section" ? () => onOpenTag(kind, reference.id) : undefined;
             return (
               <ReferenceChip
-                kind={reference.kind}
+                kind={kind}
                 name={part.text}
                 class="message-reference-chip"
-                icon={reference.kind === "tab" ? <AppWindow /> : <Split />}
-                onClick={onOpenTag ? () => onOpenTag(reference.kind, reference.id) : undefined}
+                icon={kind === "tab" ? <AppWindow /> : kind === "section" ? <Folder /> : <Split />}
+                onClick={open}
               />
             );
           }
@@ -399,7 +402,7 @@ interface RichMessagePart {
   /** Text the user quoted from a message of this chat. */
   quote?: { messageId: string; text: string };
   /** A browser tab, by tab id, or a side thread, by task id. */
-  reference?: { kind: "tab" | "thread"; id: string };
+  reference?: { kind: "tab" | "thread" | "section"; id: string };
   unavailableKind?: UnavailableTagKind;
   citation?: MessageCitation;
   attachment?: AttachmentSummary;
@@ -471,7 +474,7 @@ function semanticTagParts(body: string, agents: ComposerAgent[], skills: Compose
       parts.push({ text: reference.name, mcpName: reference.name });
     } else if (reference.kind === "quote") {
       parts.push({ text: reference.name, quote: { messageId: reference.id, text: reference.name } });
-    } else if (reference.kind === "tab" || reference.kind === "thread") {
+    } else if (reference.kind === "tab" || reference.kind === "thread" || reference.kind === "section") {
       parts.push({ text: reference.name, reference: { kind: reference.kind, id: reference.id } });
     } else {
       const skill = skills.find(

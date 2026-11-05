@@ -53,6 +53,7 @@ import { useServerScope } from "../servers/server-scope";
 import { useServerSettings } from "../servers/server-settings";
 import { useServers } from "../servers/servers-context";
 import { useSettings } from "../settings/settings-context";
+import { useSidebar } from "../sidebar/sidebar-context";
 import { isReaderAuthor } from "../team/reader-identity";
 import { usePresence } from "../team/team-context";
 import { useUsage } from "../usage/usage-context";
@@ -62,6 +63,7 @@ import { useConversation } from "./conversation-context";
 import { useConversationController } from "./conversation-controller-context";
 import { messagePromptRequestKey, promptRequestKey } from "./conversation-keys";
 import type { ConversationThreads } from "./conversation-types";
+import { forkMentionSections } from "./fork-section-tags";
 import {
   createAgentMessageDeleteAccess,
   desktopAgentMessageDeleteAccess,
@@ -133,6 +135,14 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
     updateAgent,
     setAgentAvatar,
   } = useAgents();
+  // Fork: the sidebar folders that `@` tags (docs/fork/FEATURES.md, "`@` a sidebar section").
+  const { sidebarLayout } = useSidebar();
+  const mentionSections = createMemo(() =>
+    forkMentionSections(
+      sidebarLayout(),
+      agentList().filter((agent) => !userHiddenAgentIds().has(agent.id)),
+    ),
+  );
   const {
     contextStates,
     threadContextStates,
@@ -583,6 +593,7 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
         agent={conversationAgent()}
         agents={agentList()}
         mentionAgents={agentList().filter((agent) => !userHiddenAgentIds().has(agent.id))}
+        mentionSections={mentionSections()}
         availableRoutineIds={activeRoutineIds()}
         routines={activeRoutines()}
         modelOptions={modelOptions()}

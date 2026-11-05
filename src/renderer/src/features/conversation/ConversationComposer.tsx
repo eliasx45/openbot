@@ -91,6 +91,7 @@ export function ConversationComposer() {
     openQuote,
     taggableBrowserTabs,
     taggableThreads,
+    taggableSections,
     openTaggedReference,
     queuePanelVisible,
     releaseCutAttachments,
@@ -674,6 +675,7 @@ export function ConversationComposer() {
               onOpenQuote={openQuote}
               browserTabs={taggableBrowserTabs()}
               threads={taggableThreads()}
+              sections={taggableSections()}
               onOpenTag={openTaggedReference}
               onValueChange={(text) => {
                 updateCurrentDraft({ text });

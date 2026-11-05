@@ -10,8 +10,11 @@
  * An app that predates a kind does not match its marker, so it shows the marker text rather than
  * the name. Message bodies are stored as written, so an older app reading a newer message is a
  * real case, and it stays readable.
+ *
+ * Fork: `section` is a sidebar section (folder) of the user's, by section id. It stays a name in the
+ * message too: the provider reads its current name and agents (docs/fork/FEATURES.md, "`@` a sidebar section").
  */
-export type ChatTagKind = "agent" | "skill" | "mcp" | "quote" | "tab" | "thread";
+export type ChatTagKind = "agent" | "skill" | "mcp" | "quote" | "tab" | "thread" | "section";
 
 export interface ChatTagReference {
   kind: ChatTagKind;
@@ -21,7 +24,8 @@ export interface ChatTagReference {
   end: number;
 }
 
-const CHAT_TAG_REFERENCE_PATTERN = /@\[([^\]\r\n]+)\]\((agent|skill|mcp|quote|tab|thread)(\+uri)?:([^)\r\n]+)\)/gu;
+const CHAT_TAG_REFERENCE_PATTERN =
+  /@\[([^\]\r\n]+)\]\((agent|skill|mcp|quote|tab|thread|section)(\+uri)?:([^)\r\n]+)\)/gu;
 
 /*
  * Quoted text is any text, and Markdown reads the marker as a link. A bracket, a backslash, a
@@ -78,7 +82,8 @@ export function fileQuoteTarget(id: string): FileQuoteTarget | null {
 
 export function serializeChatTagReference(kind: ChatTagKind, name: string, id: string): string {
   // A quote, a page title and a thread title are any text, so they get the strict rule.
-  const unsafeName = kind === "quote" || kind === "tab" || kind === "thread" ? UNSAFE_QUOTE_NAME : /[\]\r\n]/u;
+  const unsafeName =
+    kind === "quote" || kind === "tab" || kind === "thread" || kind === "section" ? UNSAFE_QUOTE_NAME : /[\]\r\n]/u;
   if (name && id && !unsafeName.test(name) && !/[)\r\n]/u.test(id)) return `@[${name}](${kind}:${id})`;
   return `@[${encodeChatTagComponent(name)}](${kind}+uri:${encodeChatTagComponent(id)})`;
 }
@@ -123,7 +128,15 @@ export function leadingAddress(value: string): { mentions: ChatTagReference[]; e
 }
 
 function chatTagKind(value: string | undefined): ChatTagKind {
-  if (value === "skill" || value === "mcp" || value === "quote" || value === "tab" || value === "thread") return value;
+  if (
+    value === "skill" ||
+    value === "mcp" ||
+    value === "quote" ||
+    value === "tab" ||
+    value === "thread" ||
+    value === "section"
+  )
+    return value;
   return "agent";
 }
 
@@ -161,7 +174,7 @@ export function expandChatTagReferences(
         text.quoteEnd = offset + marker.length;
         return expanded;
       }
-      if (kind === "tab" || kind === "thread") return resolveName?.(reference) ?? name;
+      if (kind === "tab" || kind === "thread" || kind === "section") return resolveName?.(reference) ?? name;
       const resolvedName = resolveName?.(reference) ?? name;
       return expandedChatTag(kind, resolvedName);
     },

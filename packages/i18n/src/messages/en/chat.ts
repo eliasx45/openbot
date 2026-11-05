@@ -422,6 +422,8 @@ export const messages = defineMessages("chat", {
   "chat.compaction.continues": "Queued messages continue.",
   "chat.reference.kind.tab": "Browser tab",
   "chat.reference.kind.thread": "Thread",
+  "chat.reference.kind.section": "Folder",
   "chat.reference.open.tab": "Show browser tab {name}",
   "chat.reference.open.thread": "Open thread {name}",
+  "chat.reference.open.section": "Folder {name}",
 });

@@ -35,6 +35,7 @@ export function ConversationSideThread(props: { threadId: string }) {
     mcpServers,
     taggableBrowserTabs,
     taggableThreads,
+    taggableSections,
     openTaggedReference,
     threadComposer,
     threadQueue,
@@ -165,6 +166,7 @@ export function ConversationSideThread(props: { threadId: string }) {
             mcpServers={mcpServers()}
             browserTabs={taggableBrowserTabs()}
             threads={taggableThreads()}
+            sections={taggableSections()}
             onOpenTag={openTaggedReference}
             draft={draft()?.text ?? ""}
             draftAttachments={draft()?.attachments}

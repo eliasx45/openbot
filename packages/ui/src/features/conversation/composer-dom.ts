@@ -80,6 +80,10 @@ function serializeNode(node: Node): string {
   const threadId = node.dataset.threadId;
   const threadName = node.dataset.threadName;
   if (threadId && threadName) return serializeChatTagReference("thread", threadName, threadId);
+  // Fork: a sidebar section tag.
+  const sectionId = node.dataset.sectionId;
+  const sectionName = node.dataset.sectionName;
+  if (sectionId && sectionName) return serializeChatTagReference("section", sectionName, sectionId);
   if (node.tagName === "BR") return "\n";
   const content = Array.from(node.childNodes).map(serializeNode).join("");
   return node.tagName === "DIV" || node.tagName === "P" ? `${content}\n` : content;
@@ -279,7 +283,7 @@ function closestMentionToken(node: Node, editor: HTMLDivElement): HTMLElement | 
   const element = node instanceof HTMLElement ? node : node.parentElement;
   const token =
     element?.closest<HTMLElement>(
-      "[data-mention-id], [data-skill-id], [data-mcp-id], [data-quote-message-id], [data-tab-id], [data-thread-id]",
+      "[data-mention-id], [data-skill-id], [data-mcp-id], [data-quote-message-id], [data-tab-id], [data-thread-id], [data-section-id]",
     ) ?? null;
   return token && editor.contains(token) ? token : null;
 }

@@ -3,7 +3,7 @@ import { attachmentReferenceIds } from "@openbot/contracts/attachment-references
 import { EVERYONE_MENTION, leadingAddress, serializeChatTagReference } from "@openbot/contracts/chat-tag-references";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type { DraftAttachment } from "@openbot/contracts/ipc";
-import { AppWindow, Badge, Blocks, Listbox, Puzzle, Split, UsersRound } from "@openbot/ui";
+import { AppWindow, Badge, Blocks, Folder, Listbox, Puzzle, Split, UsersRound } from "@openbot/ui";
 import { usesTouchLayout } from "@openbot/ui/utils";
 import { Dynamic, Portal } from "@solidjs/web";
 import {
@@ -17,7 +17,14 @@ import {
   Show,
   untrack,
 } from "solid-js";
-import type { ComposerAgent, ComposerBrowserTab, ComposerMcpServer, ComposerSkill, ComposerThread } from "../../data";
+import type {
+  ComposerAgent,
+  ComposerBrowserTab,
+  ComposerMcpServer,
+  ComposerSection,
+  ComposerSkill,
+  ComposerThread,
+} from "../../data";
 import { useText } from "../../text";
 import { AgentAvatar } from "../agents/AgentAvatar";
 import { AnchoredTooltip } from "./AnchoredTooltip";
@@ -61,6 +68,7 @@ import {
   createMcpToken,
   createMentionToken,
   createQuoteToken,
+  createSectionToken,
   createSkillToken,
   createTabToken,
   createThreadToken,
@@ -92,6 +100,11 @@ interface ComposerEditorProps {
   browserTabs?: ComposerBrowserTab[] | undefined;
   /** The agent's side threads that `@` offers, newest first. A tag lets the agent read the thread. */
   threads?: ComposerThread[] | undefined;
+  /**
+   * Fork: the user's sidebar sections (folders) that `@` offers. A tag gives the agent the section's
+   * id and agents (docs/fork/FEATURES.md, "`@` a sidebar section").
+   */
+  sections?: ComposerSection[] | undefined;
   /** Shows the browser tab, or opens the thread by its task id, that a chip in the draft names. */
   onOpenTag?: ((kind: "tab" | "thread", id: string) => void) | undefined;
   value: string;
@@ -175,6 +188,7 @@ interface MentionContext {
 const DICTATION_INTERIM_WORDS = 2;
 const EMPTY_TABS: ComposerBrowserTab[] = [];
 const EMPTY_THREADS: ComposerThread[] = [];
+const EMPTY_SECTIONS: ComposerSection[] = [];
 /** The name of the file that a long text paste becomes, as on mobile. */
 const PASTED_TEXT_FILE_NAME = "pasted-text.txt";
 
@@ -253,6 +267,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
   });
   const browserTabs = () => props.browserTabs ?? EMPTY_TABS;
   const threads = () => props.threads ?? EMPTY_THREADS;
+  const sections = () => props.sections ?? EMPTY_SECTIONS;
   const matchingTabs = createMemo(() => {
     const query = mention()?.query.trim().toLocaleLowerCase() ?? "";
     return browserTabs().filter((tab) => referenceMatches({ tab }, query));
@@ -260,6 +275,11 @@ export function ComposerEditor(props: ComposerEditorProps) {
   const matchingThreads = createMemo(() => {
     const query = mention()?.query.trim().toLocaleLowerCase() ?? "";
     return threads().filter((thread) => referenceMatches({ thread }, query));
+  });
+  // Fork: a section matches by its name. With no query, the list shows them after the threads.
+  const matchingSections = createMemo(() => {
+    const query = mention()?.query.trim().toLocaleLowerCase() ?? "";
+    return sections().filter((section) => !query || section.name.toLocaleLowerCase().includes(query));
   });
   /*
    * The `@` list has a group for each kind. A title over each group shows only when the list has
@@ -303,6 +323,11 @@ export function ComposerEditor(props: ComposerEditorProps) {
         id: "threads",
         title: "composer.picker.section.threads",
         options: matchingThreads().map((thread) => ({ type: "thread" as const, thread })),
+      },
+      {
+        id: "sections",
+        title: "composer.picker.section.sections",
+        options: matchingSections().map((section) => ({ type: "section" as const, section })),
       },
     ];
     return sections.filter((section) => section.options.length > 0);
@@ -399,6 +424,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
       attachments: props.attachments ?? [],
       browserTabs: browserTabs(),
       threads: threads(),
+      sections: sections(),
       focusRequest: props.focusRequest ?? 0,
       skillPickerRequest: props.skillPickerRequest ?? 0,
       quoteRequest: props.quoteRequest,
@@ -413,6 +439,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
       attachments,
       browserTabs,
       threads,
+      sections,
       focusRequest,
       skillPickerRequest,
       quoteRequest,
@@ -428,7 +455,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
         .join("|");
       const mcpKey = mcpServers.map((server) => `${server.id}:${server.name}:${server.enabled}`).join("|");
       // A title changes with each page the tab opens; the tags read only which tabs and threads exist.
-      const referenceKey = `${browserTabs.map((tab) => tab.id).join("|")}/${threads.map((thread) => thread.id).join("|")}`;
+      const referenceKey = `${browserTabs.map((tab) => tab.id).join("|")}/${threads.map((thread) => thread.id).join("|")}/${sections.map((section) => section.id).join("|")}`;
       const draftChanged = agentId !== lastAgentId;
       const attachmentsChanged = attachmentKey !== lastAttachmentKey;
       const renderedAttachments = new Set(
@@ -463,7 +490,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
         renderEditorValue(
           editor,
           value,
-          { agents, skills, mcpServers, attachments, browserTabs, threads },
+          { agents, skills, mcpServers, attachments, browserTabs, threads, sections },
           attachmentTokenActions,
         );
         setMention(null);
@@ -471,7 +498,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
         if (attachmentsChanged) syncAttachmentTokens(editor, attachments, attachmentTokenActions);
         if (skillsChanged) syncSkillTokens(editor, skills);
         if (mcpChanged) syncMcpTokens(editor, mcpServers);
-        if (referencesChanged) syncReferenceTokens(editor, browserTabs, threads);
+        if (referencesChanged) syncReferenceTokens(editor, browserTabs, threads, sections);
       }
       if (selection) {
         restoreEditorSelection(editor, selection);
@@ -521,6 +548,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
       attachments: props.attachments ?? [],
       browserTabs: browserTabs(),
       threads: threads(),
+      sections: sections(),
     }),
     ({ shown, value, ...sources }) => {
       if (!shown || !dictationDraft) return;
@@ -610,6 +638,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
       attachments: props.attachments ?? [],
       browserTabs: browserTabs(),
       threads: threads(),
+      sections: sections(),
     };
   }
 
@@ -712,7 +741,9 @@ export function ComposerEditor(props: ComposerEditorProps) {
                 ? createTabToken(option.tab)
                 : option.type === "thread"
                   ? createThreadToken(option.thread)
-                  : createAttachmentToken(option.attachment, attachmentTokenActions);
+                  : option.type === "section"
+                    ? createSectionToken(option.section)
+                    : createAttachmentToken(option.attachment, attachmentTokenActions);
     const trailingSpace = document.createTextNode(" ");
     range.insertNode(trailingSpace);
     range.insertNode(token);
@@ -1224,6 +1255,10 @@ export function ComposerEditor(props: ComposerEditorProps) {
                       ) : option.type === "thread" ? (
                         <span class="mention-picker-skill-icon" aria-hidden="true">
                           <Split />
+                        </span>
+                      ) : option.type === "section" ? (
+                        <span class="mention-picker-skill-icon" aria-hidden="true">
+                          <Folder />
                         </span>
                       ) : (
                         <AttachmentReferenceVisual name={option.attachment.name} />

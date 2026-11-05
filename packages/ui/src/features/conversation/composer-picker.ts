@@ -1,7 +1,14 @@
 import { AGENT_COMMAND_ID_PREFIX, type DraftAttachment } from "@openbot/contracts/ipc";
 import type { AppTextKey } from "@openbot/i18n";
 import { Bot, File, Folder, Plug, type Puzzle, ShieldCheck, SquareSlash, Store, UsersRound } from "@openbot/ui";
-import type { ComposerAgent, ComposerBrowserTab, ComposerMcpServer, ComposerSkill, ComposerThread } from "../../data";
+import type {
+  ComposerAgent,
+  ComposerBrowserTab,
+  ComposerMcpServer,
+  ComposerSection,
+  ComposerSkill,
+  ComposerThread,
+} from "../../data";
 import type { TextValue } from "../../text";
 import { browserDisplayUrl } from "../browser/browser-suggestions";
 
@@ -27,7 +34,9 @@ export type PickerOption =
   /** A browser tab of the agent. The agent gets its tab id and can use it with its browser tool. */
   | { type: "tab"; tab: ComposerBrowserTab }
   /** A side thread of the agent. The agent gets its task id and can read its history. */
-  | { type: "thread"; thread: ComposerThread };
+  | { type: "thread"; thread: ComposerThread }
+  /** Fork: a sidebar section. The agent gets its id and its agents. */
+  | { type: "section"; section: ComposerSection };
 
 /**
  * A group of the `@` list. When the list has more than one group, each group shows its title and
@@ -45,6 +54,7 @@ export function pickerOptionKey(option: PickerOption): string {
   if (option.type === "skill") return `skill:${option.skill.skillId}`;
   if (option.type === "tab") return `tab:${option.tab.id}`;
   if (option.type === "thread") return `thread:${option.thread.id}`;
+  if (option.type === "section") return `section:${option.section.id}`;
   return option.type === "mcp" ? `mcp:${option.server.id}` : `attachment:${option.attachment.id}`;
 }
 
@@ -58,6 +68,7 @@ export function pickerOptionText(option: PickerOption, t: TextValue["t"]): strin
   }
   if (option.type === "tab") return t("composer.picker.option.tab", { name: tabTitle(option.tab) });
   if (option.type === "thread") return t("composer.picker.option.thread", { name: option.thread.title });
+  if (option.type === "section") return t("composer.picker.option.section", { name: option.section.name });
   return option.type === "mcp"
     ? t("composer.picker.option.mcp", { name: option.server.name })
     : t("composer.picker.option.file", { name: option.attachment.name });
@@ -69,6 +80,7 @@ export function pickerOptionName(option: PickerOption, t: TextValue["t"]): strin
   if (option.type === "skill") return option.skill.name;
   if (option.type === "tab") return tabTitle(option.tab);
   if (option.type === "thread") return option.thread.title;
+  if (option.type === "section") return option.section.name;
   return option.type === "mcp" ? option.server.name : option.attachment.name;
 }
 
@@ -92,6 +104,7 @@ export function pickerOptionDescription(
   if (option.type === "mcp") return mcpServerDescription(option.server);
   if (option.type === "tab") return browserDisplayUrl(option.tab.url) || undefined;
   if (option.type === "thread") return threadDetail(option.thread);
+  if (option.type === "section") return option.section.detail?.trim() || undefined;
   return option.agent.description.trim() || option.agent.title.trim() || undefined;
 }
 
@@ -156,6 +169,7 @@ export function pickerOptionBadge(
 ): { label: string; icon?: typeof Puzzle } | null {
   // The section title says that a row is a tab, so a tab row needs no badge.
   if (option.type === "tab") return null;
+  if (option.type === "section") return { label: t("composer.picker.badge.section"), icon: Folder };
   if (option.type === "thread") return { label: t(THREAD_STATE_LABELS[threadStateLabel(option.thread)]) };
   if (option.type === "agent") return { label: t("composer.picker.badge.agent"), icon: Bot };
   if (option.type === "everyone") return { label: t("composer.picker.badge.channel"), icon: UsersRound };
