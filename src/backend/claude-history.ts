@@ -1034,6 +1034,76 @@ export async function claudeSubagentAgentIds(
   return ids;
 }
 
+/** How much of the end of a subagent transcript is read to see how it ended. */
+const SUBAGENT_TAIL_BYTES = 256 * 1024;
+/** The longest result of one finished subagent that the wake carries. */
+const SUBAGENT_RESULT_LIMIT = 1_500;
+
+/**
+ * Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): how each subagent of a session ended
+ * in its own transcript (`<session>/subagents/agent-<id>.jsonl`), by its agent ID. `finished`: its
+ * last record is an answer that ended its turn (`end_turn` with text, no tool call), so only its
+ * "done" notification was lost with the process; `result` is that answer. Anything else (a tool
+ * call, a tool result, an open request, a missing file) is left out: the subagent is continued.
+ */
+export async function claudeSubagentOutcomes(
+  threadId: string,
+  cwd: string | undefined,
+  configDirectory: string | undefined,
+  agentIds: readonly string[],
+): Promise<Map<string, { finished: true; result: string }>> {
+  const outcomes = new Map<string, { finished: true; result: string }>();
+  const found = await findTranscript(threadId, cwd, configDirectory, undefined);
+  if (!found) return outcomes;
+  const folder = join(dirname(found), threadId, "subagents");
+  for (const agentId of agentIds) {
+    // An agent ID names a file in the folder: nothing that leaves it.
+    if (!/^[A-Za-z0-9_-]+$/u.test(agentId)) continue;
+    const result = await finishedSubagentResult(join(folder, `agent-${agentId}.jsonl`)).catch(() => null);
+    if (result !== null) outcomes.set(agentId, { finished: true, result });
+  }
+  return outcomes;
+}
+
+/** The answer that ended a subagent transcript, or null when it ends in the middle of a step. */
+async function finishedSubagentResult(path: string): Promise<string | null> {
+  const file = await open(path, "r");
+  let tail: string;
+  try {
+    const { size } = await file.stat();
+    const length = Math.min(size, SUBAGENT_TAIL_BYTES);
+    const buffer = Buffer.alloc(length);
+    await file.read(buffer, 0, length, size - length);
+    tail = buffer.toString("utf8");
+    // The first line of a cut tail is partial.
+    if (length < size) tail = tail.slice(tail.indexOf("\n") + 1);
+  } finally {
+    await file.close();
+  }
+  const records = tail.split("\n").filter((line) => line.trim() !== "");
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    let record: unknown;
+    try {
+      record = JSON.parse(records[index] ?? "");
+    } catch {
+      return null;
+    }
+    if (!isRecord(record)) continue;
+    // A request after the last answer, or a tool result: the subagent was still working.
+    if (record.type === "user" || record.type === "api-request") return null;
+    if (record.type !== "assistant") continue;
+    const message = record.message;
+    if (!isRecord(message) || !Array.isArray(message.content)) return null;
+    const blocks = message.content.filter(isRecord);
+    if (blocks.some((block) => block.type === "tool_use")) return null;
+    const text = messageText(message).trim();
+    // A thought with no text yet, or an answer cut off by its token limit, did not end the work.
+    if (message.stop_reason !== "end_turn" || !text) return null;
+    return text.length > SUBAGENT_RESULT_LIMIT ? `${text.slice(0, SUBAGENT_RESULT_LIMIT)}…` : text;
+  }
+  return null;
+}
+
 function sanitizeProjectPath(path: string): string {
   return path.replace(/[^a-zA-Z0-9]/g, "-");
 }

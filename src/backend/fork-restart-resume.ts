@@ -70,6 +70,8 @@ const SETTLE_WAIT_MS = () => envNumber("OPENBOT_FORK_RESTART_RESUME_SETTLE_WAIT_
 const RETRY_MS = 3_000;
 const KEEP_MS = 24 * 60 * 60_000;
 const REQUEST_LIMIT = 4_000;
+/** The longest text of the finished subagents' answers in one wake. */
+const FINISHED_RESULTS_LIMIT = 6_000;
 /** At most this many wakes for stopped subagents per agent per hour, so a crash loop ends. */
 const LIVE_WAKES_PER_HOUR = 3;
 const HOUR_MS = 60 * 60_000;
@@ -84,6 +86,12 @@ export interface RestartResumeSubagent {
   /** The id `SendMessage` takes, when known. */
   providerAgentId: string | null;
   background: boolean;
+  /**
+   * Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): the final answer of a subagent whose
+   * transcript shows it finished just before the stop (its "done" was lost with the process). It is
+   * handed to the agent instead of continuing the subagent.
+   */
+  result?: string;
 }
 
 export interface RestartResumeEntry {
@@ -131,6 +139,12 @@ export interface ForkRestartResumeHooks {
   session(agentId: string, threadId: string): { externalSessionId: string } | null;
   /** Claude only: the `SendMessage` id of each subagent of the session, by its call id. */
   subagentIds(agentId: string, externalSessionId: string): Promise<Map<string, string>>;
+  /** Claude only: the subagents, by agent ID, that finished before the stop, with their answers. */
+  subagentOutcomes(
+    agentId: string,
+    externalSessionId: string,
+    agentIds: readonly string[],
+  ): Promise<Map<string, { finished: true; result: string }>>;
   /** A delivery of a channel or a messaging conversation: it runs in that thread. */
   executionDelivery(deliveryId: string): boolean;
   /** A turn runs, or a delivery starts, in the agent's own chat. */
@@ -585,6 +599,19 @@ export class ForkRestartResume {
       }));
       entry.subagents = subagents;
     }
+    // A subagent whose transcript ends with its final answer finished just before the stop: its
+    // answer is handed over, and it is not continued (it would only repeat that it is done).
+    const known = subagents.flatMap((subagent) => (subagent.providerAgentId ? [subagent.providerAgentId] : []));
+    if (agent.provider === "claude" && known.length > 0) {
+      const outcomes = await this.#hooks
+        .subagentOutcomes(entry.agentId, session.externalSessionId, known)
+        .catch(() => new Map<string, { finished: true; result: string }>());
+      subagents = subagents.map((subagent) => {
+        const outcome = subagent.providerAgentId ? outcomes.get(subagent.providerAgentId) : undefined;
+        return outcome ? { ...subagent, result: outcome.result } : subagent;
+      });
+      entry.subagents = subagents;
+    }
     // Again after the await. From here to the queued delivery nothing waits, so no turn slips in.
     if (entry.waitId && !this.#hooks.waitOpen(entry.agentId, entry.waitId)) {
       entry.waitId = null;
@@ -692,7 +719,18 @@ export function restartResumeText(input: {
       : input.kind === "goal"
         ? `Your goal turns were stopped at ${at} by an OpenBot restart, between two turns — this is not a message from the user.`
         : `Your last turn was interrupted at ${at} by an OpenBot restart — this is not a message from the user.`;
-  const subagents = input.subagents.filter((subagent) => subagent.title || subagent.providerAgentId);
+  const named = input.subagents.filter((subagent) => subagent.title || subagent.providerAgentId);
+  // Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): finished ones hand over their answer.
+  const finished = named.filter((subagent) => subagent.result !== undefined);
+  const subagents = named.filter((subagent) => subagent.result === undefined);
+  const name = (subagent: RestartResumeSubagent) =>
+    `${subagent.providerAgentId ?? "(agent ID unknown: see your Agent call)"} — ${subagent.title || "(no description)"}`;
+  let budget = FINISHED_RESULTS_LIMIT;
+  const results = finished.map((subagent) => {
+    const result = (subagent.result ?? "").slice(0, Math.max(0, budget));
+    budget -= result.length;
+    return `${name(subagent)}. Its final answer:\n${result || "(see its transcript)"}`;
+  });
   return [
     `[OpenBot: 🔄 restart] ${what}`,
     input.attempt > 1
@@ -701,20 +739,18 @@ export function restartResumeText(input: {
         : "Your first resume after the restart was interrupted by another restart. This is the last automatic try."
       : null,
     longDowntime,
-    subagents.length > 0
-      ? `These subagents were stopped mid-task: ${subagents
-          .map(
-            (subagent) =>
-              `${subagent.providerAgentId ?? "(agent ID unknown: see your Agent call)"} — ${subagent.title || "(no description)"}`,
-          )
-          .join("; ")}.`
+    finished.length > 0
+      ? `These subagents had finished just before the stop; only their "done" notification was lost. Do NOT continue or relaunch them — use their answers as if they had reported:\n${results.join("\n\n")}`
       : null,
+    subagents.length > 0 ? `These subagents were stopped mid-task: ${subagents.map(name).join("; ")}.` : null,
     "Before you redo anything, check what already happened (files, git, messages already sent). Never repeat sends, posts, payments or other outward actions.",
     subagents.length > 0
       ? `For each stopped subagent, continue it with SendMessage to its agent ID ("You were interrupted by ${process ? "a process stop" : "a restart"}; check what's done and continue") — do NOT launch it again from scratch.`
       : null,
     process
-      ? "Then tell the user in one line that you continued it, and end your turn: its result comes back to you as before."
+      ? subagents.length > 0
+        ? "Then tell the user in one line that you continued it, and end your turn: its result comes back to you as before."
+        : "Then go on as you would have when they reported: tell the user the result, or continue your work with it."
       : "Then continue your work. This is the same chat and session: you know what you did before the restart.",
     input.requestText ? "The request it continues:" : null,
     input.requestText || null,

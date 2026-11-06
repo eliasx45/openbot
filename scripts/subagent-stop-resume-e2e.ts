@@ -10,10 +10,12 @@
 // - loop-limit: the 4th stop in an hour gets a line instead of a wake (closes by a tool refresh).
 // - foreground-no-wake: a foreground subagent that dies with its turn gets no wake.
 // - quit-no-live-note: OpenBot quitting notes nothing live (the restart resume covers it).
+// - finished-before-stop: the subagent's transcript ends with its final answer (its "done" was lost
+//   with the process): the wake hands over that answer and says not to continue it.
 // `bun scripts/subagent-stop-resume-e2e.ts`. Writes .openbot-build/subagent-stop-resume-e2e/report.json.
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -34,11 +36,15 @@ const home = join(root, "home");
 const claudeExecutable = join(root, "claude");
 const claudeSpawns = join(root, "claude-spawns.jsonl");
 const claudeMessages = join(root, "claude-messages.jsonl");
+/** Where the stand-in keeps its session transcripts, as Claude does under its config folder. */
+const claudeProjects = join(home, ".claude", "projects");
 const CLAUDE_MODEL = defaultProviderModel("claude");
 const GRACE_MS = 600;
 
 // Before the service modules load: the stores, the CLI search and the resume timings read these.
 process.env.HOME = home;
+// Bun reads the real home folder for homedir(): name the Claude folder explicitly.
+process.env.CLAUDE_CONFIG_DIR = join(home, ".claude");
 process.env.OPENBOT_CLAUDE_PATH = claudeExecutable;
 process.env.OPENBOT_FORK_RESTART_RESUME_GRACE_MS = String(GRACE_MS);
 process.env.OPENBOT_FORK_RESTART_RESUME_STAGGER_MS = "50";
@@ -92,6 +98,16 @@ const turn = (message) => {
   const background = wake ? null : /bg-start (\\d+)/.exec(text);
   if (background) {
     const id = "toolu_bg_" + background[1];
+    // The subagent's own transcript, as Claude writes it: here in the middle of a step.
+    const project = ${JSON.stringify(claudeProjects)} + "/" + process.cwd().replace(/[^a-zA-Z0-9]/g, "-");
+    const folder = project + "/" + sessionId + "/subagents";
+    fs.mkdirSync(folder, { recursive: true });
+    fs.appendFileSync(project + "/" + sessionId + ".jsonl", "");
+    fs.writeFileSync(folder + "/agent-agent-bg-" + background[1] + ".jsonl", [
+      { type: "assistant", message: { role: "assistant", stop_reason: "tool_use", content: [{ type: "tool_use", id: "t1", name: "Bash", input: {} }] } },
+      { type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "ok" }] } },
+      { type: "api-request" },
+    ].map((record) => JSON.stringify(record)).join("\\n") + "\\n");
     assistant([{ type: "tool_use", id, name: "Agent", input: { description: "Background work " + background[1],
       prompt: "Work.", run_in_background: true } }]);
     write({ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: id,
@@ -170,6 +186,9 @@ class ClaudeStandIn extends EventEmitter<ClientEvents> implements AgentClient {
   canReleaseProcess = () => this.#real.canReleaseProcess();
 
   holdsBackgroundWork = (externalThreadId: string) => this.#real.holdsBackgroundWork(externalThreadId);
+
+  forkSubagentOutcomes = (externalThreadId: string, cwd: string, agentIds: readonly string[]) =>
+    this.#real.forkSubagentOutcomes(externalThreadId, cwd, agentIds);
 
   releaseThread(externalThreadId: string) {
     return this.#real.releaseThread(externalThreadId);
@@ -419,6 +438,19 @@ async function startBackground(profile: Profile, agentId: string, n: number, qui
 
 const crash = (sessionId: string) => process.kill(processOf(sessionId), "SIGKILL");
 
+/** The subagent writes its final answer, as Claude does when it ends its work. */
+function finishSubagent(sessionId: string, n: number, answer: string): void {
+  const path = readdirSync(claudeProjects)
+    .map((project) => join(claudeProjects, project, sessionId, "subagents", `agent-agent-bg-${n}.jsonl`))
+    .find((candidate) => existsSync(candidate));
+  assert.ok(path, "The stand-in wrote the subagent transcript.");
+  const record = {
+    type: "assistant",
+    message: { role: "assistant", stop_reason: "end_turn", content: [{ type: "text", text: answer }] },
+  };
+  writeFileSync(path, `${readFileSync(path, "utf8")}${JSON.stringify(record)}\n`);
+}
+
 await writeFile(claudeExecutable, STAND_IN_CLAUDE, { mode: 0o755 });
 
 try {
@@ -433,6 +465,7 @@ try {
     details.wake = wake.text.slice(0, 600);
     assert.match(wake.text, /crashed/u, "The wake says the process crashed.");
     assert.match(wake.text, /SendMessage/u, "The wake says to continue it with SendMessage.");
+    assert.match(wake.text, /stopped mid-task/u, "Its transcript ends mid-step: it is continued.");
     await waitFor("the wake turn to end", () => idle(profile.agents, agent.id));
     const note = liveNotes()[0];
     details.note = note
@@ -565,7 +598,21 @@ try {
     assert.equal(notes.length, 0, "Quitting notes nothing live: the restart resume covers it at the next start.");
   });
 
-  report.passed = report.cases.length === 8 && report.cases.every((entry) => entry.passed);
+  await runCase("finished-before-stop", async (profile, details) => {
+    const agent = await createAgent(profile.agents, "Finished lead");
+    const { sessionId } = await startBackground(profile, agent.id, 7);
+    // It finished, and the process died before its "done" notification came.
+    finishSubagent(sessionId, 7, "RESULT-7: 34 sounds placed on the yellow tracks.");
+    crash(sessionId);
+    const wake = await waitFor("the wake", () => wakes(sessionId, "agent-bg-7")[0], 30_000);
+    details.wake = wake.text.slice(wake.text.indexOf("[OpenBot"), wake.text.indexOf("[OpenBot") + 700);
+    assert.match(wake.text, /finished just before the stop/u, "The wake says it had finished.");
+    assert.match(wake.text, /RESULT-7: 34 sounds placed/u, "The wake hands over its final answer.");
+    assert.doesNotMatch(wake.text, /stopped mid-task/u, "It is not listed as stopped mid-task.");
+    assert.doesNotMatch(wake.text, /continue it with SendMessage/u, "The wake does not say to continue it.");
+  });
+
+  report.passed = report.cases.length === 9 && report.cases.every((entry) => entry.passed);
 } finally {
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(OUT, "report.json"), `${JSON.stringify(report, null, 2)}\n`);

@@ -42,6 +42,15 @@ export interface AgentClient {
    */
   readonly forkSubagentIds?: (externalThreadId: string, cwd: string) => Promise<Map<string, string>>;
   /**
+   * Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): the subagents of a session, by agent
+   * ID, whose own transcript ends with their final answer, with that answer. Claude only.
+   */
+  readonly forkSubagentOutcomes?: (
+    externalThreadId: string,
+    cwd: string,
+    agentIds: readonly string[],
+  ) => Promise<Map<string, { finished: true; result: string }>>;
+  /**
    * Fork (docs/fork/FEATURES.md, "A refresh waits for background subagents"): true while work that
    * outlives its turn (a background subagent or command) runs in the process of this session.
    * Closing the session ends that work, so a runtime refresh waits for it.

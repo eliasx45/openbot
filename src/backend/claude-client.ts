@@ -72,6 +72,7 @@ import {
   claudeHistoryFromMessages,
   claudeHistoryReader,
   claudeSubagentAgentIds,
+  claudeSubagentOutcomes,
 } from "./claude-history";
 import { readClaudeStoredSignIn } from "./claude-stored-sign-in";
 import {
@@ -409,6 +410,9 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
   /** Fork (docs/fork/FEATURES.md, "Agents continue after a restart"): see `AgentClient.forkSubagentIds`. */
   readonly forkSubagentIds = (threadId: string, cwd: string): Promise<Map<string, string>> =>
     claudeSubagentAgentIds(threadId, cwd, this.#agentEnvironment?.().CLAUDE_CONFIG_DIR);
+  /** Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): see `AgentClient.forkSubagentOutcomes`. */
+  readonly forkSubagentOutcomes = (threadId: string, cwd: string, agentIds: readonly string[]) =>
+    claudeSubagentOutcomes(threadId, cwd, this.#agentEnvironment?.().CLAUDE_CONFIG_DIR, agentIds);
   /** Threads whose process was closed for being idle keep the config that resumes them. */
   readonly #threads = new IdleThreadPool<ThreadRuntime, ThreadConfig>({
     scope: () => this.#scope,

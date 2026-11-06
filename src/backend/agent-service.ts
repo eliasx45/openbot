@@ -3707,6 +3707,13 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           ? client.forkSubagentIds(externalSessionId, agentSessionCwd(agent))
           : new Map<string, string>();
       },
+      subagentOutcomes: async (agentId, externalSessionId, agentIds) => {
+        const agent = find(agentId);
+        const client = agent ? this.#providers.clientForAgent(agent) : null;
+        return agent && client?.forkSubagentOutcomes
+          ? client.forkSubagentOutcomes(externalSessionId, agentSessionCwd(agent), agentIds)
+          : new Map<string, { finished: true; result: string }>();
+      },
       executionDelivery,
       laneBusy: (agentId) =>
         Boolean(this.#conversation.workingSnapshot(agentId)?.activeTurnId) || this.#mailbox.laneActive(agentId, null),
