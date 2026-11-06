@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { copyFile, mkdir, open, readdir, stat } from "node:fs/promises";
+import { copyFile, cp, mkdir, open, readdir, readFile, stat } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -989,7 +989,49 @@ export async function carryClaudeTranscript(
   const found = await findTranscript(threadId, undefined, configDirectory, undefined);
   if (!found) return;
   await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+  // Fork (docs/fork/FEATURES.md, "Agents continue after a restart"): the subagents' transcripts go
+  // along, so `SendMessage` can continue a subagent of this session. Before the session's own
+  // file: once that is there, nothing is copied again.
+  const subagents = join(dirname(found), threadId, "subagents");
+  if (await exists(subagents))
+    await cp(subagents, join(dirname(target), threadId, "subagents"), {
+      recursive: true,
+      force: false,
+      errorOnExist: false,
+    });
   await copyFile(found, target);
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md, "Agents continue after a restart"): the `agentId` of each subagent
+ * of a session, by the `Agent` tool call that started it. The CLI keeps a `.meta.json` beside each
+ * subagent transcript, in `<session>/subagents/` next to the session's own file.
+ */
+export async function claudeSubagentAgentIds(
+  threadId: string,
+  cwd: string | undefined,
+  configDirectory: string | undefined,
+): Promise<Map<string, string>> {
+  const ids = new Map<string, string>();
+  const found = await findTranscript(threadId, cwd, configDirectory, undefined);
+  if (!found) return ids;
+  const folder = join(dirname(found), threadId, "subagents");
+  let names: string[];
+  try {
+    names = await readdir(folder);
+  } catch {
+    return ids;
+  }
+  for (const name of names) {
+    const match = /^agent-(.+)\.meta\.json$/u.exec(name);
+    if (!match?.[1]) continue;
+    try {
+      const meta = JSON.parse(await readFile(join(folder, name), "utf8"));
+      const toolUseId = isRecord(meta) ? getString(meta, "toolUseId") : null;
+      if (toolUseId) ids.set(toolUseId, match[1]);
+    } catch {}
+  }
+  return ids;
 }
 
 function sanitizeProjectPath(path: string): string {

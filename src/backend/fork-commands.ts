@@ -27,9 +27,14 @@ export const FORK_COMMANDS: AgentOwnCommand[] = [
     description: "Keep this chat's prompt cache warm while it is quiet, then compact. /keepwarm 2h, /keepwarm off",
     builtin: true,
   },
+  {
+    name: "autoresume",
+    description: "Agents continue by themselves after an OpenBot restart (all agents). /autoresume on, /autoresume off",
+    builtin: true,
+  },
 ];
 
-const COMMAND = /^\/(goal|setup|learn|memory|keepwarm)(?=$|\s)\s*([\s\S]*)$/u;
+const COMMAND = /^\/(goal|setup|learn|memory|keepwarm|autoresume)(?=$|\s)\s*([\s\S]*)$/u;
 
 /**
  * The provider text of a user's message in an agent's own chat, with the fork's additions: a fork
@@ -47,6 +52,7 @@ export function forkUserPrompt(delivery: QueueDelivery, typed: string, text: str
     if (name === "learn") prompt = learnPrompt(rest.trim());
     if (name === "memory") prompt = memoryPrompt(rest.trim());
     if (name === "keepwarm") prompt = keepWarmPrompt(agentId, rest);
+    if (name === "autoresume") prompt = autoResumePrompt(rest);
   }
   const recalled = command ? null : (forkHub.memory?.recallBlock(agentId, typed) ?? null);
   const footer = forkHub.goals?.footer(agentId, true) ?? null;
@@ -118,6 +124,19 @@ function learnPrompt(request: string): string {
  * Fork (docs/fork/FEATURES.md, entry 15): sets the agent's keep-warm window, then asks for a one-line
  * confirmation. That turn is warm already, so it costs about what a ping does.
  */
+/** Fork (docs/fork/FEATURES.md, "Agents continue after a restart"): the switch, for every agent. */
+function autoResumePrompt(rest: string): string {
+  const resume = forkHub.restartResume;
+  if (!resume) return "[/autoresume] OpenBot cannot change this now. Tell the user so in one short line.";
+  const words = rest.trim().toLowerCase();
+  if (words === "on" || words === "off") resume.setEnabled(words === "on");
+  else if (words !== "")
+    return `[/autoresume] The user typed "/autoresume ${rest.trim()}". Tell them in one short line: /autoresume on, /autoresume off, or /autoresume to see the setting.`;
+  return resume.enabled()
+    ? "[/autoresume] Automatic resume after an OpenBot restart is on, for every agent: an agent whose turn a restart interrupted gets one message to continue in the same session. Confirm in one short line, and say that /autoresume off turns it off."
+    : "[/autoresume] Automatic resume after an OpenBot restart is off, for every agent: a turn that a restart interrupted stays interrupted. Confirm in one short line, and say that /autoresume on turns it on.";
+}
+
 function keepWarmPrompt(agentId: string, rest: string): string {
   const compact = forkHub.cacheCompact;
   if (!compact?.supports(agentId)) {

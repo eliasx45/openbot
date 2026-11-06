@@ -70,6 +70,7 @@ import {
   carryClaudeTranscript,
   claudeHistoryFromMessages,
   claudeHistoryReader,
+  claudeSubagentAgentIds,
 } from "./claude-history";
 import { readClaudeStoredSignIn } from "./claude-stored-sign-in";
 import {
@@ -403,6 +404,9 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
   /** Whether this client read the account. A client for one generation without tools does not. */
   #accountRead = false;
   readonly readHistory: ReadProviderHistory;
+  /** Fork (docs/fork/FEATURES.md, "Agents continue after a restart"): see `AgentClient.forkSubagentIds`. */
+  readonly forkSubagentIds = (threadId: string, cwd: string): Promise<Map<string, string>> =>
+    claudeSubagentAgentIds(threadId, cwd, this.#agentEnvironment?.().CLAUDE_CONFIG_DIR);
   /** Threads whose process was closed for being idle keep the config that resumes them. */
   readonly #threads = new IdleThreadPool<ThreadRuntime, ThreadConfig>({
     scope: () => this.#scope,

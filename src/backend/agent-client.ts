@@ -35,6 +35,12 @@ export interface AgentClient {
   readonly deferredMcpTools?: (externalThreadId: string) => boolean;
   /** False when stopping this client would lose a live provider session with no recovery path. */
   readonly canReleaseProcess?: () => boolean;
+  /**
+   * Fork (docs/fork/FEATURES.md, "Agents continue after a restart"): the provider's own id of each
+   * subagent of a session, by the id of the call that started it. Only Claude can continue a
+   * stopped subagent (`SendMessage`), so only Claude has it.
+   */
+  readonly forkSubagentIds?: (externalThreadId: string, cwd: string) => Promise<Map<string, string>>;
   start(): void;
   stop(): Effect.Effect<void, ProviderClientOperationError>;
   /**

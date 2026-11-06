@@ -243,11 +243,16 @@ export function foldClaudeSubagentResult(
     endSubagent(subagent, "failed", now, text);
     return subagentChange(state, state.turnOf.get(toolUseId));
   }
+  // Fork (docs/fork/FEATURES.md, "Agents continue after a restart"): `SendMessage` continues a
+  // subagent by this id, also after a restart stopped it.
+  const providerAgentId = isRecord(result) && isString(result.agentId) ? result.agentId.trim() : "";
+  const newId = providerAgentId !== "" && subagent.providerAgentId !== providerAgentId;
+  if (newId) subagent.providerAgentId = providerAgentId;
   if (isRecord(result) && (result.isAsync === true || result.status === "async_launched")) {
     subagent.background = true;
-    return null;
+    return newId ? subagentChange(state, state.turnOf.get(toolUseId)) : null;
   }
-  if (subagent.background) return null;
+  if (subagent.background) return newId ? subagentChange(state, state.turnOf.get(toolUseId)) : null;
   pushSubagentReport(subagent, claudeResultText(result));
   endSubagent(subagent, "completed", now);
   return subagentChange(state, state.turnOf.get(toolUseId));

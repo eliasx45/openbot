@@ -16,6 +16,8 @@ import { FORK_WAIT_ROUTINE_ID } from "../agent-waits/fork-wait-conditions";
 import { agentSkillTagName, expandAgentCommandTags } from "../fork-agent-skills";
 import { isForkCacheRoutine } from "../fork-cache-compact";
 import { forkTeammatePrompt, forkUserPrompt } from "../fork-commands";
+import { forkHub } from "../fork-hub";
+import { FORK_RESTART_RESUME_ROUTINE_ID } from "../fork-restart-resume";
 import { homeSkillRoot, homeSkillTagSlug } from "../home-skills";
 import type { DeliveryContext } from "../mailbox-store";
 import { quietRoutineRun, ROUTINE_NO_UPDATE_TOOL, ROUTINE_REPORT_FAILURE_TOOL } from "./routine-quiet-runs";
@@ -347,9 +349,15 @@ export function deliveryPromptInput(context: DeliveryContext, sources: DeliveryP
       .join("\n");
     if (sources.executionText === undefined) text = forkTeammatePrompt(delivery.recipientAgentId, text);
   }
-  // Fork: a watched wait ended, or a quiet chat compacts or gets a keep-warm ping. Its text is already
-  // the whole prompt (`ForkWaitConditions`, `ForkCacheCompact`).
-  if (
+  // Fork: a watched wait ended, a quiet chat compacts or gets a keep-warm ping, or an agent resumes
+  // after a restart. Its text is already the whole prompt (`ForkWaitConditions`, `ForkCacheCompact`,
+  // `ForkRestartResume`); a resume carries the goal footer while a goal runs.
+  if (delivery.sender.kind === "routine" && delivery.sender.routineId === FORK_RESTART_RESUME_ROUTINE_ID) {
+    text =
+      forkHub.goals?.get(delivery.recipientAgentId)?.state === "working"
+        ? forkTeammatePrompt(delivery.recipientAgentId, displayText)
+        : displayText;
+  } else if (
     delivery.sender.kind === "routine" &&
     (delivery.sender.routineId === FORK_WAIT_ROUTINE_ID || isForkCacheRoutine(delivery.sender.routineId))
   ) {
