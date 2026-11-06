@@ -69,8 +69,9 @@ export interface CustomAgentUsageRailRow {
 
 /**
  * Fork: one usage button for all providers, not one ring per provider (Elias, 6 Nov 2026: the stack
- * of rings was distracting). The button is a plain gauge icon with no rings. The hover card shows
- * every provider side by side with its limits and reset times, then the answer of each custom agent.
+ * of rings was distracting). The button is a plain gauge icon with no rings. The hover card has one
+ * column per provider (Claude, ChatGPT…), side by side; each column stacks the accounts of that
+ * provider with their limits and reset times. The answers of the custom agents follow as more columns.
  */
 function UsageButton(props: {
   rows: readonly AccountUsageProviderRow[];
@@ -91,25 +92,45 @@ function UsageButton(props: {
         .join(", "),
     });
   };
+  /** One column per provider, in first-seen order; each column stacks that provider's accounts. */
+  const groups = () => {
+    const byProvider = new Map<string, AccountUsageProviderRow[]>();
+    for (const row of props.rows) {
+      const group = byProvider.get(row.provider);
+      if (group) group.push(row);
+      else byProvider.set(row.provider, [row]);
+    }
+    return [...byProvider.values()];
+  };
   return (
     <RailButton
       label={label()}
       card={() => (
         <div
           class="window-rail-usage-summary"
-          style={{ "--rail-usage-columns": String((props.rows.length > 0 ? 1 : 0) + props.customAgents.length) }}
+          style={{ "--rail-usage-columns": String(Math.max(1, groups().length + props.customAgents.length)) }}
         >
-          <Show when={props.rows.length > 0}>
-            <AccountUsageDetails
-              rows={[...props.rows]}
-              loading={false}
-              error={null}
-              refreshActive={false}
-              refreshDisabled
-              onRefresh={() => undefined}
-              title={<h2 class="account-usage-popover-title">{t("account.usage.title")}</h2>}
-            />
-          </Show>
+          <header class="account-usage-popover-header">
+            <div class="account-usage-popover-heading">
+              <Gauge aria-hidden="true" />
+              <h2 class="account-usage-popover-title">{t("account.usage.title")}</h2>
+            </div>
+          </header>
+          <For each={groups()} keyed={(group) => group[0]?.provider ?? ""}>
+            {(group) => (
+              <div class="window-rail-usage-column">
+                <AccountUsageDetails
+                  rows={[...group()]}
+                  loading={false}
+                  error={null}
+                  refreshActive={false}
+                  refreshDisabled
+                  onRefresh={() => undefined}
+                  title={null}
+                />
+              </div>
+            )}
+          </For>
           <For each={props.customAgents} keyed={(row) => row.id}>
             {(row) => (
               <div class="window-rail-agent-usage">

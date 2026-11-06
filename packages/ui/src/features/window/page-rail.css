@@ -202,7 +202,8 @@
   color: var(--openbot-text-primary);
 }
 
-/* Fork: its hover card shows the accounts side by side, one column each, then the custom agents. */
+/* Fork: its hover card has one column per provider, side by side; each column stacks that
+ * provider's accounts. Then the custom agents. One heading over all columns. */
 .account-usage-popover.window-rail-usage-card {
   width: max-content;
   max-width: calc(100vw - var(--openbot-space-8));
@@ -219,19 +220,15 @@
   grid-column: 1 / -1;
 }
 
-.window-rail-usage-summary .account-usage-providers {
-  grid-auto-columns: 220px;
-  grid-auto-flow: column;
-  grid-template-columns: none;
+.window-rail-usage-column {
+  display: grid;
+  width: 240px;
 }
 
-.window-rail-usage-summary .account-usage-provider {
-  align-content: start;
-  grid-column: auto;
-  grid-template-columns: auto max-content minmax(0, 1fr) max-content max-content;
-  column-gap: var(--openbot-space-2);
+.window-rail-usage-column .account-usage-popover-header {
+  display: none;
 }
 
 .window-rail-usage-summary .window-rail-agent-usage {
-  width: 220px;
+  width: 240px;
 }
