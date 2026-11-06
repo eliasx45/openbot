@@ -1,0 +1,2739 @@
+{
+  "label": "paired-1000",
+  "mode": "compare",
+  "createdAt": "2026-11-06T12:35:01.994Z",
+  "git": "01f1b907e",
+  "gitDirty": true,
+  "before": {
+    "sha": "01f1b907e",
+    "dirty": false
+  },
+  "node": "v24.19.0",
+  "sqlite": "3.53.3",
+  "machine": {
+    "cpu": "Apple M1 Max",
+    "cores": 10,
+    "memoryGb": 64
+  },
+  "baseline": {
+    "agents": 8,
+    "mainChatMessagesPerAgent": 400,
+    "sideThreadsPerAgent": 5,
+    "messagesPerSideThread": 40,
+    "memoriesPerAgent": 30,
+    "memoryCap": 512,
+    "routinesPerAgent": 2,
+    "runsPerRoutine": 30,
+    "attachmentEvery": 30,
+    "dataTables": 4,
+    "dataRowsPerTable": 250
+  },
+  "reps": 30,
+  "warmup": 3,
+  "scales": {
+    "1000": {
+      "plan": {
+        "scale": 1000,
+        "agents": 80,
+        "mainChatMessagesPerAgent": 40000,
+        "sideThreadsPerAgent": 50,
+        "messagesPerSideThread": 400,
+        "memoriesPerAgent": 512,
+        "routinesPerAgent": 20,
+        "runsPerRoutine": 300,
+        "dataRowsPerTable": 250000
+      },
+      "roots": {
+        "before": "/Users/elias/Developer/openbot-perf-base",
+        "after": "/Users/elias/Developer/openbot-perf"
+      },
+      "arms": {
+        "before": {
+          "openMs": 13.930000000000291,
+          "schemaVersion": 58,
+          "fileBytes": 15259164672,
+          "rowCounts": {
+            "schema_migrations": 51,
+            "orchestration_events": 4800001,
+            "orchestration_command_receipts": 4800001,
+            "projection_threads": 4080,
+            "projection_agents": 80,
+            "projection_agent_memories": 40960,
+            "projection_agent_routines": 1600,
+            "projection_routine_triggers": 1600,
+            "projection_routine_runs": 480000,
+            "projection_provider_sessions": 10435,
+            "projection_turns": 1921027,
+            "projection_thread_messages": 4800000,
+            "projection_thread_reads": 0,
+            "projection_thread_read_baselines": 0,
+            "projection_thread_activities": 4800000,
+            "projection_mailbox_messages": 0,
+            "projection_deliveries": 0,
+            "projection_queue_state": 0,
+            "projection_reactions": 0,
+            "projection_attachments": 35134,
+            "projection_thread_summaries": 0,
+            "projection_direct_threads": 0,
+            "projection_direct_messages": 0,
+            "projection_direct_reads": 0,
+            "file_deletion_outbox": 0,
+            "agent_usage_records": 0,
+            "agent_usage_checkpoints": 0,
+            "agent_usage_activity": 0,
+            "projection_channels": 0,
+            "projection_channel_messages": 0,
+            "projection_channel_tasks": 0,
+            "projection_channel_assignments": 0,
+            "projection_channel_contexts": 0,
+            "projection_channel_summaries": 0,
+            "projection_channel_reads": 0,
+            "projection_channel_memories": 0,
+            "projection_channel_routines": 0,
+            "projection_channel_routine_triggers": 0,
+            "projection_channel_routine_runs": 0,
+            "projection_mcp_servers": 0,
+            "projection_messaging_connections": 0,
+            "projection_messaging_threads": 0,
+            "provider_history_imports": 0,
+            "provider_history_turns": 0,
+            "provider_history_staging": 0,
+            "projection_routine_webhooks": 0,
+            "projection_channel_routine_webhooks": 0,
+            "projection_webhook_route_revocations": 0,
+            "projection_webhook_receipts": 0,
+            "routine_flow_links": 0,
+            "routine_flow_positions": 0,
+            "routine_flow_steps": 0,
+            "agent_memory_selections": 40960,
+            "agent_memory_search_data": 462,
+            "agent_memory_search_idx": 277,
+            "agent_memory_search_docsize": 40960,
+            "agent_memory_search_config": 1,
+            "agent_waits": 0,
+            "projection_messaging_memories": 0,
+            "routine_result_destinations": 0,
+            "routine_result_deliveries": 0,
+            "projection_messaging_allowed_roles": 0,
+            "browser_profiles": 0,
+            "workflows": 0,
+            "workflow_nodes": 0,
+            "workflow_edges": 0,
+            "workflow_versions": 0,
+            "workflow_triggers": 0,
+            "workflow_trigger_webhooks": 0,
+            "workflow_webhook_receipts": 0,
+            "workflow_runs": 0,
+            "workflow_steps": 0,
+            "workflow_output_deliveries": 0,
+            "projection_agent_threads": 4000,
+            "workflow_github_runs": 0,
+            "workflow_github_deliveries": 0,
+            "workflow_github_actions": 0,
+            "projection_messaging_allowed_senders": 0,
+            "projection_deleted_thread_messages": 0,
+            "browser_proxies": 0,
+            "browser_profile_proxies": 0,
+            "agent_usage_skill_loads": 0
+          },
+          "unindexedForeignKeys": [
+            {
+              "child": "projection_turns",
+              "columns": ["provider_session_id"],
+              "parent": "projection_provider_sessions",
+              "onDelete": "SET NULL",
+              "childRows": 1921027
+            },
+            {
+              "child": "projection_turns",
+              "columns": ["thread_id"],
+              "parent": "projection_threads",
+              "onDelete": "CASCADE",
+              "childRows": 1921027
+            },
+            {
+              "child": "projection_thread_activities",
+              "columns": ["thread_id"],
+              "parent": "projection_threads",
+              "onDelete": "CASCADE",
+              "childRows": 4800000
+            },
+            {
+              "child": "projection_deliveries",
+              "columns": ["message_id"],
+              "parent": "projection_mailbox_messages",
+              "onDelete": "CASCADE",
+              "childRows": 0
+            },
+            {
+              "child": "projection_thread_summaries",
+              "columns": ["thread_id"],
+              "parent": "projection_threads",
+              "onDelete": "CASCADE",
+              "childRows": 0
+            },
+            {
+              "child": "projection_channel_assignments",
+              "columns": ["task_id"],
+              "parent": "projection_channel_tasks",
+              "onDelete": "NO ACTION",
+              "childRows": 0
+            },
+            {
+              "child": "routine_result_destinations",
+              "columns": ["connection_id"],
+              "parent": "projection_messaging_connections",
+              "onDelete": "NO ACTION",
+              "childRows": 0
+            },
+            {
+              "child": "workflow_output_deliveries",
+              "columns": ["connection_id"],
+              "parent": "projection_messaging_connections",
+              "onDelete": "NO ACTION",
+              "childRows": 0
+            },
+            {
+              "child": "workflow_github_actions",
+              "columns": ["workflow_id"],
+              "parent": "workflows",
+              "onDelete": "CASCADE",
+              "childRows": 0
+            }
+          ]
+        },
+        "after": {
+          "openMs": 316391.650458,
+          "schemaVersion": 59,
+          "fileBytes": 15259164672,
+          "rowCounts": {
+            "schema_migrations": 52,
+            "orchestration_events": 4800001,
+            "orchestration_command_receipts": 4800001,
+            "projection_threads": 4080,
+            "projection_agents": 80,
+            "projection_agent_memories": 40960,
+            "projection_agent_routines": 1600,
+            "projection_routine_triggers": 1600,
+            "projection_routine_runs": 480000,
+            "projection_provider_sessions": 10435,
+            "projection_turns": 1921027,
+            "projection_thread_messages": 4800000,
+            "projection_thread_reads": 0,
+            "projection_thread_read_baselines": 0,
+            "projection_thread_activities": 4800000,
+            "projection_mailbox_messages": 0,
+            "projection_deliveries": 0,
+            "projection_queue_state": 0,
+            "projection_reactions": 0,
+            "projection_attachments": 35134,
+            "projection_thread_summaries": 0,
+            "projection_direct_threads": 0,
+            "projection_direct_messages": 0,
+            "projection_direct_reads": 0,
+            "file_deletion_outbox": 0,
+            "agent_usage_records": 0,
+            "agent_usage_checkpoints": 0,
+            "agent_usage_activity": 0,
+            "projection_channels": 0,
+            "projection_channel_messages": 0,
+            "projection_channel_tasks": 0,
+            "projection_channel_assignments": 0,
+            "projection_channel_contexts": 0,
+            "projection_channel_summaries": 0,
+            "projection_channel_reads": 0,
+            "projection_channel_memories": 0,
+            "projection_channel_routines": 0,
+            "projection_channel_routine_triggers": 0,
+            "projection_channel_routine_runs": 0,
+            "projection_mcp_servers": 0,
+            "projection_messaging_connections": 0,
+            "projection_messaging_threads": 0,
+            "provider_history_imports": 0,
+            "provider_history_turns": 0,
+            "provider_history_staging": 0,
+            "projection_routine_webhooks": 0,
+            "projection_channel_routine_webhooks": 0,
+            "projection_webhook_route_revocations": 0,
+            "projection_webhook_receipts": 0,
+            "routine_flow_links": 0,
+            "routine_flow_positions": 0,
+            "routine_flow_steps": 0,
+            "agent_memory_selections": 40960,
+            "agent_memory_search_data": 462,
+            "agent_memory_search_idx": 277,
+            "agent_memory_search_docsize": 40960,
+            "agent_memory_search_config": 1,
+            "agent_waits": 0,
+            "projection_messaging_memories": 0,
+            "routine_result_destinations": 0,
+            "routine_result_deliveries": 0,
+            "projection_messaging_allowed_roles": 0,
+            "browser_profiles": 0,
+            "workflows": 0,
+            "workflow_nodes": 0,
+            "workflow_edges": 0,
+            "workflow_versions": 0,
+            "workflow_triggers": 0,
+            "workflow_trigger_webhooks": 0,
+            "workflow_webhook_receipts": 0,
+            "workflow_runs": 0,
+            "workflow_steps": 0,
+            "workflow_output_deliveries": 0,
+            "projection_agent_threads": 4000,
+            "workflow_github_runs": 0,
+            "workflow_github_deliveries": 0,
+            "workflow_github_actions": 0,
+            "projection_messaging_allowed_senders": 0,
+            "projection_deleted_thread_messages": 0,
+            "browser_proxies": 0,
+            "browser_profile_proxies": 0,
+            "agent_usage_skill_loads": 0
+          },
+          "unindexedForeignKeys": [
+            {
+              "child": "projection_deliveries",
+              "columns": ["message_id"],
+              "parent": "projection_mailbox_messages",
+              "onDelete": "CASCADE",
+              "childRows": 0
+            },
+            {
+              "child": "projection_thread_summaries",
+              "columns": ["thread_id"],
+              "parent": "projection_threads",
+              "onDelete": "CASCADE",
+              "childRows": 0
+            },
+            {
+              "child": "projection_channel_assignments",
+              "columns": ["task_id"],
+              "parent": "projection_channel_tasks",
+              "onDelete": "NO ACTION",
+              "childRows": 0
+            },
+            {
+              "child": "routine_result_destinations",
+              "columns": ["connection_id"],
+              "parent": "projection_messaging_connections",
+              "onDelete": "NO ACTION",
+              "childRows": 0
+            },
+            {
+              "child": "workflow_output_deliveries",
+              "columns": ["connection_id"],
+              "parent": "projection_messaging_connections",
+              "onDelete": "NO ACTION",
+              "childRows": 0
+            },
+            {
+              "child": "workflow_github_actions",
+              "columns": ["workflow_id"],
+              "parent": "workflows",
+              "onDelete": "CASCADE",
+              "childRows": 0
+            }
+          ]
+        }
+      },
+      "operations": {
+        "sidebar.listAgents": {
+          "area": "sidebar",
+          "description": "Agent roster (listAgents)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              0.135917, 0.12525, 0.144625, 0.233167, 0.143208, 0.412208, 0.103083, 0.097792, 0.099292, 0.1, 0.099625,
+              0.0965, 0.097042, 0.100083, 0.100625, 0.103375, 0.096833, 0.099083, 0.185, 0.098334, 0.095292, 0.094583,
+              0.094333, 0.094, 0.092917, 0.115542, 0.107375, 0.099583, 0.102042, 0.097334
+            ],
+            "p50": 0.0998125,
+            "p95": 0.21149184999999987,
+            "mean": 0.12213476666666669,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT agent_json FROM projection_agents ORDER BY sort_order, agent_id",
+                "plan": ["SCAN projection_agents", "USE TEMP B-TREE FOR ORDER BY"],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.118458, 0.118209, 0.116958, 0.105875, 0.20275, 0.143917, 0.099542, 0.100667, 0.098417, 0.098209,
+              0.096084, 0.094917, 0.09525, 0.097084, 0.09975, 0.099125, 0.096459, 0.097583, 0.098208, 0.093208,
+              0.096125, 0.09375, 0.094541, 0.092625, 0.098667, 0.165375, 0.101917, 0.1, 0.096834, 0.096833
+            ],
+            "p50": 0.09831300000000001,
+            "p95": 0.15571889999999994,
+            "mean": 0.10691123333333331,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT agent_json FROM projection_agents ORDER BY sort_order, agent_id",
+                "plan": ["SCAN projection_agents", "USE TEMP B-TREE FOR ORDER BY"],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "sidebar.unreadStates": {
+          "area": "sidebar",
+          "description": "Unread badge of every agent chat, each read up to 10 messages ago (listStates)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              12.049958, 11.716458, 13.347542, 12.9235, 11.988625, 13.3, 11.747166, 11.032167, 10.444042, 12.337458,
+              13.131916, 11.900459, 13.3315, 14.169292, 11.45425, 12.045708, 11.596041, 12.108833, 11.860167, 11.474375,
+              14.391125, 13.057833, 11.247125, 11.558375, 11.242083, 11.19675, 12.178125, 13.497292, 13.866041,
+              13.699625
+            ],
+            "p50": 12.047833,
+            "p95": 14.032829049999998,
+            "mean": 12.32979436666667,
+            "statements": 6,
+            "plans": [
+              {
+                "sql": "SELECT through_message_id FROM projection_thread_reads WHERE thread_id = ? AND member_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_reads USING INDEX sqlite_autoindex_projection_thread_reads_1 (thread_id=? AND member_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT 1 FROM projection_thread_messages WHERE thread_id = ? AND message_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE message_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT message_id, COUNT(*) OVER () AS unread_count FROM ordered WHERE 1 = 1 AND (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) > (?, ?, ?, ?, ?, ?, ?) AND author != 'user' AND COALESCE(item_type, '') != 'commentary' AND COALESCE(item_type, '') != 'plan' AND COALESCE(item_type, '') != 'subagents' AND COALESCE(item_type, '') != 'memory-changes' AND COALESCE(item_type, '') != 'plan-continuation' AND COALESCE(item_type, '') != 'instructions-change' AND COALESCE(item_type, '') != 'routine_quiet_answer' AND COALESCE(item_type, '') != 'agent_attachment' AND COALESCE(item_type, '') != 'agent-exchange' AND COALESCE(item_type, '') != 'context-reset' AND COALESCE(item_type, '') NOT LIKE 'visual-reply:%' AND COALESCE(item_type, '') NOT LIKE 'skill-event:%' AND COALESCE(item_type, '') NOT LIKE 'routine-event:%' AND COALESCE(item_type, '') NOT LIKE 'routine-run-event:%' AND COALESCE(item_type, '') NOT LIKE 'hosted-site-event:%' AND COALESCE(item_type, '') NOT LIKE 'marketplace-suggestion:%' AND COALESCE(item_type, '') NOT LIKE 'model-switch:%' ORDER BY group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id LIMIT 1",
+                "plan": [
+                  "CO-ROUTINE (subquery-3)",
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)>(?,?,?,?,?,?,?))",
+                  "SCAN (subquery-3)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE message_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT message_id FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) <= (?, ?, ?, ?, ?, ?, ?) ORDER BY group_start DESC, group_first DESC, group_id DESC, turn_rank DESC, created_at DESC, ordinal DESC, message_id DESC LIMIT 1",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)<(?,?,?,?,?,?,?))"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              13.539125, 10.7915, 11.88875, 11.440208, 11.945583, 11.607292, 11.617459, 12.439375, 12.393958, 10.917625,
+              12.210292, 11.113541, 12.729709, 12.876333, 12.897, 14.560709, 13.681958, 12.295, 13.31825, 11.579834,
+              11.734542, 11.469917, 12.0195, 13.4955, 13.338958, 11.830334, 14.995292, 13.973916, 14.859958, 13.94825
+            ],
+            "p50": 12.344479,
+            "p95": 14.72529595,
+            "mean": 12.583655599999997,
+            "statements": 6,
+            "plans": [
+              {
+                "sql": "SELECT through_message_id FROM projection_thread_reads WHERE thread_id = ? AND member_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_reads USING INDEX sqlite_autoindex_projection_thread_reads_1 (thread_id=? AND member_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT 1 FROM projection_thread_messages WHERE thread_id = ? AND message_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE message_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT message_id, COUNT(*) OVER () AS unread_count FROM ordered WHERE 1 = 1 AND (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) > (?, ?, ?, ?, ?, ?, ?) AND author != 'user' AND COALESCE(item_type, '') != 'commentary' AND COALESCE(item_type, '') != 'plan' AND COALESCE(item_type, '') != 'subagents' AND COALESCE(item_type, '') != 'memory-changes' AND COALESCE(item_type, '') != 'plan-continuation' AND COALESCE(item_type, '') != 'instructions-change' AND COALESCE(item_type, '') != 'routine_quiet_answer' AND COALESCE(item_type, '') != 'agent_attachment' AND COALESCE(item_type, '') != 'agent-exchange' AND COALESCE(item_type, '') != 'context-reset' AND COALESCE(item_type, '') NOT LIKE 'visual-reply:%' AND COALESCE(item_type, '') NOT LIKE 'skill-event:%' AND COALESCE(item_type, '') NOT LIKE 'routine-event:%' AND COALESCE(item_type, '') NOT LIKE 'routine-run-event:%' AND COALESCE(item_type, '') NOT LIKE 'hosted-site-event:%' AND COALESCE(item_type, '') NOT LIKE 'marketplace-suggestion:%' AND COALESCE(item_type, '') NOT LIKE 'model-switch:%' ORDER BY group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id LIMIT 1",
+                "plan": [
+                  "CO-ROUTINE (subquery-3)",
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)>(?,?,?,?,?,?,?))",
+                  "SCAN (subquery-3)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE message_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT message_id FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) <= (?, ?, ?, ?, ?, ?, ?) ORDER BY group_start DESC, group_first DESC, group_id DESC, turn_rank DESC, created_at DESC, ordinal DESC, message_id DESC LIMIT 1",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)<(?,?,?,?,?,?,?))"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "sidebar.sideThreads": {
+          "area": "sidebar",
+          "description": "Side threads of one agent (AgentThreadStore.list)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              0.156125, 0.157292, 0.147583, 0.189208, 0.169792, 0.154083, 0.142333, 0.141416, 0.1405, 0.181542, 0.169,
+              0.202666, 0.213167, 0.196542, 0.165167, 0.190458, 0.270625, 0.169291, 0.163, 0.161667, 0.161917, 0.159041,
+              0.159167, 0.170166, 0.161208, 0.169709, 0.158541, 0.16275, 0.160708, 0.161625
+            ],
+            "p50": 0.16233350000000002,
+            "p95": 0.20844154999999998,
+            "mean": 0.17020963333333328,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT *, COALESCE(legacy_task_id, thread_id) AS task_id FROM projection_agent_threads WHERE agent_id = ? ORDER BY archived_at IS NOT NULL, updated_at DESC, thread_id LIMIT ?",
+                "plan": [
+                  "SEARCH projection_agent_threads USING INDEX agent_threads_agent (agent_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.154209, 0.141959, 0.152083, 0.187375, 0.519625, 0.166167, 0.143291, 0.152042, 0.172542, 0.201667,
+              0.18375, 0.253583, 0.201916, 0.176291, 0.383458, 0.170334, 0.239792, 0.176125, 0.161292, 0.165375,
+              0.161166, 0.15925, 0.161583, 0.160042, 0.3195, 0.160542, 0.158333, 0.15975, 0.159834, 0.166084
+            ],
+            "p50": 0.1657295,
+            "p95": 0.35467689999999985,
+            "mean": 0.19563199999999997,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT *, COALESCE(legacy_task_id, thread_id) AS task_id FROM projection_agent_threads WHERE agent_id = ? ORDER BY archived_at IS NOT NULL, updated_at DESC, thread_id LIMIT ?",
+                "plan": [
+                  "SEARCH projection_agent_threads USING INDEX agent_threads_agent (agent_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "sidebar.openSideThreads": {
+          "area": "sidebar",
+          "description": "Open side threads of all agents, boot (openExecutionThreads)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              1.778875, 1.609958, 1.494417, 1.981166, 1.395542, 1.449042, 1.604666, 1.449917, 1.381083, 1.2785,
+              1.212291, 1.243834, 1.235083, 1.579833, 1.433542, 1.36525, 1.529791, 1.62625, 1.575958, 1.5975, 1.427625,
+              1.52125, 1.655125, 1.599667, 1.541333, 1.30225, 1.336417, 1.561, 1.408, 1.791166
+            ],
+            "p50": 1.5078335,
+            "p95": 1.78563505,
+            "mean": 1.4988776999999998,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT agent_id, thread_id FROM projection_agent_threads WHERE archived_at IS NULL ORDER BY updated_at DESC, thread_id",
+                "plan": [
+                  "SCAN projection_agent_threads USING INDEX agent_threads_open",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              1.868917, 1.814375, 1.561375, 1.587583, 1.396334, 1.337792, 1.37525, 1.395708, 1.505042, 1.237459,
+              1.204167, 1.729291, 1.285, 1.213708, 1.4405, 1.292042, 1.875416, 1.626083, 1.712083, 3.938417, 1.470708,
+              1.431, 1.627083, 1.562166, 1.768542, 1.289709, 1.304084, 1.520958, 1.373375, 1.461625
+            ],
+            "p50": 1.4661665,
+            "p95": 1.8724914499999998,
+            "mean": 1.5735264,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT agent_id, thread_id FROM projection_agent_threads WHERE archived_at IS NULL ORDER BY updated_at DESC, thread_id",
+                "plan": [
+                  "SCAN projection_agent_threads USING INDEX agent_threads_open",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "chat.openLatestPage": {
+          "area": "chat",
+          "description": "Open the main chat: newest page of 50",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              4.897208, 4.887167, 4.388667, 4.218916, 4.316584, 4.769208, 4.159708, 4.453209, 4.203208, 4.115625,
+              3.652083, 4.136042, 3.680709, 4.175958, 3.688125, 4.59475, 4.537625, 4.413375, 3.572208, 4.76275,
+              3.858042, 4.254458, 3.851375, 4.082625, 3.745625, 4.098042, 3.637, 4.082, 3.788208, 4.636125
+            ],
+            "p50": 4.167833,
+            "p95": 4.83408545,
+            "mean": 4.188554166666667,
+            "statements": 4,
+            "plans": [
+              {
+                "sql": "SELECT active_turn_id, last_event_sequence FROM projection_threads WHERE thread_id = ? AND agent_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE 1 = 1 ORDER BY group_start DESC, group_first DESC, group_id DESC, turn_rank DESC, created_at DESC, ordinal DESC, message_id DESC LIMIT ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT message_id, message_json FROM projection_thread_messages WHERE thread_id = ? AND message_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT COUNT(*) AS older_count, (SELECT created_at FROM projection_thread_messages WHERE thread_id = ? ORDER BY created_at, ordinal, message_id LIMIT 1) AS oldest_at FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) < (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)<(?,?,?,?,?,?,?))",
+                  "SCALAR SUBQUERY 2",
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_page_order (thread_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              4.621875, 3.849667, 4.876917, 4.445833, 4.701875, 5.095292, 4.63175, 4.109417, 4.587334, 3.958875,
+              4.374916, 3.964875, 4.850125, 4.1195, 4.378958, 4.088625, 4.702625, 3.925292, 4.415833, 4.664334,
+              4.256625, 3.685334, 4.424, 3.864459, 4.388333, 3.888709, 4.3265, 3.966625, 4.089083, 3.811042
+            ],
+            "p50": 4.350708,
+            "p95": 4.8648606,
+            "mean": 4.302154266666666,
+            "statements": 4,
+            "plans": [
+              {
+                "sql": "SELECT active_turn_id, last_event_sequence FROM projection_threads WHERE thread_id = ? AND agent_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE 1 = 1 ORDER BY group_start DESC, group_first DESC, group_id DESC, turn_rank DESC, created_at DESC, ordinal DESC, message_id DESC LIMIT ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT message_id, message_json FROM projection_thread_messages WHERE thread_id = ? AND message_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT COUNT(*) AS older_count, (SELECT created_at FROM projection_thread_messages WHERE thread_id = ? ORDER BY created_at, ordinal, message_id LIMIT 1) AS oldest_at FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) < (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)<(?,?,?,?,?,?,?))",
+                  "SCALAR SUBQUERY 2",
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_page_order (thread_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "chat.scrollOlderPage": {
+          "area": "chat",
+          "description": "Scroll up from the middle of the main chat (before cursor)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              2.190083, 2.506292, 1.887167, 2.806583, 2.394167, 2.168208, 1.944417, 2.266667, 2.288584, 2.098209,
+              1.923291, 2.074125, 1.915667, 2.354084, 2.179084, 2.148208, 2.378875, 2.419041, 2.245708, 2.358333,
+              1.894583, 2.511083, 2.136834, 2.168584, 2.137458, 2.602667, 2.818916, 2.276208, 2.028584, 2.099458
+            ],
+            "p50": 2.1845835,
+            "p95": 2.714820799999999,
+            "mean": 2.2407055999999996,
+            "statements": 4,
+            "plans": [
+              {
+                "sql": "SELECT active_turn_id, last_event_sequence FROM projection_threads WHERE thread_id = ? AND agent_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) < (?, ?, ?, ?, ?, ?, ?) ORDER BY group_start DESC, group_first DESC, group_id DESC, turn_rank DESC, created_at DESC, ordinal DESC, message_id DESC LIMIT ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)<(?,?,?,?,?,?,?))"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT message_id, message_json FROM projection_thread_messages WHERE thread_id = ? AND message_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT COUNT(*) AS older_count, (SELECT created_at FROM projection_thread_messages WHERE thread_id = ? ORDER BY created_at, ordinal, message_id LIMIT 1) AS oldest_at FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) < (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)<(?,?,?,?,?,?,?))",
+                  "SCALAR SUBQUERY 2",
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_page_order (thread_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              2.533292, 2.136291, 2.303458, 2.662167, 2.584125, 2.026458, 2.143791, 1.987208, 2.431708, 2.07025,
+              2.10975, 2.003292, 2.087208, 2.001917, 2.426917, 2.055917, 2.126875, 2.076666, 2.62125, 2.377166,
+              2.537458, 1.912458, 2.886167, 2.173417, 2.524, 2.014917, 3.001541, 2.077709, 2.313292, 2.024208
+            ],
+            "p50": 2.140041,
+            "p95": 2.7853669999999995,
+            "mean": 2.274362433333334,
+            "statements": 4,
+            "plans": [
+              {
+                "sql": "SELECT active_turn_id, last_event_sequence FROM projection_threads WHERE thread_id = ? AND agent_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) < (?, ?, ?, ?, ?, ?, ?) ORDER BY group_start DESC, group_first DESC, group_id DESC, turn_rank DESC, created_at DESC, ordinal DESC, message_id DESC LIMIT ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)<(?,?,?,?,?,?,?))"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT message_id, message_json FROM projection_thread_messages WHERE thread_id = ? AND message_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT COUNT(*) AS older_count, (SELECT created_at FROM projection_thread_messages WHERE thread_id = ? ORDER BY created_at, ordinal, message_id LIMIT 1) AS oldest_at FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) < (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)<(?,?,?,?,?,?,?))",
+                  "SCALAR SUBQUERY 2",
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_page_order (thread_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "chat.jumpToMessage": {
+          "area": "chat",
+          "description": "Open a search result in the middle of the chat (around anchor)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              2.190916, 2.230917, 2.3445, 2.419583, 2.068334, 2.250708, 2.1735, 2.369417, 2.330167, 2.664, 2.040041,
+              2.655916, 2.476666, 2.377916, 2.112083, 2.459708, 2.099584, 2.2495, 2.3535, 2.375167, 2.0455, 2.37675,
+              2.369375, 2.268709, 2.126667, 2.428709, 2.370167, 2.916334, 2.476167, 2.825208
+            ],
+            "p50": 2.3614375,
+            "p95": 2.7526643999999996,
+            "mean": 2.3481902999999997,
+            "statements": 6,
+            "plans": [
+              {
+                "sql": "SELECT active_turn_id, last_event_sequence FROM projection_threads WHERE thread_id = ? AND agent_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE message_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) > (?, ?, ?, ?, ?, ?, ?) ORDER BY group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id LIMIT ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)>(?,?,?,?,?,?,?))"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) <= (?, ?, ?, ?, ?, ?, ?) ORDER BY group_start DESC, group_first DESC, group_id DESC, turn_rank DESC, created_at DESC, ordinal DESC, message_id DESC LIMIT ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)<(?,?,?,?,?,?,?))"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT message_id, message_json FROM projection_thread_messages WHERE thread_id = ? AND message_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT COUNT(*) AS older_count, (SELECT created_at FROM projection_thread_messages WHERE thread_id = ? ORDER BY created_at, ordinal, message_id LIMIT 1) AS oldest_at FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) < (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)<(?,?,?,?,?,?,?))",
+                  "SCALAR SUBQUERY 2",
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_page_order (thread_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              2.234125, 2.094875, 2.726583, 2.20075, 2.246958, 2.071833, 2.329208, 2.109292, 2.520916, 2.295875,
+              2.787208, 2.063417, 2.923125, 2.119708, 2.683416, 2.761208, 2.21075, 2.141041, 2.716792, 2.07675,
+              2.199875, 2.076375, 2.712917, 2.15375, 2.368875, 2.469625, 2.938875, 2.83925, 2.7685, 2.577834
+            ],
+            "p50": 2.3125415,
+            "p95": 2.88538125,
+            "mean": 2.4139902,
+            "statements": 6,
+            "plans": [
+              {
+                "sql": "SELECT active_turn_id, last_event_sequence FROM projection_threads WHERE thread_id = ? AND agent_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE message_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) > (?, ?, ?, ?, ?, ?, ?) ORDER BY group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id LIMIT ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)>(?,?,?,?,?,?,?))"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) <= (?, ?, ?, ?, ?, ?, ?) ORDER BY group_start DESC, group_first DESC, group_id DESC, turn_rank DESC, created_at DESC, ordinal DESC, message_id DESC LIMIT ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)<(?,?,?,?,?,?,?))"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT message_id, message_json FROM projection_thread_messages WHERE thread_id = ? AND message_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT COUNT(*) AS older_count, (SELECT created_at FROM projection_thread_messages WHERE thread_id = ? ORDER BY created_at, ordinal, message_id LIMIT 1) AS oldest_at FROM ordered WHERE (group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id) < (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=? AND (group_start,group_first,group_id,turn_rank,created_at,ordinal,message_id)<(?,?,?,?,?,?,?))",
+                  "SCALAR SUBQUERY 2",
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_page_order (thread_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "chat.runtime": {
+          "area": "chat",
+          "description": "Active turn and latest answer (readConversationRuntime)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              0.04425, 0.036625, 0.0375, 0.03625, 0.043792, 0.033959, 0.032209, 0.029792, 0.033875, 0.031875, 0.030833,
+              0.031083, 0.030667, 0.031042, 0.030958, 0.039666, 0.031125, 0.034416, 0.030542, 0.035, 0.031625, 0.042,
+              0.032958, 0.038459, 0.032833, 0.035208, 0.031125, 0.038542, 0.031334, 0.042334
+            ],
+            "p50": 0.0334165,
+            "p95": 0.04313589999999999,
+            "mean": 0.03472923333333333,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT thread.active_turn_id, (SELECT message.message_json FROM projection_thread_messages message WHERE message.thread_id = thread.thread_id AND json_extract(message.message_json, '$.author') IN ('assistant', 'agent') AND COALESCE(json_extract(message.message_json, '$.itemType'), '') != 'commentary' AND COALESCE(json_extract(message.message_json, '$.itemType'), '') != 'question_prompt' AND COALESCE(json_extract(message.message_json, '$.itemType'), '') != 'agent_attachment' AND COALESCE(json_extract(message.message_json, '$.itemType'), '') NOT LIKE 'visual-reply:%' AND COALESCE(json_extract(message.message_json, '$.itemType'), '') != 'plan' AND COALESCE(json_extract(message.message_json, '$.itemType'), '') != 'subagents' AND COALESCE(json_extract(message.message_json, '$.itemType'), '') != 'routine_quiet_answer' AND json_extract(message.message_json, '$.senderAgentId') IS NULL ORDER BY message.created_at DESC, message.ordinal DESC, message.message_id DESC LIMIT 1) AS latest_message_json FROM projection_threads thread WHERE thread.thread_id = ? AND thread.agent_id = ?",
+                "plan": [
+                  "SEARCH thread USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)",
+                  "CORRELATED SCALAR SUBQUERY 1",
+                  "SEARCH message USING INDEX thread_messages_page_order (thread_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.039541, 0.033792, 0.032834, 0.032709, 0.457458, 0.042708, 0.03125, 0.031292, 0.032167, 0.031792,
+              0.031166, 0.031208, 0.031666, 0.031166, 0.030708, 0.03025, 0.03125, 0.030333, 0.030584, 0.030083,
+              0.032416, 0.032333, 0.032042, 0.031875, 0.033125, 0.030875, 0.032667, 0.031292, 0.032334, 0.031625
+            ],
+            "p50": 0.031729,
+            "p95": 0.041282849999999996,
+            "mean": 0.046484700000000004,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT thread.active_turn_id, (SELECT message.message_json FROM projection_thread_messages message WHERE message.thread_id = thread.thread_id AND json_extract(message.message_json, '$.author') IN ('assistant', 'agent') AND COALESCE(json_extract(message.message_json, '$.itemType'), '') != 'commentary' AND COALESCE(json_extract(message.message_json, '$.itemType'), '') != 'question_prompt' AND COALESCE(json_extract(message.message_json, '$.itemType'), '') != 'agent_attachment' AND COALESCE(json_extract(message.message_json, '$.itemType'), '') NOT LIKE 'visual-reply:%' AND COALESCE(json_extract(message.message_json, '$.itemType'), '') != 'plan' AND COALESCE(json_extract(message.message_json, '$.itemType'), '') != 'subagents' AND COALESCE(json_extract(message.message_json, '$.itemType'), '') != 'routine_quiet_answer' AND json_extract(message.message_json, '$.senderAgentId') IS NULL ORDER BY message.created_at DESC, message.ordinal DESC, message.message_id DESC LIMIT 1) AS latest_message_json FROM projection_threads thread WHERE thread.thread_id = ? AND thread.agent_id = ?",
+                "plan": [
+                  "SEARCH thread USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)",
+                  "CORRELATED SCALAR SUBQUERY 1",
+                  "SEARCH message USING INDEX thread_messages_page_order (thread_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "chat.fullSnapshot": {
+          "area": "chat",
+          "description": "Whole main chat (readConversation)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              105.950666, 128.931875, 200.831459, 121.455625, 115.147083, 163.983583, 140.825041, 133.890291,
+              123.915834, 124.228917, 124.206916, 163.512417, 167.71125, 128.404709, 228.166958, 400.867875, 136.673791,
+              124.089166, 128.940084, 152.006125, 140.74125, 153.980584, 153.367667, 228.461625, 145.76875, 126.559125,
+              129.811458, 117.22125, 117.402, 193.069875
+            ],
+            "p50": 135.282041,
+            "p95": 228.32902485,
+            "mean": 154.00410829999998,
+            "statements": 2,
+            "plans": [
+              {
+                "sql": "SELECT active_turn_id, last_event_sequence FROM projection_threads WHERE thread_id = ? AND agent_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT message_json FROM projection_thread_messages WHERE thread_id = ? ORDER BY created_at, ordinal, message_id",
+                "plan": ["SEARCH projection_thread_messages USING INDEX thread_messages_page_order (thread_id=?)"],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              110.65, 109.736333, 296.097417, 151.644292, 122.602625, 123.89975, 131.286334, 159.654459, 120.670875,
+              109.964541, 149.334209, 119.585583, 118.35025, 120.383208, 131.347125, 161.80075, 135.262084, 126.9425,
+              152.941792, 125.380125, 163.5015, 129.562209, 122.463708, 158.66525, 133.636542, 127.355958, 140.943875,
+              116.850458, 128.007333, 129.583
+            ],
+            "p50": 128.78477099999998,
+            "p95": 162.73616249999998,
+            "mean": 137.60346950000002,
+            "statements": 2,
+            "plans": [
+              {
+                "sql": "SELECT active_turn_id, last_event_sequence FROM projection_threads WHERE thread_id = ? AND agent_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT message_json FROM projection_thread_messages WHERE thread_id = ? ORDER BY created_at, ordinal, message_id",
+                "plan": ["SEARCH projection_thread_messages USING INDEX thread_messages_page_order (thread_id=?)"],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "chat.recoveryMessages": {
+          "area": "chat",
+          "description": "Restart recovery read of the main chat (readConversationRecoveryMessages)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              87.443958, 47.896458, 45.912333, 46.3335, 45.804375, 228.747417, 76.642958, 53.406833, 47.602375,
+              62.266875, 55.133834, 46.572875, 46.990417, 80.930375, 59.197125, 45.570834, 49.285417, 49.914375,
+              62.288833, 48.021917, 54.262667, 46.930833, 49.261667, 48.332416, 71.178125, 58.624791, 147.925916,
+              176.560375, 172.472791, 47.521875
+            ],
+            "p50": 51.660604,
+            "p95": 174.72096219999997,
+            "mean": 71.96781800000001,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT message_json FROM projection_thread_messages WHERE thread_id = ? AND thread_id IN (SELECT thread_id FROM projection_threads WHERE agent_id = ?) AND ( (? IS NOT NULL AND turn_id = ? AND status = 'streaming') OR json_type(message_json, '$.questionPrompt.resolution') = 'null' AND json_type(message_json, '$.questionPrompt') = 'object' OR json_extract(message_json, '$.itemType') = 'subagents' AND EXISTS ( SELECT 1 FROM json_each(message_json, '$.subagents') WHERE json_extract(value, '$.status') = 'running' ) ) ORDER BY created_at, ordinal, message_id",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX thread_messages_page_order (thread_id=?)",
+                  "LIST SUBQUERY 1",
+                  "SCAN projection_threads",
+                  "CREATE BLOOM FILTER",
+                  "CORRELATED SCALAR SUBQUERY 2",
+                  "SCAN json_each VIRTUAL TABLE INDEX 3:"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              48.436917, 47.538291, 46.806917, 47.12375, 52.507375, 57.321375, 85.210792, 65.970875, 54.093083,
+              56.983584, 53.28725, 63.048333, 46.351375, 83.564459, 69.694167, 46.526958, 47.7215, 46.834208, 44.058666,
+              45.307458, 49.148625, 47.670375, 47.934084, 46.721542, 57.544458, 64.11125, 57.236292, 54.907834,
+              76.690583, 47.334375
+            ],
+            "p50": 50.828,
+            "p95": 80.47121479999998,
+            "mean": 55.25622503333333,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT message_json FROM projection_thread_messages WHERE thread_id = ? AND thread_id IN (SELECT thread_id FROM projection_threads WHERE agent_id = ?) AND ( (? IS NOT NULL AND turn_id = ? AND status = 'streaming') OR json_type(message_json, '$.questionPrompt.resolution') = 'null' AND json_type(message_json, '$.questionPrompt') = 'object' OR json_extract(message_json, '$.itemType') = 'subagents' AND EXISTS ( SELECT 1 FROM json_each(message_json, '$.subagents') WHERE json_extract(value, '$.status') = 'running' ) ) ORDER BY created_at, ordinal, message_id",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX thread_messages_page_order (thread_id=?)",
+                  "LIST SUBQUERY 1",
+                  "SCAN projection_threads",
+                  "CREATE BLOOM FILTER",
+                  "CORRELATED SCALAR SUBQUERY 2",
+                  "SCAN json_each VIRTUAL TABLE INDEX 3:"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "chat.turnAnswer": {
+          "area": "chat",
+          "description": "Answer of one turn for a routine flow (readTurnAssistantMessages)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              34.989583, 36.616625, 25.44375, 37.617542, 18.019417, 20.258917, 18.642, 16.553959, 17.577458, 19.117875,
+              56.292375, 16.587375, 16.837792, 15.471625, 16.283375, 16.51, 15.599125, 15.39525, 16.351292, 15.522041,
+              16.811417, 19.351083, 20.507917, 15.541, 15.472167, 25.671917, 17.312542, 23.798125, 18.652125, 36.047125
+            ],
+            "p50": 17.7984375,
+            "p95": 37.167129349999996,
+            "mean": 21.82842646666667,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT message.message_json FROM projection_turns AS turn JOIN projection_threads AS thread ON thread.thread_id = turn.thread_id JOIN projection_thread_messages AS message ON message.thread_id = turn.thread_id AND message.turn_id = turn.turn_id WHERE turn.turn_id = ? AND thread.agent_id = ? AND message.author = 'assistant' ORDER BY message.created_at, message.ordinal, message.message_id",
+                "plan": [
+                  "SEARCH turn USING INDEX sqlite_autoindex_projection_turns_1 (turn_id=?)",
+                  "SEARCH thread USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)",
+                  "SEARCH message USING INDEX thread_messages_page_order (thread_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.166125, 0.041708, 0.148084, 0.04775, 0.14275, 0.067084, 0.157666, 0.073125, 0.141083, 0.0475, 0.134833,
+              0.044916, 0.134541, 0.040209, 0.143958, 0.049125, 0.126042, 0.037791, 0.120125, 0.038542, 0.12075,
+              0.049458, 0.116833, 0.04275, 0.130333, 0.048167, 0.139459, 0.040208, 0.126584, 0.038458
+            ],
+            "p50": 0.09497900000000001,
+            "p95": 0.15335409999999997,
+            "mean": 0.09186523333333331,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT message.message_json FROM projection_turns AS turn JOIN projection_threads AS thread ON thread.thread_id = turn.thread_id JOIN projection_thread_messages AS message ON message.thread_id = turn.thread_id AND message.turn_id = turn.turn_id WHERE turn.turn_id = ? AND thread.agent_id = ? AND message.author = 'assistant' ORDER BY +message.created_at, message.ordinal, message.message_id",
+                "plan": [
+                  "SEARCH turn USING INDEX sqlite_autoindex_projection_turns_1 (turn_id=?)",
+                  "SEARCH thread USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)",
+                  "SEARCH message USING INDEX thread_messages_turn (thread_id=? AND turn_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "boot.runningTurns": {
+          "area": "chat",
+          "description": "Turns still running, boot (readRunningTurnIds)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              1470.765958, 172.92775, 212.080584, 220.136583, 209.473958, 408.924375, 172.358292, 201.2555, 201.128709,
+              171.642333, 155.092042, 206.496833, 196.153417, 186.725166, 218.902334, 215.246792, 197.249458,
+              194.706459, 198.824584, 212.3375, 210.028083, 236.840958, 229.215333, 264.013167, 201.393875, 210.21125,
+              217.236291, 232.664875, 218.3375, 188.503709
+            ],
+            "p50": 209.7510205,
+            "p95": 343.7143313999996,
+            "mean": 254.3624556,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT thread_id, turn_id FROM projection_turns WHERE status = 'running'",
+                "plan": ["SCAN projection_turns"],
+                "flagged": ["SCAN projection_turns"]
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.096292, 0.0115, 0.092542, 0.011125, 0.118375, 0.094, 0.071208, 0.009083, 0.08925, 0.026542, 0.079417,
+              0.009542, 0.081917, 0.009542, 0.088167, 0.010708, 0.09325, 0.031042, 0.112375, 0.011667, 0.083375,
+              0.027167, 0.099875, 0.012125, 0.083833, 0.015917, 0.086542, 0.010917, 0.0825, 0.010041
+            ],
+            "p50": 0.0753125,
+            "p95": 0.10674999999999997,
+            "mean": 0.05532786666666667,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT thread_id, turn_id FROM projection_turns WHERE status = 'running'",
+                "plan": ["SCAN projection_turns USING COVERING INDEX turns_running"],
+                "flagged": ["SCAN projection_turns USING COVERING INDEX turns_running"]
+              }
+            ]
+          }
+        },
+        "search.files": {
+          "area": "search",
+          "description": "Search files by name",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              218.524333, 217.326, 212.808417, 200.852291, 207.013041, 213.146, 211.138334, 262.377708, 210.118833,
+              175.182458, 225.043708, 166.542583, 253.335416, 245.914292, 183.088166, 206.276625, 208.510792,
+              152.016708, 149.478958, 151.493833, 155.877625, 140.758334, 145.542, 161.511625, 157.065292, 151.196917,
+              144.298958, 140.781791, 140.308916, 144.595417
+            ],
+            "p50": 179.135312,
+            "p95": 249.99591019999997,
+            "mean": 185.07084570000006,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT thread.agent_id, message.message_id, attachment.created_at, attachment.metadata_json FROM projection_attachments attachment JOIN projection_threads thread ON thread.thread_id = substr(attachment.owner_id, 1, instr(attachment.owner_id, ':') - 1) JOIN projection_thread_messages message ON message.thread_id = thread.thread_id AND message.message_id = substr(attachment.owner_id, instr(attachment.owner_id, ':') + 1) WHERE attachment.owner_kind = 'thread-message' AND instr(attachment.owner_id, ':') > 1 AND COALESCE(json_extract(message.message_json, '$.delivery.status'), '') NOT IN ('queued', 'cancelled') AND openbot_lowercase(openbot_collapse_whitespace(attachment.name)) LIKE ? ESCAPE '\\' AND message.thread_id NOT IN (SELECT thread_id FROM projection_channel_contexts) AND message.thread_id NOT IN (SELECT thread_id FROM projection_agent_threads) ORDER BY attachment.created_at DESC, attachment.attachment_id DESC LIMIT ? OFFSET ?",
+                "plan": [
+                  "SEARCH attachment USING INDEX attachments_owner (owner_kind=?)",
+                  "SEARCH message USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)",
+                  "USING INDEX sqlite_autoindex_projection_channel_contexts_1 FOR IN-OPERATOR",
+                  "USING INDEX sqlite_autoindex_projection_agent_threads_1 FOR IN-OPERATOR",
+                  "SEARCH thread USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              202.683292, 235.059167, 264.2545, 269.116209, 188.696916, 222.017875, 187.31325, 225.903125, 174.825875,
+              204.069459, 235.736834, 198.394584, 187.249833, 219.570417, 194.85825, 196.946833, 158.858458, 154.072542,
+              157.340458, 153.016667, 156.817708, 155.838166, 168.048792, 281.777916, 177.986833, 153.328291,
+              141.465542, 148.13, 147.486958, 149.223459
+            ],
+            "p50": 187.2815415,
+            "p95": 266.92843995,
+            "mean": 190.3362736333333,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT thread.agent_id, message.message_id, attachment.created_at, attachment.metadata_json FROM projection_attachments attachment JOIN projection_threads thread ON thread.thread_id = substr(attachment.owner_id, 1, instr(attachment.owner_id, ':') - 1) JOIN projection_thread_messages message ON message.thread_id = thread.thread_id AND message.message_id = substr(attachment.owner_id, instr(attachment.owner_id, ':') + 1) WHERE attachment.owner_kind = 'thread-message' AND instr(attachment.owner_id, ':') > 1 AND COALESCE(json_extract(message.message_json, '$.delivery.status'), '') NOT IN ('queued', 'cancelled') AND openbot_lowercase(openbot_collapse_whitespace(attachment.name)) LIKE ? ESCAPE '\\' AND message.thread_id NOT IN (SELECT thread_id FROM projection_channel_contexts) AND message.thread_id NOT IN (SELECT thread_id FROM projection_agent_threads) ORDER BY attachment.created_at DESC, attachment.attachment_id DESC LIMIT ? OFFSET ?",
+                "plan": [
+                  "SEARCH attachment USING INDEX attachments_owner (owner_kind=?)",
+                  "SEARCH message USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)",
+                  "USING INDEX sqlite_autoindex_projection_channel_contexts_1 FOR IN-OPERATOR",
+                  "USING INDEX sqlite_autoindex_projection_agent_threads_1 FOR IN-OPERATOR",
+                  "SEARCH thread USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "memory.list": {
+          "area": "memory",
+          "description": "Memories of one agent (list)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              0.696, 0.684, 0.65225, 0.673125, 0.660458, 0.670917, 0.650291, 0.672958, 0.712667, 0.704916, 0.665083,
+              0.647084, 0.688083, 0.671542, 0.634917, 0.668292, 0.649917, 0.70125, 0.688458, 0.599292, 0.562209,
+              0.590917, 0.530166, 0.5105, 0.51675, 0.5185, 0.511834, 0.518583, 0.500709, 0.506375
+            ],
+            "p50": 0.6512705,
+            "p95": 0.7032663,
+            "mean": 0.6219347666666665,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT memory_id, text, origin, source_turn_id, created_at, updated_at FROM projection_agent_memories WHERE agent_id = ? ORDER BY updated_at DESC, memory_id",
+                "plan": ["SEARCH projection_agent_memories USING INDEX agent_memories_agent (agent_id=?)"],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.6745, 0.647, 0.665, 0.643042, 0.6685, 0.680167, 0.656542, 0.667916, 0.755667, 0.733333, 0.678666,
+              0.649708, 0.678, 0.642666, 0.64, 0.632708, 0.647375, 0.672125, 1.093334, 0.673791, 0.589208, 0.533917,
+              0.525125, 0.509375, 0.571458, 0.528292, 0.521584, 0.509958, 0.508042, 0.509667
+            ],
+            "p50": 0.6471875,
+            "p95": 0.7456166999999999,
+            "mean": 0.6368888666666668,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT memory_id, text, origin, source_turn_id, created_at, updated_at FROM projection_agent_memories WHERE agent_id = ? ORDER BY updated_at DESC, memory_id",
+                "plan": ["SEARCH projection_agent_memories USING INDEX agent_memories_agent (agent_id=?)"],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "memory.search": {
+          "area": "memory",
+          "description": "search_memories tool (FTS5)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              8.688167, 8.633792, 9.194917, 8.740167, 8.636, 8.674292, 8.269667, 8.425917, 9.119958, 8.156667, 8.271083,
+              8.561833, 7.978292, 8.404458, 8.28075, 8.298166, 8.295959, 8.743, 8.406, 8.557209, 8.257625, 8.372125,
+              8.373291, 8.77775, 7.997209, 8.366708, 8.330792, 9.126375, 8.418958, 8.494542
+            ],
+            "p50": 8.412479000000001,
+            "p95": 9.12348735,
+            "mean": 8.495055633333333,
+            "statements": 3,
+            "plans": [
+              {
+                "sql": "SELECT m.memory_id FROM agent_memory_search JOIN projection_agent_memories m ON m.rowid = agent_memory_search.rowid WHERE agent_memory_search MATCH ? AND m.agent_id = ? ORDER BY bm25(agent_memory_search), m.updated_at DESC, m.memory_id LIMIT ?",
+                "plan": [
+                  "SCAN agent_memory_search VIRTUAL TABLE INDEX 0:M1",
+                  "SEARCH m USING INTEGER PRIMARY KEY (rowid=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT memory_id, text, origin, source_turn_id, created_at, updated_at FROM projection_agent_memories WHERE agent_id = ? AND memory_id = ?",
+                "plan": [
+                  "SEARCH projection_agent_memories USING INDEX sqlite_autoindex_projection_agent_memories_1 (memory_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT s.memory_id, s.inclusion, s.user_controlled, s.revision FROM agent_memory_selections s JOIN projection_agent_memories m ON m.memory_id = s.memory_id WHERE m.agent_id = ? ORDER BY s.memory_id",
+                "plan": [
+                  "SEARCH m USING COVERING INDEX agent_memories_agent (agent_id=?)",
+                  "SEARCH s USING INDEX sqlite_autoindex_agent_memory_selections_1 (memory_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              5.706125, 5.711792, 5.957, 5.481042, 5.844625, 5.159625, 5.969291, 5.269459, 6.102791, 5.306333, 5.552667,
+              5.295584, 5.892917, 5.284542, 5.366709, 6.077792, 5.555334, 5.972, 5.925083, 5.767167, 11.684625,
+              5.444875, 6.070292, 5.404125, 6.051125, 6.404708, 5.773584, 5.786958, 6.0995, 5.495417
+            ],
+            "p50": 5.7703755,
+            "p95": 6.268845349999999,
+            "mean": 5.913769566666667,
+            "statements": 3,
+            "plans": [
+              {
+                "sql": "SELECT m.memory_id FROM agent_memory_search JOIN projection_agent_memories m ON m.rowid = agent_memory_search.rowid WHERE agent_memory_search MATCH ? AND m.agent_id = ? ORDER BY bm25(agent_memory_search), m.updated_at DESC, m.memory_id LIMIT ?",
+                "plan": [
+                  "SCAN agent_memory_search VIRTUAL TABLE INDEX 0:M1",
+                  "SEARCH m USING INTEGER PRIMARY KEY (rowid=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT memory_id, text, origin, source_turn_id, created_at, updated_at FROM projection_agent_memories WHERE agent_id = ? AND memory_id = ?",
+                "plan": [
+                  "SEARCH projection_agent_memories USING INDEX sqlite_autoindex_projection_agent_memories_1 (memory_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT s.memory_id, s.inclusion, s.user_controlled, s.revision FROM agent_memory_selections s JOIN projection_agent_memories m ON m.memory_id = s.memory_id WHERE s.memory_id = ? AND m.agent_id = ?",
+                "plan": [
+                  "SEARCH s USING INDEX sqlite_autoindex_agent_memory_selections_1 (memory_id=?)",
+                  "SEARCH m USING INDEX sqlite_autoindex_projection_agent_memories_1 (memory_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "memory.listPage": {
+          "area": "memory",
+          "description": "list_memories tool, first page",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              15.075917, 14.743542, 14.573958, 14.488041, 15.772708, 14.505208, 14.728708, 14.920917, 16.477209,
+              14.544875, 14.7775, 14.86475, 14.843125, 16.412, 17.606666, 15.277, 14.612958, 14.664125, 14.711542,
+              14.327125, 14.187541, 14.502667, 15.165084, 14.662958, 14.5285, 14.688875, 14.986958, 14.882041,
+              14.175291, 14.664833
+            ],
+            "p50": 14.720125,
+            "p95": 16.44786495,
+            "mean": 14.945754066666666,
+            "statements": 3,
+            "plans": [
+              {
+                "sql": "SELECT memory_id FROM projection_agent_memories WHERE agent_id = ? AND (? IS NULL OR memory_id > ?) ORDER BY memory_id LIMIT 26",
+                "plan": [
+                  "SEARCH projection_agent_memories USING COVERING INDEX agent_memories_agent (agent_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT memory_id, text, origin, source_turn_id, created_at, updated_at FROM projection_agent_memories WHERE agent_id = ? AND memory_id = ?",
+                "plan": [
+                  "SEARCH projection_agent_memories USING INDEX sqlite_autoindex_projection_agent_memories_1 (memory_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT s.memory_id, s.inclusion, s.user_controlled, s.revision FROM agent_memory_selections s JOIN projection_agent_memories m ON m.memory_id = s.memory_id WHERE m.agent_id = ? ORDER BY s.memory_id",
+                "plan": [
+                  "SEARCH m USING COVERING INDEX agent_memories_agent (agent_id=?)",
+                  "SEARCH s USING INDEX sqlite_autoindex_agent_memory_selections_1 (memory_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.850042, 0.786916, 0.83525, 0.75525, 0.977916, 0.812542, 0.952625, 0.782542, 0.80625, 0.803667, 0.844417,
+              0.879209, 0.910666, 0.791125, 0.820584, 0.782542, 0.80925, 0.734709, 0.824167, 0.943042, 0.852709,
+              0.792584, 0.828667, 0.7595, 0.784875, 0.747958, 0.788458, 0.7325, 0.835666, 0.7575
+            ],
+            "p50": 0.80775,
+            "p95": 0.94831265,
+            "mean": 0.8194376000000001,
+            "statements": 3,
+            "plans": [
+              {
+                "sql": "SELECT memory_id FROM projection_agent_memories WHERE agent_id = ? AND (? IS NULL OR memory_id > ?) ORDER BY memory_id LIMIT 26",
+                "plan": [
+                  "SEARCH projection_agent_memories USING COVERING INDEX agent_memories_agent (agent_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT memory_id, text, origin, source_turn_id, created_at, updated_at FROM projection_agent_memories WHERE agent_id = ? AND memory_id = ?",
+                "plan": [
+                  "SEARCH projection_agent_memories USING INDEX sqlite_autoindex_projection_agent_memories_1 (memory_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT s.memory_id, s.inclusion, s.user_controlled, s.revision FROM agent_memory_selections s JOIN projection_agent_memories m ON m.memory_id = s.memory_id WHERE s.memory_id = ? AND m.agent_id = ?",
+                "plan": [
+                  "SEARCH s USING INDEX sqlite_autoindex_agent_memory_selections_1 (memory_id=?)",
+                  "SEARCH m USING INDEX sqlite_autoindex_projection_agent_memories_1 (memory_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "memory.selectionState": {
+          "area": "memory",
+          "description": "Memory settings panel (selectionState)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              1.220792, 1.255667, 1.109041, 1.18825, 1.389542, 1.146167, 1.129833, 1.116583, 1.079875, 1.083125,
+              1.06875, 1.105875, 1.077459, 1.266333, 1.232458, 1.161625, 1.093125, 1.227083, 1.112917, 1.136167,
+              1.514667, 1.134792, 1.074709, 1.065417, 1.079792, 1.110208, 1.086209, 1.158042, 1.09275, 1.197333
+            ],
+            "p50": 1.123208,
+            "p95": 1.3340979499999996,
+            "mean": 1.1571528666666668,
+            "statements": 2,
+            "plans": [
+              {
+                "sql": "SELECT s.memory_id, s.inclusion, s.user_controlled, s.revision FROM agent_memory_selections s JOIN projection_agent_memories m ON m.memory_id = s.memory_id WHERE m.agent_id = ? ORDER BY s.memory_id",
+                "plan": [
+                  "SEARCH m USING COVERING INDEX agent_memories_agent (agent_id=?)",
+                  "SEARCH s USING INDEX sqlite_autoindex_agent_memory_selections_1 (memory_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT memory_id, text, origin, source_turn_id, created_at, updated_at FROM projection_agent_memories WHERE agent_id = ? ORDER BY updated_at DESC, memory_id",
+                "plan": ["SEARCH projection_agent_memories USING INDEX agent_memories_agent (agent_id=?)"],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              1.420917, 2.006667, 1.283666, 1.213792, 1.474125, 1.269541, 1.39275, 1.263083, 1.181334, 1.174, 1.171083,
+              1.224958, 1.207292, 1.412292, 1.159875, 1.147417, 1.268292, 1.272375, 1.161584, 1.095708, 1.170375,
+              1.174584, 1.066917, 1.064041, 1.109625, 1.075875, 1.114542, 1.152917, 1.160125, 1.172833
+            ],
+            "p50": 1.174292,
+            "p95": 1.4501813999999997,
+            "mean": 1.2354195,
+            "statements": 2,
+            "plans": [
+              {
+                "sql": "SELECT s.memory_id, s.inclusion, s.user_controlled, s.revision FROM agent_memory_selections s JOIN projection_agent_memories m ON m.memory_id = s.memory_id WHERE m.agent_id = ? ORDER BY s.memory_id",
+                "plan": [
+                  "SEARCH m USING COVERING INDEX agent_memories_agent (agent_id=?)",
+                  "SEARCH s USING INDEX sqlite_autoindex_agent_memory_selections_1 (memory_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT memory_id, text, origin, source_turn_id, created_at, updated_at FROM projection_agent_memories WHERE agent_id = ? ORDER BY updated_at DESC, memory_id",
+                "plan": ["SEARCH projection_agent_memories USING INDEX agent_memories_agent (agent_id=?)"],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "memory.setInclusions": {
+          "area": "memory",
+          "description": "Change the inclusion of 10 memories (setInclusions)",
+          "write": true,
+          "before": {
+            "samplesMs": [
+              10.629667, 12.114667, 10.400084, 12.673, 11.876, 10.58225, 8.009125, 8.551208, 9.754208, 12.022375,
+              13.733416, 12.69675, 12.617417, 8.630375, 7.981084, 7.720625, 7.617875, 7.636334, 7.691958, 7.731041,
+              7.586875, 7.769834, 7.630916, 7.709584, 8.118333, 8.069917, 8.048958, 8.322667, 8.422167, 9.086125
+            ],
+            "p50": 8.372416999999999,
+            "p95": 12.6860625,
+            "mean": 9.381161166666669,
+            "statements": 6,
+            "plans": [
+              {
+                "sql": "SELECT last_sequence, result_json FROM orchestration_command_receipts WHERE command_id = ?",
+                "plan": [
+                  "SEARCH orchestration_command_receipts USING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_events ( event_id, command_id, aggregate_type, aggregate_id, event_type, occurred_at, payload_json ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT s.memory_id, s.inclusion, s.user_controlled, s.revision FROM agent_memory_selections s JOIN projection_agent_memories m ON m.memory_id = s.memory_id WHERE m.agent_id = ? ORDER BY s.memory_id",
+                "plan": [
+                  "SEARCH m USING COVERING INDEX agent_memories_agent (agent_id=?)",
+                  "SEARCH s USING INDEX sqlite_autoindex_agent_memory_selections_1 (memory_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT memory_id, text, origin, source_turn_id, created_at, updated_at FROM projection_agent_memories WHERE agent_id = ? ORDER BY updated_at DESC, memory_id",
+                "plan": ["SEARCH projection_agent_memories USING INDEX agent_memories_agent (agent_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "UPDATE agent_memory_selections SET inclusion = ?, user_controlled = ?, revision = ? WHERE memory_id = ?",
+                "plan": [
+                  "SEARCH agent_memory_selections USING INDEX sqlite_autoindex_agent_memory_selections_1 (memory_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT 1 FROM orchestration_events WHERE command_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH orchestration_events USING COVERING INDEX orchestration_events_command (command_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              4.017709, 3.820666, 3.321875, 3.944875, 4.078875, 4.469625, 2.495833, 2.419292, 3.487916, 3.993459,
+              3.452792, 4.640459, 3.738125, 3.013416, 2.45975, 2.369625, 2.397916, 2.364792, 2.874209, 2.369292,
+              2.44475, 2.403083, 2.410375, 2.526334, 2.440625, 2.418959, 2.894625, 3.316666, 2.604916, 3.333417
+            ],
+            "p50": 2.884417,
+            "p95": 4.293787499999999,
+            "mean": 3.0841417000000004,
+            "statements": 7,
+            "plans": [
+              {
+                "sql": "SELECT last_sequence, result_json FROM orchestration_command_receipts WHERE command_id = ?",
+                "plan": [
+                  "SEARCH orchestration_command_receipts USING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_events ( event_id, command_id, aggregate_type, aggregate_id, event_type, occurred_at, payload_json ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT s.memory_id, s.inclusion, s.user_controlled, s.revision FROM agent_memory_selections s JOIN projection_agent_memories m ON m.memory_id = s.memory_id WHERE s.memory_id = ? AND m.agent_id = ?",
+                "plan": [
+                  "SEARCH s USING INDEX sqlite_autoindex_agent_memory_selections_1 (memory_id=?)",
+                  "SEARCH m USING INDEX sqlite_autoindex_projection_agent_memories_1 (memory_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT s.memory_id, s.inclusion, s.user_controlled, s.revision FROM agent_memory_selections s JOIN projection_agent_memories m ON m.memory_id = s.memory_id WHERE m.agent_id = ? ORDER BY s.memory_id",
+                "plan": [
+                  "SEARCH m USING COVERING INDEX agent_memories_agent (agent_id=?)",
+                  "SEARCH s USING INDEX sqlite_autoindex_agent_memory_selections_1 (memory_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT memory_id, text, origin, source_turn_id, created_at, updated_at FROM projection_agent_memories WHERE agent_id = ? ORDER BY updated_at DESC, memory_id",
+                "plan": ["SEARCH projection_agent_memories USING INDEX agent_memories_agent (agent_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "UPDATE agent_memory_selections SET inclusion = ?, user_controlled = ?, revision = ? WHERE memory_id = ?",
+                "plan": [
+                  "SEARCH agent_memory_selections USING INDEX sqlite_autoindex_agent_memory_selections_1 (memory_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT 1 FROM orchestration_events WHERE command_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH orchestration_events USING COVERING INDEX orchestration_events_command (command_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "routines.list": {
+          "area": "routines",
+          "description": "Routines of one agent",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              0.296041, 0.364042, 0.428958, 0.252792, 0.283125, 0.314667, 0.260458, 0.267208, 0.2605, 0.252875, 0.26675,
+              0.283833, 0.25675, 0.265333, 0.280083, 0.60975, 0.360667, 0.326917, 0.285625, 0.267334, 0.52775, 0.473958,
+              0.378791, 0.31775, 0.308042, 0.294125, 0.281042, 0.708167, 0.386833, 0.326333
+            ],
+            "p50": 0.295083,
+            "p95": 0.5728499999999997,
+            "mean": 0.33954996666666654,
+            "statements": 2,
+            "plans": [
+              {
+                "sql": "SELECT routine_id, agent_id, name, instruction, active, timezone, limit_policy, missed_policy, run_in, created_at, updated_at FROM projection_agent_routines WHERE agent_id = ? AND EXISTS (SELECT 1 FROM projection_routine_triggers WHERE routine_id = projection_agent_routines.routine_id) ORDER BY updated_at DESC, routine_id",
+                "plan": [
+                  "SEARCH projection_agent_routines USING INDEX agent_routines_agent (agent_id=?)",
+                  "SEARCH projection_routine_triggers EXISTS USING COVERING INDEX sqlite_autoindex_projection_routine_triggers_2 (routine_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT trigger_id, schedule_json, next_run_at, created_at, updated_at FROM projection_routine_triggers WHERE routine_id = ?",
+                "plan": [
+                  "SEARCH projection_routine_triggers USING INDEX sqlite_autoindex_projection_routine_triggers_2 (routine_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.27525, 0.262875, 0.2675, 0.265083, 0.3205, 0.2975, 0.28275, 0.276833, 0.282917, 0.249625, 0.329833,
+              0.28475, 0.261042, 0.253791, 0.288, 0.297958, 0.310042, 0.268083, 0.333583, 0.267167, 0.335417, 0.351667,
+              0.331458, 0.275833, 0.274541, 0.251708, 0.438, 0.311041, 0.381583, 0.260917
+            ],
+            "p50": 0.28283349999999996,
+            "p95": 0.3681207999999999,
+            "mean": 0.2962415666666666,
+            "statements": 2,
+            "plans": [
+              {
+                "sql": "SELECT routine_id, agent_id, name, instruction, active, timezone, limit_policy, missed_policy, run_in, created_at, updated_at FROM projection_agent_routines WHERE agent_id = ? AND EXISTS (SELECT 1 FROM projection_routine_triggers WHERE routine_id = projection_agent_routines.routine_id) ORDER BY updated_at DESC, routine_id",
+                "plan": [
+                  "SEARCH projection_agent_routines USING INDEX agent_routines_agent (agent_id=?)",
+                  "SEARCH projection_routine_triggers EXISTS USING COVERING INDEX sqlite_autoindex_projection_routine_triggers_2 (routine_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT trigger_id, schedule_json, next_run_at, created_at, updated_at FROM projection_routine_triggers WHERE routine_id = ?",
+                "plan": [
+                  "SEARCH projection_routine_triggers USING INDEX sqlite_autoindex_projection_routine_triggers_2 (routine_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "routines.runs": {
+          "area": "routines",
+          "description": "Run history of one routine (listRuns 50)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              0.208667, 0.221958, 0.220458, 0.224792, 0.519167, 0.232541, 0.255291, 0.260333, 0.229916, 0.344625,
+              0.253709, 0.232958, 0.223584, 0.222209, 0.219708, 0.215583, 0.228916, 0.220625, 0.211375, 0.329208,
+              0.263583, 0.291041, 0.22525, 0.274458, 0.24225, 0.23325, 0.267917, 0.306792, 0.234625, 0.249916
+            ],
+            "p50": 0.233104,
+            "p95": 0.33768734999999994,
+            "mean": 0.25549016666666663,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT run_id, routine_id, agent_id, trigger_id, run_kind, scheduled_for, routine_name, instruction, delivery_id, status, error, missed_count, missed_until, run_source, created_at, updated_at FROM projection_routine_runs WHERE routine_id = ? AND agent_id = ? AND missed_count IS NULL ORDER BY created_at DESC, run_id DESC LIMIT ?",
+                "plan": [
+                  "SEARCH projection_routine_runs USING INDEX routine_runs_routine (routine_id=?)",
+                  "USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.203708, 0.204083, 0.285583, 0.215458, 0.315875, 0.26175, 0.242833, 0.231958, 0.2285, 0.303584, 0.260667,
+              0.2375, 0.232167, 0.221708, 0.229625, 0.217459, 0.221167, 0.21525, 0.220458, 0.228833, 0.488417, 0.332458,
+              0.230083, 0.220125, 0.299, 0.250916, 0.292708, 0.563208, 0.227167, 0.253458
+            ],
+            "p50": 0.2320625,
+            "p95": 0.4182354499999995,
+            "mean": 0.26452353333333334,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT run_id, routine_id, agent_id, trigger_id, run_kind, scheduled_for, routine_name, instruction, delivery_id, status, error, missed_count, missed_until, run_source, created_at, updated_at FROM projection_routine_runs WHERE routine_id = ? AND agent_id = ? AND missed_count IS NULL ORDER BY created_at DESC, run_id DESC LIMIT ?",
+                "plan": [
+                  "SEARCH projection_routine_runs USING INDEX routine_runs_routine (routine_id=?)",
+                  "USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "routines.pendingRuns": {
+          "area": "routines",
+          "description": "Queued and running runs, boot (pendingRuns)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              0.03775, 0.040333, 0.032209, 0.034792, 0.040584, 0.041125, 0.032667, 0.035458, 0.0355, 0.031334, 0.032,
+              0.031125, 0.035125, 0.036917, 0.033583, 0.031834, 0.032041, 0.0335, 0.034875, 0.032416, 0.035, 0.035375,
+              0.031708, 0.036583, 0.031792, 0.031084, 0.037791, 0.034959, 0.031792, 0.033709
+            ],
+            "p50": 0.0342505,
+            "p95": 0.04047105,
+            "mean": 0.0344987,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT run_id, routine_id, agent_id, trigger_id, run_kind, scheduled_for, routine_name, instruction, delivery_id, status, error, missed_count, missed_until, run_source, created_at, updated_at FROM projection_routine_runs WHERE status = 'queued' AND delivery_id IS NULL ORDER BY created_at, run_id",
+                "plan": [
+                  "SEARCH projection_routine_runs USING INDEX routine_runs_status_updated (status=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.050875, 0.03575, 0.038958, 0.032833, 0.033709, 0.045042, 0.032459, 0.032083, 0.038083, 0.035958,
+              0.034917, 0.0335, 0.032291, 0.0315, 0.032542, 0.038916, 0.035208, 0.031209, 0.033833, 0.032, 0.033875,
+              0.031916, 0.031958, 0.03475, 0.039417, 0.031333, 0.037291, 0.031666, 0.033, 0.037292
+            ],
+            "p50": 0.033771,
+            "p95": 0.042510749999999986,
+            "mean": 0.035138800000000005,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT run_id, routine_id, agent_id, trigger_id, run_kind, scheduled_for, routine_name, instruction, delivery_id, status, error, missed_count, missed_until, run_source, created_at, updated_at FROM projection_routine_runs WHERE status = 'queued' AND delivery_id IS NULL ORDER BY created_at, run_id",
+                "plan": [
+                  "SEARCH projection_routine_runs USING INDEX routine_runs_status_updated (status=?)",
+                  "USE TEMP B-TREE FOR ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "routines.due": {
+          "area": "routines",
+          "description": "Scheduler tick (due)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              0.024375, 0.024792, 0.025292, 0.030333, 0.02975, 0.025625, 0.03, 0.027083, 0.032834, 0.04625, 0.040541,
+              0.110541, 0.0455, 0.022125, 0.031292, 0.026583, 0.023208, 0.024291, 0.022459, 0.027208, 0.0255, 0.018959,
+              0.026041, 0.037166, 0.025083, 0.023208, 0.025291, 0.024291, 0.025625, 0.067958
+            ],
+            "p50": 0.025833000000000002,
+            "p95": 0.05818939999999994,
+            "mean": 0.03230679999999999,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT trigger.trigger_id, trigger.next_run_at, trigger.schedule_json, routine.routine_id, routine.agent_id, routine.name, routine.instruction, routine.active, routine.timezone, routine.limit_policy, routine.missed_policy, routine.run_in, routine.created_at, routine.updated_at FROM projection_routine_triggers trigger JOIN projection_agent_routines routine ON routine.routine_id = trigger.routine_id WHERE routine.active = 1 AND trigger.next_run_at <= ? ORDER BY trigger.next_run_at, trigger.trigger_id",
+                "plan": [
+                  "SEARCH trigger USING INDEX routine_triggers_due (next_run_at<?)",
+                  "SEARCH routine USING INDEX sqlite_autoindex_projection_agent_routines_1 (routine_id=?)",
+                  "USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.026375, 0.0245, 0.020875, 0.021375, 0.02475, 0.030709, 0.022875, 0.019958, 0.021208, 0.020083, 0.056875,
+              0.076958, 0.028916, 0.023709, 0.022375, 0.024208, 0.021542, 0.019583, 0.022584, 0.020125, 0.020166, 0.027,
+              0.020709, 0.019416, 0.022208, 0.020541, 0.020042, 0.019625, 0.020125, 0.022375
+            ],
+            "p50": 0.021875,
+            "p95": 0.04510029999999993,
+            "mean": 0.025393,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT trigger.trigger_id, trigger.next_run_at, trigger.schedule_json, routine.routine_id, routine.agent_id, routine.name, routine.instruction, routine.active, routine.timezone, routine.limit_policy, routine.missed_policy, routine.run_in, routine.created_at, routine.updated_at FROM projection_routine_triggers trigger JOIN projection_agent_routines routine ON routine.routine_id = trigger.routine_id WHERE routine.active = 1 AND trigger.next_run_at <= ? ORDER BY trigger.next_run_at, trigger.trigger_id",
+                "plan": [
+                  "SEARCH trigger USING INDEX routine_triggers_due (next_run_at<?)",
+                  "SEARCH routine USING INDEX sqlite_autoindex_projection_agent_routines_1 (routine_id=?)",
+                  "USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "events.hasAggregate": {
+          "area": "events",
+          "description": "Has a thread any event (hasAggregateEvents)",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              0.013875, 0.027417, 0.011125, 0.01075, 0.011416, 0.014958, 0.010584, 0.010584, 0.009708, 0.01, 0.009625,
+              0.011, 0.009917, 0.010042, 0.020583, 0.010292, 0.010625, 0.268875, 0.023208, 0.011083, 0.012333, 0.010458,
+              0.010708, 0.010416, 0.009833, 0.010458, 0.010208, 0.010625, 0.010167, 0.009958
+            ],
+            "p50": 0.0106045,
+            "p95": 0.02552294999999999,
+            "mean": 0.020694366666666665,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT 1 FROM orchestration_events WHERE aggregate_type = ? AND aggregate_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH orchestration_events USING COVERING INDEX orchestration_events_aggregate (aggregate_type=? AND aggregate_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.01525, 0.058875, 0.011084, 0.011208, 0.01175, 0.017291, 0.010625, 0.012792, 0.00975, 0.009667, 0.079375,
+              0.058166, 0.009875, 0.009666, 0.010292, 0.012, 0.010208, 0.010292, 0.014458, 0.011792, 0.021667, 0.011208,
+              0.01025, 0.014875, 0.009959, 0.009833, 0.010709, 0.018541, 0.009833, 0.010334
+            ],
+            "p50": 0.011146,
+            "p95": 0.058555949999999996,
+            "mean": 0.017387500000000004,
+            "statements": 1,
+            "plans": [
+              {
+                "sql": "SELECT 1 FROM orchestration_events WHERE aggregate_type = ? AND aggregate_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH orchestration_events USING COVERING INDEX orchestration_events_aggregate (aggregate_type=? AND aggregate_id=?)"
+                ],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "tables.list": {
+          "area": "tables",
+          "description": "list_tables / settings: tables with row counts",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              32.631917, 31.848, 31.154792, 32.277417, 32.51875, 32.198792, 30.993333, 33.927292, 33.218875, 31.340125,
+              31.913375, 32.543792, 30.801667, 31.408458, 38.0475, 32.281667, 32.336125, 31.375916, 32.471417, 32.569,
+              32.794084, 33.611042, 32.293125, 31.910625, 32.41825, 34.068084, 35.357875, 33.783459, 32.895167, 32.22425
+            ],
+            "p50": 32.377187500000005,
+            "p95": 34.77746904999999,
+            "mean": 32.64047236666667,
+            "statements": 0,
+            "plans": []
+          },
+          "after": {
+            "samplesMs": [
+              31.437166, 31.245166, 30.8725, 31.973334, 32.122042, 30.829, 31.1185, 31.888459, 32.014292, 32.897708,
+              32.125792, 30.85, 32.481583, 32.694209, 34.667375, 32.356291, 31.784375, 31.461167, 32.823542, 34.074333,
+              36.356042, 36.373292, 33.561125, 33.426833, 32.409167, 32.295417, 35.414125, 38.301125, 32.71, 33.991084
+            ],
+            "p50": 32.382729,
+            "p95": 36.3655295,
+            "mean": 32.88516813333334,
+            "statements": 0,
+            "plans": []
+          }
+        },
+        "tables.query": {
+          "area": "tables",
+          "description": "query_data: open tasks of one owner",
+          "write": false,
+          "before": {
+            "samplesMs": [
+              18.367833, 19.527334, 18.81425, 18.073, 18.212083, 18.541125, 18.085417, 18.109292, 17.856959, 18.172708,
+              17.470625, 17.966916, 17.906333, 22.375542, 21.275833, 18.931333, 19.226792, 18.778458, 18.538209,
+              18.126584, 18.659291, 19.888292, 20.415375, 20.174917, 20.369625, 20.629834, 19.39, 19.051708, 18.435,
+              18.345709
+            ],
+            "p50": 18.600208000000002,
+            "p95": 20.985133449999996,
+            "mean": 18.99054589999999,
+            "statements": 0,
+            "plans": []
+          },
+          "after": {
+            "samplesMs": [
+              18.683083, 19.348125, 18.037375, 17.733375, 19.698208, 19.4605, 18.147334, 18.297041, 17.80725, 17.804333,
+              18.279292, 17.547083, 23.465167, 26.123583, 18.609375, 18.501333, 19.225542, 18.957417, 18.511833,
+              18.98925, 18.294416, 18.958916, 71.623958, 20.642167, 20.269292, 20.732292, 20.182209, 19.649458,
+              18.380208, 17.443084
+            ],
+            "p50": 18.82025,
+            "p95": 24.927295799999992,
+            "mean": 20.980083300000004,
+            "statements": 0,
+            "plans": []
+          }
+        },
+        "write.appendMessage": {
+          "area": "writes",
+          "description": "Send a message to the main chat (appendConversationMessage)",
+          "write": true,
+          "before": {
+            "samplesMs": [
+              3.088292, 3.549875, 3.495542, 3.515125, 3.445833, 3.132334, 3.077084, 2.86875, 2.691625, 3.05, 3.262541,
+              3.343041, 3.058833, 2.843334, 2.984709, 2.87075, 2.606, 2.547042, 2.355, 2.849375, 2.529042, 2.538667,
+              2.275292, 2.757625, 2.753416, 2.695541, 2.839583, 2.717625, 2.422292, 2.651959
+            ],
+            "p50": 2.8463545000000003,
+            "p95": 3.50631265,
+            "mean": 2.8938709000000005,
+            "statements": 14,
+            "plans": [
+              {
+                "sql": "SELECT 1 AS deleted FROM projection_deleted_thread_messages WHERE thread_id = ? AND message_id = ?",
+                "plan": [
+                  "SEARCH projection_deleted_thread_messages USING COVERING INDEX sqlite_autoindex_projection_deleted_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT last_sequence, result_json FROM orchestration_command_receipts WHERE command_id = ?",
+                "plan": [
+                  "SEARCH orchestration_command_receipts USING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_events ( event_id, command_id, aggregate_type, aggregate_id, event_type, occurred_at, payload_json ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT agent_json FROM projection_agents ORDER BY sort_order, agent_id",
+                "plan": ["SCAN projection_agents", "USE TEMP B-TREE FOR ORDER BY"],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_threads (thread_id, agent_id, title, active_turn_id, created_at, updated_at, last_event_sequence) VALUES (?, ?, ?, NULL, ?, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET agent_id = excluded.agent_id, title = excluded.title, updated_at = excluded.updated_at, last_event_sequence = MAX(projection_threads.last_event_sequence, excluded.last_event_sequence)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT COALESCE(MAX(ordinal), -1) + 1 AS ordinal FROM projection_thread_messages WHERE thread_id = ?",
+                "plan": ["SEARCH projection_thread_messages USING COVERING INDEX thread_messages_order (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_thread_messages ( thread_id, message_id, turn_id, author, status, item_type, created_at, ordinal, message_json, last_event_sequence ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT NULLIF(turn_id, '') AS turn, created_at || char(0) || ordinal || char(0) || (CASE WHEN author = 'user' THEN 0 WHEN author = 'assistant' THEN CASE WHEN item_type IN ('commentary', 'plan') THEN 1 ELSE 3 END WHEN json_extract(message_json, '$.exchange.direction') = 'incoming' THEN 0 ELSE 2 END) AS inputs, group_id IS NOT NULL AS keyed FROM projection_thread_messages WHERE thread_id = ? AND message_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ranked AS ( SELECT message_id, created_at, ordinal, NULLIF(turn_id, '') AS turn, CASE WHEN author = 'user' THEN 0 WHEN author = 'assistant' THEN CASE WHEN item_type IN ('commentary', 'plan') THEN 1 ELSE 3 END WHEN json_extract(message_json, '$.exchange.direction') = 'incoming' THEN 0 ELSE 2 END AS role_rank FROM projection_thread_messages WHERE thread_id = $thread AND message_id = $key ), keyed AS ( SELECT message_id, CASE WHEN turn IS NULL THEN created_at ELSE MIN(created_at) OVER turn_by_time END AS group_start, CASE WHEN turn IS NULL THEN ordinal ELSE FIRST_VALUE(ordinal) OVER turn_by_time END AS group_first, CASE WHEN turn IS NULL THEN 'message:' || message_id ELSE 'turn:' || turn END AS group_id, CASE WHEN turn IS NULL THEN 0 WHEN SUM(role_rank = 0) OVER turn_by_time >= 2 THEN 4 ELSE role_rank END AS turn_rank FROM ranked WINDOW turn_by_time AS (PARTITION BY turn ORDER BY created_at, ordinal) ) UPDATE projection_thread_messages AS message SET group_start = keyed.group_start, group_first = keyed.group_first, group_id = keyed.group_id, turn_rank = keyed.turn_rank FROM keyed WHERE message.thread_id = $thread AND message.message_id = keyed.message_id AND (message.group_start, message.group_first, message.group_id, message.turn_rank) IS NOT (keyed.group_start, keyed.group_first, keyed.group_id, keyed.turn_rank)",
+                "plan": [
+                  "MATERIALIZE keyed",
+                  "CO-ROUTINE (subquery-4)",
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)",
+                  "SCAN (subquery-4)",
+                  "SCAN keyed",
+                  "SEARCH message USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT OR IGNORE INTO agent_usage_activity SELECT ?, ?, '', ?, ?, ?, ?, ? WHERE ? >= (SELECT applied_at FROM schema_migrations WHERE version = 15)",
+                "plan": [
+                  "SCAN CONSTANT ROW",
+                  "SCALAR SUBQUERY 1",
+                  "SEARCH schema_migrations USING INTEGER PRIMARY KEY (rowid=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "UPDATE projection_threads SET active_turn_id = ?, updated_at = ?, last_event_sequence = ? WHERE thread_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_thread_activities (activity_id, thread_id, turn_id, activity_type, payload_json, created_at, last_event_sequence) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT 1 FROM orchestration_events WHERE command_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH orchestration_events USING COVERING INDEX orchestration_events_command (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_command_receipts (command_id, accepted_at, first_sequence, last_sequence, result_json) VALUES (?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              3.046458, 2.937417, 3.74075, 2.972166, 3.151459, 3.023125, 3.342333, 2.606792, 3.112125, 2.558625, 3.0225,
+              3.200375, 2.81175, 2.853, 3.32775, 3.47475, 3.082625, 2.894042, 2.742833, 2.536333, 2.719916, 2.459917,
+              2.746417, 2.747458, 2.89475, 2.924875, 2.989291, 2.567583, 2.750167, 2.437125
+            ],
+            "p50": 2.9098125,
+            "p95": 3.4151623499999997,
+            "mean": 2.922490233333333,
+            "statements": 14,
+            "plans": [
+              {
+                "sql": "SELECT 1 AS deleted FROM projection_deleted_thread_messages WHERE thread_id = ? AND message_id = ?",
+                "plan": [
+                  "SEARCH projection_deleted_thread_messages USING COVERING INDEX sqlite_autoindex_projection_deleted_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT last_sequence, result_json FROM orchestration_command_receipts WHERE command_id = ?",
+                "plan": [
+                  "SEARCH orchestration_command_receipts USING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_events ( event_id, command_id, aggregate_type, aggregate_id, event_type, occurred_at, payload_json ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT agent_json FROM projection_agents ORDER BY sort_order, agent_id",
+                "plan": ["SCAN projection_agents", "USE TEMP B-TREE FOR ORDER BY"],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_threads (thread_id, agent_id, title, active_turn_id, created_at, updated_at, last_event_sequence) VALUES (?, ?, ?, NULL, ?, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET agent_id = excluded.agent_id, title = excluded.title, updated_at = excluded.updated_at, last_event_sequence = MAX(projection_threads.last_event_sequence, excluded.last_event_sequence)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT COALESCE(MAX(ordinal), -1) + 1 AS ordinal FROM projection_thread_messages WHERE thread_id = ?",
+                "plan": ["SEARCH projection_thread_messages USING COVERING INDEX thread_messages_order (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_thread_messages ( thread_id, message_id, turn_id, author, status, item_type, created_at, ordinal, message_json, last_event_sequence ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT NULLIF(turn_id, '') AS turn, created_at || char(0) || ordinal || char(0) || (CASE WHEN author = 'user' THEN 0 WHEN author = 'assistant' THEN CASE WHEN item_type IN ('commentary', 'plan') THEN 1 ELSE 3 END WHEN json_extract(message_json, '$.exchange.direction') = 'incoming' THEN 0 ELSE 2 END) AS inputs, group_id IS NOT NULL AS keyed FROM projection_thread_messages WHERE thread_id = ? AND message_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ranked AS ( SELECT message_id, created_at, ordinal, NULLIF(turn_id, '') AS turn, CASE WHEN author = 'user' THEN 0 WHEN author = 'assistant' THEN CASE WHEN item_type IN ('commentary', 'plan') THEN 1 ELSE 3 END WHEN json_extract(message_json, '$.exchange.direction') = 'incoming' THEN 0 ELSE 2 END AS role_rank FROM projection_thread_messages WHERE thread_id = $thread AND message_id = $key ), keyed AS ( SELECT message_id, CASE WHEN turn IS NULL THEN created_at ELSE MIN(created_at) OVER turn_by_time END AS group_start, CASE WHEN turn IS NULL THEN ordinal ELSE FIRST_VALUE(ordinal) OVER turn_by_time END AS group_first, CASE WHEN turn IS NULL THEN 'message:' || message_id ELSE 'turn:' || turn END AS group_id, CASE WHEN turn IS NULL THEN 0 WHEN SUM(role_rank = 0) OVER turn_by_time >= 2 THEN 4 ELSE role_rank END AS turn_rank FROM ranked WINDOW turn_by_time AS (PARTITION BY turn ORDER BY created_at, ordinal) ) UPDATE projection_thread_messages AS message SET group_start = keyed.group_start, group_first = keyed.group_first, group_id = keyed.group_id, turn_rank = keyed.turn_rank FROM keyed WHERE message.thread_id = $thread AND message.message_id = keyed.message_id AND (message.group_start, message.group_first, message.group_id, message.turn_rank) IS NOT (keyed.group_start, keyed.group_first, keyed.group_id, keyed.turn_rank)",
+                "plan": [
+                  "MATERIALIZE keyed",
+                  "CO-ROUTINE (subquery-4)",
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)",
+                  "SCAN (subquery-4)",
+                  "SCAN keyed",
+                  "SEARCH message USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT OR IGNORE INTO agent_usage_activity SELECT ?, ?, '', ?, ?, ?, ?, ? WHERE ? >= (SELECT applied_at FROM schema_migrations WHERE version = 15)",
+                "plan": [
+                  "SCAN CONSTANT ROW",
+                  "SCALAR SUBQUERY 1",
+                  "SEARCH schema_migrations USING INTEGER PRIMARY KEY (rowid=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "UPDATE projection_threads SET active_turn_id = ?, updated_at = ?, last_event_sequence = ? WHERE thread_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_thread_activities (activity_id, thread_id, turn_id, activity_type, payload_json, created_at, last_event_sequence) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT 1 FROM orchestration_events WHERE command_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH orchestration_events USING COVERING INDEX orchestration_events_command (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_command_receipts (command_id, accepted_at, first_sequence, last_sequence, result_json) VALUES (?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "write.streamFlush": {
+          "area": "writes",
+          "description": "Streamed text flush of a side-thread answer (persistStreamingMessage)",
+          "write": true,
+          "before": {
+            "samplesMs": [
+              0.276834, 0.269917, 0.276875, 3.835, 0.381791, 0.496041, 0.326667, 0.319375, 0.320917, 0.260833, 0.2605,
+              0.250125, 0.237083, 0.23825, 0.242291, 0.334584, 0.313792, 0.248667, 0.256708, 0.246167, 0.232875,
+              0.231959, 0.234833, 0.233417, 0.222833, 0.291166, 0.279042, 0.243333, 0.233917, 0.229917
+            ],
+            "p50": 0.258604,
+            "p95": 0.44462849999999965,
+            "mean": 0.3941902999999999,
+            "statements": 12,
+            "plans": [
+              {
+                "sql": "SELECT 1 AS deleted FROM projection_deleted_thread_messages WHERE thread_id = ? AND message_id = ?",
+                "plan": [
+                  "SEARCH projection_deleted_thread_messages USING COVERING INDEX sqlite_autoindex_projection_deleted_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT last_sequence, result_json FROM orchestration_command_receipts WHERE command_id = ?",
+                "plan": [
+                  "SEARCH orchestration_command_receipts USING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_events ( event_id, command_id, aggregate_type, aggregate_id, event_type, occurred_at, payload_json ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT agent_json FROM projection_agents ORDER BY sort_order, agent_id",
+                "plan": ["SCAN projection_agents", "USE TEMP B-TREE FOR ORDER BY"],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_threads (thread_id, agent_id, title, active_turn_id, created_at, updated_at, last_event_sequence) VALUES (?, ?, ?, NULL, ?, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET agent_id = excluded.agent_id, title = excluded.title, updated_at = excluded.updated_at, last_event_sequence = MAX(projection_threads.last_event_sequence, excluded.last_event_sequence)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT command_id FROM orchestration_events WHERE aggregate_type = 'thread' AND aggregate_id = ? AND event_type = ? AND sequence < ? AND json_extract(payload_json, '$.streamedMessage.id') = ?",
+                "plan": [
+                  "SEARCH orchestration_events USING INDEX orchestration_events_thread_type (aggregate_id=? AND event_type=? AND sequence<?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT NULLIF(turn_id, '') AS turn, created_at || char(0) || ordinal || char(0) || (CASE WHEN author = 'user' THEN 0 WHEN author = 'assistant' THEN CASE WHEN item_type IN ('commentary', 'plan') THEN 1 ELSE 3 END WHEN json_extract(message_json, '$.exchange.direction') = 'incoming' THEN 0 ELSE 2 END) AS inputs, group_id IS NOT NULL AS keyed FROM projection_thread_messages WHERE thread_id = ? AND message_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_thread_messages ( thread_id, message_id, turn_id, author, status, item_type, created_at, ordinal, message_json, last_event_sequence ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(thread_id, message_id) DO UPDATE SET turn_id = excluded.turn_id, author = excluded.author, status = excluded.status, item_type = excluded.item_type, created_at = excluded.created_at, ordinal = excluded.ordinal, message_json = excluded.message_json, last_event_sequence = excluded.last_event_sequence",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT OR IGNORE INTO agent_usage_activity SELECT ?, ?, '', ?, ?, ?, ?, ? WHERE ? >= (SELECT applied_at FROM schema_migrations WHERE version = 15)",
+                "plan": [
+                  "SCAN CONSTANT ROW",
+                  "SCALAR SUBQUERY 1",
+                  "SEARCH schema_migrations USING INTEGER PRIMARY KEY (rowid=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "UPDATE projection_threads SET active_turn_id = ?, updated_at = ?, last_event_sequence = ? WHERE thread_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT 1 FROM orchestration_events WHERE command_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH orchestration_events USING COVERING INDEX orchestration_events_command (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_command_receipts (command_id, accepted_at, first_sequence, last_sequence, result_json) VALUES (?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              0.278958, 0.278084, 0.260958, 0.262375, 0.762791, 0.4085, 0.308958, 0.416709, 0.276167, 0.253833,
+              0.242791, 0.239083, 0.241375, 0.231416, 0.299833, 0.270833, 0.324042, 0.261333, 0.270625, 0.249667,
+              0.238416, 0.229042, 0.230917, 0.229375, 0.237666, 0.254625, 0.246417, 0.236333, 0.23, 0.234208
+            ],
+            "p50": 0.254229,
+            "p95": 0.41301494999999994,
+            "mean": 0.283511,
+            "statements": 12,
+            "plans": [
+              {
+                "sql": "SELECT 1 AS deleted FROM projection_deleted_thread_messages WHERE thread_id = ? AND message_id = ?",
+                "plan": [
+                  "SEARCH projection_deleted_thread_messages USING COVERING INDEX sqlite_autoindex_projection_deleted_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT last_sequence, result_json FROM orchestration_command_receipts WHERE command_id = ?",
+                "plan": [
+                  "SEARCH orchestration_command_receipts USING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_events ( event_id, command_id, aggregate_type, aggregate_id, event_type, occurred_at, payload_json ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT agent_json FROM projection_agents ORDER BY sort_order, agent_id",
+                "plan": ["SCAN projection_agents", "USE TEMP B-TREE FOR ORDER BY"],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_threads (thread_id, agent_id, title, active_turn_id, created_at, updated_at, last_event_sequence) VALUES (?, ?, ?, NULL, ?, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET agent_id = excluded.agent_id, title = excluded.title, updated_at = excluded.updated_at, last_event_sequence = MAX(projection_threads.last_event_sequence, excluded.last_event_sequence)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT command_id FROM orchestration_events WHERE aggregate_type = 'thread' AND aggregate_id = ? AND event_type = ? AND sequence < ? AND json_extract(payload_json, '$.streamedMessage.id') = ?",
+                "plan": [
+                  "SEARCH orchestration_events USING INDEX orchestration_events_thread_type (aggregate_id=? AND event_type=? AND sequence<?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT NULLIF(turn_id, '') AS turn, created_at || char(0) || ordinal || char(0) || (CASE WHEN author = 'user' THEN 0 WHEN author = 'assistant' THEN CASE WHEN item_type IN ('commentary', 'plan') THEN 1 ELSE 3 END WHEN json_extract(message_json, '$.exchange.direction') = 'incoming' THEN 0 ELSE 2 END) AS inputs, group_id IS NOT NULL AS keyed FROM projection_thread_messages WHERE thread_id = ? AND message_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_thread_messages ( thread_id, message_id, turn_id, author, status, item_type, created_at, ordinal, message_json, last_event_sequence ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(thread_id, message_id) DO UPDATE SET turn_id = excluded.turn_id, author = excluded.author, status = excluded.status, item_type = excluded.item_type, created_at = excluded.created_at, ordinal = excluded.ordinal, message_json = excluded.message_json, last_event_sequence = excluded.last_event_sequence",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT OR IGNORE INTO agent_usage_activity SELECT ?, ?, '', ?, ?, ?, ?, ? WHERE ? >= (SELECT applied_at FROM schema_migrations WHERE version = 15)",
+                "plan": [
+                  "SCAN CONSTANT ROW",
+                  "SCALAR SUBQUERY 1",
+                  "SEARCH schema_migrations USING INTEGER PRIMARY KEY (rowid=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "UPDATE projection_threads SET active_turn_id = ?, updated_at = ?, last_event_sequence = ? WHERE thread_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT 1 FROM orchestration_events WHERE command_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH orchestration_events USING COVERING INDEX orchestration_events_command (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_command_receipts (command_id, accepted_at, first_sequence, last_sequence, result_json) VALUES (?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "write.snapshotPersist": {
+          "area": "writes",
+          "description": "Whole-snapshot write of a side thread (persistConversation)",
+          "write": true,
+          "before": {
+            "samplesMs": [
+              536.773375, 528.453084, 525.205125, 556.607833, 558.456875, 517.314417, 518.613833, 502.443875,
+              513.905583, 513.880208, 516.967625, 510.485084, 520.3485, 661.663917, 919.268958, 748.738417, 719.337583,
+              541.470917, 528.276292, 526.133334, 510.427833, 547.241667, 539.7405, 527.359625, 513.461791, 607.895541,
+              663.23275, 537.185, 533.508458, 523.285541
+            ],
+            "p50": 528.364688,
+            "p95": 735.5080416999999,
+            "mean": 565.5894513666666,
+            "statements": 19,
+            "plans": [
+              {
+                "sql": "SELECT message_id FROM projection_deleted_thread_messages WHERE thread_id = ?",
+                "plan": [
+                  "SEARCH projection_deleted_thread_messages USING COVERING INDEX sqlite_autoindex_projection_deleted_thread_messages_1 (thread_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT turn_id, provider_session_id FROM projection_turns WHERE thread_id = ?",
+                "plan": ["SCAN projection_turns"],
+                "flagged": ["SCAN projection_turns"]
+              },
+              {
+                "sql": "SELECT last_sequence, result_json FROM orchestration_command_receipts WHERE command_id = ?",
+                "plan": [
+                  "SEARCH orchestration_command_receipts USING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_events ( event_id, command_id, aggregate_type, aggregate_id, event_type, occurred_at, payload_json ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT agent_json FROM projection_agents ORDER BY sort_order, agent_id",
+                "plan": ["SCAN projection_agents", "USE TEMP B-TREE FOR ORDER BY"],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_threads (thread_id, agent_id, title, active_turn_id, created_at, updated_at, last_event_sequence) VALUES (?, ?, ?, NULL, ?, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET agent_id = excluded.agent_id, title = excluded.title, updated_at = excluded.updated_at, last_event_sequence = MAX(projection_threads.last_event_sequence, excluded.last_event_sequence)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "UPDATE projection_threads SET active_turn_id = ?, updated_at = ?, last_event_sequence = ? WHERE thread_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT message_id FROM projection_thread_messages WHERE thread_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_page_order (thread_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM projection_thread_messages WHERE thread_id = ? AND message_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM projection_attachments WHERE owner_kind = 'thread-message' AND owner_id = ?",
+                "plan": ["SEARCH projection_attachments USING INDEX attachments_owner (owner_kind=? AND owner_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_thread_messages ( thread_id, message_id, turn_id, author, status, item_type, created_at, ordinal, message_json, last_event_sequence ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(thread_id, message_id) DO UPDATE SET turn_id = excluded.turn_id, author = excluded.author, status = excluded.status, item_type = excluded.item_type, created_at = excluded.created_at, ordinal = excluded.ordinal, message_json = excluded.message_json, last_event_sequence = excluded.last_event_sequence",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT OR REPLACE INTO projection_attachments (attachment_id, owner_kind, owner_id, name, path, metadata_json, created_at, last_event_sequence) VALUES (?, 'thread-message', ?, ?, '', ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT OR IGNORE INTO agent_usage_activity SELECT ?, ?, '', ?, ?, ?, ?, ? WHERE ? >= (SELECT applied_at FROM schema_migrations WHERE version = 15)",
+                "plan": [
+                  "SCAN CONSTANT ROW",
+                  "SCALAR SUBQUERY 1",
+                  "SEARCH schema_migrations USING INTEGER PRIMARY KEY (rowid=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_thread_activities (activity_id, thread_id, turn_id, activity_type, payload_json, created_at, last_event_sequence) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ranked AS ( SELECT message_id, created_at, ordinal, NULLIF(turn_id, '') AS turn, CASE WHEN author = 'user' THEN 0 WHEN author = 'assistant' THEN CASE WHEN item_type IN ('commentary', 'plan') THEN 1 ELSE 3 END WHEN json_extract(message_json, '$.exchange.direction') = 'incoming' THEN 0 ELSE 2 END AS role_rank FROM projection_thread_messages WHERE thread_id = $thread ), keyed AS ( SELECT message_id, CASE WHEN turn IS NULL THEN created_at ELSE MIN(created_at) OVER turn_by_time END AS group_start, CASE WHEN turn IS NULL THEN ordinal ELSE FIRST_VALUE(ordinal) OVER turn_by_time END AS group_first, CASE WHEN turn IS NULL THEN 'message:' || message_id ELSE 'turn:' || turn END AS group_id, CASE WHEN turn IS NULL THEN 0 WHEN SUM(role_rank = 0) OVER turn_by_time >= 2 THEN 4 ELSE role_rank END AS turn_rank FROM ranked WINDOW turn_by_time AS (PARTITION BY turn ORDER BY created_at, ordinal) ) UPDATE projection_thread_messages AS message SET group_start = keyed.group_start, group_first = keyed.group_first, group_id = keyed.group_id, turn_rank = keyed.turn_rank FROM keyed WHERE message.thread_id = $thread AND message.message_id = keyed.message_id AND (message.group_start, message.group_first, message.group_id, message.turn_rank) IS NOT (keyed.group_start, keyed.group_first, keyed.group_id, keyed.turn_rank)",
+                "plan": [
+                  "MATERIALIZE keyed",
+                  "CO-ROUTINE (subquery-4)",
+                  "SEARCH projection_thread_messages USING INDEX thread_messages_turn (thread_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY",
+                  "SCAN (subquery-4)",
+                  "SCAN keyed",
+                  "SEARCH message USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM projection_thread_activities WHERE thread_id = ? AND last_event_sequence IN ( SELECT sequence FROM orchestration_events WHERE aggregate_type = 'thread' AND aggregate_id = ? AND sequence < ? AND (json_type(payload_json, '$.snapshot') = 'object' OR json_type(payload_json, '$.streamedMessage') = 'object') )",
+                "plan": [
+                  "SCAN projection_thread_activities",
+                  "LIST SUBQUERY 1",
+                  "SEARCH orchestration_events USING INDEX orchestration_events_aggregate (aggregate_type=? AND aggregate_id=? AND sequence<?)",
+                  "CREATE BLOOM FILTER"
+                ],
+                "flagged": ["SCAN projection_thread_activities"]
+              },
+              {
+                "sql": "DELETE FROM orchestration_events WHERE aggregate_type = 'thread' AND aggregate_id = ? AND sequence < ? AND (json_type(payload_json, '$.snapshot') = 'object' OR json_type(payload_json, '$.streamedMessage') = 'object') RETURNING command_id",
+                "plan": [
+                  "SEARCH orchestration_events USING INDEX orchestration_events_aggregate (aggregate_type=? AND aggregate_id=? AND sequence<?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT 1 FROM orchestration_events WHERE command_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH orchestration_events USING COVERING INDEX orchestration_events_command (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_command_receipts (command_id, accepted_at, first_sequence, last_sequence, result_json) VALUES (?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              10.695375, 10.857666, 10.253875, 10.928166, 10.384833, 9.858, 10.74025, 10.6095, 10.353959, 23.75875,
+              10.545833, 10.69025, 10.640208, 10.695625, 10.315375, 10.153, 25.57525, 16.673083, 10.850083, 10.383167,
+              10.665834, 9.059917, 11.336166, 10.389083, 23.889625, 10.091708, 15.756, 15.230291, 11.422083, 10.287333
+            ],
+            "p50": 10.678042000000001,
+            "p95": 23.83073125,
+            "mean": 12.436342933333332,
+            "statements": 19,
+            "plans": [
+              {
+                "sql": "SELECT message_id FROM projection_deleted_thread_messages WHERE thread_id = ?",
+                "plan": [
+                  "SEARCH projection_deleted_thread_messages USING COVERING INDEX sqlite_autoindex_projection_deleted_thread_messages_1 (thread_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT turn_id, provider_session_id FROM projection_turns WHERE thread_id = ?",
+                "plan": ["SEARCH projection_turns USING INDEX turns_thread (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT last_sequence, result_json FROM orchestration_command_receipts WHERE command_id = ?",
+                "plan": [
+                  "SEARCH orchestration_command_receipts USING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_events ( event_id, command_id, aggregate_type, aggregate_id, event_type, occurred_at, payload_json ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT agent_json FROM projection_agents ORDER BY sort_order, agent_id",
+                "plan": ["SCAN projection_agents", "USE TEMP B-TREE FOR ORDER BY"],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_threads (thread_id, agent_id, title, active_turn_id, created_at, updated_at, last_event_sequence) VALUES (?, ?, ?, NULL, ?, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET agent_id = excluded.agent_id, title = excluded.title, updated_at = excluded.updated_at, last_event_sequence = MAX(projection_threads.last_event_sequence, excluded.last_event_sequence)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "UPDATE projection_threads SET active_turn_id = ?, updated_at = ?, last_event_sequence = ? WHERE thread_id = ?",
+                "plan": ["SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT message_id FROM projection_thread_messages WHERE thread_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_page_order (thread_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM projection_thread_messages WHERE thread_id = ? AND message_id = ?",
+                "plan": [
+                  "SEARCH projection_thread_messages USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM projection_attachments WHERE owner_kind = 'thread-message' AND owner_id = ?",
+                "plan": ["SEARCH projection_attachments USING INDEX attachments_owner (owner_kind=? AND owner_id=?)"],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_thread_messages ( thread_id, message_id, turn_id, author, status, item_type, created_at, ordinal, message_json, last_event_sequence ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(thread_id, message_id) DO UPDATE SET turn_id = excluded.turn_id, author = excluded.author, status = excluded.status, item_type = excluded.item_type, created_at = excluded.created_at, ordinal = excluded.ordinal, message_json = excluded.message_json, last_event_sequence = excluded.last_event_sequence",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT OR REPLACE INTO projection_attachments (attachment_id, owner_kind, owner_id, name, path, metadata_json, created_at, last_event_sequence) VALUES (?, 'thread-message', ?, ?, '', ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT OR IGNORE INTO agent_usage_activity SELECT ?, ?, '', ?, ?, ?, ?, ? WHERE ? >= (SELECT applied_at FROM schema_migrations WHERE version = 15)",
+                "plan": [
+                  "SCAN CONSTANT ROW",
+                  "SCALAR SUBQUERY 1",
+                  "SEARCH schema_migrations USING INTEGER PRIMARY KEY (rowid=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO projection_thread_activities (activity_id, thread_id, turn_id, activity_type, payload_json, created_at, last_event_sequence) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "WITH ranked AS ( SELECT message_id, created_at, ordinal, NULLIF(turn_id, '') AS turn, CASE WHEN author = 'user' THEN 0 WHEN author = 'assistant' THEN CASE WHEN item_type IN ('commentary', 'plan') THEN 1 ELSE 3 END WHEN json_extract(message_json, '$.exchange.direction') = 'incoming' THEN 0 ELSE 2 END AS role_rank FROM projection_thread_messages WHERE thread_id = $thread ), keyed AS ( SELECT message_id, CASE WHEN turn IS NULL THEN created_at ELSE MIN(created_at) OVER turn_by_time END AS group_start, CASE WHEN turn IS NULL THEN ordinal ELSE FIRST_VALUE(ordinal) OVER turn_by_time END AS group_first, CASE WHEN turn IS NULL THEN 'message:' || message_id ELSE 'turn:' || turn END AS group_id, CASE WHEN turn IS NULL THEN 0 WHEN SUM(role_rank = 0) OVER turn_by_time >= 2 THEN 4 ELSE role_rank END AS turn_rank FROM ranked WINDOW turn_by_time AS (PARTITION BY turn ORDER BY created_at, ordinal) ) UPDATE projection_thread_messages AS message SET group_start = keyed.group_start, group_first = keyed.group_first, group_id = keyed.group_id, turn_rank = keyed.turn_rank FROM keyed WHERE message.thread_id = $thread AND message.message_id = keyed.message_id AND (message.group_start, message.group_first, message.group_id, message.turn_rank) IS NOT (keyed.group_start, keyed.group_first, keyed.group_id, keyed.turn_rank)",
+                "plan": [
+                  "MATERIALIZE keyed",
+                  "CO-ROUTINE (subquery-4)",
+                  "SEARCH projection_thread_messages USING INDEX thread_messages_turn (thread_id=?)",
+                  "USE TEMP B-TREE FOR ORDER BY",
+                  "SCAN (subquery-4)",
+                  "SCAN keyed",
+                  "SEARCH message USING INDEX sqlite_autoindex_projection_thread_messages_1 (thread_id=? AND message_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM projection_thread_activities WHERE thread_id = ? AND last_event_sequence IN ( SELECT sequence FROM orchestration_events WHERE aggregate_type = 'thread' AND aggregate_id = ? AND sequence < ? AND (json_type(payload_json, '$.snapshot') = 'object' OR json_type(payload_json, '$.streamedMessage') = 'object') )",
+                "plan": [
+                  "SEARCH projection_thread_activities USING COVERING INDEX thread_activities_thread (thread_id=? AND last_event_sequence=?)",
+                  "LIST SUBQUERY 1",
+                  "SEARCH orchestration_events USING INDEX orchestration_events_aggregate (aggregate_type=? AND aggregate_id=? AND sequence<?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM orchestration_events WHERE aggregate_type = 'thread' AND aggregate_id = ? AND sequence < ? AND (json_type(payload_json, '$.snapshot') = 'object' OR json_type(payload_json, '$.streamedMessage') = 'object') RETURNING command_id",
+                "plan": [
+                  "SEARCH orchestration_events USING INDEX orchestration_events_aggregate (aggregate_type=? AND aggregate_id=? AND sequence<?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT 1 FROM orchestration_events WHERE command_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH orchestration_events USING COVERING INDEX orchestration_events_command (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_command_receipts (command_id, accepted_at, first_sequence, last_sequence, result_json) VALUES (?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              }
+            ]
+          }
+        },
+        "write.deleteSideThread": {
+          "area": "writes",
+          "description": "Delete one side thread with its history (AgentThreadStore.delete)",
+          "write": true,
+          "before": {
+            "samplesMs": [
+              1456.670792, 1544.724625, 1492.243792, 1431.796375, 1447.388709, 1399.372375, 1378.404917, 1664.8905,
+              1420.309084, 1535.17725, 1505.169542, 1410.0045, 1475.7785, 24186.075708, 47647.420417, 29037.5545,
+              1396.563792, 1412.735833, 1408.053041, 1380.569708, 1424.344084, 1382.546375, 1404.8805, 1455.915541,
+              1391.981291, 1425.627458, 1420.415459, 1414.050083, 1424.948375, 1409.866125
+            ],
+            "p50": 1424.6462295000001,
+            "p95": 26854.389043599986,
+            "mean": 4659.515975033335,
+            "statements": 9,
+            "plans": [
+              {
+                "sql": "SELECT *, COALESCE(legacy_task_id, thread_id) AS task_id FROM projection_agent_threads WHERE legacy_task_id = ? OR (legacy_task_id IS NULL AND thread_id = ?)",
+                "plan": [
+                  "MULTI-INDEX OR",
+                  "INDEX 1",
+                  "SEARCH projection_agent_threads USING INDEX sqlite_autoindex_projection_agent_threads_2 (legacy_task_id=?)",
+                  "INDEX 2",
+                  "SEARCH projection_agent_threads USING INDEX sqlite_autoindex_projection_agent_threads_1 (thread_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT last_sequence, result_json FROM orchestration_command_receipts WHERE command_id = ?",
+                "plan": [
+                  "SEARCH orchestration_command_receipts USING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_events ( event_id, command_id, aggregate_type, aggregate_id, event_type, occurred_at, payload_json ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM orchestration_command_receipts WHERE command_id IN ( SELECT DISTINCT command_id FROM orchestration_events WHERE aggregate_type = ? AND aggregate_id IN (?) )",
+                "plan": [
+                  "SEARCH orchestration_command_receipts USING COVERING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)",
+                  "LIST SUBQUERY 1",
+                  "SEARCH orchestration_events USING INDEX orchestration_events_aggregate (aggregate_type=? AND aggregate_id=?)",
+                  "USE TEMP B-TREE FOR DISTINCT"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM orchestration_events WHERE aggregate_type = ? AND aggregate_id IN (?)",
+                "plan": [
+                  "SEARCH orchestration_events USING INDEX orchestration_events_aggregate (aggregate_type=? AND aggregate_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM projection_attachments WHERE owner_kind = 'thread-message' AND owner_id >= ? AND owner_id < ?",
+                "plan": [
+                  "SEARCH projection_attachments USING INDEX attachments_owner (owner_kind=? AND owner_id>? AND owner_id<?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM projection_threads WHERE thread_id = ?",
+                "plan": [
+                  "SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)",
+                  "SEARCH projection_deleted_thread_messages USING COVERING INDEX sqlite_autoindex_projection_deleted_thread_messages_1 (thread_id=?)",
+                  "SEARCH projection_agent_threads USING COVERING INDEX sqlite_autoindex_projection_agent_threads_1 (thread_id=?)",
+                  "SEARCH provider_history_imports USING COVERING INDEX provider_history_imports_thread (thread_id=?)",
+                  "SEARCH projection_messaging_threads USING COVERING INDEX sqlite_autoindex_projection_messaging_threads_2 (thread_id=?)",
+                  "SEARCH projection_channel_contexts USING COVERING INDEX sqlite_autoindex_projection_channel_contexts_1 (thread_id=?)",
+                  "SCAN projection_thread_summaries",
+                  "SCAN projection_thread_activities",
+                  "SEARCH projection_thread_read_baselines USING COVERING INDEX sqlite_autoindex_projection_thread_read_baselines_1 (thread_id=?)",
+                  "SEARCH projection_thread_reads USING COVERING INDEX sqlite_autoindex_projection_thread_reads_1 (thread_id=?)",
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_turn (thread_id=?)",
+                  "SCAN projection_turns",
+                  "SEARCH projection_provider_sessions USING COVERING INDEX provider_sessions_thread (thread_id=?)"
+                ],
+                "flagged": ["SCAN projection_thread_activities", "SCAN projection_turns"]
+              },
+              {
+                "sql": "SELECT 1 FROM orchestration_events WHERE command_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH orchestration_events USING COVERING INDEX orchestration_events_command (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_command_receipts (command_id, accepted_at, first_sequence, last_sequence, result_json) VALUES (?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              }
+            ]
+          },
+          "after": {
+            "samplesMs": [
+              5.847375, 6.069208, 5.550583, 5.628042, 5.681958, 5.134458, 5.481834, 4.79825, 6.062333, 5.783625,
+              6.048625, 6.020417, 5.628667, 6.82875, 18.503334, 6.989667, 17.965375, 6.352583, 7.282334, 6.219542,
+              5.569125, 5.868708, 6.779166, 6.62675, 5.689583, 5.735958, 5.893292, 5.909792, 4.898291, 5.523
+            ],
+            "p50": 5.881,
+            "p95": 13.158006549999971,
+            "mean": 6.7456875,
+            "statements": 9,
+            "plans": [
+              {
+                "sql": "SELECT *, COALESCE(legacy_task_id, thread_id) AS task_id FROM projection_agent_threads WHERE legacy_task_id = ? OR (legacy_task_id IS NULL AND thread_id = ?)",
+                "plan": [
+                  "MULTI-INDEX OR",
+                  "INDEX 1",
+                  "SEARCH projection_agent_threads USING INDEX sqlite_autoindex_projection_agent_threads_2 (legacy_task_id=?)",
+                  "INDEX 2",
+                  "SEARCH projection_agent_threads USING INDEX sqlite_autoindex_projection_agent_threads_1 (thread_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT last_sequence, result_json FROM orchestration_command_receipts WHERE command_id = ?",
+                "plan": [
+                  "SEARCH orchestration_command_receipts USING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_events ( event_id, command_id, aggregate_type, aggregate_id, event_type, occurred_at, payload_json ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM orchestration_command_receipts WHERE command_id IN ( SELECT DISTINCT command_id FROM orchestration_events WHERE aggregate_type = ? AND aggregate_id IN (?) )",
+                "plan": [
+                  "SEARCH orchestration_command_receipts USING COVERING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)",
+                  "LIST SUBQUERY 1",
+                  "SEARCH orchestration_events USING INDEX orchestration_events_aggregate (aggregate_type=? AND aggregate_id=?)",
+                  "USE TEMP B-TREE FOR DISTINCT"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM orchestration_events WHERE aggregate_type = ? AND aggregate_id IN (?)",
+                "plan": [
+                  "SEARCH orchestration_events USING INDEX orchestration_events_aggregate (aggregate_type=? AND aggregate_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM projection_attachments WHERE owner_kind = 'thread-message' AND owner_id >= ? AND owner_id < ?",
+                "plan": [
+                  "SEARCH projection_attachments USING INDEX attachments_owner (owner_kind=? AND owner_id>? AND owner_id<?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "DELETE FROM projection_threads WHERE thread_id = ?",
+                "plan": [
+                  "SEARCH projection_threads USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)",
+                  "SEARCH projection_deleted_thread_messages USING COVERING INDEX sqlite_autoindex_projection_deleted_thread_messages_1 (thread_id=?)",
+                  "SEARCH projection_agent_threads USING COVERING INDEX sqlite_autoindex_projection_agent_threads_1 (thread_id=?)",
+                  "SEARCH provider_history_imports USING COVERING INDEX provider_history_imports_thread (thread_id=?)",
+                  "SEARCH projection_messaging_threads USING COVERING INDEX sqlite_autoindex_projection_messaging_threads_2 (thread_id=?)",
+                  "SEARCH projection_channel_contexts USING COVERING INDEX sqlite_autoindex_projection_channel_contexts_1 (thread_id=?)",
+                  "SCAN projection_thread_summaries",
+                  "SEARCH projection_thread_activities USING COVERING INDEX thread_activities_thread (thread_id=?)",
+                  "SEARCH projection_thread_read_baselines USING COVERING INDEX sqlite_autoindex_projection_thread_read_baselines_1 (thread_id=?)",
+                  "SEARCH projection_thread_reads USING COVERING INDEX sqlite_autoindex_projection_thread_reads_1 (thread_id=?)",
+                  "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_turn (thread_id=?)",
+                  "SEARCH projection_turns USING COVERING INDEX turns_thread (thread_id=?)",
+                  "SEARCH projection_provider_sessions USING COVERING INDEX provider_sessions_thread (thread_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "SELECT 1 FROM orchestration_events WHERE command_id = ? LIMIT 1",
+                "plan": [
+                  "SEARCH orchestration_events USING COVERING INDEX orchestration_events_command (command_id=?)"
+                ],
+                "flagged": []
+              },
+              {
+                "sql": "INSERT INTO orchestration_command_receipts (command_id, accepted_at, first_sequence, last_sequence, result_json) VALUES (?, ?, ?, ?, ?)",
+                "plan": [],
+                "flagged": []
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

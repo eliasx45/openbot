@@ -1,0 +1,3485 @@
+{
+  "before": [
+    {
+      "label": "paired-1000:before",
+      "git": "01f1b907e",
+      "dirty": false,
+      "createdAt": "2026-11-06T12:35:01.994Z"
+    },
+    {
+      "label": "paired-small:before",
+      "git": "01f1b907e",
+      "dirty": false,
+      "createdAt": "2026-11-06T12:30:17.377Z"
+    }
+  ],
+  "after": [
+    {
+      "label": "paired-1000:after",
+      "git": "01f1b907e",
+      "dirty": true,
+      "createdAt": "2026-11-06T12:35:01.994Z"
+    },
+    {
+      "label": "paired-small:after",
+      "git": "01f1b907e",
+      "dirty": true,
+      "createdAt": "2026-11-06T12:30:17.377Z"
+    }
+  ],
+  "environment": {
+    "node": "v24.19.0",
+    "sqlite": "3.53.3",
+    "machine": {
+      "cpu": "Apple M1 Max",
+      "cores": 10,
+      "memoryGb": 64
+    }
+  },
+  "alpha": 0.05,
+  "bootstrapResamples": 4000,
+  "open": [
+    {
+      "scale": 1,
+      "beforeVersion": 58,
+      "afterVersion": 59,
+      "beforeOpenMs": [9.942167000000154],
+      "afterOpenMs": [28.899374999999964],
+      "fileBytes": 16162816,
+      "rowCounts": {
+        "schema_migrations": 51,
+        "orchestration_events": 4801,
+        "orchestration_command_receipts": 4801,
+        "projection_threads": 48,
+        "projection_agents": 8,
+        "projection_agent_memories": 240,
+        "projection_agent_routines": 16,
+        "projection_routine_triggers": 16,
+        "projection_routine_runs": 480,
+        "projection_provider_sessions": 48,
+        "projection_turns": 1931,
+        "projection_thread_messages": 4800,
+        "projection_thread_reads": 0,
+        "projection_thread_read_baselines": 0,
+        "projection_thread_activities": 4800,
+        "projection_mailbox_messages": 0,
+        "projection_deliveries": 0,
+        "projection_queue_state": 0,
+        "projection_reactions": 0,
+        "projection_attachments": 69,
+        "projection_thread_summaries": 0,
+        "projection_direct_threads": 0,
+        "projection_direct_messages": 0,
+        "projection_direct_reads": 0,
+        "file_deletion_outbox": 0,
+        "agent_usage_records": 0,
+        "agent_usage_checkpoints": 0,
+        "agent_usage_activity": 0,
+        "projection_channels": 0,
+        "projection_channel_messages": 0,
+        "projection_channel_tasks": 0,
+        "projection_channel_assignments": 0,
+        "projection_channel_contexts": 0,
+        "projection_channel_summaries": 0,
+        "projection_channel_reads": 0,
+        "projection_channel_memories": 0,
+        "projection_channel_routines": 0,
+        "projection_channel_routine_triggers": 0,
+        "projection_channel_routine_runs": 0,
+        "projection_mcp_servers": 0,
+        "projection_messaging_connections": 0,
+        "projection_messaging_threads": 0,
+        "provider_history_imports": 0,
+        "provider_history_turns": 0,
+        "provider_history_staging": 0,
+        "projection_routine_webhooks": 0,
+        "projection_channel_routine_webhooks": 0,
+        "projection_webhook_route_revocations": 0,
+        "projection_webhook_receipts": 0,
+        "routine_flow_links": 0,
+        "routine_flow_positions": 0,
+        "routine_flow_steps": 0,
+        "agent_memory_selections": 240,
+        "agent_memory_search_data": 11,
+        "agent_memory_search_idx": 9,
+        "agent_memory_search_docsize": 240,
+        "agent_memory_search_config": 1,
+        "agent_waits": 0,
+        "projection_messaging_memories": 0,
+        "routine_result_destinations": 0,
+        "routine_result_deliveries": 0,
+        "projection_messaging_allowed_roles": 0,
+        "browser_profiles": 0,
+        "workflows": 0,
+        "workflow_nodes": 0,
+        "workflow_edges": 0,
+        "workflow_versions": 0,
+        "workflow_triggers": 0,
+        "workflow_trigger_webhooks": 0,
+        "workflow_webhook_receipts": 0,
+        "workflow_runs": 0,
+        "workflow_steps": 0,
+        "workflow_output_deliveries": 0,
+        "projection_agent_threads": 40,
+        "workflow_github_runs": 0,
+        "workflow_github_deliveries": 0,
+        "workflow_github_actions": 0,
+        "projection_messaging_allowed_senders": 0,
+        "projection_deleted_thread_messages": 0,
+        "browser_proxies": 0,
+        "browser_profile_proxies": 0,
+        "agent_usage_skill_loads": 0
+      }
+    },
+    {
+      "scale": 10,
+      "beforeVersion": 58,
+      "afterVersion": 59,
+      "beforeOpenMs": [2.7388330000003407],
+      "afterOpenMs": [344.38687500000015],
+      "fileBytes": 151703552,
+      "rowCounts": {
+        "schema_migrations": 51,
+        "orchestration_events": 47652,
+        "orchestration_command_receipts": 47652,
+        "projection_threads": 204,
+        "projection_agents": 17,
+        "projection_agent_memories": 2363,
+        "projection_agent_routines": 68,
+        "projection_routine_triggers": 68,
+        "projection_routine_runs": 4420,
+        "projection_provider_sessions": 255,
+        "projection_turns": 19151,
+        "projection_thread_messages": 47651,
+        "projection_thread_reads": 0,
+        "projection_thread_read_baselines": 0,
+        "projection_thread_activities": 47651,
+        "projection_mailbox_messages": 0,
+        "projection_deliveries": 0,
+        "projection_queue_state": 0,
+        "projection_reactions": 0,
+        "projection_attachments": 475,
+        "projection_thread_summaries": 0,
+        "projection_direct_threads": 0,
+        "projection_direct_messages": 0,
+        "projection_direct_reads": 0,
+        "file_deletion_outbox": 0,
+        "agent_usage_records": 0,
+        "agent_usage_checkpoints": 0,
+        "agent_usage_activity": 0,
+        "projection_channels": 0,
+        "projection_channel_messages": 0,
+        "projection_channel_tasks": 0,
+        "projection_channel_assignments": 0,
+        "projection_channel_contexts": 0,
+        "projection_channel_summaries": 0,
+        "projection_channel_reads": 0,
+        "projection_channel_memories": 0,
+        "projection_channel_routines": 0,
+        "projection_channel_routine_triggers": 0,
+        "projection_channel_routine_runs": 0,
+        "projection_mcp_servers": 0,
+        "projection_messaging_connections": 0,
+        "projection_messaging_threads": 0,
+        "provider_history_imports": 0,
+        "provider_history_turns": 0,
+        "provider_history_staging": 0,
+        "projection_routine_webhooks": 0,
+        "projection_channel_routine_webhooks": 0,
+        "projection_webhook_route_revocations": 0,
+        "projection_webhook_receipts": 0,
+        "routine_flow_links": 0,
+        "routine_flow_positions": 0,
+        "routine_flow_steps": 0,
+        "agent_memory_selections": 2363,
+        "agent_memory_search_data": 43,
+        "agent_memory_search_idx": 41,
+        "agent_memory_search_docsize": 2363,
+        "agent_memory_search_config": 1,
+        "agent_waits": 0,
+        "projection_messaging_memories": 0,
+        "routine_result_destinations": 0,
+        "routine_result_deliveries": 0,
+        "projection_messaging_allowed_roles": 0,
+        "browser_profiles": 0,
+        "workflows": 0,
+        "workflow_nodes": 0,
+        "workflow_edges": 0,
+        "workflow_versions": 0,
+        "workflow_triggers": 0,
+        "workflow_trigger_webhooks": 0,
+        "workflow_webhook_receipts": 0,
+        "workflow_runs": 0,
+        "workflow_steps": 0,
+        "workflow_output_deliveries": 0,
+        "projection_agent_threads": 187,
+        "workflow_github_runs": 0,
+        "workflow_github_deliveries": 0,
+        "workflow_github_actions": 0,
+        "projection_messaging_allowed_senders": 0,
+        "projection_deleted_thread_messages": 0,
+        "browser_proxies": 0,
+        "browser_profile_proxies": 0,
+        "agent_usage_skill_loads": 0
+      }
+    },
+    {
+      "scale": 100,
+      "beforeVersion": 58,
+      "afterVersion": 59,
+      "beforeOpenMs": [1.7825420000008307],
+      "afterOpenMs": [3943.301124999998],
+      "fileBytes": 1511890944,
+      "rowCounts": {
+        "schema_migrations": 51,
+        "orchestration_events": 477153,
+        "orchestration_command_receipts": 477153,
+        "projection_threads": 888,
+        "projection_agents": 37,
+        "projection_agent_memories": 18944,
+        "projection_agent_routines": 333,
+        "projection_routine_triggers": 333,
+        "projection_routine_runs": 46287,
+        "projection_provider_sessions": 1517,
+        "projection_turns": 191211,
+        "projection_thread_messages": 477152,
+        "projection_thread_reads": 0,
+        "projection_thread_read_baselines": 0,
+        "projection_thread_activities": 477152,
+        "projection_mailbox_messages": 0,
+        "projection_deliveries": 0,
+        "projection_queue_state": 0,
+        "projection_reactions": 0,
+        "projection_attachments": 4028,
+        "projection_thread_summaries": 0,
+        "projection_direct_threads": 0,
+        "projection_direct_messages": 0,
+        "projection_direct_reads": 0,
+        "file_deletion_outbox": 0,
+        "agent_usage_records": 0,
+        "agent_usage_checkpoints": 0,
+        "agent_usage_activity": 0,
+        "projection_channels": 0,
+        "projection_channel_messages": 0,
+        "projection_channel_tasks": 0,
+        "projection_channel_assignments": 0,
+        "projection_channel_contexts": 0,
+        "projection_channel_summaries": 0,
+        "projection_channel_reads": 0,
+        "projection_channel_memories": 0,
+        "projection_channel_routines": 0,
+        "projection_channel_routine_triggers": 0,
+        "projection_channel_routine_runs": 0,
+        "projection_mcp_servers": 0,
+        "projection_messaging_connections": 0,
+        "projection_messaging_threads": 0,
+        "provider_history_imports": 0,
+        "provider_history_turns": 0,
+        "provider_history_staging": 0,
+        "projection_routine_webhooks": 0,
+        "projection_channel_routine_webhooks": 0,
+        "projection_webhook_route_revocations": 0,
+        "projection_webhook_receipts": 0,
+        "routine_flow_links": 0,
+        "routine_flow_positions": 0,
+        "routine_flow_steps": 0,
+        "agent_memory_selections": 18944,
+        "agent_memory_search_data": 216,
+        "agent_memory_search_idx": 129,
+        "agent_memory_search_docsize": 18944,
+        "agent_memory_search_config": 1,
+        "agent_waits": 0,
+        "projection_messaging_memories": 0,
+        "routine_result_destinations": 0,
+        "routine_result_deliveries": 0,
+        "projection_messaging_allowed_roles": 0,
+        "browser_profiles": 0,
+        "workflows": 0,
+        "workflow_nodes": 0,
+        "workflow_edges": 0,
+        "workflow_versions": 0,
+        "workflow_triggers": 0,
+        "workflow_trigger_webhooks": 0,
+        "workflow_webhook_receipts": 0,
+        "workflow_runs": 0,
+        "workflow_steps": 0,
+        "workflow_output_deliveries": 0,
+        "projection_agent_threads": 851,
+        "workflow_github_runs": 0,
+        "workflow_github_deliveries": 0,
+        "workflow_github_actions": 0,
+        "projection_messaging_allowed_senders": 0,
+        "projection_deleted_thread_messages": 0,
+        "browser_proxies": 0,
+        "browser_profile_proxies": 0,
+        "agent_usage_skill_loads": 0
+      }
+    },
+    {
+      "scale": 1000,
+      "beforeVersion": 58,
+      "afterVersion": 59,
+      "beforeOpenMs": [13.930000000000291],
+      "afterOpenMs": [316391.650458],
+      "fileBytes": 15259164672,
+      "rowCounts": {
+        "schema_migrations": 51,
+        "orchestration_events": 4800001,
+        "orchestration_command_receipts": 4800001,
+        "projection_threads": 4080,
+        "projection_agents": 80,
+        "projection_agent_memories": 40960,
+        "projection_agent_routines": 1600,
+        "projection_routine_triggers": 1600,
+        "projection_routine_runs": 480000,
+        "projection_provider_sessions": 10435,
+        "projection_turns": 1921027,
+        "projection_thread_messages": 4800000,
+        "projection_thread_reads": 0,
+        "projection_thread_read_baselines": 0,
+        "projection_thread_activities": 4800000,
+        "projection_mailbox_messages": 0,
+        "projection_deliveries": 0,
+        "projection_queue_state": 0,
+        "projection_reactions": 0,
+        "projection_attachments": 35134,
+        "projection_thread_summaries": 0,
+        "projection_direct_threads": 0,
+        "projection_direct_messages": 0,
+        "projection_direct_reads": 0,
+        "file_deletion_outbox": 0,
+        "agent_usage_records": 0,
+        "agent_usage_checkpoints": 0,
+        "agent_usage_activity": 0,
+        "projection_channels": 0,
+        "projection_channel_messages": 0,
+        "projection_channel_tasks": 0,
+        "projection_channel_assignments": 0,
+        "projection_channel_contexts": 0,
+        "projection_channel_summaries": 0,
+        "projection_channel_reads": 0,
+        "projection_channel_memories": 0,
+        "projection_channel_routines": 0,
+        "projection_channel_routine_triggers": 0,
+        "projection_channel_routine_runs": 0,
+        "projection_mcp_servers": 0,
+        "projection_messaging_connections": 0,
+        "projection_messaging_threads": 0,
+        "provider_history_imports": 0,
+        "provider_history_turns": 0,
+        "provider_history_staging": 0,
+        "projection_routine_webhooks": 0,
+        "projection_channel_routine_webhooks": 0,
+        "projection_webhook_route_revocations": 0,
+        "projection_webhook_receipts": 0,
+        "routine_flow_links": 0,
+        "routine_flow_positions": 0,
+        "routine_flow_steps": 0,
+        "agent_memory_selections": 40960,
+        "agent_memory_search_data": 462,
+        "agent_memory_search_idx": 277,
+        "agent_memory_search_docsize": 40960,
+        "agent_memory_search_config": 1,
+        "agent_waits": 0,
+        "projection_messaging_memories": 0,
+        "routine_result_destinations": 0,
+        "routine_result_deliveries": 0,
+        "projection_messaging_allowed_roles": 0,
+        "browser_profiles": 0,
+        "workflows": 0,
+        "workflow_nodes": 0,
+        "workflow_edges": 0,
+        "workflow_versions": 0,
+        "workflow_triggers": 0,
+        "workflow_trigger_webhooks": 0,
+        "workflow_webhook_receipts": 0,
+        "workflow_runs": 0,
+        "workflow_steps": 0,
+        "workflow_output_deliveries": 0,
+        "projection_agent_threads": 4000,
+        "workflow_github_runs": 0,
+        "workflow_github_deliveries": 0,
+        "workflow_github_actions": 0,
+        "projection_messaging_allowed_senders": 0,
+        "projection_deleted_thread_messages": 0,
+        "browser_proxies": 0,
+        "browser_profile_proxies": 0,
+        "agent_usage_skill_loads": 0
+      }
+    }
+  ],
+  "comparisons": [
+    {
+      "scale": 1,
+      "operation": "boot.runningTurns",
+      "area": "chat",
+      "description": "Turns still running, boot (readRunningTurnIds)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.077875,
+        "p95": 0.08606234999999998
+      },
+      "after": {
+        "p50": 0.0063335,
+        "p95": 0.011856249999999985
+      },
+      "ratio": 0.08132905296950241,
+      "ci": [0.0750897780896344, 0.08639087054735828],
+      "u": 900,
+      "p": 3.015188099197985e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "boot.runningTurns",
+      "area": "chat",
+      "description": "Turns still running, boot (readRunningTurnIds)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1.922583,
+        "p95": 7.993889249999993
+      },
+      "after": {
+        "p50": 0.014166499999999999,
+        "p95": 0.06544755
+      },
+      "ratio": 0.0073684725184816465,
+      "ci": [0.003233159861737613, 0.01878027668301224],
+      "u": 900,
+      "p": 3.034150708458583e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": ["SCAN projection_turns"],
+      "flaggedAfter": ["SCAN projection_turns USING COVERING INDEX turns_running"]
+    },
+    {
+      "scale": 100,
+      "operation": "boot.runningTurns",
+      "area": "chat",
+      "description": "Turns still running, boot (readRunningTurnIds)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 18.788604499999998,
+        "p95": 45.96695014999998
+      },
+      "after": {
+        "p50": 0.033228999999999995,
+        "p95": 0.07772674999999998
+      },
+      "ratio": 0.001768572008634276,
+      "ci": [0.00047244710122843316, 0.0034405086648414264],
+      "u": 900,
+      "p": 3.026556782970147e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": ["SCAN projection_turns"],
+      "flaggedAfter": ["SCAN projection_turns USING COVERING INDEX turns_running"]
+    },
+    {
+      "scale": 1000,
+      "operation": "boot.runningTurns",
+      "area": "chat",
+      "description": "Turns still running, boot (readRunningTurnIds)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 209.7510205,
+        "p95": 343.7143313999996
+      },
+      "after": {
+        "p50": 0.0753125,
+        "p95": 0.10674999999999997
+      },
+      "ratio": 0.0003590566559365083,
+      "ci": [0.00006693433462502293, 0.00041573690580743426],
+      "u": 900,
+      "p": 3.034150708458583e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": ["SCAN projection_turns"],
+      "flaggedAfter": ["SCAN projection_turns USING COVERING INDEX turns_running"]
+    },
+    {
+      "scale": 1,
+      "operation": "chat.fullSnapshot",
+      "area": "chat",
+      "description": "Whole main chat (readConversation)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.8049375,
+        "p95": 2.4484544999999986
+      },
+      "after": {
+        "p50": 0.8072705,
+        "p95": 2.0327206499999986
+      },
+      "ratio": 1.002898361674043,
+      "ci": [0.9654680827560597, 1.0361579505706457],
+      "u": 444,
+      "p": 0.9351918343953978,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "chat.fullSnapshot",
+      "area": "chat",
+      "description": "Whole main chat (readConversation)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 3.982271,
+        "p95": 7.541962499999998
+      },
+      "after": {
+        "p50": 4.0476045,
+        "p95": 8.064427749999995
+      },
+      "ratio": 1.0164060908963755,
+      "ci": [0.9693069004246766, 1.080866958828543],
+      "u": 386,
+      "p": 0.3478277454877847,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "chat.fullSnapshot",
+      "area": "chat",
+      "description": "Whole main chat (readConversation)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 21.618396,
+        "p95": 26.537520349999998
+      },
+      "after": {
+        "p50": 21.720229500000002,
+        "p95": 26.913141149999998
+      },
+      "ratio": 1.0047105021112575,
+      "ci": [0.913623405423113, 1.0847867353377243],
+      "u": 453,
+      "p": 0.9705159304495632,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "chat.fullSnapshot",
+      "area": "chat",
+      "description": "Whole main chat (readConversation)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 135.282041,
+        "p95": 228.32902485
+      },
+      "after": {
+        "p50": 128.78477099999998,
+        "p95": 162.73616249999998
+      },
+      "ratio": 0.9519724129531723,
+      "ci": [0.842119421327223, 1.0329409849954463],
+      "u": 549,
+      "p": 0.14531920563463352,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "chat.jumpToMessage",
+      "area": "chat",
+      "description": "Open a search result in the middle of the chat (around anchor)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.488458,
+        "p95": 0.6251980999999999
+      },
+      "after": {
+        "p50": 0.4989795,
+        "p95": 0.8344123499999995
+      },
+      "ratio": 1.0215402347796536,
+      "ci": [0.972284841567753, 1.1397665330541487],
+      "u": 395,
+      "p": 0.4203862023896836,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "chat.jumpToMessage",
+      "area": "chat",
+      "description": "Open a search result in the middle of the chat (around anchor)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.527146,
+        "p95": 0.6797687499999998
+      },
+      "after": {
+        "p50": 0.5157505,
+        "p95": 0.6251233999999999
+      },
+      "ratio": 0.9783826492091375,
+      "ci": [0.9343232726722226, 1.039216281553505],
+      "u": 509,
+      "p": 0.3870996847804524,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "chat.jumpToMessage",
+      "area": "chat",
+      "description": "Open a search result in the middle of the chat (around anchor)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.9105205000000001,
+        "p95": 3.4773876499999954
+      },
+      "after": {
+        "p50": 0.8101875000000001,
+        "p95": 2.721759899999997
+      },
+      "ratio": 0.8898069840272679,
+      "ci": [0.7647440308771046, 1.0717805868405093],
+      "u": 537,
+      "p": 0.20094902804831216,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "chat.jumpToMessage",
+      "area": "chat",
+      "description": "Open a search result in the middle of the chat (around anchor)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 2.3614375,
+        "p95": 2.7526643999999996
+      },
+      "after": {
+        "p50": 2.3125415,
+        "p95": 2.88538125
+      },
+      "ratio": 0.9792939681867506,
+      "ci": [0.9286467950408863, 1.1321679908163704],
+      "u": 423,
+      "p": 0.6952154948179303,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "chat.openLatestPage",
+      "area": "chat",
+      "description": "Open the main chat: newest page of 50",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.34672899999999995,
+        "p95": 0.43171004999999996
+      },
+      "after": {
+        "p50": 0.34325000000000006,
+        "p95": 0.38713575
+      },
+      "ratio": 0.9899662272264509,
+      "ci": [0.9557007569089949, 1.0180745756978844],
+      "u": 519,
+      "p": 0.3111876645288949,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "chat.openLatestPage",
+      "area": "chat",
+      "description": "Open the main chat: newest page of 50",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.458271,
+        "p95": 0.7166831499999996
+      },
+      "after": {
+        "p50": 0.45799999999999996,
+        "p95": 0.5901605999999999
+      },
+      "ratio": 0.9994086468486987,
+      "ci": [0.9042684731616475, 1.0685980319776633],
+      "u": 529,
+      "p": 0.24581391266582164,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "chat.openLatestPage",
+      "area": "chat",
+      "description": "Open the main chat: newest page of 50",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1.0003955,
+        "p95": 1.3111978
+      },
+      "after": {
+        "p50": 0.942375,
+        "p95": 1.2501668499999996
+      },
+      "ratio": 0.9420024380357568,
+      "ci": [0.892308974987739, 1.0374147892923402],
+      "u": 500,
+      "p": 0.4642727622162246,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "chat.openLatestPage",
+      "area": "chat",
+      "description": "Open the main chat: newest page of 50",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 4.167833,
+        "p95": 4.83408545
+      },
+      "after": {
+        "p50": 4.350708,
+        "p95": 4.8648606
+      },
+      "ratio": 1.0438777177492478,
+      "ci": [0.9613426921008608, 1.0842432530257007],
+      "u": 378,
+      "p": 0.2904722030072924,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "chat.recoveryMessages",
+      "area": "chat",
+      "description": "Restart recovery read of the main chat (readConversationRecoveryMessages)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.3323955,
+        "p95": 0.5861229499999991
+      },
+      "after": {
+        "p50": 0.336334,
+        "p95": 0.4147478499999998
+      },
+      "ratio": 1.0118488367020613,
+      "ci": [1.0036873824868058, 1.0190768072289158],
+      "u": 272,
+      "p": 0.008684447009230434,
+      "pHolm": 0.8163380188676608,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "chat.recoveryMessages",
+      "area": "chat",
+      "description": "Restart recovery read of the main chat (readConversationRecoveryMessages)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 2.0341455,
+        "p95": 2.2877060999999994
+      },
+      "after": {
+        "p50": 1.9258545,
+        "p95": 2.2471125
+      },
+      "ratio": 0.9467633952438504,
+      "ci": [0.9079658796213764, 1.0121748230665282],
+      "u": 524,
+      "p": 0.27718926259479826,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "chat.recoveryMessages",
+      "area": "chat",
+      "description": "Restart recovery read of the main chat (readConversationRecoveryMessages)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 10.1778545,
+        "p95": 21.58563124999997
+      },
+      "after": {
+        "p50": 10.786166,
+        "p95": 13.630833849999998
+      },
+      "ratio": 1.059768146616755,
+      "ci": [1.0064258698210102, 1.1274499979365855],
+      "u": 340,
+      "p": 0.10546993054881404,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "chat.recoveryMessages",
+      "area": "chat",
+      "description": "Restart recovery read of the main chat (readConversationRecoveryMessages)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 51.660604,
+        "p95": 174.72096219999997
+      },
+      "after": {
+        "p50": 50.828,
+        "p95": 80.47121479999998
+      },
+      "ratio": 0.9838831926936047,
+      "ci": [0.8097366890706263, 1.1434103061692147],
+      "u": 506,
+      "p": 0.4119107173068608,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "chat.runtime",
+      "area": "chat",
+      "description": "Active turn and latest answer (readConversationRuntime)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.031709,
+        "p95": 0.037566999999999996
+      },
+      "after": {
+        "p50": 0.0313755,
+        "p95": 0.034696199999999996
+      },
+      "ratio": 0.9894824813144533,
+      "ci": [0.9395993015891805, 1.03010022666309],
+      "u": 570,
+      "p": 0.07721019519152872,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "chat.runtime",
+      "area": "chat",
+      "description": "Active turn and latest answer (readConversationRuntime)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.030688,
+        "p95": 0.032758300000000004
+      },
+      "after": {
+        "p50": 0.0323335,
+        "p95": 0.034531400000000004
+      },
+      "ratio": 1.053620307612096,
+      "ci": [1.029930239017138, 1.0722938903804597],
+      "u": 231.5,
+      "p": 0.0012652922627498508,
+      "pHolm": 0.12399864174948538,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "chat.runtime",
+      "area": "chat",
+      "description": "Active turn and latest answer (readConversationRuntime)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.032833,
+        "p95": 0.06524809999999993
+      },
+      "after": {
+        "p50": 0.0327715,
+        "p95": 0.7701294999999962
+      },
+      "ratio": 0.9981268845368989,
+      "ci": [0.9552758373176224, 1.0325466059700514],
+      "u": 464.5,
+      "p": 0.8359992953207944,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "chat.runtime",
+      "area": "chat",
+      "description": "Active turn and latest answer (readConversationRuntime)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.0334165,
+        "p95": 0.04313589999999999
+      },
+      "after": {
+        "p50": 0.031729,
+        "p95": 0.041282849999999996
+      },
+      "ratio": 0.9495009950174315,
+      "ci": [0.8834092696183369, 1.0112020485031485],
+      "u": 565,
+      "p": 0.09046343502612997,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "chat.scrollOlderPage",
+      "area": "chat",
+      "description": "Scroll up from the middle of the main chat (before cursor)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.34522949999999997,
+        "p95": 0.42163734999999997
+      },
+      "after": {
+        "p50": 0.3527085,
+        "p95": 0.5669292
+      },
+      "ratio": 1.0216638496999821,
+      "ci": [0.992037821550138, 1.0684956639826082],
+      "u": 375,
+      "p": 0.2707054193500267,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "chat.scrollOlderPage",
+      "area": "chat",
+      "description": "Scroll up from the middle of the main chat (before cursor)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.399833,
+        "p95": 0.5847775999999996
+      },
+      "after": {
+        "p50": 0.39191600000000004,
+        "p95": 0.6818350499999996
+      },
+      "ratio": 0.9801992331798527,
+      "ci": [0.9624467102807411, 1.0570352975233837],
+      "u": 431,
+      "p": 0.7844511259250992,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "chat.scrollOlderPage",
+      "area": "chat",
+      "description": "Scroll up from the middle of the main chat (before cursor)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.6083540000000001,
+        "p95": 0.8657704999999997
+      },
+      "after": {
+        "p50": 0.606542,
+        "p95": 0.7232647
+      },
+      "ratio": 0.9970214710513944,
+      "ci": [0.9529935587703242, 1.0445802389852268],
+      "u": 488,
+      "p": 0.5792941421015021,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "chat.scrollOlderPage",
+      "area": "chat",
+      "description": "Scroll up from the middle of the main chat (before cursor)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 2.1845835,
+        "p95": 2.714820799999999
+      },
+      "after": {
+        "p50": 2.140041,
+        "p95": 2.7853669999999995
+      },
+      "ratio": 0.9796105298790365,
+      "ci": [0.9146286564074003, 1.0969632018861],
+      "u": 447,
+      "p": 0.9705159304495632,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "chat.turnAnswer",
+      "area": "chat",
+      "description": "Answer of one turn for a routine flow (readTurnAssistantMessages)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.074187,
+        "p95": 0.12776424999999975
+      },
+      "after": {
+        "p50": 0.026146,
+        "p95": 0.0339859
+      },
+      "ratio": 0.35243371480178465,
+      "ci": [0.3411284285943432, 0.35657068655183555],
+      "u": 900,
+      "p": 3.0284441621120095e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "chat.turnAnswer",
+      "area": "chat",
+      "description": "Answer of one turn for a routine flow (readTurnAssistantMessages)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.6299585000000001,
+        "p95": 0.82081005
+      },
+      "after": {
+        "p50": 0.031875,
+        "p95": 0.07787034999999999
+      },
+      "ratio": 0.0505985711757203,
+      "ci": [0.04215989808553713, 0.06226827539509636],
+      "u": 900,
+      "p": 3.034150708458583e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "chat.turnAnswer",
+      "area": "chat",
+      "description": "Answer of one turn for a routine flow (readTurnAssistantMessages)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 3.787271,
+        "p95": 7.877894049999999
+      },
+      "after": {
+        "p50": 0.062167,
+        "p95": 0.14497515
+      },
+      "ratio": 0.016414721840607657,
+      "ci": [0.010184644121765857, 0.029033856233565032],
+      "u": 900,
+      "p": 3.034150708458583e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "chat.turnAnswer",
+      "area": "chat",
+      "description": "Answer of one turn for a routine flow (readTurnAssistantMessages)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 17.7984375,
+        "p95": 37.167129349999996
+      },
+      "after": {
+        "p50": 0.09497900000000001,
+        "p95": 0.15335409999999997
+      },
+      "ratio": 0.005336367307523484,
+      "ci": [0.0025713199718068788, 0.00744347877167577],
+      "u": 900,
+      "p": 3.036060292060938e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "events.hasAggregate",
+      "area": "events",
+      "description": "Has a thread any event (hasAggregateEvents)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.009854,
+        "p95": 0.01629389999999999
+      },
+      "after": {
+        "p50": 0.0099585,
+        "p95": 0.016745949999999985
+      },
+      "ratio": 1.010604830525675,
+      "ci": [0.9649397500743826, 1.0495500155167063],
+      "u": 412,
+      "p": 0.5791570529585883,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "events.hasAggregate",
+      "area": "events",
+      "description": "Has a thread any event (hasAggregateEvents)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.0096665,
+        "p95": 0.018610599999999967
+      },
+      "after": {
+        "p50": 0.0095205,
+        "p95": 0.01188385
+      },
+      "ratio": 0.9848962913153675,
+      "ci": [0.9325119356440691, 1.0153547846137723],
+      "u": 540.5,
+      "p": 0.1828889968719536,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "events.hasAggregate",
+      "area": "events",
+      "description": "Has a thread any event (hasAggregateEvents)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.009374500000000001,
+        "p95": 0.0097962
+      },
+      "after": {
+        "p50": 0.009395500000000001,
+        "p95": 0.0102122
+      },
+      "ratio": 1.0022401194730386,
+      "ci": [0.9868309260832624, 1.0178399228543877],
+      "u": 418.5,
+      "p": 0.6459536912687396,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "events.hasAggregate",
+      "area": "events",
+      "description": "Has a thread any event (hasAggregateEvents)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.0106045,
+        "p95": 0.02552294999999999
+      },
+      "after": {
+        "p50": 0.011146,
+        "p95": 0.058555949999999996
+      },
+      "ratio": 1.0510632278749588,
+      "ci": [0.9612265821604996, 1.1782234157602827],
+      "u": 402.5,
+      "p": 0.48704105099380124,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "memory.list",
+      "area": "memory",
+      "description": "Memories of one agent (list)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.047354,
+        "p95": 0.06026904999999999
+      },
+      "after": {
+        "p50": 0.048562,
+        "p95": 0.08938574999999996
+      },
+      "ratio": 1.0255099885965282,
+      "ci": [0.9713980487262667, 1.1696925704710028],
+      "u": 330.5,
+      "p": 0.07851026294768615,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "memory.list",
+      "area": "memory",
+      "description": "Memories of one agent (list)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.1943335,
+        "p95": 0.32316684999999984
+      },
+      "after": {
+        "p50": 0.19175,
+        "p95": 0.5930187499999997
+      },
+      "ratio": 0.9867058433054517,
+      "ci": [0.9281635507257741, 1.0386910920310943],
+      "u": 474,
+      "p": 0.7282617927397639,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "memory.list",
+      "area": "memory",
+      "description": "Memories of one agent (list)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.609,
+        "p95": 0.8572709499999999
+      },
+      "after": {
+        "p50": 0.5922915,
+        "p95": 0.9115704999999995
+      },
+      "ratio": 0.9725640394088669,
+      "ci": [0.9143470290156129, 1.0815233517873257],
+      "u": 476,
+      "p": 0.7061715948169665,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "memory.list",
+      "area": "memory",
+      "description": "Memories of one agent (list)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.6512705,
+        "p95": 0.7032663
+      },
+      "after": {
+        "p50": 0.6471875,
+        "p95": 0.7456166999999999
+      },
+      "ratio": 0.9937307155782429,
+      "ci": [0.9352669725655152, 1.087834153497411],
+      "u": 464,
+      "p": 0.8418014928793078,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "memory.listPage",
+      "area": "memory",
+      "description": "list_memories tool, first page",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1.6260625,
+        "p95": 2.063825
+      },
+      "after": {
+        "p50": 0.921854,
+        "p95": 1.1690669999999999
+      },
+      "ratio": 0.5669240880962447,
+      "ci": [0.521535136079424, 0.6204616807749073],
+      "u": 900,
+      "p": 3.036060292060938e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "memory.listPage",
+      "area": "memory",
+      "description": "list_memories tool, first page",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 4.3790835,
+        "p95": 6.203266699999996
+      },
+      "after": {
+        "p50": 0.801937,
+        "p95": 2.0034089999999947
+      },
+      "ratio": 0.18312895837679277,
+      "ci": [0.17095860195422163, 0.1981741682434644],
+      "u": 897,
+      "p": 4.0984771132457354e-11,
+      "pHolm": 4.4673400534378516e-9,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "memory.listPage",
+      "area": "memory",
+      "description": "list_memories tool, first page",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 17.0035,
+        "p95": 40.11919809999999
+      },
+      "after": {
+        "p50": 0.8506045,
+        "p95": 1.6210847499999996
+      },
+      "ratio": 0.05002525950539595,
+      "ci": [0.040035735556504914, 0.05518506600743034],
+      "u": 900,
+      "p": 3.036060292060938e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "memory.listPage",
+      "area": "memory",
+      "description": "list_memories tool, first page",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 14.720125,
+        "p95": 16.44786495
+      },
+      "after": {
+        "p50": 0.80775,
+        "p95": 0.94831265
+      },
+      "ratio": 0.05487385467175041,
+      "ci": [0.05332711382223644, 0.05653348143307429],
+      "u": 900,
+      "p": 3.034150708458583e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "memory.search",
+      "area": "memory",
+      "description": "search_memories tool (FTS5)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.4568755,
+        "p95": 0.7073185999999998
+      },
+      "after": {
+        "p50": 0.288354,
+        "p95": 0.5038876499999999
+      },
+      "ratio": 0.6311434953285961,
+      "ci": [0.5505738306671888, 0.7217599545858392],
+      "u": 820,
+      "p": 4.696843602935985e-8,
+      "pHolm": 0.000004931685783082784,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "memory.search",
+      "area": "memory",
+      "description": "search_memories tool (FTS5)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1.3518545,
+        "p95": 2.29649345
+      },
+      "after": {
+        "p50": 0.5780209999999999,
+        "p95": 0.8643108999999995
+      },
+      "ratio": 0.42757634050114113,
+      "ci": [0.385058520621746, 0.48893939743503106],
+      "u": 873,
+      "p": 4.217386440075188e-10,
+      "pHolm": 4.554777355281203e-8,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "memory.search",
+      "area": "memory",
+      "description": "search_memories tool (FTS5)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 6.8695835,
+        "p95": 17.466072949999994
+      },
+      "after": {
+        "p50": 4.1021455,
+        "p95": 19.51321089999999
+      },
+      "ratio": 0.5971461734179372,
+      "ci": [0.44485596734800925, 0.8008193418858656],
+      "u": 748,
+      "p": 0.00001091573190614703,
+      "pHolm": 0.00110248892252085,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "memory.search",
+      "area": "memory",
+      "description": "search_memories tool (FTS5)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 8.412479000000001,
+        "p95": 9.12348735
+      },
+      "after": {
+        "p50": 5.7703755,
+        "p95": 6.268845349999999
+      },
+      "ratio": 0.6859304492766044,
+      "ci": [0.6524181646194698, 0.7075426100022486],
+      "u": 870,
+      "p": 5.595495178312149e-10,
+      "pHolm": 5.987179840793999e-8,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "memory.selectionState",
+      "area": "memory",
+      "description": "Memory settings panel (selectionState)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.090833,
+        "p95": 0.13483369999999995
+      },
+      "after": {
+        "p50": 0.0989995,
+        "p95": 0.12835639999999995
+      },
+      "ratio": 1.0899067519513834,
+      "ci": [1.0463398253861653, 1.1350745601287757],
+      "u": 176.5,
+      "p": 0.00005434974927021052,
+      "pHolm": 0.005434974927021052,
+      "verdict": "slower",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "memory.selectionState",
+      "area": "memory",
+      "description": "Memory settings panel (selectionState)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.33129149999999996,
+        "p95": 0.8848709499999994
+      },
+      "after": {
+        "p50": 0.36254200000000003,
+        "p95": 1.3402582999999963
+      },
+      "ratio": 1.0943293142142194,
+      "ci": [0.9954252714842404, 1.2601963413262312],
+      "u": 254,
+      "p": 0.003847709219766182,
+      "pHolm": 0.3693800850975535,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "memory.selectionState",
+      "area": "memory",
+      "description": "Memory settings panel (selectionState)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1.3291875000000002,
+        "p95": 3.2783852999999996
+      },
+      "after": {
+        "p50": 1.2879375,
+        "p95": 2.887035449999999
+      },
+      "ratio": 0.968966003667654,
+      "ci": [0.8524369431343546, 1.1960939551510916],
+      "u": 441,
+      "p": 0.8999949563491465,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "memory.selectionState",
+      "area": "memory",
+      "description": "Memory settings panel (selectionState)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1.123208,
+        "p95": 1.3340979499999996
+      },
+      "after": {
+        "p50": 1.174292,
+        "p95": 1.4501813999999997
+      },
+      "ratio": 1.0454804452959736,
+      "ci": [1.0120411720152227, 1.1127851403114517],
+      "u": 281,
+      "p": 0.012732140000837555,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "memory.setInclusions",
+      "area": "memory",
+      "description": "Change the inclusion of 10 memories (setInclusions)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.7439165,
+        "p95": 1.7588813999999997
+      },
+      "after": {
+        "p50": 0.41570850000000004,
+        "p95": 1.5200892499999994
+      },
+      "ratio": 0.5588106998567717,
+      "ci": [0.4880223564081271, 0.70389030461219],
+      "u": 752,
+      "p": 0.000008299193479333056,
+      "pHolm": 0.0008465177348919717,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "memory.setInclusions",
+      "area": "memory",
+      "description": "Change the inclusion of 10 memories (setInclusions)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 2.5423125,
+        "p95": 6.165824999999999
+      },
+      "after": {
+        "p50": 0.929416,
+        "p95": 3.0108121999999993
+      },
+      "ratio": 0.3655789758340094,
+      "ci": [0.3132544010933316, 0.40193815362016805],
+      "u": 831,
+      "p": 1.855034637010533e-8,
+      "pHolm": 0.000001966336715231165,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "memory.setInclusions",
+      "area": "memory",
+      "description": "Change the inclusion of 10 memories (setInclusions)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 10.156687,
+        "p95": 17.27129185
+      },
+      "after": {
+        "p50": 3.093979,
+        "p95": 5.392001899999998
+      },
+      "ratio": 0.30462482500445276,
+      "ci": [0.2726367097626339, 0.33859454638376646],
+      "u": 900,
+      "p": 3.036060292060938e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "memory.setInclusions",
+      "area": "memory",
+      "description": "Change the inclusion of 10 memories (setInclusions)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 8.372416999999999,
+        "p95": 12.6860625
+      },
+      "after": {
+        "p50": 2.884417,
+        "p95": 4.293787499999999
+      },
+      "ratio": 0.3445142543664512,
+      "ci": [0.27270057367689754, 0.4155658554652476],
+      "u": 900,
+      "p": 3.036060292060938e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "routines.due",
+      "area": "routines",
+      "description": "Scheduler tick (due)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.021417,
+        "p95": 0.029243899999999986
+      },
+      "after": {
+        "p50": 0.0220625,
+        "p95": 0.02522515
+      },
+      "ratio": 1.0301396087220434,
+      "ci": [0.9591184924944108, 1.1102792308891463],
+      "u": 362,
+      "p": 0.19572877511858477,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "routines.due",
+      "area": "routines",
+      "description": "Scheduler tick (due)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.019854,
+        "p95": 0.029454199999999982
+      },
+      "after": {
+        "p50": 0.019271,
+        "p95": 0.03256249999999995
+      },
+      "ratio": 0.9706356401732649,
+      "ci": [0.941358024691358, 1],
+      "u": 587.5,
+      "p": 0.04276164380025205,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "routines.due",
+      "area": "routines",
+      "description": "Scheduler tick (due)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.019458,
+        "p95": 0.030570799999999974
+      },
+      "after": {
+        "p50": 0.0212915,
+        "p95": 0.033914699999999985
+      },
+      "ratio": 1.094228594922397,
+      "ci": [1.0245370149914739, 1.2406281144386408],
+      "u": 241,
+      "p": 0.0020477491965804617,
+      "pHolm": 0.1986316720683048,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "routines.due",
+      "area": "routines",
+      "description": "Scheduler tick (due)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.025833000000000002,
+        "p95": 0.05818939999999994
+      },
+      "after": {
+        "p50": 0.021875,
+        "p95": 0.04510029999999993
+      },
+      "ratio": 0.8467851198079974,
+      "ci": [0.7261663286004056, 0.907491899002018],
+      "u": 716,
+      "p": 0.00008657219014107653,
+      "pHolm": 0.008570646823966577,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "routines.list",
+      "area": "routines",
+      "description": "Routines of one agent",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.044688,
+        "p95": 0.05474359999999998
+      },
+      "after": {
+        "p50": 0.043229000000000004,
+        "p95": 0.051771199999999996
+      },
+      "ratio": 0.9673514142499106,
+      "ci": [0.9164517906336089, 1.0356929871375173],
+      "u": 528,
+      "p": 0.2518611640714641,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "routines.list",
+      "area": "routines",
+      "description": "Routines of one agent",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.0675415,
+        "p95": 0.07589169999999999
+      },
+      "after": {
+        "p50": 0.06727050000000001,
+        "p95": 0.08047935
+      },
+      "ratio": 0.9959876520361557,
+      "ci": [0.9526443438914027, 1.0411510630836636],
+      "u": 451,
+      "p": 0.9941017216405756,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "routines.list",
+      "area": "routines",
+      "description": "Routines of one agent",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.146146,
+        "p95": 0.3206458999999998
+      },
+      "after": {
+        "p50": 0.140625,
+        "p95": 0.243775
+      },
+      "ratio": 0.9622227087980513,
+      "ci": [0.8952138107607176, 1.0625778384297735],
+      "u": 496.5,
+      "p": 0.4964454205221518,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "routines.list",
+      "area": "routines",
+      "description": "Routines of one agent",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.295083,
+        "p95": 0.5728499999999997
+      },
+      "after": {
+        "p50": 0.28283349999999996,
+        "p95": 0.3681207999999999
+      },
+      "ratio": 0.9584879508477275,
+      "ci": [0.846880582949051, 1.0541164470888227],
+      "u": 528,
+      "p": 0.2518809287849366,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "routines.pendingRuns",
+      "area": "routines",
+      "description": "Queued and running runs, boot (pendingRuns)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.016625,
+        "p95": 0.020208149999999998
+      },
+      "after": {
+        "p50": 0.0156665,
+        "p95": 0.019729349999999993
+      },
+      "ratio": 0.942345864661654,
+      "ci": [0.885673448269498, 1.0159922194471491],
+      "u": 568,
+      "p": 0.08230598626283725,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "routines.pendingRuns",
+      "area": "routines",
+      "description": "Queued and running runs, boot (pendingRuns)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.0172085,
+        "p95": 0.0194064
+      },
+      "after": {
+        "p50": 0.016792,
+        "p95": 0.02072295
+      },
+      "ratio": 0.9757968445826191,
+      "ci": [0.9333142857142857, 1.0560480936691796],
+      "u": 479,
+      "p": 0.673469476184799,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "routines.pendingRuns",
+      "area": "routines",
+      "description": "Queued and running runs, boot (pendingRuns)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.0226665,
+        "p95": 0.038710599999999984
+      },
+      "after": {
+        "p50": 0.0221665,
+        "p95": 0.08498559999999981
+      },
+      "ratio": 0.9779410142721637,
+      "ci": [0.8959105522904592, 1.0899122263911276],
+      "u": 449.5,
+      "p": 0.9999999989503827,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "routines.pendingRuns",
+      "area": "routines",
+      "description": "Queued and running runs, boot (pendingRuns)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.0342505,
+        "p95": 0.04047105
+      },
+      "after": {
+        "p50": 0.033771,
+        "p95": 0.042510749999999986
+      },
+      "ratio": 0.9860002043765784,
+      "ci": [0.9339285714285713, 1.0637668889760046],
+      "u": 430.5,
+      "p": 0.7787721173527475,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "routines.runs",
+      "area": "routines",
+      "description": "Run history of one routine (listRuns 50)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.15020850000000002,
+        "p95": 0.2958643999999999
+      },
+      "after": {
+        "p50": 0.155729,
+        "p95": 0.3388896999999997
+      },
+      "ratio": 1.0367522477090176,
+      "ci": [0.759181142675007, 1.1020212393843998],
+      "u": 449,
+      "p": 0.994101885526343,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "routines.runs",
+      "area": "routines",
+      "description": "Run history of one routine (listRuns 50)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.2212085,
+        "p95": 0.23501439999999998
+      },
+      "after": {
+        "p50": 0.2240005,
+        "p95": 0.23914359999999998
+      },
+      "ratio": 1.0126215764764916,
+      "ci": [0.987525241484895, 1.0236325014180376],
+      "u": 398.5,
+      "p": 0.45082678530353126,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "routines.runs",
+      "area": "routines",
+      "description": "Run history of one routine (listRuns 50)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.226833,
+        "p95": 0.3105394
+      },
+      "after": {
+        "p50": 0.228937,
+        "p95": 0.30095625
+      },
+      "ratio": 1.0092755463270335,
+      "ci": [0.9857918663550866, 1.0533025204142952],
+      "u": 394.5,
+      "p": 0.4161292471828191,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "routines.runs",
+      "area": "routines",
+      "description": "Run history of one routine (listRuns 50)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.233104,
+        "p95": 0.33768734999999994
+      },
+      "after": {
+        "p50": 0.2320625,
+        "p95": 0.4182354499999995
+      },
+      "ratio": 0.9955320372022788,
+      "ci": [0.9080824025812857, 1.1117249819983261],
+      "u": 454.5,
+      "p": 0.9528416340682901,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "search.files",
+      "area": "search",
+      "description": "Search files by name",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.238896,
+        "p95": 0.3964705
+      },
+      "after": {
+        "p50": 0.2414375,
+        "p95": 0.34260784999999994
+      },
+      "ratio": 1.010638520527761,
+      "ci": [0.932349882389347, 1.0896942170583577],
+      "u": 431.5,
+      "p": 0.7901414761649925,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "search.files",
+      "area": "search",
+      "description": "Search files by name",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 2.4747295,
+        "p95": 3.9155400999999994
+      },
+      "after": {
+        "p50": 2.5805415,
+        "p95": 3.4061061
+      },
+      "ratio": 1.0427569962696932,
+      "ci": [0.9612863710894309, 1.1306043830524108],
+      "u": 406,
+      "p": 0.5201444802559803,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "search.files",
+      "area": "search",
+      "description": "Search files by name",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 23.6244375,
+        "p95": 45.868008849999995
+      },
+      "after": {
+        "p50": 22.678354,
+        "p95": 36.18820829999999
+      },
+      "ratio": 0.9599531840705202,
+      "ci": [0.7597847318047267, 1.1975836749819067],
+      "u": 518,
+      "p": 0.31830423713127187,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "search.files",
+      "area": "search",
+      "description": "Search files by name",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 179.135312,
+        "p95": 249.99591019999997
+      },
+      "after": {
+        "p50": 187.2815415,
+        "p95": 266.92843995
+      },
+      "ratio": 1.0454752857437735,
+      "ci": [0.8159877917672326, 1.2434353042659163],
+      "u": 408,
+      "p": 0.5395102012396669,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "search.messagesAgent",
+      "area": "search",
+      "description": "Search one agent's chats for a word",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 9.0332915,
+        "p95": 12.425595799999996
+      },
+      "after": {
+        "p50": 8.6935,
+        "p95": 13.661081549999986
+      },
+      "ratio": 0.9623845305999479,
+      "ci": [0.8955027471116815, 1.0308113698448196],
+      "u": 510,
+      "p": 0.379036228156322,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "search.messagesAgent",
+      "area": "search",
+      "description": "Search one agent's chats for a word",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 86.64279149999999,
+        "p95": 188.08096684999998
+      },
+      "after": {
+        "p50": 88.63775050000001,
+        "p95": 161.94188109999996
+      },
+      "ratio": 1.0230251007090418,
+      "ci": [0.7465382752464768, 1.3178103990346308],
+      "u": 439,
+      "p": 0.8766348699063209,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "search.messagesAgent",
+      "area": "search",
+      "description": "Search one agent's chats for a word",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 983.0930625000001,
+        "p95": 4106.241391999998
+      },
+      "after": {
+        "p50": 880.465625,
+        "p95": 1249.3202223999995
+      },
+      "ratio": 0.8956076068332544,
+      "ci": [0.6314662149255202, 1.0430492708743722],
+      "u": 631,
+      "p": 0.007617153982868663,
+      "pHolm": 0.723629628372523,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "search.messagesAll",
+      "area": "search",
+      "description": "Search all chats for a word",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 9.560083,
+        "p95": 15.963133149999999
+      },
+      "after": {
+        "p50": 10.0734375,
+        "p95": 11.6743125
+      },
+      "ratio": 1.053697703252158,
+      "ci": [0.9606226934176858, 1.084323551585098],
+      "u": 412,
+      "p": 0.5792941421015021,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "search.messagesAll",
+      "area": "search",
+      "description": "Search all chats for a word",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 137.85668750000002,
+        "p95": 352.69152064999986
+      },
+      "after": {
+        "p50": 103.8884995,
+        "p95": 273.3764873499997
+      },
+      "ratio": 0.7535978223762266,
+      "ci": [0.4996990894671926, 1.1250983466591578],
+      "u": 549,
+      "p": 0.14531920563463352,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "search.messagesAll",
+      "area": "search",
+      "description": "Search all chats for a word",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1011.8075,
+        "p95": 3691.715004649993
+      },
+      "after": {
+        "p50": 971.8846880000001,
+        "p95": 1584.1199357499993
+      },
+      "ratio": 0.9605430756344464,
+      "ci": [0.8815656952960765, 1.0691972976722077],
+      "u": 506,
+      "p": 0.4119107173068608,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "sidebar.listAgents",
+      "area": "sidebar",
+      "description": "Agent roster (listAgents)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.01575,
+        "p95": 0.021714699999999983
+      },
+      "after": {
+        "p50": 0.0161455,
+        "p95": 0.021912199999999996
+      },
+      "ratio": 1.025111111111111,
+      "ci": [0.9579842519685039, 1.1075483870967744],
+      "u": 418.5,
+      "p": 0.6466422513984569,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "sidebar.listAgents",
+      "area": "sidebar",
+      "description": "Agent roster (listAgents)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.0275,
+        "p95": 0.030437649999999993
+      },
+      "after": {
+        "p50": 0.0273335,
+        "p95": 0.030498249999999998
+      },
+      "ratio": 0.9939454545454546,
+      "ci": [0.9705985404246571, 1.030937013131538],
+      "u": 443,
+      "p": 0.923425038695338,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "sidebar.listAgents",
+      "area": "sidebar",
+      "description": "Agent roster (listAgents)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.048563,
+        "p95": 0.05205609999999999
+      },
+      "after": {
+        "p50": 0.0482705,
+        "p95": 0.050295650000000004
+      },
+      "ratio": 0.9939768959907749,
+      "ci": [0.987158298859542, 1.006490741606173],
+      "u": 531,
+      "p": 0.23383955464314088,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "sidebar.listAgents",
+      "area": "sidebar",
+      "description": "Agent roster (listAgents)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.0998125,
+        "p95": 0.21149184999999987
+      },
+      "after": {
+        "p50": 0.09831300000000001,
+        "p95": 0.15571889999999994
+      },
+      "ratio": 0.9849768315591736,
+      "ci": [0.9465837903717246, 1.0089921102351722],
+      "u": 537,
+      "p": 0.20093651248365973,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "sidebar.openSideThreads",
+      "area": "sidebar",
+      "description": "Open side threads of all agents, boot (openExecutionThreads)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.017563,
+        "p95": 0.02470814999999999
+      },
+      "after": {
+        "p50": 0.0174165,
+        "p95": 0.023123099999999994
+      },
+      "ratio": 0.9916586004668908,
+      "ci": [0.9618667553486311, 1.1426421274511884],
+      "u": 388,
+      "p": 0.3631289035169085,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "sidebar.openSideThreads",
+      "area": "sidebar",
+      "description": "Open side threads of all agents, boot (openExecutionThreads)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.0670415,
+        "p95": 0.10167689999999997
+      },
+      "after": {
+        "p50": 0.0662085,
+        "p95": 0.08830274999999996
+      },
+      "ratio": 0.987574860347695,
+      "ci": [0.9538755224487376, 1.0252901545787596],
+      "u": 506,
+      "p": 0.41189772552635917,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "sidebar.openSideThreads",
+      "area": "sidebar",
+      "description": "Open side threads of all agents, boot (openExecutionThreads)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.305854,
+        "p95": 0.4891711999999996
+      },
+      "after": {
+        "p50": 0.3076875,
+        "p95": 0.4667708999999999
+      },
+      "ratio": 1.0059946902770602,
+      "ci": [0.9431005574316064, 1.103704888888889],
+      "u": 417,
+      "p": 0.6308763003123883,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "sidebar.openSideThreads",
+      "area": "sidebar",
+      "description": "Open side threads of all agents, boot (openExecutionThreads)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1.5078335,
+        "p95": 1.78563505
+      },
+      "after": {
+        "p50": 1.4661665,
+        "p95": 1.8724914499999998
+      },
+      "ratio": 0.972366312328251,
+      "ci": [0.8990261054746608, 1.0829912025164168],
+      "u": 453,
+      "p": 0.9705159304495632,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "sidebar.sideThreads",
+      "area": "sidebar",
+      "description": "Side threads of one agent (AgentThreadStore.list)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.043292,
+        "p95": 0.0558814
+      },
+      "after": {
+        "p50": 0.044125,
+        "p95": 0.05485275
+      },
+      "ratio": 1.019241430287351,
+      "ci": [0.9869121984590712, 1.0805165805428425],
+      "u": 377.5,
+      "p": 0.28708520349738254,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "sidebar.sideThreads",
+      "area": "sidebar",
+      "description": "Side threads of one agent (AgentThreadStore.list)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.055604,
+        "p95": 0.07519619999999998
+      },
+      "after": {
+        "p50": 0.0545,
+        "p95": 0.06317094999999998
+      },
+      "ratio": 0.9801453132868139,
+      "ci": [0.951821804725306, 1.0060112835487303],
+      "u": 562.5,
+      "p": 0.09772771868639962,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "sidebar.sideThreads",
+      "area": "sidebar",
+      "description": "Side threads of one agent (AgentThreadStore.list)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.0915835,
+        "p95": 0.12743749999999995
+      },
+      "after": {
+        "p50": 0.091979,
+        "p95": 0.11743589999999995
+      },
+      "ratio": 1.0043184634786835,
+      "ci": [0.9506512522522906, 1.0385130572437538],
+      "u": 468.5,
+      "p": 0.79013862861928,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "sidebar.sideThreads",
+      "area": "sidebar",
+      "description": "Side threads of one agent (AgentThreadStore.list)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.16233350000000002,
+        "p95": 0.20844154999999998
+      },
+      "after": {
+        "p50": 0.1657295,
+        "p95": 0.35467689999999985
+      },
+      "ratio": 1.0209198963861432,
+      "ci": [0.9543905325443786, 1.0885925854395893],
+      "u": 394,
+      "p": 0.4119107173068608,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "sidebar.unreadNeverRead",
+      "area": "sidebar",
+      "description": "Unread badge of every agent chat, none ever read: worst case (listStates)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1.9292289999999999,
+        "p95": 2.8010222499999977
+      },
+      "after": {
+        "p50": 1.9833749999999999,
+        "p95": 4.657039399999996
+      },
+      "ratio": 1.028066134191431,
+      "ci": [0.9836766695019721, 1.138914051002862],
+      "u": 332,
+      "p": 0.08235709017333748,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "sidebar.unreadNeverRead",
+      "area": "sidebar",
+      "description": "Unread badge of every agent chat, none ever read: worst case (listStates)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 18.713791999999998,
+        "p95": 38.03281004999998
+      },
+      "after": {
+        "p50": 19.3336045,
+        "p95": 33.118860749999996
+      },
+      "ratio": 1.0331206256861252,
+      "ci": [0.8820475568493353, 1.1548914772977767],
+      "u": 446,
+      "p": 0.958731353145927,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "sidebar.unreadNeverRead",
+      "area": "sidebar",
+      "description": "Unread badge of every agent chat, none ever read: worst case (listStates)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 303.4587505,
+        "p95": 472.07421059999996
+      },
+      "after": {
+        "p50": 297.443854,
+        "p95": 463.3077497
+      },
+      "ratio": 0.9801788661882729,
+      "ci": [0.6475446953715005, 1.3589095312699406],
+      "u": 491,
+      "p": 0.549326678793224,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "sidebar.unreadStates",
+      "area": "sidebar",
+      "description": "Unread badge of every agent chat, each read up to 10 messages ago (listStates)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1.0718545000000002,
+        "p95": 1.3626212
+      },
+      "after": {
+        "p50": 1.0633545,
+        "p95": 1.3686873499999999
+      },
+      "ratio": 0.9920698191778826,
+      "ci": [0.9639181991389264, 1.0211732773182658],
+      "u": 480,
+      "p": 0.662730417473393,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "sidebar.unreadStates",
+      "area": "sidebar",
+      "description": "Unread badge of every agent chat, each read up to 10 messages ago (listStates)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 2.353625,
+        "p95": 4.087189249999999
+      },
+      "after": {
+        "p50": 2.375604,
+        "p95": 4.6532936
+      },
+      "ratio": 1.0093383610388231,
+      "ci": [0.93859452161538, 1.1248570649698133],
+      "u": 441,
+      "p": 0.8999949563491465,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "sidebar.unreadStates",
+      "area": "sidebar",
+      "description": "Unread badge of every agent chat, each read up to 10 messages ago (listStates)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 6.5511245,
+        "p95": 20.55036889999999
+      },
+      "after": {
+        "p50": 6.696375,
+        "p95": 50.85504784999991
+      },
+      "ratio": 1.0221718424065975,
+      "ci": [0.800809469961892, 1.3928976500375523],
+      "u": 435,
+      "p": 0.8302553474233902,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "sidebar.unreadStates",
+      "area": "sidebar",
+      "description": "Unread badge of every agent chat, each read up to 10 messages ago (listStates)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 12.047833,
+        "p95": 14.032829049999998
+      },
+      "after": {
+        "p50": 12.344479,
+        "p95": 14.72529595
+      },
+      "ratio": 1.0246223532480903,
+      "ci": [0.9444584722296238, 1.0975570525678386],
+      "u": 398,
+      "p": 0.44641929259942903,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "stats.sentMessages",
+      "area": "chat",
+      "description": "Messages sent by the user (readSentMessageStats)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.302521,
+        "p95": 0.32812705
+      },
+      "after": {
+        "p50": 0.305458,
+        "p95": 0.37895434999999994
+      },
+      "ratio": 1.009708416936345,
+      "ci": [0.9858704351578569, 1.0490427033464391],
+      "u": 368,
+      "p": 0.22823019070461403,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "stats.sentMessages",
+      "area": "chat",
+      "description": "Messages sent by the user (readSentMessageStats)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 5.200271,
+        "p95": 5.6002981
+      },
+      "after": {
+        "p50": 5.1994375,
+        "p95": 6.85579215
+      },
+      "ratio": 0.9998397198915211,
+      "ci": [0.9628091083465684, 1.0573326923507966],
+      "u": 411,
+      "p": 0.5692200819041255,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": ["SCAN projection_thread_messages USING COVERING INDEX thread_messages_shown_order"],
+      "flaggedAfter": ["SCAN projection_thread_messages USING COVERING INDEX thread_messages_shown_order"]
+    },
+    {
+      "scale": 100,
+      "operation": "stats.sentMessages",
+      "area": "chat",
+      "description": "Messages sent by the user (readSentMessageStats)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 68.133375,
+        "p95": 153.5165705
+      },
+      "after": {
+        "p50": 57.047478999999996,
+        "p95": 117.00121669999993
+      },
+      "ratio": 0.8372912541027066,
+      "ci": [0.610869994385541, 1.2221685947801009],
+      "u": 539,
+      "p": 0.1907304620650585,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": ["SCAN projection_thread_messages USING COVERING INDEX thread_messages_shown_order"],
+      "flaggedAfter": ["SCAN projection_thread_messages USING COVERING INDEX thread_messages_shown_order"]
+    },
+    {
+      "scale": 1,
+      "operation": "tables.list",
+      "area": "tables",
+      "description": "list_tables / settings: tables with row counts",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.7747284999999999,
+        "p95": 1.6308332999999988
+      },
+      "after": {
+        "p50": 0.8057085,
+        "p95": 1.56775655
+      },
+      "ratio": 1.0399882023186189,
+      "ci": [0.7584369691405574, 1.2603877471894227],
+      "u": 422,
+      "p": 0.6843226702038985,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "tables.list",
+      "area": "tables",
+      "description": "list_tables / settings: tables with row counts",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1.2761665,
+        "p95": 2.9306437499999998
+      },
+      "after": {
+        "p50": 1.2451665,
+        "p95": 3.818199849999999
+      },
+      "ratio": 0.9757084988518349,
+      "ci": [0.6605939465105025, 1.285623150893756],
+      "u": 458,
+      "p": 0.9117088718317532,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "tables.list",
+      "area": "tables",
+      "description": "list_tables / settings: tables with row counts",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 6.880896,
+        "p95": 19.451451899999988
+      },
+      "after": {
+        "p50": 7.159041500000001,
+        "p95": 13.928099849999995
+      },
+      "ratio": 1.0404228606274533,
+      "ci": [0.8244439413549156, 1.2194607753210123],
+      "u": 457,
+      "p": 0.9234420095783098,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "tables.list",
+      "area": "tables",
+      "description": "list_tables / settings: tables with row counts",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 32.377187500000005,
+        "p95": 34.77746904999999
+      },
+      "after": {
+        "p50": 32.382729,
+        "p95": 36.3655295
+      },
+      "ratio": 1.0001711544586753,
+      "ci": [0.9852899124868277, 1.018970310993216],
+      "u": 435,
+      "p": 0.8302553474233902,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "tables.query",
+      "area": "tables",
+      "description": "query_data: open tasks of one owner",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.370625,
+        "p95": 0.9505749999999998
+      },
+      "after": {
+        "p50": 0.34125,
+        "p95": 2.081203799999998
+      },
+      "ratio": 0.9207419898819562,
+      "ci": [0.6764999069476918, 1.0994926020911422],
+      "u": 526,
+      "p": 0.26432630259861045,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "tables.query",
+      "area": "tables",
+      "description": "query_data: open tasks of one owner",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.4532085,
+        "p95": 0.6048126499999998
+      },
+      "after": {
+        "p50": 0.46506250000000005,
+        "p95": 0.5460958
+      },
+      "ratio": 1.0261557318541026,
+      "ci": [0.9415120569288181, 1.122758459943251],
+      "u": 436,
+      "p": 0.8418014928793078,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "tables.query",
+      "area": "tables",
+      "description": "query_data: open tasks of one owner",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 3.109,
+        "p95": 4.45287705
+      },
+      "after": {
+        "p50": 3.0208335,
+        "p95": 6.476841449999998
+      },
+      "ratio": 0.9716415246059827,
+      "ci": [0.869657510647759, 1.1232808064955306],
+      "u": 456,
+      "p": 0.9351918343953978,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "tables.query",
+      "area": "tables",
+      "description": "query_data: open tasks of one owner",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 18.600208000000002,
+        "p95": 20.985133449999996
+      },
+      "after": {
+        "p50": 18.82025,
+        "p95": 24.927295799999992
+      },
+      "ratio": 1.0118300827603648,
+      "ci": [0.9716963411068777, 1.0482870308214625],
+      "u": 423,
+      "p": 0.6952154948179303,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "write.appendMessage",
+      "area": "writes",
+      "description": "Send a message to the main chat (appendConversationMessage)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.2876875,
+        "p95": 0.5189435999999998
+      },
+      "after": {
+        "p50": 0.30135449999999997,
+        "p95": 0.5625565499999999
+      },
+      "ratio": 1.0475064088637844,
+      "ci": [0.8680349427052214, 1.2949424127784783],
+      "u": 379,
+      "p": 0.29727173220233194,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "write.appendMessage",
+      "area": "writes",
+      "description": "Send a message to the main chat (appendConversationMessage)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.339084,
+        "p95": 0.4750086999999999
+      },
+      "after": {
+        "p50": 0.362104,
+        "p95": 0.6214274499999999
+      },
+      "ratio": 1.0678887827205057,
+      "ci": [0.8972951372476432, 1.2014202235334706],
+      "u": 332,
+      "p": 0.08235709017333748,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "write.appendMessage",
+      "area": "writes",
+      "description": "Send a message to the main chat (appendConversationMessage)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.7475,
+        "p95": 6.259581099999998
+      },
+      "after": {
+        "p50": 0.7850205,
+        "p95": 2.730552049999996
+      },
+      "ratio": 1.0501946488294314,
+      "ci": [0.9260524779949126, 1.3587567089290251],
+      "u": 389,
+      "p": 0.3710769602844326,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "write.appendMessage",
+      "area": "writes",
+      "description": "Send a message to the main chat (appendConversationMessage)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 2.8463545000000003,
+        "p95": 3.50631265
+      },
+      "after": {
+        "p50": 2.9098125,
+        "p95": 3.4151623499999997
+      },
+      "ratio": 1.0222944822930524,
+      "ci": [0.9412953001549347, 1.090922029608594],
+      "u": 421,
+      "p": 0.6734951226730157,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "write.deleteSideThread",
+      "area": "writes",
+      "description": "Delete one side thread with its history (AgentThreadStore.delete)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 2.6973125,
+        "p95": 3.579009
+      },
+      "after": {
+        "p50": 1.8135835,
+        "p95": 4.099149999999999
+      },
+      "ratio": 0.6723668466297472,
+      "ci": [0.6035207100979318, 0.7427173646469429],
+      "u": 775,
+      "p": 0.0000016082818272700194,
+      "pHolm": 0.000165653028208812,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "write.deleteSideThread",
+      "area": "writes",
+      "description": "Delete one side thread with its history (AgentThreadStore.delete)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 21.50025,
+        "p95": 46.54771279999997
+      },
+      "after": {
+        "p50": 2.67125,
+        "p95": 6.390399999999999
+      },
+      "ratio": 0.12424274136347252,
+      "ci": [0.10052869670356765, 0.15798973104354858],
+      "u": 900,
+      "p": 3.036060292060938e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": ["SCAN projection_thread_activities", "SCAN projection_turns"],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "write.deleteSideThread",
+      "area": "writes",
+      "description": "Delete one side thread with its history (AgentThreadStore.delete)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 225.078667,
+        "p95": 299.1272519
+      },
+      "after": {
+        "p50": 4.007333,
+        "p95": 14.217991849999988
+      },
+      "ratio": 0.017804144006237605,
+      "ci": [0.015060112970968554, 0.023274654199363858],
+      "u": 900,
+      "p": 3.036060292060938e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": ["SCAN projection_thread_activities", "SCAN projection_turns"],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "write.deleteSideThread",
+      "area": "writes",
+      "description": "Delete one side thread with its history (AgentThreadStore.delete)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1424.6462295000001,
+        "p95": 26854.389043599986
+      },
+      "after": {
+        "p50": 5.881,
+        "p95": 13.158006549999971
+      },
+      "ratio": 0.004128042371658837,
+      "ci": [0.003968324601114806, 0.004282161476846008],
+      "u": 900,
+      "p": 3.036060292060938e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": ["SCAN projection_thread_activities", "SCAN projection_turns"],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "write.snapshotPersist",
+      "area": "writes",
+      "description": "Whole-snapshot write of a side thread (persistConversation)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 1.702375,
+        "p95": 2.10920245
+      },
+      "after": {
+        "p50": 1.3337085,
+        "p95": 1.8661937499999994
+      },
+      "ratio": 0.7834399001395109,
+      "ci": [0.718510496417416, 0.846805551547801],
+      "u": 790,
+      "p": 5.19403309917621e-7,
+      "pHolm": 0.00005401794423143258,
+      "verdict": "faster",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "write.snapshotPersist",
+      "area": "writes",
+      "description": "Whole-snapshot write of a side thread (persistConversation)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 9.3114375,
+        "p95": 10.836970899999999
+      },
+      "after": {
+        "p50": 2.718146,
+        "p95": 3.82241645
+      },
+      "ratio": 0.2919147553747743,
+      "ci": [0.27960506482291214, 0.31311276770832824],
+      "u": 900,
+      "p": 3.036060292060938e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": ["SCAN projection_turns", "SCAN projection_thread_activities"],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "write.snapshotPersist",
+      "area": "writes",
+      "description": "Whole-snapshot write of a side thread (persistConversation)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 98.8092705,
+        "p95": 209.92022309999996
+      },
+      "after": {
+        "p50": 8.473937500000002,
+        "p95": 16.963891999999998
+      },
+      "ratio": 0.08576055118229015,
+      "ci": [0.05599164794041944, 0.11308875601045967],
+      "u": 900,
+      "p": 3.036060292060938e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": ["SCAN projection_turns", "SCAN projection_thread_activities"],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "write.snapshotPersist",
+      "area": "writes",
+      "description": "Whole-snapshot write of a side thread (persistConversation)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 528.364688,
+        "p95": 735.5080416999999
+      },
+      "after": {
+        "p50": 10.678042000000001,
+        "p95": 23.83073125
+      },
+      "ratio": 0.02020960568053708,
+      "ci": [0.019473136450256612, 0.02058958192115944],
+      "u": 900,
+      "p": 3.036060292060938e-11,
+      "pHolm": 3.859440766973421e-9,
+      "verdict": "faster",
+      "flaggedBefore": ["SCAN projection_turns", "SCAN projection_thread_activities"],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1,
+      "operation": "write.streamFlush",
+      "area": "writes",
+      "description": "Streamed text flush of a side-thread answer (persistStreamingMessage)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.165813,
+        "p95": 0.24876005
+      },
+      "after": {
+        "p50": 0.171125,
+        "p95": 0.2521063999999999
+      },
+      "ratio": 1.0320360888470748,
+      "ci": [0.9452217120486492, 1.115654137577676],
+      "u": 399.5,
+      "p": 0.45976002833049967,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 10,
+      "operation": "write.streamFlush",
+      "area": "writes",
+      "description": "Streamed text flush of a side-thread answer (persistStreamingMessage)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.22147899999999998,
+        "p95": 0.30811684999999994
+      },
+      "after": {
+        "p50": 0.198354,
+        "p95": 0.3388335499999999
+      },
+      "ratio": 0.8955882950528042,
+      "ci": [0.80043763931973, 1.0505949590233106],
+      "u": 523.5,
+      "p": 0.2804638631834646,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 100,
+      "operation": "write.streamFlush",
+      "area": "writes",
+      "description": "Streamed text flush of a side-thread answer (persistStreamingMessage)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.2347915,
+        "p95": 1.9140312499999967
+      },
+      "after": {
+        "p50": 0.2588955,
+        "p95": 2.6182502999999975
+      },
+      "ratio": 1.1026612973638314,
+      "ci": [0.7700871385211387, 1.5531619397656165],
+      "u": 435,
+      "p": 0.8302553474233902,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    },
+    {
+      "scale": 1000,
+      "operation": "write.streamFlush",
+      "area": "writes",
+      "description": "Streamed text flush of a side-thread answer (persistStreamingMessage)",
+      "nBefore": 30,
+      "nAfter": 30,
+      "before": {
+        "p50": 0.258604,
+        "p95": 0.44462849999999965
+      },
+      "after": {
+        "p50": 0.254229,
+        "p95": 0.41301494999999994
+      },
+      "ratio": 0.9830822415739895,
+      "ci": [0.8881210820692477, 1.0778226640260073],
+      "u": 482,
+      "p": 0.6414235467194687,
+      "pHolm": 1,
+      "verdict": "no change",
+      "flaggedBefore": [],
+      "flaggedAfter": []
+    }
+  ]
+}

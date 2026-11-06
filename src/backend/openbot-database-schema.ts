@@ -510,6 +510,24 @@ const V43_THREAD_EVENT_TYPE_INDEX_SQL = `
     ON orchestration_events(aggregate_id, event_type, sequence) WHERE aggregate_type = 'thread';
 `;
 
+// Migration 59 indexes the child keys that a thread delete follows. A delete of a thread removes its turns and
+// activities by ON DELETE CASCADE, and each provider session it removes clears its turns by ON DELETE SET NULL.
+// SQLite finds those rows through an index that starts with the child key, or else reads the whole child table
+// once for each parent row. Both tables grow by a row for each turn or message of every thread, so a delete of
+// one side thread read every turn and activity ever stored. A whole-snapshot write also deletes the activities of
+// its thread by thread and sequence, which is the second column. A turn without a session never needs the
+// session index, so it is partial. Restart recovery reads the running turns of every thread, which without an
+// index is a read of every turn; that index holds only running turns, so a finished turn leaves it. Frozen with
+// the migration.
+const V59_THREAD_CHILD_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS thread_activities_thread
+    ON projection_thread_activities(thread_id, last_event_sequence);
+  CREATE INDEX IF NOT EXISTS turns_thread ON projection_turns(thread_id);
+  CREATE INDEX IF NOT EXISTS turns_provider_session ON projection_turns(provider_session_id)
+    WHERE provider_session_id IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS turns_running ON projection_turns(thread_id, turn_id) WHERE status = 'running';
+`;
+
 const BASELINE_AGENT_ROUTINES_END_SQL = `    last_event_sequence INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS agent_routines_agent`;
@@ -631,7 +649,8 @@ const LATEST_SCHEMA_SQL =
   MESSAGING_ALLOWED_SENDERS_SCHEMA_SQL +
   DELETED_THREAD_MESSAGES_SCHEMA_SQL +
   BROWSER_PROXY_SCHEMA_SQL +
-  AGENT_SKILL_LOADS_SCHEMA_SQL;
+  AGENT_SKILL_LOADS_SCHEMA_SQL +
+  V59_THREAD_CHILD_INDEX_SQL;
 
 /** The end of the thread message table with the migration 40 columns before its PRIMARY KEY constraint. */
 function withThreadMessageOrderColumns(tableEnd: string): string {
@@ -979,6 +998,12 @@ const MIGRATIONS: readonly OpenBotMigration[] = [
     // Only creates a table and its indexes, so no foreign-key pause and no vacuum. No skill load was
     // recorded before it, so the table starts empty and no usage row changes.
     up: (db) => db.exec(AGENT_SKILL_LOADS_SCHEMA_SQL),
+  },
+  {
+    version: 59,
+    // Only creates indexes, so no foreign-key pause and no vacuum. The index build reads each of the two
+    // tables once, inside the migration transaction; no row changes.
+    up: (db) => db.exec(V59_THREAD_CHILD_INDEX_SQL),
   },
 ];
 
