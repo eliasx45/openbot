@@ -416,6 +416,16 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 
 ---
 
+## 44. One usage button in the rail
+
+- **Get:** the left rail shows one usage button, not one ring per provider (Claude, ChatGPT, Grok…, plus each custom agent). The button shows the logo and rings of the provider with the least left, so a limit that runs out still shows. Its hover card lists the limits of every provider with reset times, then each custom agent's answer. A click opens the usage page.
+- **Why:** Elias, 6 Nov 2026 (screenshot of four rings): the stack of rings was distracting.
+- **How (portable):** filter the readings to those with limit windows; draw one button whose ring row is the reading with the lowest `remainingPercent`; the hover card renders the full usage list for all readings (shared-quota readings such as Cursor on Grok included), then the custom agent texts. Only agents → the agent logo with no ring. No readings and no agents → no button.
+- **Here:** `UsageButton` in `packages/ui/src/features/window/PageRail.tsx` (replaces upstream's `UsageRings` per provider and `CustomAgentUsageButton`); `.window-rail-usage-summary` in `page-rail.css`. Labels reuse `app.rail.usageRings` / `app.rail.customAgentUsage`.
+- **Check:** with two or more providers signed in, the rail has one usage button above Marketplace; hover it: the card lists every provider; click it: the usage page opens. Checked 2026-11-06 in a blank dev instance (Claude + ChatGPT).
+
+---
+
 ## Checked, not needed
 
 - **Several agents use the computer at once (Codync entry 9 / ADR 0006):** OpenBot has no lock between agents. Each provider starts its own `cua-driver mcp` proxy on the shared daemon (`src/main/cua-driver-runtime.ts`), and the action tap (`src/main/cua-driver-action-tap.ts`) only watches calls for the rim and cursor; it refuses and delays nothing. So several agents can already work at once, in different apps or the same one (no "another agent is using this app" guard). The only rule: an agent's task threads get no Computer Use, so one agent's own chat holds its screen work (`#sessionAgent` in `thread-lifecycle.ts`). Checked 2026-11-03; skipped. If two agents clashing in one app becomes a problem, Codync's per-app hold (look-only free, `pid` + background holds that app 20 s, foreground/untargeted holds all) would go in the tap's `data` handler, which sees each call's `name` and `args`.

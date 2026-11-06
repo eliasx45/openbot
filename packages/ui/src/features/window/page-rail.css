@@ -246,3 +246,9 @@
   > .agent-context-icon {
   color: var(--openbot-text-primary);
 }
+
+/* Fork: the hover card of the one usage button lists every provider, then each custom agent. */
+.window-rail-usage-summary {
+  display: grid;
+  gap: var(--openbot-space-3);
+}

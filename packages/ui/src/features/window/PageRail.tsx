@@ -15,7 +15,7 @@ import {
   Workflow,
 } from "@openbot/ui";
 import { AccountUsageDetails } from "@openbot/ui/features/account/AccountUsageDetails";
-import { type AccountUsageProviderRow, accountUsageRowKey } from "@openbot/ui/features/account/account-usage-view";
+import type { AccountUsageProviderRow } from "@openbot/ui/features/account/account-usage-view";
 import { useText } from "@openbot/ui/text";
 import { Dynamic, type JSX } from "@solidjs/web";
 import { createMemo, createSignal, For, Show } from "solid-js";
@@ -62,84 +62,6 @@ function RailButton(props: {
 /** Two tracks in a 34px box, with 4.5px between their centers. */
 const RING = { size: 34, stroke: 2.25, spacing: 4.5 };
 
-/**
- * The limits of one provider as concentric rings: the outer ring is the longest window, the inner
- * ring the shortest. Each arc shows how much is left, in the tone of that window. The hover card
- * shows the windows with their reset times. `shared` are the readings that count the same quota, such
- * as Cursor on a merged Grok plan: the card lists them, with no ring of their own. The ring draws the
- * reading with the least left, so a shared reading that runs out first still shows.
- */
-function UsageRings(props: {
-  row: AccountUsageProviderRow;
-  shared: readonly AccountUsageProviderRow[];
-  onOpen: (button: HTMLElement) => void;
-}) {
-  const { t, format } = useText();
-  const rows = () => [props.row, ...props.shared];
-  const label = () =>
-    t("app.rail.usageRings", {
-      name: format.list(rows().map((row) => row.name)),
-      windows: rows()
-        .flatMap((row) => row.windows)
-        .map((window) =>
-          t("account.usage.row.windowUsed", { window: window.label, percent: 100 - window.remainingPercent }),
-        )
-        .join(", "),
-    });
-  const ringRow = () =>
-    rows().reduce((lowest, row) => ((row.remainingPercent ?? 100) < (lowest.remainingPercent ?? 100) ? row : lowest));
-  const windows = () => [...ringRow().ringWindows].reverse().slice(0, 2);
-  const outerRadius = (RING.size - RING.stroke) / 2;
-  return (
-    <RailButton
-      label={label()}
-      card={() => (
-        <AccountUsageDetails
-          rows={rows()}
-          loading={false}
-          error={null}
-          refreshActive={false}
-          refreshDisabled
-          onRefresh={() => undefined}
-          title={<h2 class="account-usage-popover-title">{t("account.usage.title")}</h2>}
-        />
-      )}
-      class="window-rail-usage"
-      onClick={props.onOpen}
-    >
-      <svg class="window-rail-usage-ring" viewBox={`0 0 ${RING.size} ${RING.size}`} fill="none" aria-hidden="true">
-        <For each={windows()} keyed={false}>
-          {(window, index) => (
-            <g>
-              <circle
-                class="window-rail-usage-track"
-                cx={RING.size / 2}
-                cy={RING.size / 2}
-                r={outerRadius - index * RING.spacing}
-                stroke-width={RING.stroke}
-              />
-              <Show when={window().remainingPercent < 100}>
-                <circle
-                  class="window-rail-usage-arc"
-                  data-usage-tone={window().tone}
-                  cx={RING.size / 2}
-                  cy={RING.size / 2}
-                  r={outerRadius - index * RING.spacing}
-                  stroke-width={RING.stroke}
-                  stroke-linecap="round"
-                  pathLength={100}
-                  stroke-dasharray={`${100 - window().remainingPercent} 100`}
-                />
-              </Show>
-            </g>
-          )}
-        </For>
-      </svg>
-      <ProviderLogo provider={props.row.provider} class="window-rail-usage-logo" />
-    </RailButton>
-  );
-}
-
 /** The answer of one custom agent to its usage prompt. OpenBot cannot read a percent from it. */
 export interface CustomAgentUsageRailRow {
   id: string;
@@ -148,24 +70,111 @@ export interface CustomAgentUsageRailRow {
 }
 
 /**
- * The plan usage of one custom agent: the agent logo, with no ring. The hover card shows the answer
- * as the agent wrote it.
+ * Fork: one usage button for all providers, not one ring per provider (Elias, 6 Nov 2026: the stack
+ * of rings was distracting). The button shows the provider with the least left: its logo inside one
+ * ring per limit window, the outer ring the longest window. The hover card lists the limits of every
+ * provider with their reset times, then the answer of each custom agent as it wrote it. With only
+ * custom agents, the button shows the agent logo with no ring.
  */
-function CustomAgentUsageButton(props: { row: CustomAgentUsageRailRow; onOpen: (button: HTMLElement) => void }) {
-  const { t } = useText();
+function UsageButton(props: {
+  rows: readonly AccountUsageProviderRow[];
+  customAgents: readonly CustomAgentUsageRailRow[];
+  onOpen: (button: HTMLElement) => void;
+}) {
+  const { t, format } = useText();
+  const label = () => {
+    const names = [...props.rows.map((row) => row.name), ...props.customAgents.map((row) => row.name)];
+    if (props.rows.length === 0) return t("app.rail.customAgentUsage", { name: format.list(names) });
+    return t("app.rail.usageRings", {
+      name: format.list(names),
+      windows: props.rows
+        .flatMap((row) => row.windows)
+        .map((window) =>
+          t("account.usage.row.windowUsed", { window: window.label, percent: 100 - window.remainingPercent }),
+        )
+        .join(", "),
+    });
+  };
+  const ringRow = () =>
+    props.rows.reduce<AccountUsageProviderRow | undefined>(
+      (lowest, row) =>
+        lowest === undefined || (row.remainingPercent ?? 100) < (lowest.remainingPercent ?? 100) ? row : lowest,
+      undefined,
+    );
+  const windows = () => [...(ringRow()?.ringWindows ?? [])].reverse().slice(0, 2);
+  const outerRadius = (RING.size - RING.stroke) / 2;
   return (
     <RailButton
-      label={t("app.rail.customAgentUsage", { name: props.row.name })}
+      label={label()}
       card={() => (
-        <div class="window-rail-agent-usage">
-          <h2 class="account-usage-popover-title">{props.row.name}</h2>
-          <p class="window-rail-agent-usage-text">{props.row.text}</p>
+        <div class="window-rail-usage-summary">
+          <Show when={props.rows.length > 0}>
+            <AccountUsageDetails
+              rows={[...props.rows]}
+              loading={false}
+              error={null}
+              refreshActive={false}
+              refreshDisabled
+              onRefresh={() => undefined}
+              title={<h2 class="account-usage-popover-title">{t("account.usage.title")}</h2>}
+            />
+          </Show>
+          <For each={props.customAgents} keyed={(row) => row.id}>
+            {(row) => (
+              <div class="window-rail-agent-usage">
+                <h2 class="account-usage-popover-title">{row().name}</h2>
+                <p class="window-rail-agent-usage-text">{row().text}</p>
+              </div>
+            )}
+          </For>
         </div>
       )}
       class="window-rail-usage"
       onClick={props.onOpen}
     >
-      <ProviderLogo provider="acp" class="window-rail-usage-logo window-rail-agent-usage-logo" />
+      <Show
+        when={ringRow()}
+        fallback={<ProviderLogo provider="acp" class="window-rail-usage-logo window-rail-agent-usage-logo" />}
+      >
+        {(row) => (
+          <>
+            <svg
+              class="window-rail-usage-ring"
+              viewBox={`0 0 ${RING.size} ${RING.size}`}
+              fill="none"
+              aria-hidden="true"
+            >
+              <For each={windows()} keyed={false}>
+                {(window, index) => (
+                  <g>
+                    <circle
+                      class="window-rail-usage-track"
+                      cx={RING.size / 2}
+                      cy={RING.size / 2}
+                      r={outerRadius - index * RING.spacing}
+                      stroke-width={RING.stroke}
+                    />
+                    <Show when={window().remainingPercent < 100}>
+                      <circle
+                        class="window-rail-usage-arc"
+                        data-usage-tone={window().tone}
+                        cx={RING.size / 2}
+                        cy={RING.size / 2}
+                        r={outerRadius - index * RING.spacing}
+                        stroke-width={RING.stroke}
+                        stroke-linecap="round"
+                        pathLength={100}
+                        stroke-dasharray={`${100 - window().remainingPercent} 100`}
+                      />
+                    </Show>
+                  </g>
+                )}
+              </For>
+            </svg>
+            <ProviderLogo provider={row().provider} class="window-rail-usage-logo" />
+          </>
+        )}
+      </Show>
     </RailButton>
   );
 }
@@ -330,22 +339,12 @@ function RailLogo(props: { variant: AppLogoVariant; href: string | undefined }) 
 
 /**
  * The page rail at the left of the window, on desktop and on the web. Its buttons change the page in
- * the card. A usage ring shows the plan limits of one provider and opens the usage page.
+ * the card. One usage button shows the plan limits of every provider and opens the usage page.
  */
 export function PageRail(props: PageRailProps) {
   const { t } = useText();
-  /**
-   * One ring per reading, except a reading that counts the quota of another provider's own sign-in,
-   * such as Cursor on a merged Grok plan: that ring's card lists it instead.
-   */
-  const rings = createMemo(() => {
-    const rows = props.usageRows.filter((row) => row.reportsUsage && row.windows.length > 0);
-    const owner = (row: AccountUsageProviderRow) =>
-      rows.find((other) => other.accountId === null && other.provider === row.sharedQuotaWith);
-    return rows
-      .filter((row) => !owner(row))
-      .map((row) => ({ row, shared: rows.filter((other) => owner(other) === row) }));
-  });
+  /** The readings with limits. A reading that counts another's quota (Cursor on Grok) is listed too. */
+  const usageRows = createMemo(() => props.usageRows.filter((row) => row.reportsUsage && row.windows.length > 0));
   /** The pages that this server has, in rail order. */
   const pages = createMemo((): RailPage[] => {
     const list: RailPage[] = [];
@@ -397,13 +396,9 @@ export function PageRail(props: PageRailProps) {
         <RailMoreMenu pages={pages()} current={props.current} pinned={props.pinned} onPinChange={props.onPinChange} />
       </div>
       <div class="window-rail-group">
-        {/* A status update builds new rows. The key keeps each ring, and its open hover card, mounted. */}
-        <For each={rings()} keyed={(ring) => accountUsageRowKey(ring.row)}>
-          {(ring) => <UsageRings row={ring().row} shared={ring().shared} onOpen={props.onUsage} />}
-        </For>
-        <For each={props.customAgentUsage ?? []} keyed={(row) => row.id}>
-          {(row) => <CustomAgentUsageButton row={row()} onOpen={props.onUsage} />}
-        </For>
+        <Show when={usageRows().length > 0 || (props.customAgentUsage?.length ?? 0) > 0}>
+          <UsageButton rows={usageRows()} customAgents={props.customAgentUsage ?? []} onOpen={props.onUsage} />
+        </Show>
         <Show when={props.onMarketplace}>
           {(onMarketplace) => (
             <RailButton
