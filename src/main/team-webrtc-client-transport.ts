@@ -64,6 +64,8 @@ interface TeamWebRtcClientTransportEvents {
   event: [hostId: string, event: AgentEvent | TeamRealtimeEvent];
   path: [hostId: string, path: "p2p" | "relay"];
   error: [hostId: string, code: string, message: string];
+  /** An attempt to connect failed. A cancelled or replaced attempt does not count. */
+  connectFailed: [hostId: string];
   desktopData: [hostId: string, data: string | ArrayBuffer];
 }
 
@@ -131,7 +133,8 @@ interface ActiveHost {
   cancelled: boolean;
   /** Closed by `stop` with its session kept for the next run, so nothing may end that session. */
   released: boolean;
-  cancelConnectionWait: (() => void) | null;
+  /** Fails the wait for authentication, with "cancelled" when no cause is given. */
+  cancelConnectionWait: ((cause?: Error) => void) | null;
   expirationTimer: ReturnType<typeof setTimeout> | null;
   /** The one compatibility read of this connection that learns the host protocol. */
   protocolProbe: Deferred.Deferred<void> | null;
@@ -513,7 +516,7 @@ export class TeamWebRtcClientTransport extends EventEmitter<TeamWebRtcClientTran
               body: binary
                 ? null
                 : sideRoute
-                  ? sideRoute.request(path, init.body)
+                  ? sideRoute.request(path, init.body, { channelIsolation: true })
                   : encodeTeamProtocolV8WebRtcHttpRequest(method, path, init.body, {
                       ...(init.preserveSemanticTags === undefined
                         ? {}
@@ -580,6 +583,7 @@ export class TeamWebRtcClientTransport extends EventEmitter<TeamWebRtcClientTran
                     historyExtent: true,
                     channelAttention: true,
                     agentTaskUiBlocks: true,
+                    channelIsolation: true,
                   })
                 : decodeTeamProtocolV9WebRtcHttpResponse(method, path, status, envelope.body),
             ).pipe(
@@ -830,6 +834,10 @@ export class TeamWebRtcClientTransport extends EventEmitter<TeamWebRtcClientTran
     if (connecting) return yield* Deferred.await(connecting);
     const retry = this.#connectRetries.get(hostId);
     if (retry && !retryNow && Date.now() < retry.retryAt) return yield* retry.failure;
+    // `stop` closes only the attempts that exist when it starts, and it waits for this operation. A
+    // later attempt would open a peer during shutdown, or wait 30 s after `stop` removed the listeners.
+    if (this.#stopping)
+      return yield* new RemoteWorkflowError({ cause: new Error(sourceText("error.remote.connectionCancelled")) });
     const active: ActiveHost = {
       sessionId: current?.sessionId ?? "",
       expiresAt: current?.expiresAt ?? 0,
@@ -863,6 +871,7 @@ export class TeamWebRtcClientTransport extends EventEmitter<TeamWebRtcClientTran
             CONNECT_RETRY_START_MILLISECONDS * 2 ** (failures - 1),
           );
           this.#connectRetries.set(hostId, { failure, failures, retryAt: Date.now() + delay });
+          this.emit("connectFailed", hostId);
         }),
       ),
       Effect.onExit((exit) => Deferred.done(done, exit)),
@@ -1008,9 +1017,9 @@ export class TeamWebRtcClientTransport extends EventEmitter<TeamWebRtcClientTran
         this.off("error", onError);
       };
       cleanupConnectionWait = cleanup;
-      active.cancelConnectionWait = () => {
+      active.cancelConnectionWait = (cause = new Error(sourceText("error.remote.connectionCancelled"))) => {
         cleanup();
-        reject(new Error(sourceText("error.remote.connectionCancelled")));
+        reject(cause);
       };
       const timer = setTimeout(() => {
         cleanup();
@@ -1229,6 +1238,10 @@ export class TeamWebRtcClientTransport extends EventEmitter<TeamWebRtcClientTran
   readonly #onDisconnected = (hostId: string): void => {
     const active = this.#active.get(hostId);
     if (!active) return;
+    // The handshake started on the channel that closed, and a new channel does not start it again.
+    // Without this, the attempt and each caller that joined it waited for the 30 s timeout.
+    if (!active.connected && active.authentication?.started)
+      active.cancelConnectionWait?.(new Error(sourceText("error.remote.hostDisconnected")));
     this.#files.setPeerAuthenticated(hostId, false);
     active.connected = false;
     this.#lastEventSequence.delete(hostId);

@@ -95,6 +95,7 @@ function rowDrawsTime(message: AgentMessage): boolean {
     message.kind !== "plan" &&
     message.kind !== "subagents" &&
     message.kind !== "memory-changes" &&
+    message.kind !== "thinking" &&
     chatVisualReply(message) === null
   );
 }
@@ -424,7 +425,7 @@ export function ConversationTimeline() {
             onOpenLink={(url) => void openExternalMessageUrl(url)}
             onPreview={(attachment) => void previewAttachment(attachment)}
             onAttachmentAction={attachmentAction}
-            onOpenSharedFile={openSharedFile}
+            onOpenSharedFile={(path) => openSharedFile(path)}
             // A workspace path is in the workspace of the agent that wrote it, as in a channel.
             onOpenWorkspaceFile={(path) => openWorkspaceFile(path, undefined, current().exchange?.senderAgentId)}
             checkFileChip={
@@ -849,6 +850,14 @@ export function ConversationTimeline() {
                     .filter((attachment) => attachment.name === path);
                   return matches.length === 1 ? matches[0] : undefined;
                 };
+                // A chip joins a file name to the folder that the message names. When nothing is there,
+                // the name opens as the agent wrote it, from its workspace (#5270).
+                const writtenFile = (asWritten: string | undefined) => {
+                  const agentId = workspaceAgentId();
+                  return asWritten && agentId
+                    ? () => openWorkspaceFile(asWritten, undefined, agentId, "tab", turnAttachment(asWritten))
+                    : undefined;
+                };
                 // A row the host has not drawn yet has no reactions, replies or menu: its id is not the
                 // host's, even after the host answered.
                 const hostless = createMemo(() => message()?.id.startsWith(PENDING_SEND_ID_PREFIX) === true);
@@ -1144,8 +1153,8 @@ export function ConversationTimeline() {
                     </div>
                   );
                 }
-                if (untrack(() => initialMessage.kind === "memory-changes")) {
-                  // Only a turn with no answer gets this row: an answer shows the changes in its steps.
+                if (untrack(() => initialMessage.kind === "memory-changes" || initialMessage.kind === "thinking")) {
+                  // Only a finished turn with no answer gets this row: an answer shows the steps above it.
                   return (
                     <div
                       data-index={virtualRow.index}
@@ -1370,11 +1379,18 @@ export function ConversationTimeline() {
                             onOpenLink={(url) => void openExternalMessageUrl(url)}
                             onPreview={(attachment) => void previewAttachment(attachment)}
                             onAttachmentAction={attachmentAction}
-                            onOpenSharedFile={openSharedFile}
+                            onOpenSharedFile={(path, asWritten) => openSharedFile(path, "tab", writtenFile(asWritten))}
                             onOpenWorkspaceFile={
                               workspaceAgentId()
-                                ? (path) =>
-                                    openWorkspaceFile(path, undefined, workspaceAgentId(), "tab", turnAttachment(path))
+                                ? (path, asWritten) =>
+                                    openWorkspaceFile(
+                                      path,
+                                      undefined,
+                                      workspaceAgentId(),
+                                      "tab",
+                                      turnAttachment(path),
+                                      writtenFile(asWritten),
+                                    )
                                 : undefined
                             }
                             onOpenQuote={openQuote}

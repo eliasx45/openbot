@@ -109,6 +109,7 @@ export const messages = {
   "error.provider.maxOutputInvalid":
     "Bir modelin en fazla çıktısı {min} ile {max} arasında tam sayı bir token sayısı olmalıdır.",
   "error.provider.reasoningEffortsInvalid": "Bir modelin efor düzeyleri geçerli değil.",
+  "error.provider.inputsInvalid": "Bir modelin girdi türleri geçerli değil.",
   "error.provider.headersTooMany": "Çok fazla üstbilgi var.",
   "error.provider.headerNameCharacter": "Bir üstbilgi adı HTTP'nin izin vermediği bir karaktere sahip.",
   "error.provider.headerNameTooLong": "Bir üstbilgi adı çok uzun.",
@@ -293,6 +294,8 @@ export const messages = {
     "OpenCode isteği reddetti ve nedenini belirtmedi. Bu, uzun bir sohbette veya model değişikliğinden sonra olabilir. OpenBot, sohbet geçmişiyle yeni bir OpenCode oturumu başlattı. Yeniden deneyin. Hata sürerse başka bir model veya daha düşük bir efor seçin.",
   "error.provider.museMcpStartupFault":
     "Muse bir MCP sunucusunu başlatamadı ve bu oturumda MCP’yi engelledi. OpenBot, sohbet geçmişiyle yeni bir Muse oturumu başlattı. Tekrar deneyin. Hata devam ederse bu ajan için Bilgisayar Kullanımı’nı veya başarısız olan MCP sunucusunu kapatın.",
+  "error.provider.claudeSessionMissing":
+    "Claude Code bu sohbetin kayıtlı oturumunu bulamadı. OpenBot sohbet geçmişiyle yeni bir Claude Code oturumu başlattı. Tekrar deneyin.",
   "error.provider.grokSignIn": "Grok'u kullanmak için `grok login` komutunu çalıştırın veya XAI_API_KEY ayarlayın.",
   "error.provider.acpSignInTimedOut": "Oturum açma zaman aşımına uğradı.",
   "error.provider.acpSignInStopped": "Oturum açma tamamlanmadan önce durdu.",

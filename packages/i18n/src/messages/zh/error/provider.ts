@@ -100,6 +100,7 @@ export const messages = {
   "error.provider.contextWindowInvalid": "模型的上下文窗口必须是 {min} 到 {max} 之间的整数个 token。",
   "error.provider.maxOutputInvalid": "模型的最大输出必须是 {min} 到 {max} 之间的整数个 token。",
   "error.provider.reasoningEffortsInvalid": "模型的推理强度无效。",
+  "error.provider.inputsInvalid": "模型的输入类型无效。",
   "error.provider.headersTooMany": "请求头数量过多。",
   "error.provider.headerNameCharacter": "某个请求头名称含有 HTTP 不允许的字符。",
   "error.provider.headerNameTooLong": "某个请求头名称过长。",
@@ -259,6 +260,8 @@ export const messages = {
     "OpenCode 拒绝了这次请求，但没有给出原因。长对话或更换模型之后可能出现这种情况。OpenBot 已带着聊天记录开启新的 OpenCode 会话，请重试。如果仍然报错，请换一个模型或调低推理强度。",
   "error.provider.museMcpStartupFault":
     "Muse 无法启动某个 MCP 服务器，并在本次会话中停用了 MCP。OpenBot 已带着聊天记录开启新的 Muse 会话，请重试。如果仍然报错，请关闭 Computer Use，或对该助手关闭启动失败的 MCP 服务器。",
+  "error.provider.claudeSessionMissing":
+    "Claude Code 找不到此聊天已保存的会话。OpenBot 已带着聊天记录开启新的 Claude Code 会话，请重试。",
   "error.provider.grokSignIn": "请运行 `grok login`，或设置 XAI_API_KEY 以使用 Grok。",
   "error.provider.acpSignInTimedOut": "登录超时。",
   "error.provider.acpSignInStopped": "登录在完成之前就停止了。",

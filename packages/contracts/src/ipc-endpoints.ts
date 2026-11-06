@@ -122,10 +122,12 @@ import type {
 import type {
   AgentTask,
   AgentTaskInput,
+  AgentTaskPage,
   AgentTaskReadState,
   AgentTasksSnapshot,
   BranchAgentTaskInput,
   MarkAgentTaskReadInput,
+  ReadAgentTaskPageInput,
   RenameAgentTaskInput,
   RunQueuedMessageAsTaskInput,
   StartAgentTaskInput,
@@ -541,6 +543,7 @@ import type {
   LoginServerInput,
   MarkDirectReadInput,
   ReadDirectConversationPageInput,
+  RemoteControlPolicy,
   RemoteDesktopConnectInput,
   RemoteDesktopConnectResult,
   RemoteDesktopSelectDisplayInput,
@@ -1646,6 +1649,8 @@ export const IPC_ENDPOINTS = {
     // A joined server takes these through `agent-tasks-v1`, except `runQueuedMessageAsTask`, which is local only.
     listTasks: scopedRequest<string, AgentTasksSnapshot>()("agent:tasks:list"),
     readTask: scopedRequest<AgentTaskInput, ConversationSnapshot>()("agent:tasks:read"),
+    // A joined server takes this through `agent-thread-pages-v1`.
+    readTaskPage: scopedRequest<ReadAgentTaskPageInput, AgentTaskPage>()("agent:tasks:read-page"),
     startTask: scopedRequest<StartAgentTaskInput, AgentTask>()("agent:tasks:start"),
     runQueuedMessageAsTask: scopedRequest<RunQueuedMessageAsTaskInput, AgentTask>()("agent:tasks:run-queued-message"),
     // A joined server takes this through `agent-thread-branches-v1`.
@@ -2150,6 +2155,11 @@ export const IPC_ENDPOINTS = {
     removeMember: request<string, void>()("host:remove-member"),
     listSessions: request<undefined, TeamSessionSummary[]>()("host:list-sessions"),
     revokeSession: request<string, void>()("host:revoke-session"),
+    /** Who may control this computer through remote desktop, and whether its user must allow each session. */
+    getRemoteControlPolicy: request<undefined, RemoteControlPolicy>()("host:get-remote-control-policy"),
+    setRemoteControlPolicy: request<RemoteControlPolicy, RemoteControlPolicy>()("host:set-remote-control-policy"),
+    /** Ends every remote desktop session on this computer, and refuses the requests that wait for an answer. */
+    stopRemoteControl: request<undefined, HostStatus>()("host:stop-remote-control"),
     event: event<HostStatus>()("host:event"),
   },
   events: {

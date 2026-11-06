@@ -83,6 +83,10 @@ import {
   AGENT_TASK_LIMIT_ROUTES,
 } from "@openbot/contracts/team-protocol/agent-task-limit-v1";
 import {
+  AGENT_THREAD_PAGES_CAPABILITY,
+  AGENT_THREAD_PAGES_ROUTES,
+} from "@openbot/contracts/team-protocol/agent-thread-pages-v1";
+import {
   AGENT_THREAD_REPLIES_CAPABILITY,
   AGENT_THREAD_REPLIES_ROUTES,
 } from "@openbot/contracts/team-protocol/agent-thread-replies-v1";
@@ -99,6 +103,7 @@ import {
   BROWSER_SECRET_VAULT_ROUTES,
 } from "@openbot/contracts/team-protocol/browser-secret-vault-v1";
 import { CHAT_COLORS_CAPABILITY, CHAT_COLORS_ROUTES } from "@openbot/contracts/team-protocol/chat-colors-v1";
+import { CODEX_API_KEY_CAPABILITY } from "@openbot/contracts/team-protocol/codex-api-key-v1";
 import {
   CONTEXT_COMPACT_CAPABILITY,
   CONTEXT_COMPACT_ROUTES,
@@ -407,6 +412,8 @@ function queueSnapshot(agentId: string): QueueSnapshot {
 
 // The provider keys that the fake host keeps.
 const providerKeys = new Set<string>();
+// Whether the fake host's Codex logged in with an OpenAI API key (`codex-api-key-v1`).
+let codexOnKey = false;
 const NO_STATUS: AgentStatus = {
   phase: "ready",
   cliVersion: null,
@@ -502,6 +509,16 @@ const fakeAgents: TeamApiAgents = {
       return path === "big.bin"
         ? { path: workspacePath, name: "big.bin", size: ATTACHMENT_LIMITS.fileBytes + 1, insideWorkspace: true }
         : { path: workspacePath, name: "notes.md", size: readFileSync(workspacePath).length, insideWorkspace: true };
+    }),
+  resolveLocalWorkspaceFile: (agentId, path) =>
+    Effect.sync(() => {
+      record("resolveLocalWorkspaceFile", agentId, path);
+      return {
+        path: workspacePath,
+        name: "notes.md",
+        size: readFileSync(workspacePath).length,
+        insideWorkspace: false,
+      };
     }),
   deleteAgent: (agentId) => Effect.sync(() => record("deleteAgent", agentId)),
   getRuntimeSnapshot: unused("getRuntimeSnapshot"),
@@ -641,11 +658,37 @@ const fakeAgents: TeamApiAgents = {
   respondToBrowserTakeover: unused("respondToBrowserTakeover"),
 };
 
-// Only a reply in a side thread (`agent-thread-replies-v1`) reaches the side threads in this run.
+// Only a reply in a side thread (`agent-thread-replies-v1`) and a page of its older messages
+// (`agent-thread-pages-v1`) reach the side threads in this run. The thread holds one message before
+// `message-7`, and no other message.
 const fakeAgentTasks: TeamApiAgentTasks = {
   listAgents: () => agents,
   listTasks: unused("listTasks"),
   readTask: unused("readTask"),
+  readTaskPage: (input) => {
+    record("readTaskPage", input);
+    return {
+      conversation: {
+        agentId: input.agentId,
+        threadId: `thread-${input.taskId}`,
+        activeTurnId: null,
+        revision: 3,
+        messages:
+          input.beforeMessageId === "message-7"
+            ? [
+                {
+                  id: "message-older",
+                  author: "assistant",
+                  text: "Older reply",
+                  createdAt: "2026-11-05T07:00:00.000Z",
+                  status: "completed",
+                },
+              ]
+            : [],
+      },
+      hasOlder: false,
+    };
+  },
   startTask: unused("startTask"),
   sendMessage: (input, sender) =>
     Effect.sync(() => {
@@ -1267,6 +1310,26 @@ try {
             return change().pipe(Effect.as(NO_STATUS));
           },
           clearProviderCredential: (_provider, change) => change().pipe(Effect.as(NO_STATUS)),
+          // Codex keeps the key in its own login, so the host passes it to the CLI, not to the key store.
+          signInCodexWithApiKey: (key) =>
+            Effect.sync(() => {
+              record("signInCodexWithApiKey", key);
+              codexOnKey = true;
+              return NO_STATUS;
+            }),
+          // The released status routes drop `apiKeyInUse`, so `apiKeyState` reads it here for Codex.
+          getStatus: () => ({
+            ...NO_STATUS,
+            providers: [
+              {
+                id: "codex",
+                state: "available",
+                version: null,
+                message: null,
+                ...(codexOnKey ? { apiKeyInUse: true } : {}),
+              },
+            ],
+          }),
         },
         credentials: {
           status: (provider) => (providerKeys.has(provider) ? "saved" : "missing"),
@@ -3609,6 +3672,84 @@ try {
     );
   }
 
+  // ---- Older messages of a side thread (agent-thread-pages-v1) ----
+  {
+    const capabilities = [AGENT_HIDDEN_CAPABILITY, AGENT_THREAD_PAGES_CAPABILITY];
+    const compatibility = await call("GET", TEAM_API_ROUTES.compatibility, { protocol: TEAM_PROTOCOL_V9 });
+    const older = await call("GET", TEAM_API_ROUTES.compatibility, { protocol: 8 });
+    check(
+      "the host advertises agent-thread-pages-v1 to a protocol 9 peer and not to a protocol 8 peer",
+      list(field(compatibility.body, "capabilities")).includes(AGENT_THREAD_PAGES_CAPABILITY) &&
+        !list(field(older.body, "capabilities")).includes(AGENT_THREAD_PAGES_CAPABILITY),
+      [summary(compatibility), summary(older)],
+    );
+    const request = { agentId: "agent-ada", taskId: "task-1", beforeMessageId: "message-7", limit: 50 };
+    const unsupported = await call("POST", AGENT_THREAD_PAGES_ROUTES.readOlder, { token: bobToken, json: request });
+    check(
+      "the page route without the capability gets 400 threadRemoteUnsupported, and reads nothing",
+      errorIs(unsupported, 400, sourceText("error.backend.threadRemoteUnsupported")) &&
+        callsOf("readTaskPage").length === 0,
+      summary(unsupported),
+    );
+    const page = await call("POST", AGENT_THREAD_PAGES_ROUTES.readOlder, {
+      token: bobToken,
+      json: request,
+      capabilities,
+    });
+    const conversation = field(page.body, "conversation");
+    const messages = list(field(conversation, "messages"));
+    check(
+      "a member reads the older messages of a side thread: the host gets the task, the message and the limit, and answers the page",
+      page.status === 200 &&
+        field(page.body, "hasOlder") === false &&
+        messages.length === 1 &&
+        field(messages[0], "id") === "message-older" &&
+        isDeepStrictEqual(callsOf("readTaskPage")[0], [request]),
+      [summary(page), callsOf("readTaskPage")],
+    );
+    const extra = await call("POST", AGENT_THREAD_PAGES_ROUTES.readOlder, {
+      token: bobToken,
+      json: { ...request, anchor: "latest" },
+      capabilities,
+    });
+    const tooMany = await call("POST", AGENT_THREAD_PAGES_ROUTES.readOlder, {
+      token: bobToken,
+      json: { ...request, limit: 101 },
+      capabilities,
+    });
+    const noMessage = await call("POST", AGENT_THREAD_PAGES_ROUTES.readOlder, {
+      token: bobToken,
+      json: { ...request, beforeMessageId: "" },
+      capabilities,
+    });
+    check(
+      "the frozen codec refuses an unknown field, a limit over 100, and an empty message id",
+      extra.status === 400 &&
+        tooMany.status === 400 &&
+        noMessage.status === 400 &&
+        callsOf("readTaskPage").length === 1,
+      [summary(extra), summary(tooMany), summary(noMessage)],
+    );
+    const hidden = await call("POST", AGENT_THREAD_PAGES_ROUTES.readOlder, {
+      token: bobToken,
+      json: { ...request, agentId: "agent-pi" },
+      capabilities,
+      protocol: 6,
+    });
+    const missing = await call("POST", AGENT_THREAD_PAGES_ROUTES.readOlder, {
+      token: bobToken,
+      json: { ...request, agentId: "agent-none" },
+      capabilities,
+    });
+    check(
+      "an unknown agent, and an agent that the client protocol does not show, get 404 and read nothing",
+      errorIs(hidden, 404, sourceText("error.team.agentNotFound")) &&
+        errorIs(missing, 404, sourceText("error.team.agentNotFound")) &&
+        callsOf("readTaskPage").length === 1,
+      [summary(hidden), summary(missing)],
+    );
+  }
+
   // ---- Servers on the host computer (local-servers-v1) ----
   {
     const capabilities = [LOCAL_SERVERS_CAPABILITY];
@@ -4750,6 +4891,37 @@ try {
         isDeepStrictEqual(callsOf("setProviderKey").at(-1), ["inception", key]) &&
         isDeepStrictEqual(callsOf("changeProviderCredential"), [["deepseek"]]),
       summary(pending),
+    );
+    // codex-api-key-v1: an OpenAI key logs the host's Codex in and never reaches the key store.
+    const openAiKey = ["sk", "e2e", "openai", "fake0000"].join("-");
+    const keysBefore = callsOf("setProviderKey").length;
+    const compatibility = await call("GET", TEAM_API_ROUTES.compatibility, { protocol: TEAM_PROTOCOL_V9 });
+    const older = await call("GET", TEAM_API_ROUTES.compatibility, { protocol: 8 });
+    const stateBefore = await call("POST", PROVIDERS_V8_ROUTES.apiKeyState, { ...v8, json: { provider: "codex" } });
+    const codex = await call("POST", PROVIDERS_V8_ROUTES.apiKeySet, {
+      ...v8,
+      json: { provider: "codex", key: openAiKey },
+    });
+    const stateAfter = await call("POST", PROVIDERS_V8_ROUTES.apiKeyState, { ...v8, json: { provider: "codex" } });
+    const codexMember = await call("POST", PROVIDERS_V8_ROUTES.apiKeySet, {
+      ...v8,
+      token: bobToken,
+      json: { provider: "codex", key: openAiKey },
+    });
+    check(
+      "the host advertises codex-api-key-v1 to protocol 9, and an admin's OpenAI key logs Codex in, not the key store",
+      list(field(compatibility.body, "capabilities")).includes(CODEX_API_KEY_CAPABILITY) &&
+        !list(field(older.body, "capabilities")).includes(CODEX_API_KEY_CAPABILITY) &&
+        codex.status === 200 &&
+        codexMember.status === 403 &&
+        isDeepStrictEqual(callsOf("signInCodexWithApiKey"), [[openAiKey]]) &&
+        callsOf("setProviderKey").length === keysBefore,
+      [summary(codex), summary(codexMember)],
+    );
+    check(
+      "apiKeyState answers for the host's Codex login, which the released status routes do not carry",
+      field(stateBefore.body, "status") === "missing" && field(stateAfter.body, "status") === "saved",
+      [summary(stateBefore), summary(stateAfter)],
     );
   }
 
@@ -6217,6 +6389,22 @@ try {
         workspace.text === "# workspace notes\n" &&
         errorIs(workspaceBig, 413, sourceText("error.team.workspaceFileTooLarge")),
       [summary(workspaceMissing), summary(workspace), summary(workspaceBig)],
+    );
+    const outsidePath = `${TEAM_API_ROUTES.workspaceFiles}?botId=agent-ada&path=${encodeURIComponent("~/Desktop/notes.md")}`;
+    const localReads = callsOf("resolveLocalWorkspaceFile").length;
+    const memberOutside = await call("GET", outsidePath, { token: bobToken });
+    const memberLocalReads = callsOf("resolveLocalWorkspaceFile").length - localReads;
+    const ownerOutside = await call("GET", outsidePath, { token: adaToken });
+    check(
+      "workspace files: a member reads with the workspace limit, and the owner reads as the local user does",
+      memberOutside.status === 200 &&
+        memberLocalReads === 0 &&
+        isDeepStrictEqual(callsOf("resolveWorkspaceFile").at(-1), ["agent-ada", "~/Desktop/notes.md"]) &&
+        ownerOutside.status === 200 &&
+        ownerOutside.text === "# workspace notes\n" &&
+        callsOf("resolveLocalWorkspaceFile").length === localReads + 1 &&
+        isDeepStrictEqual(callsOf("resolveLocalWorkspaceFile").at(-1), ["agent-ada", "~/Desktop/notes.md"]),
+      [summary(memberOutside), summary(ownerOutside), callsOf("resolveLocalWorkspaceFile")],
     );
   }
 

@@ -38,6 +38,7 @@ import type { AwaitingReplyItem } from "@openbot/ui/features/conversation/Awaiti
 import type { UsageLimitAskCardProps } from "@openbot/ui/features/conversation/BackupModels";
 import type { ChatMessageAuthor } from "@openbot/ui/features/conversation/ChatMessageRow";
 import type { UnloadedHistory } from "@openbot/ui/features/conversation/ChatScrollRail";
+import type { AgentThreadOlderMessages } from "@openbot/ui/features/conversation/threads/AgentThreadView";
 import type { ThreadHeaderProps, ThreadItem } from "@openbot/ui/features/conversation/threads/thread-types";
 import type { SidebarAgentWait } from "@openbot/ui/features/sidebar/sidebar-agent-states";
 import type { JSX } from "@solidjs/web";
@@ -451,6 +452,8 @@ export interface ConversationThreads {
   running: number;
   /** The conversation of the open side thread, when it loaded. */
   conversation: ConversationSnapshot | undefined;
+  /** The open side thread has messages before the loaded ones. */
+  olderMessages: AgentThreadOlderMessages | undefined;
   /** The approval that the open side thread's turn waits for. */
   approval: AgentApproval | undefined;
   /** The thread takes files. Only this computer sends them: `agent-tasks-v1` carries text only. */
@@ -495,6 +498,11 @@ export interface ConversationThreads {
    * when the thread is not in it. Resolves false when the routine has no open thread.
    */
   onOpenRoutineThread: (routineId: string) => Promise<boolean>;
+  /**
+   * Opens the routine's side thread at the message of a run. Resolves false when the run is not in
+   * that thread: the run was in the agent's chat.
+   */
+  onOpenRoutineRun: (routineId: string, messageId: string) => Promise<boolean>;
   /** The message that a side thread scrolls to once, after a click on "Branched from". */
   focusMessage: { taskId: string; messageId: string; nonce: number } | null;
 }
@@ -536,6 +544,8 @@ interface SideThreads {
 export interface SideThread {
   task: AgentTask;
   conversation: ConversationSnapshot | undefined;
+  /** The thread has messages before the loaded ones. */
+  olderMessages: AgentThreadOlderMessages | undefined;
   approval: AgentApproval | undefined;
   onSend: (text: string, attachmentDraftIds: string[], replyToMessageId?: string | null) => Promise<boolean>;
   onStop: () => void;

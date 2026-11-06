@@ -520,8 +520,8 @@ with `listTaskReads` (`agent:tasks:reads` over IPC, or the `reads` route for a j
 a dot on the tab and the menu row of an idle thread with unread agent messages, and adds those
 messages to the unread count of the agent's sidebar row (`agentUnreadReplies` in
 `conversation-context.tsx`). The Dynamic Island keeps the chat-only count: it shows and opens a
-message of the agent's chat, and a side thread's messages are not in it. "Mark all read" still reads
-only the agent's chat. The desktop reads the marks of an agent only after it reads that agent's thread
+message of the agent's chat, and a side thread's messages are not in it. "Mark all read" reads the
+agent's chat and each open side thread that the count includes, such as a routine's thread. The desktop reads the marks of an agent only after it reads that agent's thread
 list, so after a start an agent that is not open adds no thread messages to its count until a thread
 event arrives or the person opens it. The host sends no event when
 a mark moves; a client reads the marks again when `agent-tasks-changed` arrives with a thread whose state, outcome or
@@ -552,7 +552,19 @@ the links among the listed tasks. `sourceTitle` is null for the agent's own chat
 list can leave out an archived source, so the divider takes its title from the link. The `agent-tasks-v1` task and its events stay without the link: a joined desktop and
 the web read `branches` after the task list and add the links, and read the list again when an event names a task
 that they do not know. A server without the capability does not show "Branch from here", and a joined desktop
-refuses a branch with `error.backend.branchRemoteUnsupported`. The phone does not branch. A server without either shows only
+refuses a branch with `error.backend.branchRemoteUnsupported`. The phone does not branch. A thread read has the
+newest 100 messages of the thread. The optional `agent-thread-pages-v1` capability
+(`packages/contracts/src/team-protocol/agent-thread-pages-v1.ts`, host route `routeAgentThreadPages` in
+`src/main/team-api/route-agent-threads.ts`) adds `POST /v1/agent-threads/read-older` with
+`{agentId, taskId, beforeMessageId, limit}`. It answers `{conversation, hasOlder}`: the messages from before that message, oldest first, in the
+frozen `agent-tasks-v1` conversation shape. The page has whole turns: the host adds turns until it has
+`limit` (0 to 100) messages or the next turn does not fit, so it can have more or fewer than `limit`, and
+never more than 100. A turn of more than 100 messages is split over pages. A limit of 0
+asks only for `hasOlder`, and a message that the thread does not hold has none. The host makes a page smaller
+until it fits one WebRTC frame. A thread tab on desktop and the web asks once after its read, and shows "Load older
+messages" when the thread has more; a new conversation of the thread keeps the pages that it read
+(`src/renderer/src/features/agent-tasks/agent-tasks-state.ts`). A server without the capability shows only the
+newest messages. The Tasks rail page and the phone do not read older pages. A server without either shows only
 the main thread, and a task control there fails with `error.backend.taskRemoteUnsupported`. Prompts, approvals and warnings of a task turn show in the main chat. On desktop and the web, the
 approval of a side thread turn also shows in that thread. A provider
 error of a task turn goes to the task: `AgentTasks` stores the redacted text in the task's `error`
@@ -971,8 +983,8 @@ in `.agents/skills` and `.claude/skills` that OpenBot does not manage. Workspace
 and leave out `.openbot/`, the skill folders, links, and every path `isUnsafeArchivePath` refuses
 (`.git`, `node_modules`, `.env*`, private keys, nested archives). Server settings are optional: MCP servers,
 custom model providers, custom ACP agents (as a warning, see below), sidebar sections and routine flows
-between exported agents. A custom provider model keeps its optional `contextWindow`, `maxOutput`
-and `reasoningEfforts`; an app that does not know a field ignores it.
+between exported agents. A custom provider model keeps its optional `contextWindow`, `maxOutput`,
+`reasoningEfforts` and `inputs`; an app that does not know a field ignores it.
 
 No secret is in the file: MCP variable and header values are empty, custom providers have no key or
 headers, custom agents keep only the names of their variables, and `signedIn` lists provider ids,

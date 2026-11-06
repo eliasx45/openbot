@@ -215,6 +215,7 @@ export function ConversationSideThread(props: { threadId: string }) {
             waitsForAnswer={waitsForAnswer()}
             attention={answerCard()}
             messageCard={mcpSignInCard}
+            olderMessages={current().thread.olderMessages}
             stepsAbove={turnSteps.stepsAbove}
             factsAbove={turnSteps.factsAbove}
             activeSteps={turnSteps.activeSteps()}

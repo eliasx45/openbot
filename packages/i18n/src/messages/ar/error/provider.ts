@@ -103,6 +103,7 @@ export const messages = {
   "error.provider.contextWindowInvalid": "يجب أن تكون نافذة سياق النموذج عددًا صحيحًا من الرموز من {min} إلى {max}.",
   "error.provider.maxOutputInvalid": "يجب أن يكون الحد الأقصى لمخرجات النموذج عددًا صحيحًا من الرموز من {min} إلى {max}.",
   "error.provider.reasoningEffortsInvalid": "مستويات جهد التفكير للنموذج غير صالحة.",
+  "error.provider.inputsInvalid": "أنواع الإدخال للنموذج غير صالحة.",
   "error.provider.headersTooMany": "عدد الترويسات كبير جدًا.",
   "error.provider.headerNameCharacter": "يحتوي اسم ترويسة على حرف لا يسمح به HTTP.",
   "error.provider.headerNameTooLong": "اسم الترويسة طويل جدًا.",
@@ -271,6 +272,8 @@ export const messages = {
     "رفض OpenCode الطلب ولم يذكر السبب. قد يحدث هذا في دردشة طويلة أو بعد تغيير النموذج. بدأ OpenBot جلسة OpenCode جديدة بسجل الدردشة. أعد المحاولة. إذا استمر الخطأ، اختر نموذجًا مختلفًا أو مستوى جهد أقل.",
   "error.provider.museMcpStartupFault":
     "تعذّر على Muse تشغيل خادم MCP فحظر MCP في هذه الجلسة. بدأ OpenBot جلسة Muse جديدة بسجل الدردشة. أعد المحاولة. إذا استمر الخطأ، أوقف التحكم في الحاسوب أو خادم MCP الفاشل لهذا الوكيل.",
+  "error.provider.claudeSessionMissing":
+    "لم يعثر Claude Code على الجلسة المحفوظة لهذه الدردشة. بدأ OpenBot جلسة Claude Code جديدة بسجل الدردشة. أعد المحاولة.",
   "error.provider.grokSignIn": "شغّل `grok login` أو عيّن XAI_API_KEY لاستخدام Grok.",
   "error.provider.acpSignInTimedOut": "انتهت مهلة تسجيل الدخول.",
   "error.provider.acpSignInStopped": "توقف تسجيل الدخول قبل اكتماله.",

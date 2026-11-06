@@ -106,6 +106,7 @@ export const messages = {
   "error.provider.contextWindowInvalid": "모델의 컨텍스트 창은 {min}에서 {max} 사이의 정수 토큰 수여야 해요.",
   "error.provider.maxOutputInvalid": "모델의 최대 출력은 {min}에서 {max} 사이의 정수 토큰 수여야 해요.",
   "error.provider.reasoningEffortsInvalid": "모델의 추론 강도가 올바르지 않아요.",
+  "error.provider.inputsInvalid": "모델의 입력 종류가 올바르지 않아요.",
   "error.provider.headersTooMany": "헤더가 너무 많아요.",
   "error.provider.headerNameCharacter": "헤더 이름에 HTTP에서 허용하지 않는 문자가 있어요.",
   "error.provider.headerNameTooLong": "헤더 이름이 너무 길어요.",
@@ -286,6 +287,8 @@ export const messages = {
     "OpenCode가 원인을 알리지 않고 요청을 거부했어요. 긴 채팅이나 모델 변경 후에 발생할 수 있어요. OpenBot이 채팅 기록으로 새 OpenCode 세션을 시작했어요. 다시 시도해 주세요. 오류가 계속되면 다른 모델이나 낮은 강도를 선택하세요.",
   "error.provider.museMcpStartupFault":
     "Muse가 MCP 서버를 시작하지 못해서 이 세션에서 MCP를 차단했어요. OpenBot이 채팅 기록으로 새 Muse 세션을 시작했어요. 다시 시도해 주세요. 오류가 계속되면 이 에이전트의 컴퓨터 제어 또는 실패한 MCP 서버를 끄세요.",
+  "error.provider.claudeSessionMissing":
+    "Claude Code가 이 채팅의 저장된 세션을 찾지 못했어요. OpenBot이 채팅 기록으로 새 Claude Code 세션을 시작했어요. 다시 시도해 주세요.",
   "error.provider.grokSignIn": "Grok을 사용하려면 `grok login`을 실행하거나 XAI_API_KEY를 설정하세요.",
   "error.provider.acpSignInTimedOut": "로그인 시간이 초과되었어요.",
   "error.provider.acpSignInStopped": "로그인이 완료되기 전에 중단되었어요.",

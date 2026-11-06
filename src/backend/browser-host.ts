@@ -64,6 +64,7 @@ import {
   type BrowserViewportInput,
   type SnapshotReadResult,
 } from "./browser-cdp";
+import { refuseCookieBanners, stopCookieBanners } from "./browser-consent";
 import { BrowserControlSessions } from "./browser-control-sessions";
 import { browserViewCursor } from "./browser-cursor";
 import { BrowserDiagnostics } from "./browser-diagnostics";
@@ -1224,6 +1225,7 @@ export class BrowserHost {
     if (!tab) return yield* browserFailure(new Error(sourceText("error.backend.browserTabNotFound")));
     tab.engine.invalidateReferences();
     this.#takeoverTabIds.add(tabId);
+    stopCookieBanners(tab.contents);
     this.#syncAttachedView();
     tab.diagnostics.clearDiagnostics();
     this.#emitChanged();
@@ -1256,6 +1258,7 @@ export class BrowserHost {
     if (this.#userControlTabIds.has(tabId)) return;
     tab.engine.invalidateReferences();
     this.#userControlTabIds.set(tabId, holder);
+    stopCookieBanners(tab.contents);
     tab.diagnostics.clearDiagnostics();
     this.#emitChanged();
     yield* this.#enqueue(tabId, () => this.#recorder.discard(tabId, "tab-closed"), true).pipe(
@@ -1378,6 +1381,7 @@ export class BrowserHost {
       );
     const protection = { origin: url.origin, submitted: false, replaced: false, running: false };
     tab.secret = protection;
+    stopCookieBanners(tab.contents);
     this.#invalidateViews(tab);
     this.#syncAttachedView();
     return yield* Effect.gen({ self: this }, function* () {
@@ -3471,6 +3475,15 @@ export class BrowserHost {
       // Keep page content at the same width when the viewport scrollbar appears or disappears.
       // Navigation replaces the document, so each new document needs the stylesheet.
       void contents.insertCSS(":where(html) { scrollbar-gutter: stable; }").catch(() => undefined);
+      // An agent tab refuses cookie banners, so the agent does not spend turns on them. A tab that a
+      // person controls keeps the banner for that person.
+      if (
+        (tab.ownerThreadId !== null || tab.ownerAgentId !== null) &&
+        !tab.secret &&
+        !this.#takeoverTabIds.has(tab.id) &&
+        !this.#userControlTabIds.has(tab.id)
+      )
+        refuseCookieBanners(contents);
     });
     contents.on("did-stop-loading", () => {
       if (tab.closing || tab.contents !== contents || contents.isDestroyed()) return;

@@ -112,6 +112,7 @@ export const messages = {
   "error.provider.maxOutputInvalid":
     "A saída máxima de um modelo deve ser um número inteiro de tokens entre {min} e {max}.",
   "error.provider.reasoningEffortsInvalid": "Os níveis de esforço de um modelo não são válidos.",
+  "error.provider.inputsInvalid": "Os tipos de entrada de um modelo não são válidos.",
   "error.provider.headersTooMany": "Há cabeçalhos demais.",
   "error.provider.headerNameCharacter": "O nome de um cabeçalho contém um caractere não permitido pelo HTTP.",
   "error.provider.headerNameTooLong": "O nome de um cabeçalho é muito longo.",
@@ -292,6 +293,8 @@ export const messages = {
     "O OpenCode recusou a solicitação e não informou a causa. Isso pode acontecer em um chat longo ou depois de trocar de modelo. O OpenBot iniciou uma nova sessão do OpenCode com o histórico do chat. Tente novamente. Se o erro continuar, escolha outro modelo ou um esforço menor.",
   "error.provider.museMcpStartupFault":
     "O Muse não conseguiu iniciar um servidor MCP e bloqueou o MCP nesta sessão. O OpenBot iniciou uma nova sessão do Muse com o histórico do chat. Tente novamente. Se o erro continuar, desative o Uso do computador ou o servidor MCP que falhou para este agente.",
+  "error.provider.claudeSessionMissing":
+    "O Claude Code não encontrou a sessão salva deste chat. O OpenBot iniciou uma nova sessão do Claude Code com o histórico do chat. Tente novamente.",
   "error.provider.grokSignIn": "Execute `grok login` ou defina XAI_API_KEY para usar o Grok.",
   "error.provider.acpSignInTimedOut": "O tempo do login esgotou.",
   "error.provider.acpSignInStopped": "O login parou antes de terminar.",
