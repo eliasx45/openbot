@@ -1470,7 +1470,7 @@ export class ThreadLifecycle {
     for (const threadId of threadIds) {
       // A running turn owns its provider session, so the refresh waits for it. The mark stays, and
       // the next drain of this agent refreshes the thread that was busy this time.
-      if (this.#activeTurnOf(agent.id, threadId)) deferred = true;
+      if (this.#activeTurnOf(agent.id, threadId) || this.#holdsBackgroundWork(threadId)) deferred = true;
       else
         yield* this.#refreshThreadRuntime(
           threadId,
@@ -1521,6 +1521,24 @@ export class ThreadLifecycle {
   ) {
     yield* this.#refreshThreadRuntime(threadId);
   }, Effect.uninterruptible).bind(this);
+
+  /**
+   * Fork (docs/fork/FEATURES.md, "A refresh waits for background subagents"): whether a session of
+   * this thread runs a background subagent or command. The refresh closes the session's process,
+   * which ends that work (Tapa Lead, 6 Nov 2026: an MCP change stopped its SFX subagent after 18
+   * minutes). The mark stays; the turn that the provider starts when the work ends drains it.
+   */
+  #holdsBackgroundWork(threadId: string): boolean {
+    return this.#store.database
+      .listProviderSessions(threadId)
+      .some(
+        (session) =>
+          session.state === "active" &&
+          this.#conversation
+            .openClientFor(session.externalSessionId)
+            ?.holdsBackgroundWork?.(session.externalSessionId) === true,
+      );
+  }
 
   #activeTurnOf(agentId: string, threadId: string): string | null {
     const snapshot = [...this.#conversation.activeSnapshots()].find(

@@ -439,6 +439,18 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 
 ---
 
+## 46. A refresh waits for background subagents
+
+- **Get:** a background subagent keeps working when OpenBot refreshes the agents' tools (an MCP server saved, a `~/.claude.json` change, the cua-driver daemon coming or going, a skill installed). When it ends, the lead reports by itself as before.
+- **Why:** Tapa Lead, 6 Nov 2026: Elias had to ask "whats the progress w the subagent?". Its background SFX subagent showed "Stopped" after 18 min. At 20:03 Bot Bot added the Windows cua MCP server; the refresh that followed closed every idle agent's Claude process, and the subagent died with it in the middle of a request, so no "done" notification ever reached the lead. A refresh waited only for a running turn, and a lead whose turn ended reads as idle while its subagent works.
+- **How (portable):** the client says whether a session holds work that outlives its turn (`AgentClient.holdsBackgroundWork`; Claude: the CLI's `background_tasks_changed` count, which the SDK calls the reliable level signal). `applyPendingRuntimeRefresh` defers such a thread like a busy one: the refresh mark stays, and the next delivery start of that agent spends it once the work ended. The turn that the subagent's finish starts runs on the old session, with the old tools.
+- **Here:** `src/backend/agent/thread-lifecycle.ts` (`#holdsBackgroundWork`, in `applyPendingRuntimeRefresh`); `src/backend/agent-client.ts` (`holdsBackgroundWork`); `src/backend/claude-client.ts`.
+- **Tests:** `bun scripts/provider-session-reuse-e2e.ts`, case `claude-refresh-waits-for-background`: a stand-in `claude` reports a background task, `refreshAllAgentRuntimes()` runs, the process stays (it exited before the fix); the task ends, the next turn closes it and resumes the same session.
+- **Not done:** ACP and Codex report no background work, so nothing changes for them. A user message while the subagent works still runs on the old tools.
+- **Check:** in an agent's chat: "start a background subagent that runs `sleep 120` and then says done". While it runs, save any MCP server in Settings. After 2 min the subagent shows done and the lead writes by itself.
+
+---
+
 ## Checked, not needed
 
 - **Several agents use the computer at once (Codync entry 9 / ADR 0006):** OpenBot has no lock between agents. Each provider starts its own `cua-driver mcp` proxy on the shared daemon (`src/main/cua-driver-runtime.ts`), and the action tap (`src/main/cua-driver-action-tap.ts`) only watches calls for the rim and cursor; it refuses and delays nothing. So several agents can already work at once, in different apps or the same one (no "another agent is using this app" guard). The only rule: an agent's task threads get no Computer Use, so one agent's own chat holds its screen work (`#sessionAgent` in `thread-lifecycle.ts`). Checked 2026-11-03; skipped. If two agents clashing in one app becomes a problem, Codync's per-app hold (look-only free, `pid` + background holds that app 20 s, foreground/untargeted holds all) would go in the tap's `data` handler, which sees each call's `name` and `args`.

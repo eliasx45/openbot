@@ -516,6 +516,9 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
     return this.#threads.releaseIdle();
   }
 
+  /** Fork (docs/fork/FEATURES.md, "A refresh waits for background subagents"): see `AgentClient`. */
+  readonly holdsBackgroundWork = (threadId: string): boolean => (this.#threads.get(threadId)?.backgroundTasks ?? 0) > 0;
+
   /** Background subagents run in this process after their turn ends, so it stays while any runs. */
   canReleaseProcess(): boolean {
     return [...this.#threads.ids()].every((id) => !this.#threads.get(id)?.backgroundTasks);

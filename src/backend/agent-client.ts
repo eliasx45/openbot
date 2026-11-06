@@ -41,6 +41,12 @@ export interface AgentClient {
    * stopped subagent (`SendMessage`), so only Claude has it.
    */
   readonly forkSubagentIds?: (externalThreadId: string, cwd: string) => Promise<Map<string, string>>;
+  /**
+   * Fork (docs/fork/FEATURES.md, "A refresh waits for background subagents"): true while work that
+   * outlives its turn (a background subagent or command) runs in the process of this session.
+   * Closing the session ends that work, so a runtime refresh waits for it.
+   */
+  readonly holdsBackgroundWork?: (externalThreadId: string) => boolean;
   start(): void;
   stop(): Effect.Effect<void, ProviderClientOperationError>;
   /**

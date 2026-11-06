@@ -3,6 +3,9 @@
 // stand-in provider executables. Cases:
 // - claude-refresh-resumes: a runtime refresh (an MCP or skill change) closes the Claude process and
 //   the next turn resumes the same session, with no history handoff. Before, it started a new session.
+// - claude-refresh-waits-for-background (fork): a refresh while a background subagent runs keeps the
+//   process, and the next turn after the work ended applies it. Before, the refresh closed the
+//   process and the subagent stopped with it.
 // - codex-approval-grant-keeps-session: a tool approval granted in `~/.codex/config.toml` keeps the
 //   Codex session. A revoked approval still replaces it. Before, a grant also replaced it.
 // - antigravity-channel-delta: a channel member on Antigravity gets only the unread channel messages
@@ -37,6 +40,9 @@ const home = join(root, "home");
 const claudeExecutable = join(root, "claude");
 const claudeSpawns = join(root, "claude-spawns.jsonl");
 const claudeMessages = join(root, "claude-messages.jsonl");
+const claudeExits = join(root, "claude-exits.jsonl");
+/** The file that ends the stand-in's background task when it exists. */
+const backgroundDone = join(root, "background-done");
 const fakeCodex = join(root, "codex");
 const codexLog = join(root, "codex.jsonl");
 const codexConfig = join(root, "codex-mcp-servers.json");
@@ -91,6 +97,18 @@ const turn = (message) => {
   fs.appendFileSync(${JSON.stringify(claudeMessages)}, JSON.stringify({ pid: process.pid, sessionId, text }) + "\\n");
   const id = "msg_" + process.pid + "_" + (++requests);
   const usage = { input_tokens: 10, cache_read_input_tokens: 100, output_tokens: 20 };
+  // A background subagent that works on after this turn, until the check writes the done file.
+  if (text.includes("background-start")) {
+    const tasks = (live) => write({ type: "system", subtype: "background_tasks_changed", session_id: sessionId, uuid: randomUUID(),
+      tasks: live ? [{ task_id: "bg-1", task_type: "local_agent", subagent_type: "general-purpose", description: "Background work" }] : [] });
+    tasks(true);
+    const timer = setInterval(() => {
+      if (!fs.existsSync(${JSON.stringify(backgroundDone)})) return;
+      clearInterval(timer);
+      tasks(false);
+      fs.appendFileSync(${JSON.stringify(claudeExits)}, JSON.stringify({ pid: process.pid, backgroundEnded: true }) + "\\n");
+    }, 25);
+  }
   write({ type: "assistant", message: { id, type: "message", role: "assistant", model: ${JSON.stringify(CLAUDE_MODEL)},
     content: [{ type: "text", text: "Done." }], stop_reason: null, usage }, parent_tool_use_id: null, session_id: sessionId, uuid: randomUUID() });
   write({ type: "result", subtype: "success", is_error: false, result: "Done.", session_id: sessionId, uuid: randomUUID(),
@@ -112,7 +130,10 @@ process.stdin.on("data", (chunk) => {
     else if (message.type === "user") turn(message);
   }
 });
-process.stdin.on("end", () => process.exit(0));
+process.stdin.on("end", () => {
+  fs.appendFileSync(${JSON.stringify(claudeExits)}, JSON.stringify({ pid: process.pid, exited: true }) + "\\n");
+  process.exit(0);
+});
 `;
 
 /**
@@ -271,6 +292,8 @@ class ClaudeStandIn extends EventEmitter<ClientEvents> implements AgentClient {
 
   canReleaseProcess = () => this.#real.canReleaseProcess();
 
+  holdsBackgroundWork = (externalThreadId: string) => this.#real.holdsBackgroundWork(externalThreadId);
+
   releaseThread(externalThreadId: string) {
     return this.#real.releaseThread(externalThreadId);
   }
@@ -325,6 +348,9 @@ interface CaseDetails {
   afterRotation?: { sessionId: string; repeatsFirstRequest: boolean };
   channelPromptCount?: number;
   tasks?: string[];
+  /** claude-refresh-waits-for-background: whether the process exited while, and after, its work ran. */
+  exitedDuringWork?: boolean;
+  exitedAfterWork?: boolean;
 }
 
 interface CaseReport {
@@ -522,6 +548,57 @@ try {
     (_provider, cli) => new ClaudeStandIn(cli),
   );
 
+  // Fork (docs/fork/FEATURES.md, "A refresh waits for background subagents").
+  await runCase(
+    "claude-refresh-waits-for-background",
+    "claude",
+    async (profile, details) => {
+      const { agents, store, sqlite } = profile;
+      const spawnsBefore = entries(claudeSpawns).length;
+      const agent = await createAgent(agents, "Claude background", "claude", CLAUDE_MODEL);
+      const threadId = await waitFor(
+        "the agent's own thread",
+        () => store.list().find((a) => a.id === agent.id)?.threadId,
+      );
+      await sendTurn(profile, agent.id, "background-start");
+      const spawn = await waitFor(
+        "the Claude start",
+        () => entries<{ pid: number; sessionId: string }>(claudeSpawns)[spawnsBefore],
+      );
+      // The same call that an MCP server or a skill change makes, while the subagent still works.
+      await runCauseEffect(agents.refreshAllAgentRuntimes());
+      await new Promise((done) => setTimeout(done, 500));
+      const exitedDuringWork = entries<{ pid: number; exited?: boolean }>(claudeExits).some(
+        (entry) => entry.pid === spawn.pid && entry.exited,
+      );
+      details.exitedDuringWork = exitedDuringWork;
+      assert.equal(exitedDuringWork, false, "The refresh keeps the process while its background subagent works.");
+      assert.equal(entries(claudeSpawns).length, spawnsBefore + 1, "No other process started.");
+      // The work ends. The next turn spends the refresh that waited.
+      writeFileSync(backgroundDone, "");
+      await waitFor("the background work to end", () =>
+        entries<{ pid: number; backgroundEnded?: boolean }>(claudeExits).some(
+          (entry) => entry.pid === spawn.pid && entry.backgroundEnded,
+        ),
+      );
+      await new Promise((done) => setTimeout(done, 200));
+      await sendTurn(profile, agent.id, "after-background");
+      const exitedAfter = entries<{ pid: number; exited?: boolean }>(claudeExits).some(
+        (entry) => entry.pid === spawn.pid && entry.exited,
+      );
+      const spawns = entries<{ resume: string | null; sessionId: string }>(claudeSpawns).slice(spawnsBefore);
+      const rows = sessionRows(sqlite, threadId);
+      details.exitedAfterWork = exitedAfter;
+      details.spawns = spawns.map((one) => ({ resume: one.resume, sessionId: one.sessionId }));
+      details.sessionRows = rows;
+      assert.equal(exitedAfter, true, "The next turn after the work applies the refresh: the old process closes.");
+      assert.equal(spawns.length, 2, "The next turn starts one new process.");
+      assert.equal(spawns[1]?.resume, spawn.sessionId, "It resumes the same session.");
+      assert.equal(rows.length, 1, "The thread keeps one provider session.");
+    },
+    (_provider, cli) => new ClaudeStandIn(cli),
+  );
+
   await runCase("codex-approval-grant-keeps-session", "codex", async (profile, details) => {
     const { agents } = profile;
     const server: McpServerConfig = {
@@ -653,7 +730,7 @@ try {
     assert.equal(prompts().length - beforeChannel, 5, "Each channel message is one prompt, with no summary prompts.");
   });
 
-  report.passed = report.cases.length === 3 && report.cases.every((entry) => entry.passed);
+  report.passed = report.cases.length === 4 && report.cases.every((entry) => entry.passed);
 } finally {
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(OUT, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
