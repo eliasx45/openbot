@@ -52,6 +52,12 @@ export interface ConversationSubagent {
   error: string | null;
   /** A subagent that works on after the turn ends, such as a Claude `run_in_background` call. */
   background?: true;
+  /**
+   * Fork (docs/fork/FEATURES.md, "Agents continue after a restart"): the provider's own id of the
+   * subagent, which Claude's `SendMessage` takes to continue it: the `agentId` of a background
+   * `Agent` result. Absent when the provider gave none.
+   */
+  providerAgentId?: string;
 }
 
 export const CONVERSATION_SUBAGENT_LIMIT = 24;
@@ -81,7 +87,8 @@ function isConversationSubagent(value: unknown): value is ConversationSubagent {
     value.steps.length <= CONVERSATION_SUBAGENT_STEP_LIMIT &&
     value.steps.every(isConversationSubagentStep) &&
     isNullableBoundedString(value.error, ERROR_LIMIT) &&
-    (value.background === undefined || value.background === true)
+    (value.background === undefined || value.background === true) &&
+    (value.providerAgentId === undefined || isIdentifier(value.providerAgentId))
   );
 }
 
@@ -120,6 +127,9 @@ export function clampConversationSubagents(subagents: readonly ConversationSubag
       steps: steps.slice(-CONVERSATION_SUBAGENT_STEP_LIMIT),
       error: nullableText(subagent.error, ERROR_LIMIT),
       ...(subagent.background ? { background: true as const } : {}),
+      ...(subagent.providerAgentId && isIdentifier(subagent.providerAgentId)
+        ? { providerAgentId: subagent.providerAgentId }
+        : {}),
     });
   }
   return result.length ? result : null;

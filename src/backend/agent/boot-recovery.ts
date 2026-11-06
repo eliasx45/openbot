@@ -1,3 +1,4 @@
+import type { ConversationMessage } from "@openbot/contracts/ipc";
 import { Cause, Effect, Schema } from "effect";
 import type { AgentProvider } from "../agent-client";
 import type { AgentStore } from "../agent-store";
@@ -32,6 +33,18 @@ export interface BootRecoveryHooks {
    */
   quietRoutineDelivery(deliveryId: string): boolean;
   emitError(code: string, error: unknown, agentId?: string): void;
+  /**
+   * Fork (docs/fork/FEATURES.md, "Agents continue after a restart"): a thread as the previous run
+   * left it, before `recoverPersistedTurns` settles it: its running turn, or null, and the messages
+   * that recovery changes (streaming answers, open questions, running subagents).
+   */
+  restartInterrupted?(input: {
+    agentId: string;
+    threadId: string;
+    ownChat: boolean;
+    turnId: string | null;
+    messages: readonly ConversationMessage[];
+  }): void;
 }
 
 export interface BootRecoveryOptions {
@@ -284,12 +297,26 @@ export class BootRecovery {
   recoverPersistedTurns(): void {
     for (const { delivery } of this.#mailbox.unresolvedDeliveries()) this.#orphanedDeliveryIds.add(delivery.id);
     const runningTurns = this.#store.database.readRunningTurnIds();
+    const ownThreads = new Map(this.#store.list().map((agent) => [agent.id, agent.threadId]));
     for (const agent of this.threads()) {
       if (!agent.threadId) continue;
       const turnId = this.#store.database.readConversationRuntime(agent.id, agent.threadId).activeTurnId;
       // A running turn that is not the thread's active turn has no writer left, and no turn of
       // this process runs yet, so the recovery write below closes it too (#2214).
       const staleTurns = (runningTurns.get(agent.threadId) ?? []).filter((candidate) => candidate !== turnId);
+      // Fork (docs/fork/FEATURES.md, "Agents continue after a restart"): what the restart stopped,
+      // read before it is settled below.
+      try {
+        this.#hooks.restartInterrupted?.({
+          agentId: agent.id,
+          threadId: agent.threadId,
+          ownChat: ownThreads.get(agent.id) === agent.threadId,
+          turnId,
+          messages: this.#store.database.readConversationRecoveryMessages(agent.id, agent.threadId, turnId),
+        });
+      } catch (error) {
+        this.#hooks.emitError("fork_restart_resume", error, agent.id);
+      }
       const changedMessages = this.#store.database
         .readConversationRecoveryMessages(agent.id, agent.threadId, turnId)
         .flatMap((message) => {

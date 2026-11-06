@@ -232,6 +232,7 @@ import { memoryReviewUsageObserver, workflowUsageObserver } from "./agent/usage-
 import { toUsageReadFailed, UsageLimitGate, type UsageLimitKey } from "./agent/usage-limit-gate";
 import { WarmGenerations } from "./agent/warm-generations";
 import type { WebhookRoutineWriter } from "./agent/webhook-routine-tool";
+import { agentSessionCwd } from "./agent/workspace-sandbox";
 import type { AgentApiKeys } from "./agent-api-keys";
 import type { AgentProvider } from "./agent-client";
 import type { AgentTables } from "./agent-data/agent-tables";
@@ -264,6 +265,7 @@ import { ForkComposio } from "./fork-composio";
 import { ForkGoals } from "./fork-goals";
 import { forkHub } from "./fork-hub";
 import { ForkMemory } from "./fork-memory";
+import { FORK_RESTART_RESUME_ROUTINE_ID, ForkRestartResume, type ForkRestartResumeHooks } from "./fork-restart-resume";
 import type { HostMemory } from "./host-memory";
 import type { SignInRegion } from "./kimi-region";
 import type { LinkWallet } from "./link-wallet";
@@ -877,6 +879,11 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         }),
       isRunning: () => this.#initialized && !this.#stopping,
     });
+    // Fork (docs/fork/FEATURES.md, "Agents continue after a restart").
+    forkHub.restartResume = new ForkRestartResume({
+      databasePath: store.database.path,
+      hooks: this.#restartResumeHooks(waitStore, options.timezone),
+    });
     this.#hostedSites = new HostedSiteCoordinator({
       store,
       conversation: this.#conversation,
@@ -1285,7 +1292,11 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         quietRoutineDelivery: (deliveryId) => {
           // Fork: the wake of a watched wait has no run, and its answer is never quiet.
           const sender = this.#mailbox.getDelivery(deliveryId)?.delivery.sender;
-          if (sender?.kind === "routine" && sender.routineId === FORK_WAIT_ROUTINE_ID) return false;
+          if (
+            sender?.kind === "routine" &&
+            (sender.routineId === FORK_WAIT_ROUTINE_ID || sender.routineId === FORK_RESTART_RESUME_ROUTINE_ID)
+          )
+            return false;
           if (this.#forkKeepWarmDelivery(deliveryId)) return true;
           const run = this.#routines.runForDelivery(deliveryId);
           return run === null || quietRoutineRun(run);
@@ -1294,6 +1305,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         taskThreads: () => this.#tasks.executionThreads(),
         deliveryThreadId: (deliveryId) => this.#deliveryThreadId(deliveryId),
         deliverySettled: (deliveryId, terminal) => this.messaging.deliverySettled(deliveryId, terminal),
+        restartInterrupted: (input) => forkHub.restartResume?.capture(input),
       },
     });
     this.channels = new ChannelService(store.database, mailbox, new ChannelImages(store.channelImagesRoot), {
@@ -3634,6 +3646,92 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       );
   });
 
+  /** Fork (docs/fork/FEATURES.md, "Agents continue after a restart"): what `ForkRestartResume` reads and does. */
+  #restartResumeHooks(waitStore: AgentWaitStore, timezone: (() => string) | undefined): ForkRestartResumeHooks {
+    const find = (agentId: string) => this.#store.list().find((agent) => agent.id === agentId);
+    const waitsChanged = (agentId: string) =>
+      this.#emit({ type: "waits-changed", snapshot: { agentId, waits: waitStore.list(agentId) } });
+    const executionDelivery = (deliveryId: string) =>
+      this.channels.store.assignmentForDelivery(deliveryId) !== null || this.messaging.ownsDelivery(deliveryId);
+    return {
+      agent: (agentId) => {
+        const agent = find(agentId);
+        if (!agent || agent.hiddenAt !== undefined) return null;
+        if (this.#removal.deleting().has(agentId) || this.#duplication.pendingAgents().has(agentId)) return null;
+        return { threadId: agent.threadId ?? null, provider: agent.provider };
+      },
+      providerReady: (agentId) => {
+        const agent = find(agentId);
+        return Boolean(
+          agent &&
+            this.#providers.isReady() &&
+            !this.#providers.signInRequired(agent.provider) &&
+            this.#providers.clientForAgent(agent),
+        );
+      },
+      session: (agentId, threadId) => {
+        const agent = find(agentId);
+        return agent ? this.#store.database.activeProviderSession(threadId, agent.provider) : null;
+      },
+      subagentIds: async (agentId, externalSessionId) => {
+        const agent = find(agentId);
+        const client = agent ? this.#providers.clientForAgent(agent) : null;
+        return agent && client?.forkSubagentIds
+          ? client.forkSubagentIds(externalSessionId, agentSessionCwd(agent))
+          : new Map<string, string>();
+      },
+      executionDelivery,
+      laneBusy: (agentId) =>
+        Boolean(this.#conversation.workingSnapshot(agentId)?.activeTurnId) || this.#mailbox.laneActive(agentId, null),
+      laneQueued: (agentId) => this.#mailbox.laneQueuedIds(agentId, null).length,
+      continuationQueued: (agentId) => this.#mailbox.nextQueued(agentId, null)?.planContinuation?.queued === true,
+      delivery: (deliveryId) => this.#mailbox.getDelivery(deliveryId)?.delivery ?? null,
+      deliveryOfTurn: (turnId) => this.#mailbox.findDeliveryByTurn(turnId)?.delivery ?? null,
+      unresolvedOwnDeliveries: (agentId) =>
+        this.#mailbox
+          .unresolvedDeliveries()
+          .map(({ delivery }) => delivery)
+          .filter(
+            (delivery) =>
+              delivery.recipientAgentId === agentId &&
+              this.#mailbox.taskIdForDelivery(delivery.id) === null &&
+              !executionDelivery(delivery.id),
+          ),
+      goalWorking: (agentId) => forkHub.goals?.get(agentId)?.state === "working",
+      openWait: ({ agentId, requestId, requestText, note }) => {
+        try {
+          const wait = waitStore.open({ agentId, requestMessageId: requestId, requestText, note, routineId: null });
+          waitsChanged(agentId);
+          return wait.id;
+        } catch {
+          return null;
+        }
+      },
+      waitOpen: (agentId, waitId) => waitStore.get(agentId, waitId) !== null,
+      closeWait: (agentId, waitId) => {
+        if (waitStore.delete(agentId, waitId)) waitsChanged(agentId);
+      },
+      enqueue: ({ agentId, runId, title, text }) =>
+        Effect.runPromise(
+          this.#routines.enqueueHandoff({
+            run: {
+              id: runId,
+              routineId: FORK_RESTART_RESUME_ROUTINE_ID,
+              routineName: title,
+              scheduledFor: new Date().toISOString(),
+            },
+            agentId,
+            text,
+            idempotencyKey: `${FORK_RESTART_RESUME_ROUTINE_ID}:${runId}`,
+          }),
+        ),
+      line: (agentId, text) => this.#forkLine(agentId, text),
+      timezone: () => timezone?.() ?? localTimezone(),
+      isRunning: () => this.#initialized && !this.#stopping,
+      log: (message, details) => logger.info(message, details),
+    };
+  }
+
   /** Appends a system line to the agent's own chat, outside any turn. */
   /** Fork: a status line of goal mode in the agent's own chat. Held while a turn runs (it would write over it). */
   #forkLine(agentId: string, text: string): void {
@@ -4095,6 +4193,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     yield* lifecycleStep("arm routines", () => {
       this.#channelRoutines.reconcileAll();
       this.#routineTimer.arm();
+      forkHub.restartResume?.start(); // Fork: "Agents continue after a restart".
     });
   }).bind(this);
 
@@ -4645,6 +4744,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     forkHub.memory = null;
     forkHub.cacheCompact?.dispose();
     forkHub.cacheCompact = null;
+    forkHub.restartResume?.dispose();
+    forkHub.restartResume = null;
     forkHub.goals = null;
     forkHub.composio = null;
     this.#browser.clearControls();
@@ -5868,6 +5969,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
 
   #emit(event: AgentEvent, memberId?: string): void {
     recordAgentRestartActivity(event);
+    if (event.type === "turn-started") forkHub.restartResume?.turnStarted(event.agentId, event.threadId);
     this.#liveVoice?.observe(event);
     if (this.channels?.event(event) || this.messaging?.event(event, this.#scope) || this.#tasks?.event(event)) return;
     this.emit("event", event, memberId);

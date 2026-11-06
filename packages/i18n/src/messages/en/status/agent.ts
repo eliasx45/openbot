@@ -110,4 +110,11 @@ export const messages = defineMessages("status.agent", {
   "status.agent.goalStopped": "⏹ Goal stopped.",
   "status.agent.goalLimit": "⏸ Goal paused after {limit} turns. Send /goal continue for {limit} more.",
   "status.agent.goalBlocked": "⛔ Goal blocked: {detail}",
+  // Fork: agents continue after a restart (docs/fork/FEATURES.md, "Agents continue after a restart").
+  "status.agent.restartResumeWait": "🔄 Resumes after the OpenBot restart in a few seconds. Cancel keeps it stopped.",
+  "status.agent.restartResumeNotReady":
+    "🔄 Not resumed after the restart: {provider} was not ready. Send a message to go on.",
+  "status.agent.restartResumeSessionGone":
+    "🔄 Not resumed after the restart: the provider session is gone. Send a message to go on.",
+  "status.agent.restartResumeFailed": "🔄 Not resumed after the restart: the wake could not be queued.",
 });

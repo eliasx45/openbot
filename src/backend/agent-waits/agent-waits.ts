@@ -3,6 +3,7 @@ import type { AgentEvent, AgentWait, AgentWaitsSnapshot } from "@openbot/contrac
 import { sourceText } from "@openbot/i18n/source";
 import { z } from "zod";
 import { type OpenBotToolResponse, openBotToolFailure, openBotToolResult } from "../agent/routine-tools";
+import { forkHub } from "../fork-hub";
 import type { MailboxStore } from "../mailbox-store";
 import type { DynamicToolCallParams } from "../protocol";
 import { AgentWaitError, AgentWaitLimitError, type AgentWaitStore } from "./agent-wait-store";
@@ -101,8 +102,8 @@ export class AgentWaits {
   wakeForRun(run: { agentId: string; routineId: string }, deliveryId: string, waitId: string | null): void {
     const named = waitId ? this.#store.get(run.agentId, waitId) : null;
     const candidates = (waitId ? (named ? [named] : []) : this.#store.forRoutineRun(run.agentId, run.routineId)).filter(
-      (wait) => !this.#conditions?.isWatched(wait.id),
-    ); // Fork: only its condition wakes a watched wait.
+      (wait) => !this.#conditions?.isWatched(wait.id) && !forkHub.restartResume?.ownsWait(wait.id),
+    ); // Fork: only its condition wakes a watched wait, and only its own timer a restart resume.
     const woken = candidates
       .filter((wait) => !wait.wakeDeliveryId || !this.#isPending(wait.wakeDeliveryId))
       .map((wait) => wait.id);

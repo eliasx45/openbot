@@ -9,10 +9,12 @@ import type { ForkCacheCompact } from "./fork-cache-compact";
 import type { ForkComposio } from "./fork-composio";
 import type { ForkGoals } from "./fork-goals";
 import type { ForkMemory } from "./fork-memory";
+import type { ForkRestartResume } from "./fork-restart-resume";
 
 export const forkHub: {
   goals: ForkGoals | null;
   memory: ForkMemory | null;
   composio: ForkComposio | null;
   cacheCompact: ForkCacheCompact | null;
-} = { goals: null, memory: null, composio: null, cacheCompact: null };
+  restartResume: ForkRestartResume | null;
+} = { goals: null, memory: null, composio: null, cacheCompact: null, restartResume: null };

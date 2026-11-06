@@ -9,6 +9,7 @@ import { FORK_WAIT_ROUTINE_ID } from "../agent-waits/fork-wait-conditions";
 import type { ChannelService } from "../channel-service";
 import { causeHelpers } from "../effect-boundary";
 import { isForkCacheRoutine } from "../fork-cache-compact";
+import { FORK_RESTART_RESUME_ROUTINE_ID } from "../fork-restart-resume";
 import type { DeliveryContext, MailboxStore } from "../mailbox-store";
 import type { MessagingThreads } from "../messaging/messaging-threads";
 import { decodeTurnResponse } from "../protocol";
@@ -1118,7 +1119,12 @@ export class DrainScheduler {
     // Fork: a watched wait's wake, a compaction before the cache goes cold and a keep-warm ping run
     // in the agent's own session (docs/fork/FEATURES.md entries 7 and 15).
     const { routineId } = context.delivery.sender;
-    if (routineId === FORK_WAIT_ROUTINE_ID || isForkCacheRoutine(routineId)) return false;
+    if (
+      routineId === FORK_WAIT_ROUTINE_ID ||
+      routineId === FORK_RESTART_RESUME_ROUTINE_ID ||
+      isForkCacheRoutine(routineId)
+    )
+      return false;
     const taskId = this.#mailbox.taskIdForDelivery(id);
     if (taskId !== null) return this.#tasks.isRoutineThread(taskId);
     return !this.#channels?.store.assignmentForDelivery(id) && !this.#messaging?.ownsDelivery(id);
