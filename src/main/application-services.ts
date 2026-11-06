@@ -128,6 +128,7 @@ import { BrowserHost } from "../backend/browser-host";
 import { BrowserProfileStore } from "../backend/browser-profiles/browser-profile-store";
 import { BrowserProxyStore } from "../backend/browser-profiles/browser-proxy-store";
 import { runCauseEffect } from "../backend/effect-boundary";
+import type { ForkVoiceNoteSpeech } from "../backend/fork-voice-notes";
 import { MailboxStore } from "../backend/mailbox-store";
 import { McpOAuth } from "../backend/mcp-oauth-provider";
 import { discordDriver, downloadDiscordAttachment } from "../backend/messaging/discord/discord-driver";
@@ -1876,6 +1877,8 @@ export async function createApplicationServices({
         : resolve(__dirname, "../../resources/plugin-catalog"),
     ),
   );
+  // Fork: the local voice for voice notes; set once the speech service below exists.
+  let forkVoiceNoteSpeech: ForkVoiceNoteSpeech | null = null;
   const service: AgentService = new AgentService({
     store,
     mailbox,
@@ -1884,6 +1887,7 @@ export async function createApplicationServices({
     forkNotify: (title, body) => {
       if (Notification.isSupported()) showRetainedNotification(new Notification({ title, body }));
     },
+    forkSpeech: () => forkVoiceNoteSpeech,
     visualPreview: new ChatVisualPreviewer(),
     marketplaceAppServer: (appId) => {
       const listed = catalogPluginServers.filter((server) => server.slug === appId);
@@ -3512,6 +3516,22 @@ export async function createApplicationServices({
     spawnHost: spawnVoiceSpeechHost,
   });
   teardown.push(TEARDOWN_ORDER.speech, "speech", () => Effect.runPromise(speech.shutdown()));
+  // Fork (docs/fork/FEATURES.md, "Voice notes"): the first note downloads the model, as Read replies aloud does.
+  forkVoiceNoteSpeech = {
+    prepare: () =>
+      speech.downloadModel().pipe(
+        Effect.map((status) => (status.phase === "ready" ? null : (status.message ?? `The model is ${status.phase}.`))),
+        Effect.catch((error) =>
+          Effect.succeed(error.cause instanceof Error ? error.cause.message : String(error.cause)),
+        ),
+      ),
+    speak: (input) =>
+      speech
+        .speak(input)
+        .pipe(
+          Effect.mapError((error) => (error.cause instanceof Error ? error.cause : new Error(String(error.cause)))),
+        ),
+  };
   speech.on("modelStatus", forwardSpeechModelStatus);
   // The user's own server for either route. Its key is a file of its own, apart from the ElevenLabs key.
   const voiceServerPreferences = createVoiceServerPreferenceStore(join(app.getPath("userData"), "voice-server.json"));

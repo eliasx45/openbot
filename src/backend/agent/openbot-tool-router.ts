@@ -43,6 +43,7 @@ import { OPENBOT_BROWSER_NAMESPACE } from "../browser-tools";
 import type { ChannelService } from "../channel-service";
 import type { ProviderSession } from "../database/provider-sessions";
 import { forkHub } from "../fork-hub";
+import { SEND_VOICE_NOTE_TOOL } from "../fork-voice-notes";
 import type { MailboxStore } from "../mailbox-store";
 import { agentMcpServers, codexDeferredMcpServers } from "../mcp-provider-shapes";
 import type { MessagingThreads } from "../messaging/messaging-threads";
@@ -583,6 +584,7 @@ export class OpenBotToolRouter {
               CHANNEL_AGENT_TOOL_NAMES.has(tool) ||
               tool === "list_channels" ||
               tool === "attach_files_to_response" ||
+              tool === SEND_VOICE_NOTE_TOOL ||
               tool === "messaging_post";
             // A workflow tool reports its own correctable failures; only bad arguments reach this point.
             const correctable = (cause: unknown) =>
@@ -595,7 +597,7 @@ export class OpenBotToolRouter {
               Effect.tap((result) => Effect.sync(() => client.respond(toolRequest.id, result))),
             );
             // Both store a file and then add the message that names it.
-            yield* tool === "attach_files_to_response" || tool === "html_render"
+            yield* tool === "attach_files_to_response" || tool === SEND_VOICE_NOTE_TOOL || tool === "html_render"
               ? Effect.uninterruptible(response)
               : response;
             return;
@@ -1091,6 +1093,17 @@ export class OpenBotToolRouter {
 
       const messageId = responseAttachmentMessageId(params.threadId, params.turnId, params.callId);
       return yield* this.#attachments.attachFiles(senderAgentId, params, args.paths, messageId);
+    }
+
+    // Fork (docs/fork/FEATURES.md, "Voice notes"): speak the text, then attach the MP3 as a file.
+    if (params.tool === SEND_VOICE_NOTE_TOOL) {
+      const voiceNotes = forkHub.voiceNotes;
+      if (!voiceNotes) throw new Error("Voice notes are not available now. Answer in text.");
+      const note = yield* voiceNotes.record(senderAgentId, params.arguments);
+      const messageId = responseAttachmentMessageId(params.threadId, params.turnId, params.callId);
+      return yield* this.#attachments
+        .attachFiles(senderAgentId, params, [note.path], messageId)
+        .pipe(Effect.ensuring(voiceNotes.discard(note.folder)));
     }
 
     if (params.tool === "list_agents") {

@@ -1035,11 +1035,14 @@ Network traffic can also occur when:
   `/v1/audio/speech` and receives the audio. Nothing else is sent: no conversation, file or agent
   instruction. The server handles the audio and the text under the policy of the person who runs it.
   The address and the choices are saved in `voice-server.json` in the application data folder;
-- the user turns on Read replies aloud, opens the Voice pane for the first time, or presses Download
-  in the Spoken replies section of **Settings → Voice**. OpenBot downloads the Supertonic 3 voice
+- the user turns on Read replies aloud, opens the Voice pane for the first time, presses Download
+  in the Spoken replies section of **Settings → Voice**, or an agent sends its first voice note
+  (`send_voice_note`, Elias's fork). OpenBot downloads the Supertonic 3 voice
   model that it pins from `huggingface.co`, checks its size and SHA-256, and keeps it in `runtimes`
   in the application data folder. The request carries no user data. The text of a reply that is read
-  aloud, and its audio, stay on the computer. The setting and the chosen voice are saved in
+  aloud, and its audio, stay on the computer. The same holds for a voice note: its text is read on this
+  computer, the local `ffmpeg` or `lame` encodes it as MP3, and the file is a chat attachment like any
+  other. The setting and the chosen voice are saved in
   `speech-preference.json` in the same folder. In the Voice pane, the spoken reply runs on this
   computer, also for an agent on a remote server. Speech recognition uses the model chosen in
   **Settings → Voice**: a local model runs on this computer, and ElevenLabs gets the audio as

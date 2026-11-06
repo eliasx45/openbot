@@ -47,6 +47,7 @@ import { WAIT_UNTIL_TOOL, waitUntilToolSchema } from "./agent-waits/fork-wait-co
 import { CHANNEL_TOOL_DEFINITIONS } from "./channel-tools";
 import { GOAL_STATUS_TOOL, goalStatusToolSchema } from "./fork-goals";
 import { MEMORY_JOURNAL_TOOL, MEMORY_UNDO_TOOL, memoryJournalToolSchema, memoryUndoToolSchema } from "./fork-memory";
+import { SEND_VOICE_NOTE_TOOL, sendVoiceNoteToolSchema } from "./fork-voice-notes";
 import { MESSAGING_TOOL_DEFINITIONS } from "./messaging/messaging-tools";
 import { ROUTINE_FLOW_TOOL_DEFINITIONS } from "./routine-flows/routine-flow-tools";
 import {
@@ -628,6 +629,13 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
     description:
       "List the latest changes to your saved memories, newest first: who made each one (you, the user, the background review, the nightly tidy, an undo), and the text before and after. Use it when the user asks what you remembered or forgot, or before memory_undo.",
     shape: memoryJournalToolSchema.shape,
+  },
+  // Fork: voice notes (docs/fork/FEATURES.md, "Voice notes").
+  {
+    name: SEND_VOICE_NOTE_TOOL,
+    description:
+      "Answer with a short spoken message, like a voice memo: OpenBot reads your text with the user's voice from Settings → Voice and attaches it as an MP3 to this reply. Use it when the user asks for a voice note, voice memo, voice reply or audio answer, or asked you to answer that way. At most 1000 characters of plain sentences. Then write the same words, or a short summary, as your text reply.",
+    shape: sendVoiceNoteToolSchema.shape,
   },
   {
     name: MEMORY_UNDO_TOOL,

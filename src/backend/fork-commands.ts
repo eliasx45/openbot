@@ -32,9 +32,14 @@ export const FORK_COMMANDS: AgentOwnCommand[] = [
     description: "Agents continue by themselves after an OpenBot restart (all agents). /autoresume on, /autoresume off",
     builtin: true,
   },
+  {
+    name: "voicenotes",
+    description: "This agent may answer with voice notes (MP3). /voicenotes on, /voicenotes off",
+    builtin: true,
+  },
 ];
 
-const COMMAND = /^\/(goal|setup|learn|memory|keepwarm|autoresume)(?=$|\s)\s*([\s\S]*)$/u;
+const COMMAND = /^\/(goal|setup|learn|memory|keepwarm|autoresume|voicenotes)(?=$|\s)\s*([\s\S]*)$/u;
 
 /**
  * The provider text of a user's message in an agent's own chat, with the fork's additions: a fork
@@ -60,6 +65,7 @@ export function forkUserPrompt(delivery: QueueDelivery, typed: string, text: str
     if (name === "memory") prompt = memoryPrompt(rest.trim());
     if (name === "keepwarm") prompt = keepWarmPrompt(agentId, rest);
     if (name === "autoresume") prompt = autoResumePrompt(rest);
+    if (name === "voicenotes") prompt = voiceNotesPrompt(agentId, rest);
   }
   const recalled = command ? null : (forkHub.memory?.recallBlock(agentId, typed) ?? null);
   const footer = forkHub.goals?.footer(agentId, true) ?? null;
@@ -142,6 +148,19 @@ function autoResumePrompt(rest: string): string {
   return resume.enabled()
     ? "[/autoresume] Automatic resume after an OpenBot restart is on, for every agent: an agent whose turn a restart interrupted gets one message to continue in the same session. Confirm in one short line, and say that /autoresume off turns it off."
     : "[/autoresume] Automatic resume after an OpenBot restart is off, for every agent: a turn that a restart interrupted stays interrupted. Confirm in one short line, and say that /autoresume on turns it on.";
+}
+
+/** Fork (docs/fork/FEATURES.md, "Voice notes"): the switch, for this agent. */
+function voiceNotesPrompt(agentId: string, rest: string): string {
+  const notes = forkHub.voiceNotes;
+  if (!notes) return "[/voicenotes] OpenBot cannot change this now. Tell the user so in one short line.";
+  const words = rest.trim().toLowerCase();
+  if (words === "on" || words === "off") notes.setEnabled(agentId, words === "on");
+  else if (words !== "")
+    return `[/voicenotes] The user typed "/voicenotes ${rest.trim()}". Tell them in one short line: /voicenotes on, /voicenotes off, or /voicenotes to see the setting.`;
+  return notes.enabled(agentId)
+    ? "[/voicenotes] Voice notes are on for you: when the user asks for a voice note, voice memo or spoken answer, call openbot.send_voice_note and it is attached to your reply as an MP3. Confirm in one short line, and say that /voicenotes off turns them off."
+    : "[/voicenotes] Voice notes are off for you: openbot.send_voice_note refuses, so answer in text. Confirm in one short line, and say that /voicenotes on turns them on.";
 }
 
 function keepWarmPrompt(agentId: string, rest: string): string {

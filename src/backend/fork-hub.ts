@@ -10,6 +10,7 @@ import type { ForkComposio } from "./fork-composio";
 import type { ForkGoals } from "./fork-goals";
 import type { ForkMemory } from "./fork-memory";
 import type { ForkRestartResume } from "./fork-restart-resume";
+import type { ForkVoiceNotes } from "./fork-voice-notes";
 
 export const forkHub: {
   goals: ForkGoals | null;
@@ -17,4 +18,5 @@ export const forkHub: {
   composio: ForkComposio | null;
   cacheCompact: ForkCacheCompact | null;
   restartResume: ForkRestartResume | null;
-} = { goals: null, memory: null, composio: null, cacheCompact: null, restartResume: null };
+  voiceNotes: ForkVoiceNotes | null;
+} = { goals: null, memory: null, composio: null, cacheCompact: null, restartResume: null, voiceNotes: null };
