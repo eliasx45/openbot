@@ -386,6 +386,14 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Here:** `src/backend/fork-goals.ts` (`goalPrompt`).
 - **Check:** `/goal` an agent with a task that has a real choice (e.g. "make 3 versions of the X card, I pick one"). It builds all of them without stopping, then shows one question card listing them.
 
+## 41. A goal is done only when its result is shown
+
+- **Get:** a `/goal` agent can report `completed` only with `proof`: the paths of the checked result (render, clip, screenshots, files), or `none: <why>`. The goal prompt says "done means shown": for a video or an animation, render, check frames and timing, fix, check again (at most 3 rounds), then show it in the update. A clip up to 2 minutes goes in whole; a longer one as a highlights reel of what changed (3–5 s per part, with audio, timecode labels) plus the full render's path.
+- **Why:** Elias, 6 Nov 2026, picked "a done goal must include a render" ("doesn't have to show me the entire rendered thing in the chat if it's more than 2 min"). His Vision note's Self-Refine pass (27 Oct): nothing reaches him before the agent has looked at its own frames.
+- **How (portable):** `proof` in `goalStatusToolSchema`; `handleTool` refuses `completed` without it; one line in `goalPrompt`.
+- **Here:** `src/backend/fork-goals.ts`.
+- **Check:** `/goal` an agent with "render a 5 s test clip of anything and finish". Its last update shows the clip, and `goal_status` was called with `proof`. Calling `completed` without `proof` returns the "completed needs proof" error.
+
 ---
 
 ## Checked, not needed
