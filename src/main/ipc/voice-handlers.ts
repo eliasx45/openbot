@@ -9,6 +9,8 @@ import type {
   SpeechSettings,
   VoiceLiveSession,
   VoiceModelStatus,
+  VoiceNoteSample,
+  VoiceNoteSettings,
   VoiceServerProbe,
   VoiceServerSettings,
   VoiceSettings,
@@ -19,6 +21,7 @@ import { sourceText } from "@openbot/i18n/source";
 import type { WebContents } from "electron";
 import type { AgentService } from "../../backend/agent-service";
 import { runCauseEffect } from "../../backend/effect-boundary";
+import { forkHub } from "../../backend/fork-hub";
 import type { VoiceServerService } from "../voice-server-service";
 import type { VoiceSpeechService } from "../voice-speech-service";
 import type { VoiceTranscriptionService } from "../voice-transcription-service";
@@ -32,6 +35,8 @@ import {
   parseVoiceLiveStart,
   parseVoiceLiveStop,
   parseVoiceModelRequest,
+  parseVoiceNotePreview,
+  parseVoiceNoteVoice,
   parseVoiceRecording,
   parseVoiceServerConnection,
   parseVoiceServerSave,
@@ -194,6 +199,23 @@ export function voiceIpcHandlers({
         parseVoiceLiveSpeak,
         ({ sessionId, text }): Promise<void> => runCauseEffect(service.speakLiveVoice(sessionId, text)),
       ),
+      // Fork (docs/fork/FEATURES.md, "Voice notes").
+      getVoiceNotes: handler((): Promise<VoiceNoteSettings> => runCauseEffect(voiceNotes().settings())),
+      setVoiceNoteVoice: payloadHandler(
+        parseVoiceNoteVoice,
+        (voice): Promise<VoiceNoteSettings> => runCauseEffect(voiceNotes().setVoice(voice)),
+      ),
+      previewVoiceNote: payloadHandler(
+        parseVoiceNotePreview,
+        ({ voice, text }): Promise<VoiceNoteSample> => runCauseEffect(voiceNotes().preview(voice, text)),
+      ),
     },
   };
+}
+
+/** Fork: the voice notes service, which the agent service creates at start. */
+function voiceNotes() {
+  const notes = forkHub.voiceNotes;
+  if (!notes) throw new Error("Voice notes are not ready yet.");
+  return notes;
 }

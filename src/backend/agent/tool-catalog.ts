@@ -21,6 +21,8 @@ const DIRECT_NAMES = new Set([
   "ask_user",
   "ask_ui",
   "attach_files_to_response",
+  // Fork: voice notes are visible, so an agent does not make one with `say` instead.
+  "send_voice_note",
   "list_agents",
   "send_message",
   "search_memories",

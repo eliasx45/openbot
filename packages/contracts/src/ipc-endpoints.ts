@@ -579,6 +579,10 @@ import type {
   VoiceLiveStop,
   VoiceModelRequest,
   VoiceModelStatus,
+  VoiceNotePreview,
+  VoiceNoteSample,
+  VoiceNoteSettings,
+  VoiceNoteVoice,
   VoiceServerConnection,
   VoiceServerProbe,
   VoiceServerSave,
@@ -973,6 +977,11 @@ export const IPC_ENDPOINTS = {
     /** Has the voice of a live session read a text aloud as it is. */
     speakLive: request<VoiceLiveSpeak, void>()("voice:speak-live"),
     liveEvent: event<VoiceLiveEvent>()("voice:live-event"),
+    /** Fork: the Deepgram voice of agents' voice notes, and whether its key is in the Keychain. */
+    getVoiceNotes: request<undefined, VoiceNoteSettings>()("voice:get-voice-notes"),
+    setVoiceNoteVoice: request<VoiceNoteVoice, VoiceNoteSettings>()("voice:set-voice-note-voice"),
+    /** Fork: Deepgram reads the sample sentence in a voice; only that sentence goes to Deepgram. */
+    previewVoiceNote: request<VoiceNotePreview, VoiceNoteSample>()("voice:preview-voice-note"),
   },
   dynamicIsland: {
     getPreference: request<undefined, DynamicIslandPreference>()("dynamic-island:get-preference"),

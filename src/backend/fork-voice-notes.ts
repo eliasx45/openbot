@@ -1,20 +1,29 @@
 /**
  * Fork (docs/fork/FEATURES.md, "Voice notes"): an agent answers with a short spoken message, like a
- * voice memo. `openbot.send_voice_note({ text, language? })` reads the text with the local voice of
- * Settings → Voice (Supertonic 3, the voice that reads replies aloud), encodes it as MP3, and the
- * router attaches the file to the agent's reply with the `attach_files_to_response` gateway. The text
- * stays on this computer. Ported from OpenMausBot's `send_voice_note` (1000 characters, a switch per
- * agent).
+ * voice memo. `openbot.send_voice_note({ text, language? })` has Deepgram Aura-2 read the text in the
+ * voice of Settings → Voice ▸ Voice notes, and the router attaches the MP3 to the agent's reply with
+ * the `attach_files_to_response` gateway. Ported from OpenMausBot's `send_voice_note` (1000
+ * characters, a switch per agent).
  *
- * MP3 is the one audio type that every attachment surface takes (desktop, phone, remote hosts). The
- * encoder is Homebrew's `ffmpeg` or `lame`: OpenBot ships none, and the fork runs on one Mac.
+ * Deepgram, not the local Supertonic model: Elias found the local voice too flat, and Aura-2 sends an
+ * MP3 back, so nothing runs on this Mac (no model in memory, no encoder). The key is the Keychain item
+ * `DEEPGRAM_API_KEY` (or the variable of the same name); only the note's text goes to Deepgram.
  */
 
-import { spawn } from "node:child_process";
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { delimiter, dirname, join } from "node:path";
-import { SPEECH_LANGUAGES, SPEECH_LIMITS, type SpeechAudio, type SpeechInput } from "@openbot/contracts/ipc";
+import { execFile } from "node:child_process";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import {
+  DEFAULT_VOICE_NOTE_VOICE,
+  isVoiceNoteVoice,
+  VOICE_NOTE_LANGUAGES,
+  VOICE_NOTE_VOICES,
+  type VoiceNoteSample,
+  type VoiceNoteSettings,
+  type VoiceNoteVoice,
+  voiceNoteLanguage,
+} from "@openbot/contracts/ipc";
 import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { Effect, Schema } from "effect";
 import { z } from "zod";
@@ -23,18 +32,22 @@ export const SEND_VOICE_NOTE_TOOL = "send_voice_note";
 const FILE = "fork-voice-notes.json";
 /** Where a note is written before the gateway copies it into the attachment store. Inside the shared root. */
 const SCRATCH_FOLDER = ".voice-notes";
-const ENCODERS = ["ffmpeg", "lame"] as const;
-const ENCODER_FOLDERS = ["/opt/homebrew/bin", "/usr/local/bin"];
-const BITRATE_KBPS = 64;
+const MAXIMUM_TEXT_LENGTH = 1_000;
+const DEEPGRAM_SPEAK_URL = "https://api.deepgram.com/v1/speak";
+const DEEPGRAM_TIMEOUT_MS = 30_000;
+const KEYCHAIN_SERVICE = "DEEPGRAM_API_KEY";
 
 export const sendVoiceNoteToolSchema = z.strictObject({
   text: z
     .string()
     .trim()
     .min(1)
-    .max(SPEECH_LIMITS.maximumTextLength)
+    .max(MAXIMUM_TEXT_LENGTH)
     .describe("The words to speak, as you would say them: plain sentences, no Markdown, links, code or emoji."),
-  language: z.enum(SPEECH_LANGUAGES).optional().describe("The language of the text (ISO 639-1). Default en."),
+  language: z
+    .enum(VOICE_NOTE_LANGUAGES)
+    .optional()
+    .describe("The language of the text, when it is not the language of the user's voice (ISO 639-1)."),
 });
 
 /** A voice note that could not be made. The message tells the agent what to do. */
@@ -44,29 +57,21 @@ export class VoiceNoteFailed extends Schema.TaggedError<VoiceNoteFailed>()("Voic
 
 const failed = (message: string) => new VoiceNoteFailed({ cause: new Error(message) });
 
-/** The speech service of Electron main, given to the backend as plain functions. */
-export interface ForkVoiceNoteSpeech {
-  /** Downloads the voice model when it is missing. Null when it is ready, else why it is not. */
-  prepare: () => Effect.Effect<string | null>;
-  speak: (input: SpeechInput) => Effect.Effect<SpeechAudio, Error>;
-}
-
 interface VoiceNoteState {
   version: 1;
   /** Agents whose voice notes are off. Every other agent may send them. */
   off: string[];
+  voice: VoiceNoteVoice;
 }
 
 export class ForkVoiceNotes {
   readonly #path: string;
   readonly #scratchRoot: string;
-  readonly #speech: () => ForkVoiceNoteSpeech | null;
   #state: VoiceNoteState;
 
-  constructor(options: { databasePath: string; sharedRoot: string; speech: () => ForkVoiceNoteSpeech | null }) {
+  constructor(options: { databasePath: string; sharedRoot: string }) {
     this.#path = join(dirname(options.databasePath), FILE);
     this.#scratchRoot = join(options.sharedRoot, SCRATCH_FOLDER);
-    this.#speech = options.speech;
     this.#state = readState(this.#path);
   }
 
@@ -76,15 +81,37 @@ export class ForkVoiceNotes {
 
   setEnabled(agentId: string, on: boolean): void {
     const off = this.#state.off.filter((id) => id !== agentId);
-    this.#state = { version: 1, off: on ? off : [...off, agentId] };
-    const temporary = `${this.#path}.tmp`;
-    writeFileSync(temporary, `${JSON.stringify(this.#state, null, 2)}\n`, { mode: 0o600 });
-    renameSync(temporary, this.#path);
+    this.#save({ ...this.#state, off: on ? off : [...off, agentId] });
   }
 
+  voice(): VoiceNoteVoice {
+    return this.#state.voice;
+  }
+
+  /** For Settings: the voice, and whether the Deepgram key is there. */
+  readonly settings = Effect.fn("ForkVoiceNotes.settings")(function* (this: ForkVoiceNotes) {
+    const key = yield* readDeepgramKey();
+    return { voice: this.#state.voice, keyFound: key !== null } satisfies VoiceNoteSettings;
+  });
+
+  readonly setVoice = Effect.fn("ForkVoiceNotes.setVoice")(function* (this: ForkVoiceNotes, voice: VoiceNoteVoice) {
+    this.#save({ ...this.#state, voice });
+    return yield* this.settings();
+  });
+
+  /** A sample sentence in a voice, for the Listen button of Settings. */
+  readonly preview = Effect.fn("ForkVoiceNotes.preview")(function* (
+    this: ForkVoiceNotes,
+    voice: VoiceNoteVoice,
+    text: string,
+  ) {
+    const mp3 = yield* speak(voice, text);
+    return { mp3 } satisfies VoiceNoteSample;
+  });
+
   /**
-   * Speaks the text and writes it as an MP3 in a new scratch folder. The caller attaches the file,
-   * then calls `discard` with the returned folder.
+   * Speaks the text and writes the MP3 in a new scratch folder. The caller attaches the file, then
+   * calls `discard` with the returned folder.
    */
   readonly record = Effect.fn("ForkVoiceNotes.record")(function* (
     this: ForkVoiceNotes,
@@ -100,43 +127,34 @@ export class ForkVoiceNotes {
       const tooLong = parsed.error.issues.find((issue) => issue.code === "too_big");
       return yield* failed(
         tooLong
-          ? `send_voice_note takes at most ${SPEECH_LIMITS.maximumTextLength} characters. Shorten the note and call it again.`
+          ? `send_voice_note takes at most ${MAXIMUM_TEXT_LENGTH} characters. Shorten the note and call it again.`
           : "send_voice_note needs text: the short note to speak, at most 1000 characters. Correct the arguments and retry.",
       );
     }
-    const speech = this.#speech();
-    if (!speech) return yield* failed("Voice notes are not available on this computer. Answer in text.");
-    const encoder = findEncoder();
-    if (!encoder)
-      return yield* failed(
-        "No MP3 encoder: install ffmpeg (brew install ffmpeg) to send voice notes. Answer in text and tell the user this in one line.",
-      );
-    const notReady = yield* speech.prepare();
-    if (notReady !== null)
-      return yield* failed(
-        `The voice model is not ready: ${notReady} Answer in text and tell the user this in one line.`,
-      );
-    const audio = yield* speech
-      .speak({ text: parsed.data.text, language: parsed.data.language ?? "en" })
-      .pipe(Effect.mapError((error) => failed(`The voice could not read the note: ${error.message}`)));
-    const folder = yield* Effect.tryPromise({
+    const voice = voiceFor(this.#state.voice, parsed.data.language);
+    const mp3 = yield* speak(voice, parsed.data.text);
+    return yield* Effect.tryPromise({
       try: async () => {
         await mkdir(this.#scratchRoot, { recursive: true, mode: 0o700 });
-        return mkdtemp(join(this.#scratchRoot, "note-"));
+        const folder = await mkdtemp(join(this.#scratchRoot, "note-"));
+        const path = join(folder, `voice-note-${timeStamp(new Date())}.mp3`);
+        await writeFile(path, mp3, { mode: 0o600 });
+        return { folder, path, voice };
       },
       catch: (cause) => new VoiceNoteFailed({ cause }),
     });
-    const path = join(folder, `voice-note-${timeStamp(new Date())}.mp3`);
-    yield* encodeMp3(encoder, audio, path).pipe(
-      Effect.tapError(() => this.discard(folder)),
-      Effect.mapError((cause) => new VoiceNoteFailed({ cause })),
-    );
-    return { folder, path, seconds: audio.pcm.byteLength / 2 / audio.sampleRate };
   });
 
   /** Removes a scratch folder of `record`. A failure only leaves a small file in the shared root. */
   discard(folder: string): Effect.Effect<void> {
     return Effect.promise(() => rm(folder, { recursive: true, force: true }).catch(() => undefined));
+  }
+
+  #save(state: VoiceNoteState): void {
+    this.#state = state;
+    const temporary = `${this.#path}.tmp`;
+    writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+    renameSync(temporary, this.#path);
   }
 }
 
@@ -144,76 +162,82 @@ function readState(path: string): VoiceNoteState {
   try {
     const value = JSON.parse(readFileSync(path, "utf8"));
     if (isDynamicRecord(value) && Array.isArray(value.off))
-      return { version: 1, off: value.off.filter((id): id is string => typeof id === "string") };
+      return {
+        version: 1,
+        off: value.off.filter((id): id is string => typeof id === "string"),
+        voice: isVoiceNoteVoice(value.voice) ? value.voice : DEFAULT_VOICE_NOTE_VOICE,
+      };
   } catch {
-    // No file yet, or a damaged one: every agent may send voice notes.
+    // No file yet, or a damaged one: every agent may send voice notes, in the default voice.
   }
-  return { version: 1, off: [] };
+  return { version: 1, off: [], voice: DEFAULT_VOICE_NOTE_VOICE };
 }
 
-/** A Dock-started app has a short PATH, so Homebrew's folders are searched too. */
-function findEncoder(): { name: (typeof ENCODERS)[number]; path: string } | null {
-  const folders = [...(process.env.PATH ?? "").split(delimiter).filter(Boolean), ...ENCODER_FOLDERS];
-  for (const name of ENCODERS)
-    for (const folder of folders) {
-      const path = join(folder, name);
-      if (existsSync(path)) return { name, path };
+/**
+ * The chosen voice, or for a text in another language a voice of that language: of the same gender
+ * when there is one.
+ */
+function voiceFor(chosen: VoiceNoteVoice, language: string | undefined): VoiceNoteVoice {
+  if (!language || voiceNoteLanguage(chosen) === language) return chosen;
+  const gender = VOICE_NOTE_VOICES.find((voice) => voice.id === chosen)?.gender;
+  const inLanguage = VOICE_NOTE_VOICES.filter((voice) => voiceNoteLanguage(voice.id) === language);
+  return (inLanguage.find((voice) => voice.gender === gender) ?? inLanguage[0])?.id ?? chosen;
+}
+
+/** The key from the Keychain, else from the environment; null when neither has it. Never logged. */
+function readDeepgramKey(): Effect.Effect<string | null> {
+  return Effect.promise(
+    () =>
+      new Promise<string | null>((resolve) => {
+        execFile(
+          "/usr/bin/security",
+          ["find-generic-password", "-s", KEYCHAIN_SERVICE, "-w"],
+          { timeout: 5_000 },
+          (error, stdout) => {
+            const key = error ? "" : stdout.trim();
+            resolve(key || process.env.DEEPGRAM_API_KEY?.trim() || null);
+          },
+        );
+      }),
+  );
+}
+
+function speak(voice: VoiceNoteVoice, text: string): Effect.Effect<Uint8Array, VoiceNoteFailed> {
+  return Effect.gen(function* () {
+    const key = yield* readDeepgramKey();
+    if (!key)
+      return yield* failed(
+        "No Deepgram key: save it in the Keychain as DEEPGRAM_API_KEY. Answer in text and tell the user this in one line.",
+      );
+    const response = yield* Effect.tryPromise({
+      try: (signal) =>
+        fetch(`${DEEPGRAM_SPEAK_URL}?model=${encodeURIComponent(voice)}&encoding=mp3`, {
+          method: "POST",
+          headers: { Authorization: `Token ${key}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+          signal: AbortSignal.any([signal, AbortSignal.timeout(DEEPGRAM_TIMEOUT_MS)]),
+        }),
+      catch: () => failed("Deepgram did not answer. Answer in text and tell the user this in one line."),
+    });
+    if (!response.ok) {
+      const detail = yield* Effect.promise(() => response.text().catch(() => ""));
+      return yield* failed(deepgramFailure(response.status, detail));
     }
-  return null;
-}
-
-function encoderArgs(name: (typeof ENCODERS)[number], sampleRate: number, output: string): string[] {
-  return name === "ffmpeg"
-    ? [
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-f",
-        "s16le",
-        "-ar",
-        String(sampleRate),
-        "-ac",
-        "1",
-        "-i",
-        "pipe:0",
-      ].concat(["-codec:a", "libmp3lame", "-b:a", `${BITRATE_KBPS}k`, "-y", output])
-    : ["--quiet", "-r", "-s", String(sampleRate / 1000), "--bitwidth", "16", "--signed", "--little-endian"].concat([
-        "-m",
-        "m",
-        "-b",
-        String(BITRATE_KBPS),
-        "-",
-        output,
-      ]);
-}
-
-function encodeMp3(
-  encoder: { name: (typeof ENCODERS)[number]; path: string },
-  audio: SpeechAudio,
-  output: string,
-): Effect.Effect<void, Error> {
-  return Effect.callback<void, Error>((resume) => {
-    const child = spawn(encoder.path, encoderArgs(encoder.name, audio.sampleRate, output), {
-      stdio: ["pipe", "ignore", "pipe"],
+    const bytes = yield* Effect.tryPromise({
+      try: () => response.arrayBuffer(),
+      catch: () => failed("Deepgram stopped sending the audio. Try once more, then answer in text."),
     });
-    let errorText = "";
-    child.stderr.on("data", (chunk: Buffer) => {
-      errorText = `${errorText}${chunk.toString("utf8")}`.slice(-500);
-    });
-    child.once("error", (error) => resume(Effect.fail(error)));
-    child.once("close", (code) =>
-      resume(
-        code === 0
-          ? Effect.void
-          : Effect.fail(new Error(`${encoder.name} stopped with code ${code}: ${errorText.trim() || "no output"}`)),
-      ),
-    );
-    child.stdin.on("error", () => undefined);
-    child.stdin.end(Buffer.from(audio.pcm.buffer, audio.pcm.byteOffset, audio.pcm.byteLength));
-    return Effect.sync(() => {
-      if (child.exitCode === null) child.kill("SIGKILL");
-    });
+    if (bytes.byteLength === 0) return yield* failed("Deepgram sent no audio. Answer in text.");
+    return new Uint8Array(bytes);
   });
+}
+
+function deepgramFailure(status: number, detail: string): string {
+  if (status === 401 || status === 403)
+    return "Deepgram refused the key in the Keychain (DEEPGRAM_API_KEY). Answer in text and tell the user this in one line.";
+  if (status === 402) return "The Deepgram credit ran out. Answer in text and tell the user this in one line.";
+  if (status === 429) return "Deepgram is busy (too many requests). Wait a few seconds and try once more.";
+  return `Deepgram answered ${status}: ${detail.replace(/\s+/gu, " ").slice(0, 200)}`;
 }
 
 function timeStamp(date: Date): string {

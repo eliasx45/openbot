@@ -92,6 +92,7 @@ import {
   isSpeechVoice,
   isVoiceLanguage,
   isVoiceModelId,
+  isVoiceNoteVoice,
   isVoiceServerProbe,
   isVoiceServerSettings,
   type LinkAccountStatus,
@@ -121,6 +122,8 @@ import {
   type VoiceLiveEvent,
   type VoiceLiveSession,
   type VoiceModelStatus,
+  type VoiceNoteSample,
+  type VoiceNoteSettings,
   type VoiceServerProbe,
   type VoiceServerSettings,
   type VoiceSettings,
@@ -590,6 +593,20 @@ export function decodeSpeechAudio(value: unknown): SpeechAudio {
     throw new Error("Invalid speech audio.");
   }
   return { pcm, sampleRate };
+}
+
+/** Fork (docs/fork/FEATURES.md, "Voice notes"). */
+export function decodeVoiceNoteSettings(value: unknown): VoiceNoteSettings {
+  const settings = decodeRecord(value, "voice note settings");
+  const { voice } = settings;
+  if (!isVoiceNoteVoice(voice)) throw new Error("Invalid voice note settings.");
+  return { voice, keyFound: requiredBoolean(settings, "keyFound") };
+}
+
+export function decodeVoiceNoteSample(value: unknown): VoiceNoteSample {
+  const { mp3 } = decodeRecord(value, "voice note sample");
+  if (!(mp3 instanceof Uint8Array) || mp3.byteLength === 0) throw new Error("Invalid voice note sample.");
+  return { mp3 };
 }
 
 export function decodeVoiceServerSettings(value: unknown): VoiceServerSettings | null {

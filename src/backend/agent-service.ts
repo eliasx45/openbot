@@ -268,7 +268,7 @@ import { ForkGoals } from "./fork-goals";
 import { forkHub } from "./fork-hub";
 import { ForkMemory } from "./fork-memory";
 import { FORK_RESTART_RESUME_ROUTINE_ID, ForkRestartResume, type ForkRestartResumeHooks } from "./fork-restart-resume";
-import { type ForkVoiceNoteSpeech, ForkVoiceNotes } from "./fork-voice-notes";
+import { ForkVoiceNotes } from "./fork-voice-notes";
 import type { HostMemory } from "./host-memory";
 import type { SignInRegion } from "./kimi-region";
 import type { LinkWallet } from "./link-wallet";
@@ -336,8 +336,6 @@ export interface AgentServiceOptions {
   browser: AgentBrowserHost;
   /** Fork: shows a desktop notification when a watched wait ends. */
   forkNotify?: (title: string, body: string) => void;
-  /** Fork: the local voice of Settings → Voice, for voice notes. Null until it exists. */
-  forkSpeech?: () => ForkVoiceNoteSpeech | null;
   requestTimeoutMs?: number;
   /**
    * How long a provider takes to start a context compaction before OpenBot stops it. A started
@@ -898,7 +896,6 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     forkHub.voiceNotes = new ForkVoiceNotes({
       databasePath: store.database.path,
       sharedRoot: store.sharedRoot,
-      speech: () => options.forkSpeech?.() ?? null,
     });
     this.#hostedSites = new HostedSiteCoordinator({
       store,

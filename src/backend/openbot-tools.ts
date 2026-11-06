@@ -634,7 +634,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
   {
     name: SEND_VOICE_NOTE_TOOL,
     description:
-      "Answer with a short spoken message, like a voice memo: OpenBot reads your text with the user's voice from Settings → Voice and attaches it as an MP3 to this reply. Use it when the user asks for a voice note, voice memo, voice reply or audio answer, or asked you to answer that way. At most 1000 characters of plain sentences. Then write the same words, or a short summary, as your text reply.",
+      "Answer with a short spoken message, like a voice memo: OpenBot reads your text in the user's voice-note voice (Settings → Voice) and attaches the MP3 to this reply. Use it whenever the user asks for a voice note, voice memo, voice message, spoken or audio answer, or asked you to answer that way. Never make one yourself with say, another text-to-speech program or a recording. At most 1000 characters of plain sentences. Then write the same words, or a short summary, as your text reply.",
     shape: sendVoiceNoteToolSchema.shape,
   },
   {

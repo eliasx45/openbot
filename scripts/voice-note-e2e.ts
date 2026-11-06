@@ -1,92 +1,40 @@
-// Fork (docs/fork/FEATURES.md, "Voice notes"): makes voice notes with the real speech service,
-// sherpa-onnx addon, Supertonic 3 model and Homebrew encoder, through `ForkVoiceNotes`, the service
-// behind `openbot.send_voice_note`. The model downloads to the directory the dev app uses.
+// Fork (docs/fork/FEATURES.md, "Voice notes"): makes voice notes through `ForkVoiceNotes`, the
+// service behind `openbot.send_voice_note` and the Voice notes row of Settings, with the real
+// Deepgram Aura-2 API and the Keychain key `DEEPGRAM_API_KEY` (a few cents of the user's credit).
 //
-// Cases: an English and a French note become MP3 files whose length (ffprobe) matches the speech; a
-// note over 1000 characters and an empty one are refused with a message the agent can act on;
-// `/voicenotes off` refuses, survives a new instance (the file beside the database) and `on` allows
-// again; the scratch folder is gone after `discard`.
+// Cases: an English note in the chosen voice becomes an MP3 (ffprobe reads its length); a French
+// note switches to a French voice of the same gender; a Settings sample comes back as MP3; the voice
+// survives a new instance; a note over 1000 characters, an empty one and a note while
+// `/voicenotes off` are refused with a message the agent can act on, and the switch is per agent;
+// the scratch folder is gone after `discard`.
 //
 // Writes the MP3 files and `report.json` to `.openbot-build/voice-note-e2e/`.
-// Run `bun run voice:prepare-runtime` first. macOS only: it starts the Electron binary of the package.
 
-import { execFileSync, fork } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
-import type { SpeechLanguage } from "@openbot/contracts/ipc";
+import { join, resolve } from "node:path";
 import { createOpenBotLogger } from "@openbot/logging";
 import { Effect, Exit } from "effect";
 import { ForkVoiceNotes } from "../src/backend/fork-voice-notes";
-import { SpeechPreferenceStore } from "../src/main/speech-preference-store";
-import { SUPERTONIC_MODEL_DIRECTORY } from "../src/main/voice-model-service";
-import type { VoiceSpeechHostProcess, VoiceSpeechResponse } from "../src/main/voice-speech-protocol";
-import { VoiceSpeechService } from "../src/main/voice-speech-service";
 
-const RESOURCES_ROOT = resolve(".openbot-build/voice");
 const OUTPUT = resolve(".openbot-build/voice-note-e2e");
-const HOST = resolve("src/main/voice-speech-host.ts");
-const ELECTRON = resolve("node_modules/electron/dist/Electron.app/Contents/MacOS/Electron");
 const AGENT = "agent-voice-note-e2e";
 
 const logger = createOpenBotLogger("voice-note-e2e");
 
 interface NoteCase {
   file: string;
+  voice: string;
   bytes: number;
-  mp3Seconds: number;
-  speechSeconds: number;
+  seconds: number;
   ms: number;
 }
 
 interface Cases {
   notes: Record<string, NoteCase>;
+  sampleBytes: number;
   refusals: Record<"tooLong" | "empty" | "off", string>;
-  onAgainSeconds: number;
-}
-
-const NOTES: readonly { name: string; language?: SpeechLanguage; text: string }[] = [
-  { name: "en", text: "Quick update: the intro is rendered and in Premiere. Two cards still need your eye." },
-  { name: "fr", language: "fr", text: "Petit point rapide : l'intro est prête, il reste deux cartes à vérifier." },
-];
-
-function spawnHost(): VoiceSpeechHostProcess {
-  const child = fork(HOST, [], {
-    execPath: ELECTRON,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
-    serialization: "json",
-    stdio: "inherit",
-  });
-  return {
-    send: (request) => child.send(request),
-    onResponse: (listener) => {
-      child.on("message", (message: unknown) => listener(responseFromJson(message)));
-    },
-    onExit: (listener) => {
-      child.once("exit", () => listener());
-    },
-    kill: () => {
-      child.kill();
-    },
-  };
-}
-
-function responseFromJson(message: unknown): VoiceSpeechResponse {
-  if (typeof message !== "object" || message === null || !("id" in message) || typeof message.id !== "number")
-    throw new Error("The host sent a message with no id.");
-  if ("error" in message) {
-    const error = message.error;
-    if (error === "runtime-unavailable" || error === "model-load-failed" || error === "inference-failed")
-      return { id: message.id, error };
-    throw new Error("The host sent an unknown error.");
-  }
-  if (!("pcm" in message) || typeof message.pcm !== "object" || message.pcm === null)
-    throw new Error("The host sent no audio.");
-  if (!("sampleRate" in message) || typeof message.sampleRate !== "number")
-    throw new Error("The host sent no sample rate.");
-  const bytes = Object.values(message.pcm);
-  if (!bytes.every((byte) => typeof byte === "number")) throw new Error("The host sent audio that is not bytes.");
-  return { id: message.id, pcm: Uint8Array.from(bytes), sampleRate: message.sampleRate };
 }
 
 function check(condition: boolean, message: string): void {
@@ -109,63 +57,61 @@ async function main(): Promise<void> {
   await rm(OUTPUT, { recursive: true, force: true });
   await mkdir(OUTPUT, { recursive: true });
   const root = await mkdtemp(join(tmpdir(), "openbot-voice-note-e2e-"));
-  const databasePath = join(root, "openbot.db");
-  const sharedRoot = join(root, "Shared");
-  const preferences = new SpeechPreferenceStore(join(root, "speech-preference.json"));
-  const speech = new VoiceSpeechService({
-    resourcesRoot: RESOURCES_ROOT,
-    modelDirectory: join(RESOURCES_ROOT, SUPERTONIC_MODEL_DIRECTORY),
-    preferences,
-    spawnHost,
-  });
-  const port = {
-    prepare: () =>
-      speech.downloadModel().pipe(
-        Effect.map((status) => (status.phase === "ready" ? null : (status.message ?? status.phase))),
-        Effect.catch((error) => Effect.succeed(String(error.cause))),
-      ),
-    speak: (input: { text: string; language: SpeechLanguage }) =>
-      speech.speak(input).pipe(Effect.mapError((error) => new Error(String(error.cause)))),
-  };
-  const make = () => new ForkVoiceNotes({ databasePath, sharedRoot, speech: () => port });
-  const cases: Cases = { notes: {}, refusals: { tooLong: "", empty: "", off: "" }, onAgainSeconds: 0 };
+  const options = { databasePath: join(root, "openbot.db"), sharedRoot: join(root, "Shared") };
+  const cases: Cases = { notes: {}, sampleBytes: 0, refusals: { tooLong: "", empty: "", off: "" } };
   try {
-    const notes = make();
-    for (const note of NOTES) {
+    const notes = new ForkVoiceNotes(options);
+    const settings = await Effect.runPromise(notes.settings());
+    check(settings.keyFound, "No Deepgram key in the Keychain (DEEPGRAM_API_KEY).");
+    check(settings.voice === "aura-2-orion-en", `The default voice is ${settings.voice}.`);
+    await Effect.runPromise(notes.setVoice("aura-2-apollo-en"));
+    check(new ForkVoiceNotes(options).voice() === "aura-2-apollo-en", "The voice did not survive a new instance.");
+
+    const runs = [
+      { name: "en", args: { text: "Quick update: the intro is rendered and in Premiere." }, voice: "aura-2-apollo-en" },
+      {
+        name: "fr",
+        args: { text: "Petit point rapide : l'intro est prête.", language: "fr" },
+        voice: "aura-2-hector-fr",
+      },
+    ];
+    for (const run of runs) {
       const startedAt = Date.now();
-      const made = await Effect.runPromise(notes.record(AGENT, { text: note.text, language: note.language }));
+      const made = await Effect.runPromise(notes.record(AGENT, run.args));
       const ms = Date.now() - startedAt;
-      const size = (await stat(made.path)).size;
+      check(made.voice === run.voice, `${run.name}: voice ${made.voice}, expected ${run.voice}.`);
+      const bytes = (await stat(made.path)).size;
       const seconds = mp3Seconds(made.path);
-      check(basename(made.path).endsWith(".mp3"), `${note.name}: not an MP3 name.`);
-      check(size > 4_000, `${note.name}: the MP3 is too small (${size} bytes).`);
-      check(Math.abs(seconds - made.seconds) < 0.5, `${note.name}: MP3 ${seconds}s, speech ${made.seconds}s.`);
-      const kept = join(OUTPUT, `${note.name}.mp3`);
+      check(made.path.endsWith(".mp3") && bytes > 4_000 && seconds > 1, `${run.name}: not a usable MP3.`);
+      const kept = join(OUTPUT, `${run.name}.mp3`);
       await copyFile(made.path, kept);
       await Effect.runPromise(notes.discard(made.folder));
       const gone = await stat(made.folder).then(
         () => false,
         () => true,
       );
-      check(gone, `${note.name}: the scratch folder is still there.`);
-      cases.notes[note.name] = { file: kept, bytes: size, mp3Seconds: seconds, speechSeconds: made.seconds, ms };
+      check(gone, `${run.name}: the scratch folder is still there.`);
+      cases.notes[run.name] = { file: kept, voice: made.voice, bytes, seconds, ms };
     }
+
+    const sample = await Effect.runPromise(notes.preview("aura-2-orion-en", "Hello. This is a sample."));
+    check(sample.mp3.byteLength > 2_000, "The Settings sample is empty.");
+    cases.sampleBytes = sample.mp3.byteLength;
+
     cases.refusals.tooLong = await refusal(notes, { text: "a".repeat(1001) });
     cases.refusals.empty = await refusal(notes, { text: "   " });
     notes.setEnabled(AGENT, false);
     cases.refusals.off = await refusal(notes, { text: "Hello." });
-    check(!make().enabled(AGENT), "/voicenotes off did not survive a new instance.");
-    check(make().enabled("another-agent"), "/voicenotes off changed another agent.");
+    check(!new ForkVoiceNotes(options).enabled(AGENT), "/voicenotes off did not survive a new instance.");
+    check(new ForkVoiceNotes(options).enabled("another-agent"), "/voicenotes off changed another agent.");
     notes.setEnabled(AGENT, true);
-    check(make().enabled(AGENT), "/voicenotes on did not survive a new instance.");
-    const again = await Effect.runPromise(notes.record(AGENT, { text: "Back on." }));
-    await Effect.runPromise(notes.discard(again.folder));
-    cases.onAgainSeconds = again.seconds;
+    check(new ForkVoiceNotes(options).enabled(AGENT), "/voicenotes on did not survive a new instance.");
     for (const [key, text] of Object.entries(cases.refusals))
       check(
         text.includes("send_voice_note") || text.includes("/voicenotes"),
         `The ${key} refusal says nothing the agent can act on.`,
       );
+
     const report = { ok: true, at: new Date().toISOString(), cases };
     await writeFile(join(OUTPUT, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
     logger.info(`Report: ${join(OUTPUT, "report.json")}`);
@@ -176,7 +122,6 @@ async function main(): Promise<void> {
     );
     throw error;
   } finally {
-    await Effect.runPromise(speech.shutdown());
     await rm(root, { recursive: true, force: true });
   }
 }

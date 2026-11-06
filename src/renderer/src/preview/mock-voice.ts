@@ -1,5 +1,6 @@
 import {
   DEFAULT_SPEECH_SETTINGS,
+  DEFAULT_VOICE_NOTE_VOICE,
   DEFAULT_VOICE_SETTINGS,
   ELEVENLABS_VOICE_MODEL_ID,
   type OpenBotDesktopApi,
@@ -10,6 +11,7 @@ import {
   type VoiceLiveEvent,
   type VoiceModelId,
   type VoiceModelStatus,
+  type VoiceNoteVoice,
   type VoiceServerModels,
   type VoiceServerProbe,
   type VoiceServerSettings,
@@ -74,6 +76,7 @@ export function createMockVoice(options: MockVoiceOptions, { emit, schedule }: M
   const transcriptListeners = new Set<Listener<VoiceStreamTranscript>>();
   const transfers = new Map<VoiceModelId, { settle: (status: VoiceModelStatus) => void }>();
   let speechSettings: SpeechSettings = clone(options.speechSettings ?? DEFAULT_SPEECH_SETTINGS);
+  let voiceNoteVoice: VoiceNoteVoice = DEFAULT_VOICE_NOTE_VOICE;
   let speechStatus: SpeechModelStatus = options.speechModelReady
     ? { modelId: SPEECH_MODEL_ID, phase: "ready", progress: 100, message: null }
     : { modelId: SPEECH_MODEL_ID, phase: "missing", progress: null, message: null };
@@ -282,6 +285,13 @@ export function createMockVoice(options: MockVoiceOptions, { emit, schedule }: M
       liveListeners.add(listener);
       return () => liveListeners.delete(listener);
     },
+    // Fork: voice notes. The preview has no Deepgram, so a sample is a short silent MP3 frame.
+    getVoiceNotes: async () => ({ voice: voiceNoteVoice, keyFound: true }),
+    setVoiceNoteVoice: async (voice) => {
+      voiceNoteVoice = voice;
+      return { voice: voiceNoteVoice, keyFound: true };
+    },
+    previewVoiceNote: async () => ({ mp3: new Uint8Array([0xff, 0xfb, 0x90, 0x00]) }),
   };
   return { voice };
 }

@@ -2,6 +2,7 @@
 
 import {
   DEFAULT_SPEECH_SETTINGS,
+  DEFAULT_VOICE_NOTE_VOICE,
   type DraftAttachment,
   type SpeechModelStatus,
   type VoiceModelStatus,
@@ -21,6 +22,8 @@ import {
   parseVoiceLiveStart,
   parseVoiceLiveStop,
   parseVoiceModelRequest,
+  parseVoiceNotePreview,
+  parseVoiceNoteVoice,
   parseVoiceServerConnection,
   parseVoiceServerSave,
   parseVoiceSettings,
@@ -105,6 +108,9 @@ function registerVoice(
     stopLive: payloadHandler(parseVoiceLiveStop, () => undefined),
     previewLive: payloadHandler(parseVoiceLivePreview, () => ({ sessionId: "live-2", sdp: "answer" })),
     speakLive: payloadHandler(parseVoiceLiveSpeak, () => undefined),
+    getVoiceNotes: handler(() => ({ voice: DEFAULT_VOICE_NOTE_VOICE, keyFound: false })),
+    setVoiceNoteVoice: payloadHandler(parseVoiceNoteVoice, (voice) => ({ voice, keyFound: false })),
+    previewVoiceNote: payloadHandler(parseVoiceNotePreview, () => ({ mp3: new Uint8Array([1]) })),
   });
 }
 

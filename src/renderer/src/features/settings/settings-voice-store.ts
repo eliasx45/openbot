@@ -8,6 +8,8 @@ import {
   type VoiceLanguage,
   type VoiceModelId,
   type VoiceModelStatus,
+  type VoiceNoteSettings,
+  type VoiceNoteVoice,
   type VoiceServerConnection,
   type VoiceServerInput,
   type VoiceServerSettings,
@@ -29,6 +31,8 @@ interface SettingsVoiceState {
   speech: { status: SpeechModelStatus | null; settings: SpeechSettings | null; listening: boolean };
   /** The user's own voice server, or null when none is set up or before main answers. */
   server: VoiceServerSettings | null;
+  /** Fork: the Deepgram voice of voice notes, and the voice whose sample plays now. */
+  voiceNotes: { settings: VoiceNoteSettings | null; playing: VoiceNoteVoice | null };
 }
 
 const EMPTY_STATUSES: SettingsVoiceState["statuses"] = {
@@ -62,6 +66,7 @@ export function createSettingsVoiceStore(active: () => boolean) {
     settings: null,
     speech: { status: null, settings: null, listening: false },
     server: null,
+    voiceNotes: { settings: null, playing: null },
   });
   const setServer = (server: VoiceServerSettings | null) =>
     setState((draft) => {
@@ -101,7 +106,16 @@ export function createSettingsVoiceStore(active: () => boolean) {
         });
       })
       .catch((error: unknown) => fail(error, "settings.voice.loadFailed"));
+    void voice
+      .getVoiceNotes()
+      .then((settings) =>
+        setState((draft) => {
+          draft.voiceNotes.settings = settings;
+        }),
+      )
+      .catch((error: unknown) => fail(error, "settings.voice.loadFailed"));
     return () => {
+      stopVoiceNoteSample();
       stopModel();
       stopSpeechModel();
       stopServer();
@@ -307,8 +321,57 @@ export function createSettingsVoiceStore(active: () => boolean) {
     }
   }
 
+  // Fork (docs/fork/FEATURES.md, "Voice notes"): the voice, and a sample that plays in it.
+  let voiceNoteSample: { audio: HTMLAudioElement; url: string } | null = null;
+  function stopVoiceNoteSample(): void {
+    if (voiceNoteSample) {
+      voiceNoteSample.audio.pause();
+      URL.revokeObjectURL(voiceNoteSample.url);
+      voiceNoteSample = null;
+    }
+    setState((draft) => {
+      draft.voiceNotes.playing = null;
+    });
+  }
+
+  async function playVoiceNote(voice: VoiceNoteVoice, text: string): Promise<void> {
+    stopVoiceNoteSample();
+    setState((draft) => {
+      draft.voiceNotes.playing = voice;
+    });
+    try {
+      const { mp3 } = await voicePort().voice.previewVoiceNote({ voice, text });
+      if (state.voiceNotes.playing !== voice) return;
+      const url = URL.createObjectURL(new Blob([new Uint8Array(mp3)], { type: "audio/mpeg" }));
+      const audio = new Audio(url);
+      voiceNoteSample = { audio, url };
+      audio.addEventListener("ended", () => {
+        if (voiceNoteSample?.audio === audio) stopVoiceNoteSample();
+      });
+      await audio.play();
+    } catch (error) {
+      stopVoiceNoteSample();
+      fail(error, "settings.voice.speech.listenFailed");
+    }
+  }
+
+  function setVoiceNoteVoice(voice: VoiceNoteVoice, sample: string): void {
+    void voicePort()
+      .voice.setVoiceNoteVoice(voice)
+      .then((settings) => {
+        setState((draft) => {
+          draft.voiceNotes.settings = settings;
+        });
+        void playVoiceNote(voice, sample);
+      })
+      .catch((error: unknown) => fail(error, "settings.voice.saveFailed"));
+  }
+
   return {
     state,
+    setVoiceNoteVoice,
+    playVoiceNote: (voice: VoiceNoteVoice, sample: string) => void playVoiceNote(voice, sample),
+    stopVoiceNoteSample,
     download,
     cancel,
     remove,

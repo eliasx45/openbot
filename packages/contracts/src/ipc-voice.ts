@@ -653,3 +653,136 @@ export function isVoiceServerProbe(value: unknown): value is VoiceServerProbe {
     isNameList(models.voices)
   );
 }
+
+// Fork (docs/fork/FEATURES.md, "Voice notes"): the Deepgram Aura-2 voices of agents' voice notes,
+// from Deepgram's `GET /v1/models` on 6 Nov 2026. The id is the model name; its last part is the language.
+export const VOICE_NOTE_VOICES = [
+  { id: "aura-2-amalthea-en", gender: "f", region: "PH" },
+  { id: "aura-2-andromeda-en", gender: "f", region: "US" },
+  { id: "aura-2-apollo-en", gender: "m", region: "US" },
+  { id: "aura-2-arcas-en", gender: "m", region: "US" },
+  { id: "aura-2-aries-en", gender: "m", region: "US" },
+  { id: "aura-2-asteria-en", gender: "f", region: "US" },
+  { id: "aura-2-athena-en", gender: "f", region: "US" },
+  { id: "aura-2-atlas-en", gender: "m", region: "US" },
+  { id: "aura-2-aurora-en", gender: "f", region: "US" },
+  { id: "aura-2-callista-en", gender: "f", region: "US" },
+  { id: "aura-2-cora-en", gender: "f", region: "US" },
+  { id: "aura-2-cordelia-en", gender: "f", region: "US" },
+  { id: "aura-2-delia-en", gender: "f", region: "US" },
+  { id: "aura-2-draco-en", gender: "m", region: "GB" },
+  { id: "aura-2-electra-en", gender: "f", region: "US" },
+  { id: "aura-2-harmonia-en", gender: "f", region: "US" },
+  { id: "aura-2-helena-en", gender: "f", region: "US" },
+  { id: "aura-2-hera-en", gender: "f", region: "US" },
+  { id: "aura-2-hermes-en", gender: "m", region: "US" },
+  { id: "aura-2-hyperion-en", gender: "m", region: "AU" },
+  { id: "aura-2-iris-en", gender: "f", region: "US" },
+  { id: "aura-2-janus-en", gender: "f", region: "US" },
+  { id: "aura-2-juno-en", gender: "f", region: "US" },
+  { id: "aura-2-jupiter-en", gender: "m", region: "US" },
+  { id: "aura-2-luna-en", gender: "f", region: "US" },
+  { id: "aura-2-mars-en", gender: "m", region: "US" },
+  { id: "aura-2-minerva-en", gender: "f", region: "US" },
+  { id: "aura-2-neptune-en", gender: "m", region: "US" },
+  { id: "aura-2-odysseus-en", gender: "m", region: "US" },
+  { id: "aura-2-ophelia-en", gender: "f", region: "US" },
+  { id: "aura-2-orion-en", gender: "m", region: "US" },
+  { id: "aura-2-orpheus-en", gender: "m", region: "US" },
+  { id: "aura-2-pandora-en", gender: "f", region: "GB" },
+  { id: "aura-2-phoebe-en", gender: "f", region: "US" },
+  { id: "aura-2-pluto-en", gender: "m", region: "US" },
+  { id: "aura-2-saturn-en", gender: "m", region: "US" },
+  { id: "aura-2-selene-en", gender: "f", region: "US" },
+  { id: "aura-2-thalia-en", gender: "f", region: "US" },
+  { id: "aura-2-theia-en", gender: "f", region: "AU" },
+  { id: "aura-2-vesta-en", gender: "f", region: "US" },
+  { id: "aura-2-zeus-en", gender: "m", region: "US" },
+  { id: "aura-2-aurelia-de", gender: "f", region: "DE" },
+  { id: "aura-2-elara-de", gender: "f", region: "DE" },
+  { id: "aura-2-fabian-de", gender: "m", region: "DE" },
+  { id: "aura-2-julius-de", gender: "m", region: "DE" },
+  { id: "aura-2-kara-de", gender: "f", region: "DE" },
+  { id: "aura-2-lara-de", gender: "f", region: "DE" },
+  { id: "aura-2-viktoria-de", gender: "f", region: "DE" },
+  { id: "aura-2-agustina-es", gender: "f", region: "ES" },
+  { id: "aura-2-alvaro-es", gender: "m", region: "ES" },
+  { id: "aura-2-antonia-es", gender: "f", region: "AR" },
+  { id: "aura-2-aquila-es", gender: "m", region: "419" },
+  { id: "aura-2-carina-es", gender: "f", region: "ES" },
+  { id: "aura-2-celeste-es", gender: "f", region: "CO" },
+  { id: "aura-2-diana-es", gender: "f", region: "ES" },
+  { id: "aura-2-estrella-es", gender: "f", region: "MX" },
+  { id: "aura-2-gloria-es", gender: "f", region: "CO" },
+  { id: "aura-2-javier-es", gender: "m", region: "MX" },
+  { id: "aura-2-luciano-es", gender: "m", region: "MX" },
+  { id: "aura-2-nestor-es", gender: "m", region: "ES" },
+  { id: "aura-2-olivia-es", gender: "f", region: "MX" },
+  { id: "aura-2-selena-es", gender: "f", region: "419" },
+  { id: "aura-2-silvia-es", gender: "f", region: "ES" },
+  { id: "aura-2-sirio-es", gender: "m", region: "MX" },
+  { id: "aura-2-valentina-es", gender: "f", region: "419" },
+  { id: "aura-2-valerio-es", gender: "m", region: "MX" },
+  { id: "aura-2-agathe-fr", gender: "f", region: "FR" },
+  { id: "aura-2-hector-fr", gender: "m", region: "FR" },
+  { id: "aura-2-cesare-it", gender: "m", region: "IT" },
+  { id: "aura-2-cinzia-it", gender: "f", region: "IT" },
+  { id: "aura-2-demetra-it", gender: "f", region: "IT" },
+  { id: "aura-2-dionisio-it", gender: "m", region: "IT" },
+  { id: "aura-2-elio-it", gender: "m", region: "IT" },
+  { id: "aura-2-flavio-it", gender: "m", region: "IT" },
+  { id: "aura-2-livia-it", gender: "f", region: "IT" },
+  { id: "aura-2-maia-it", gender: "f", region: "IT" },
+  { id: "aura-2-melia-it", gender: "f", region: "IT" },
+  { id: "aura-2-ama-ja", gender: "f", region: "JP" },
+  { id: "aura-2-ebisu-ja", gender: "m", region: "JP" },
+  { id: "aura-2-fujin-ja", gender: "m", region: "JP" },
+  { id: "aura-2-izanami-ja", gender: "f", region: "JP" },
+  { id: "aura-2-uzume-ja", gender: "f", region: "JP" },
+  { id: "aura-2-beatrix-nl", gender: "f", region: "NL" },
+  { id: "aura-2-cornelia-nl", gender: "f", region: "NL" },
+  { id: "aura-2-daphne-nl", gender: "f", region: "NL" },
+  { id: "aura-2-hestia-nl", gender: "f", region: "NL" },
+  { id: "aura-2-lars-nl", gender: "m", region: "NL" },
+  { id: "aura-2-leda-nl", gender: "f", region: "NL" },
+  { id: "aura-2-rhea-nl", gender: "f", region: "NL" },
+  { id: "aura-2-roman-nl", gender: "m", region: "NL" },
+  { id: "aura-2-sander-nl", gender: "m", region: "NL" },
+] as const;
+
+/** The languages of `VOICE_NOTE_VOICES`: the last part of their ids. */
+export const VOICE_NOTE_LANGUAGES = ["en", "de", "es", "fr", "it", "ja", "nl"] as const;
+
+export type VoiceNoteVoice = (typeof VOICE_NOTE_VOICES)[number]["id"];
+export type VoiceNoteVoiceInfo = (typeof VOICE_NOTE_VOICES)[number];
+
+export const DEFAULT_VOICE_NOTE_VOICE: VoiceNoteVoice = "aura-2-orion-en";
+
+/** The longest sample sentence of a `previewVoiceNote` request. */
+export const VOICE_NOTE_PREVIEW_LIMIT = 300;
+
+export function isVoiceNoteVoice(value: unknown): value is VoiceNoteVoice {
+  return VOICE_NOTE_VOICES.some((voice) => voice.id === value);
+}
+
+/** The language of a voice: the last part of its id. */
+export function voiceNoteLanguage(voice: VoiceNoteVoice): SpeechLanguage {
+  const language = voice.slice(voice.lastIndexOf("-") + 1);
+  return isSpeechLanguage(language) ? language : "en";
+}
+
+/** The voice of voice notes for every agent, and whether the Deepgram key is in the Keychain. */
+export interface VoiceNoteSettings {
+  voice: VoiceNoteVoice;
+  keyFound: boolean;
+}
+
+export interface VoiceNotePreview {
+  voice: VoiceNoteVoice;
+  text: string;
+}
+
+/** A sample of a voice: the MP3 that Deepgram sent. */
+export interface VoiceNoteSample {
+  mp3: Uint8Array;
+}

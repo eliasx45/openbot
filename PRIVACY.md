@@ -1035,14 +1035,11 @@ Network traffic can also occur when:
   `/v1/audio/speech` and receives the audio. Nothing else is sent: no conversation, file or agent
   instruction. The server handles the audio and the text under the policy of the person who runs it.
   The address and the choices are saved in `voice-server.json` in the application data folder;
-- the user turns on Read replies aloud, opens the Voice pane for the first time, presses Download
-  in the Spoken replies section of **Settings → Voice**, or an agent sends its first voice note
-  (`send_voice_note`, Elias's fork). OpenBot downloads the Supertonic 3 voice
+- the user turns on Read replies aloud, opens the Voice pane for the first time, or presses Download
+  in the Spoken replies section of **Settings → Voice**. OpenBot downloads the Supertonic 3 voice
   model that it pins from `huggingface.co`, checks its size and SHA-256, and keeps it in `runtimes`
   in the application data folder. The request carries no user data. The text of a reply that is read
-  aloud, and its audio, stay on the computer. The same holds for a voice note: its text is read on this
-  computer, the local `ffmpeg` or `lame` encodes it as MP3, and the file is a chat attachment like any
-  other. The setting and the chosen voice are saved in
+  aloud, and its audio, stay on the computer. The setting and the chosen voice are saved in
   `speech-preference.json` in the same folder. In the Voice pane, the spoken reply runs on this
   computer, also for an agent on a remote server. Speech recognition uses the model chosen in
   **Settings → Voice**: a local model runs on this computer, and ElevenLabs gets the audio as
@@ -1052,6 +1049,13 @@ Network traffic can also occur when:
   text, as for a typed message, and no recording is kept. Recordings show in the Storage tab of
   **Server Settings**, where the user can delete them, and are part of a data export. A recording is
   deleted with the agent's or channel's data;
+- an agent sends a voice note (`send_voice_note`, Elias's fork), or the user presses Listen or picks
+  a voice in the Voice notes section of **Settings → Voice**. OpenBot sends the note's text (at most
+  1000 characters), or the sample sentence, and the chosen voice to `api.deepgram.com` with the user's
+  own Deepgram key from the macOS Keychain (`DEEPGRAM_API_KEY`), and receives an MP3. Nothing else is
+  sent: no conversation, file or agent instruction. Deepgram handles the text under its own policy and
+  the user's Deepgram plan. The MP3 is a chat attachment like any other. The voice and the agents whose
+  voice notes are off are saved in `fork-voice-notes.json` beside the database;
 - the user turns on Codex live voice in **Settings → Voice** and opens the Voice pane of an agent on
   this computer, with any provider. OpenBot starts a separate Codex App Server process for the
   session. The app window sends a WebRTC offer to it, and it opens a realtime voice session with

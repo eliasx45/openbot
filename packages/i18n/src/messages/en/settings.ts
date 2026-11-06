@@ -628,6 +628,13 @@ export const messages = defineMessages("settings", {
   "settings.voice.speech.sample": "Hello. This is how your replies will sound.",
   "settings.voice.speech.listenFailed": "Could not play the sample.",
   "settings.voice.live.section": "Live voice",
+  "settings.voice.voiceNotes.section": "Voice notes",
+  "settings.voice.voiceNotes.description":
+    "When you ask an agent for a voice note, it sends an MP3 in this voice. Deepgram Aura-2 reads the text with your Deepgram key.",
+  "settings.voice.voiceNotes.keyMissing": "No Deepgram key. Save it in the Keychain as DEEPGRAM_API_KEY.",
+  "settings.voice.voiceNotes.sample": "Quick update: the intro is rendered, and two cards still need your eye.",
+  "settings.voice.voiceNotes.voiceName.female": "{name}, female · {language}",
+  "settings.voice.voiceNotes.voiceName.male": "{name}, male · {language}",
   "settings.voice.live.signIn": "Sign in to Codex with your ChatGPT account to use live voice.",
   "settings.voice.server.section": "Voice server",
   "settings.voice.server.title": "OpenAI-compatible server",

@@ -5,6 +5,7 @@ import {
   isSpeechVoice,
   isVoiceLanguage,
   isVoiceModelId,
+  isVoiceNoteVoice,
   isVoiceServerRoutes,
   SPEECH_LIMITS,
   type SpeechInput,
@@ -12,6 +13,7 @@ import {
   VOICE_API_KEY_MAX_LENGTH,
   VOICE_AUDIO_LIMITS,
   VOICE_LIVE_LIMITS,
+  VOICE_NOTE_PREVIEW_LIMIT,
   VOICE_SERVER_LIMITS,
   VOICE_STREAM_LIMITS,
   type VoiceApiKeyInput,
@@ -20,6 +22,8 @@ import {
   type VoiceLiveStart,
   type VoiceLiveStop,
   type VoiceModelRequest,
+  type VoiceNotePreview,
+  type VoiceNoteVoice,
   type VoiceServerConnection,
   type VoiceServerSave,
   type VoiceSettings,
@@ -208,4 +212,17 @@ export function parseVoiceServerSave(input: unknown): VoiceServerSave {
       },
     },
   };
+}
+
+/** Fork (docs/fork/FEATURES.md, "Voice notes"). */
+export function parseVoiceNoteVoice(input: unknown): VoiceNoteVoice {
+  if (!isVoiceNoteVoice(input)) throw new Error("A voice note needs a known voice.");
+  return input;
+}
+
+export function parseVoiceNotePreview(input: unknown): VoiceNotePreview {
+  if (!isObject(input) || !isVoiceNoteVoice(input.voice) || !isString(input.text) || !input.text.trim())
+    throw new Error("A voice sample needs a known voice and a text.");
+  if (input.text.length > VOICE_NOTE_PREVIEW_LIMIT) throw new Error("The sample text is too long.");
+  return { voice: input.voice, text: input.text };
 }

@@ -242,6 +242,12 @@
   width: min(100%, 360px);
 }
 
+/* Fork: an audio player is a single row, so it gets the room for a usable progress bar. */
+.message-attachments-group:has(.message-attachment[data-media="audio"]),
+.message-attachments:has(.message-attachment[data-media="audio"]) {
+  width: min(100%, 480px);
+}
+
 .attachment-media-player {
   grid-column: 1 / -1;
   display: block;

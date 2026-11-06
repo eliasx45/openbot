@@ -11,9 +11,12 @@ import {
   type SpeechSpeed,
   type SpeechVoice,
   VOICE_MODELS,
+  VOICE_NOTE_VOICES,
   type VoiceLanguage,
   type VoiceModelInfo,
   type VoiceModelStatus,
+  type VoiceNoteVoice,
+  voiceNoteLanguage,
   WHISPER_LANGUAGES,
   type WhisperLanguage,
 } from "@openbot/contracts/ipc";
@@ -274,6 +277,20 @@ export function SettingsVoiceTab(props: SettingsVoiceTabProps) {
   /** The voices' own names, which stay the same in each language. */
   const liveVoiceName = (voice: LiveVoiceChoice) =>
     voice === "automatic" ? t("settings.voice.language.automatic") : voice.charAt(0).toUpperCase() + voice.slice(1);
+
+  const voiceNotes = () => props.store.state.voiceNotes;
+  /** A Deepgram voice: its own name, which stays the same in each language, its gender and language. */
+  const voiceNoteName = (id: VoiceNoteVoice) => {
+    const voice = VOICE_NOTE_VOICES.find((candidate) => candidate.id === id);
+    const name = id.split("-")[2] ?? id;
+    return t(
+      voice?.gender === "f" ? "settings.voice.voiceNotes.voiceName.female" : "settings.voice.voiceNotes.voiceName.male",
+      {
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        language: `${t(LANGUAGE_NAME[voiceNoteLanguage(id)])} (${voice?.region ?? ""})`,
+      },
+    );
+  };
 
   const LanguageLabel = (labelProps: { language: VoiceLanguage | undefined }) => (
     <Show when={labelProps.language}>
@@ -667,6 +684,64 @@ export function SettingsVoiceTab(props: SettingsVoiceTabProps) {
               </ItemActions>
             </Item>
           </Show>
+        </ItemGroup>
+      </SettingsSection>
+
+      {/* Fork (docs/fork/FEATURES.md, "Voice notes"): the Deepgram voice of agents' voice notes. */}
+      <SettingsSection title={t("settings.voice.voiceNotes.section")}>
+        <ItemGroup class="settings-modal-card">
+          <Item data-settings-row="settings.voice.voiceNotes.section" class="settings-modal-row">
+            <ItemContent>
+              <ItemTitle>{t("settings.voice.speech.voice.title")}</ItemTitle>
+              <ItemDescription>
+                {voiceNotes().settings?.keyFound === false
+                  ? t("settings.voice.voiceNotes.keyMissing")
+                  : t("settings.voice.voiceNotes.description")}
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                disabled={!voiceNotes().settings?.keyFound}
+                onClick={() => {
+                  const voice = voiceNotes().settings?.voice;
+                  if (!voice) return;
+                  if (voiceNotes().playing) props.store.stopVoiceNoteSample();
+                  else props.store.playVoiceNote(voice, t("settings.voice.voiceNotes.sample"));
+                }}
+              >
+                <Show when={voiceNotes().playing} fallback={<Play size={14} aria-hidden="true" />}>
+                  <Square size={14} aria-hidden="true" />
+                </Show>
+                {voiceNotes().playing ? t("settings.voice.speech.voice.stop") : t("settings.voice.speech.voice.listen")}
+              </Button>
+              <Select<VoiceNoteVoice>
+                class="settings-modal-select"
+                options={VOICE_NOTE_VOICES.map((voice) => voice.id)}
+                value={voiceNotes().settings?.voice}
+                onChange={(next) => {
+                  if (next) props.store.setVoiceNoteVoice(next, t("settings.voice.voiceNotes.sample"));
+                }}
+                disabled={!voiceNotes().settings}
+                placement="bottom-end"
+                itemComponent={(selectProps) => (
+                  <SelectItem item={selectProps.item}>{voiceNoteName(selectProps.item.rawValue)}</SelectItem>
+                )}
+              >
+                <SelectTrigger size="sm" aria-label={t("settings.voice.speech.voice.title")}>
+                  <SelectValue<VoiceNoteVoice>>
+                    {(state) => {
+                      const voice = state.selectedOption();
+                      return voice && voiceNoteName(voice);
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent mount={props.selectMount} />
+              </Select>
+            </ItemActions>
+          </Item>
         </ItemGroup>
       </SettingsSection>
 
