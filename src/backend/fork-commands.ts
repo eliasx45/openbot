@@ -44,6 +44,13 @@ const COMMAND = /^\/(goal|setup|learn|memory|keepwarm|autoresume)(?=$|\s)\s*([\s
 export function forkUserPrompt(delivery: QueueDelivery, typed: string, text: string): string {
   const agentId = delivery.recipientAgentId;
   const command = COMMAND.exec(typed.trim());
+  // A provider command the user typed (`/compact`, `/clear`, a skill): Claude Code runs it only
+  // when the prompt starts with it, so it gets no recalled memories before it and no goal footer
+  // after it, and its turn is no missed goal report.
+  if (!command && !delivery.replyToMessageId && /^\/[\w:-]+(?=$|\s)/u.test(typed.trim())) {
+    forkHub.goals?.skipTurn(agentId);
+    return text;
+  }
   let prompt = text;
   if (command && !delivery.replyToMessageId) {
     const [, name, rest = ""] = command;

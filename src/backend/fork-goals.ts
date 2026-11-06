@@ -101,6 +101,8 @@ export class ForkGoals {
   #ending: { agentId: string; line: string | null } | null = null;
   /** Lines of `/goal` commands, per agent, for the turn that starts next. */
   readonly #starting = new Map<string, string[]>();
+  /** Agents whose next turn runs a provider command (`/compact`): it neither reports nor misses. */
+  readonly #skipped = new Set<string>();
 
   constructor(options: { databasePath: string; hooks: ForkGoalsHooks }) {
     this.#hooks = options.hooks;
@@ -187,6 +189,11 @@ export class ForkGoals {
     this.#reports.delete(agentId);
     this.#save();
     return goalPrompt(goal, null);
+  }
+
+  /** The agent's next own-chat turn runs a provider command, not goal work. */
+  skipTurn(agentId: string): void {
+    if (this.active(agentId)) this.#skipped.add(agentId);
   }
 
   /**
@@ -277,6 +284,7 @@ export class ForkGoals {
     const goal = this.active(agentId);
     const report = this.#reports.get(agentId);
     this.#reports.delete(agentId);
+    if (this.#skipped.delete(agentId)) return null;
     if (goal?.state !== "working") return null;
     if (input.stopped) {
       this.#finish(goal, "stopped", "");
