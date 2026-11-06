@@ -31,6 +31,12 @@ const MAX_GOAL_TURNS = 200;
 const FILE = "fork-goals.json";
 /** How long a command line waits for its turn to start before it is appended on its own. */
 const START_LINE_WAIT_MS = 60_000;
+/**
+ * The chat shows only the text after a turn's last tool call as the answer; Claude and ACP fold the
+ * text before a call into the steps. So the update goes after `goal_status`, never before it.
+ */
+const UPDATE_AFTER_CALL =
+  "the chat shows only the text after your last tool call, and folds earlier text into the steps";
 
 export const goalStatusToolSchema = z.strictObject({
   status: z
@@ -165,7 +171,7 @@ export class ForkGoals {
     }
     if (words === "") {
       return current
-        ? `Goal mode runs for "${current.text}" (turn ${current.turn} of ${current.maxTurns}). Tell the user where it stands in a few lines, then call openbot.${GOAL_STATUS_TOOL}.`
+        ? `Goal mode runs for "${current.text}" (turn ${current.turn} of ${current.maxTurns}). Call openbot.${GOAL_STATUS_TOOL}, then tell the user where it stands in a few lines (${UPDATE_AFTER_CALL}).`
         : "The user typed /goal without a goal. Explain in two lines: /goal <goal> makes you keep working turn after turn until the goal is done (or /goal --turns N <goal>), and /goal stop ends it.";
     }
     if (current?.startedBy === messageId) return goalPrompt(current, null);
@@ -213,7 +219,7 @@ export class ForkGoals {
       fromUser
         ? "Handle this message from the user first; it can change the goal or answer your question."
         : "Use this message for the goal.",
-      `Then, as your last action, call openbot.${GOAL_STATUS_TOOL}: continue (with next), waiting, completed, needs-input or blocked.]`,
+      `Then call openbot.${GOAL_STATUS_TOOL}: continue (with next), waiting, completed, needs-input or blocked. Write your reply to the user after that call, as your last text: ${UPDATE_AFTER_CALL}.]`,
     ].join(" ");
   }
 
@@ -236,16 +242,17 @@ export class ForkGoals {
       );
     this.#reports.set(caller.agentId, report);
     const left = goal.maxTurns - goal.turn;
+    const reply = `Now write your update for the user, with everything they need to read: ${UPDATE_AFTER_CALL}.`;
     return openBotToolResult({
       recorded: report.status,
       note:
         report.status === "continue"
           ? left > 0
-            ? `OpenBot starts goal turn ${goal.turn + 1} of ${goal.maxTurns} when this turn ends. End your turn now.`
-            : "This was the last goal turn: the goal stops at the turn limit. Tell the user what is left."
+            ? `OpenBot starts goal turn ${goal.turn + 1} of ${goal.maxTurns} when this turn ends. ${reply} Then end your turn.`
+            : `This was the last goal turn: the goal stops at the turn limit. ${reply} Tell them what is left.`
           : report.status === "waiting"
-            ? "The goal waits. Your next turn starts when a teammate answers or the user writes."
-            : "The goal turns end with this turn.",
+            ? `The goal waits. Your next turn starts when a teammate answers or the user writes. ${reply}`
+            : `The goal turns end with this turn. ${reply} Give the result, your question or the blocker in full.`,
     });
   }
 
@@ -428,7 +435,7 @@ function goalPrompt(goal: Goal, note: string | null): string {
     // Fork (docs/fork/FEATURES.md, "Goals build every option, then ask with a question card").
     "A choice for the user (a design, a setting, an approach) does not stop the goal. Build each reasonable option (at most 3) side by side, each separate and named: code on its own branch with its commits, an edit as its own copy (a duplicated comp, a new file or version). Do not change the original or what the user runs now. Then go on with the rest of the goal.",
     "When the options are built and checked, ask once with ask_user (or ask_ui with a choice block), never only in your message: what each option is, where it is, how to try it, and which one you recommend. When the user answers, apply the choice and go on; when the question is skipped or expires, report needs-input with the same summary. Ask before you build only when building would change or delete the user's real data, publish or send something, spend money, or cannot be undone.",
-    `Write a brief update for the user, then, as your last action, call openbot.${GOAL_STATUS_TOOL} once: status "continue" with "next" (your concrete next step); "waiting" with "detail" while teammates work for you; or "completed", "needs-input" or "blocked" with "detail" (the result, your question, or the blocker); "completed" also needs "proof".`,
+    `When the work of this turn is done, call openbot.${GOAL_STATUS_TOOL} once: status "continue" with "next" (your concrete next step); "waiting" with "detail" while teammates work for you; or "completed", "needs-input" or "blocked" with "detail" (the result, your question, or the blocker); "completed" also needs "proof". After that call, end the turn with a brief update for the user (${UPDATE_AFTER_CALL}). Do not write the update before the call.`,
   ]
     .filter(Boolean)
     .join("\n");

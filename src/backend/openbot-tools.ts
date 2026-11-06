@@ -619,7 +619,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
   {
     name: GOAL_STATUS_TOOL,
     description:
-      "Only while goal mode runs in your own chat (the user sent /goal). Call it once, as the last action of each turn: continue (with next, your concrete next step; OpenBot starts your next turn by itself), waiting (teammates work for you), or completed / needs-input / blocked (with detail) to end the goal turns.",
+      "Only in goal mode in your own chat (/goal). Call it once per turn after the work, then write your update: the chat shows only text after your last tool call. continue (with next; OpenBot starts your next turn), waiting (teammates work), or completed / needs-input / blocked (with detail) to end the goal.",
     shape: goalStatusToolSchema.shape,
   },
   // Fork: the memory journal (docs/fork/FEATURES.md, "Memory").

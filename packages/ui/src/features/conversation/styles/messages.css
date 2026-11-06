@@ -971,6 +971,16 @@
   white-space: nowrap;
 }
 
+/* Fork: a goal line ("🎯 Goal waits: <detail>") can hold a long detail. It wraps
+   inside the marker instead of running past the chat's edge. */
+.chat-action-marker-plan-continuation .chat-action-marker-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
 .chat-action-marker-time {
   color: var(--openbot-text-muted);
   font-size: var(--openbot-text-sm);
