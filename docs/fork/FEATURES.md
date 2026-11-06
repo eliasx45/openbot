@@ -418,11 +418,11 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 
 ## 44. One usage button in the rail
 
-- **Get:** the left rail shows one usage button, not one ring per provider (Claude, ChatGPT, Grok…, plus each custom agent). The button shows the logo and rings of the provider with the least left, so a limit that runs out still shows. Its hover card lists the limits of every provider with reset times, then each custom agent's answer. A click opens the usage page.
-- **Why:** Elias, 6 Nov 2026 (screenshot of four rings): the stack of rings was distracting.
-- **How (portable):** filter the readings to those with limit windows; draw one button whose ring row is the reading with the lowest `remainingPercent`; the hover card renders the full usage list for all readings (shared-quota readings such as Cursor on Grok included), then the custom agent texts. Only agents → the agent logo with no ring. No readings and no agents → no button.
-- **Here:** `UsageButton` in `packages/ui/src/features/window/PageRail.tsx` (replaces upstream's `UsageRings` per provider and `CustomAgentUsageButton`); `.window-rail-usage-summary` in `page-rail.css`. Labels reuse `app.rail.usageRings` / `app.rail.customAgentUsage`.
-- **Check:** with two or more providers signed in, the rail has one usage button above Marketplace; hover it: the card lists every provider; click it: the usage page opens. Checked 2026-11-06 in a blank dev instance (Claude + ChatGPT).
+- **Get:** the left rail shows one usage button, not one ring per provider (Claude, ChatGPT, Grok…, plus each custom agent). The button shows a general gauge icon inside the rings of the provider with the least left, so a limit that runs out still shows. Its hover card shows every account side by side (one column each, with its limits and reset times), then each custom agent's answer. A click opens the usage page.
+- **Why:** Elias, 6 Nov 2026 (screenshot of four rings): the stack of rings was distracting. Then: a provider logo on the one button looked like only Claude or Codex; a general icon, and all accounts horizontally.
+- **How (portable):** filter the readings to those with limit windows; draw one button with a gauge icon and the rings of the reading with the lowest `remainingPercent`; the hover card renders the full usage list for all readings (shared-quota readings such as Cursor on Grok included) as one 220px column per account, then the custom agent texts as more columns. Only agents → the gauge with no ring. No readings and no agents → no button.
+- **Here:** `UsageButton` in `packages/ui/src/features/window/PageRail.tsx` (replaces upstream's `UsageRings` per provider and `CustomAgentUsageButton`); `.window-rail-usage-icon` and `.window-rail-usage-summary` (column count from `--rail-usage-columns`) in `page-rail.css`; the shared card's styles stay in `src/renderer/src/styles/app-shell.css`. Labels reuse `app.rail.usageRings` / `app.rail.customAgentUsage`.
+- **Check:** with two or more providers signed in, the rail has one usage button above Marketplace; hover it: the card shows every account side by side; click it: the usage page opens. Checked 2026-11-06 in a blank dev instance (Claude + ChatGPT).
 
 ---
 

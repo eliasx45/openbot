@@ -147,13 +147,6 @@
   transform: rotate(-90deg);
 }
 
-.window-rail-button .window-rail-usage-logo {
-  width: var(--openbot-icon-xs);
-  height: var(--openbot-icon-xs);
-  overflow: visible;
-  fill: var(--openbot-provider-current);
-}
-
 .window-rail-usage-track {
   stroke: currentcolor;
   opacity: 0.15;
@@ -169,13 +162,6 @@
 
 .window-rail-usage-arc[data-usage-tone="critical"] {
   stroke: var(--openbot-danger);
-}
-
-/* The usage of a custom agent: its logo with no ring, at the size of a rail icon. The hover card
- * shows the answer of the agent as it wrote it. */
-.window-rail-button .window-rail-agent-usage-logo {
-  width: var(--openbot-icon-md);
-  height: var(--openbot-icon-md);
 }
 
 .window-rail-agent-usage {
@@ -247,8 +233,42 @@
   color: var(--openbot-text-primary);
 }
 
-/* Fork: the hover card of the one usage button lists every provider, then each custom agent. */
+/* Fork: the one usage button shows a general gauge, not a provider logo, inside the rings. */
+.window-rail-button .window-rail-usage-icon {
+  width: var(--openbot-icon-sm);
+  height: var(--openbot-icon-sm);
+}
+
+/* Fork: its hover card shows the accounts side by side, one column each, then the custom agents. */
+.account-usage-popover.window-rail-usage-card {
+  width: max-content;
+  max-width: calc(100vw - var(--openbot-space-8));
+}
+
 .window-rail-usage-summary {
   display: grid;
-  gap: var(--openbot-space-3);
+  align-items: start;
+  gap: var(--openbot-space-2) var(--openbot-space-3);
+  grid-template-columns: repeat(var(--rail-usage-columns, 1), max-content);
+}
+
+.window-rail-usage-summary > .account-usage-popover-header {
+  grid-column: 1 / -1;
+}
+
+.window-rail-usage-summary .account-usage-providers {
+  grid-auto-columns: 220px;
+  grid-auto-flow: column;
+  grid-template-columns: none;
+}
+
+.window-rail-usage-summary .account-usage-provider {
+  align-content: start;
+  grid-column: auto;
+  grid-template-columns: auto max-content minmax(0, 1fr) max-content max-content;
+  column-gap: var(--openbot-space-2);
+}
+
+.window-rail-usage-summary .window-rail-agent-usage {
+  width: 220px;
 }

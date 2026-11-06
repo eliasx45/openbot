@@ -1,4 +1,4 @@
-import { AppLogo, type AppLogoVariant, ProviderLogo } from "@openbot/brand";
+import { AppLogo, type AppLogoVariant } from "@openbot/brand";
 import {
   Bot,
   Button,
@@ -6,6 +6,7 @@ import {
   ChartArea,
   DropdownMenu,
   Ellipsis,
+  Gauge,
   ListChecks,
   MotionTooltip,
   Pin,
@@ -71,10 +72,9 @@ export interface CustomAgentUsageRailRow {
 
 /**
  * Fork: one usage button for all providers, not one ring per provider (Elias, 6 Nov 2026: the stack
- * of rings was distracting). The button shows the provider with the least left: its logo inside one
- * ring per limit window, the outer ring the longest window. The hover card lists the limits of every
- * provider with their reset times, then the answer of each custom agent as it wrote it. With only
- * custom agents, the button shows the agent logo with no ring.
+ * of rings was distracting). The button shows a gauge inside the rings of the provider with the least
+ * left, one ring per limit window, the outer ring the longest window. The hover card shows every
+ * provider side by side with its limits and reset times, then the answer of each custom agent.
  */
 function UsageButton(props: {
   rows: readonly AccountUsageProviderRow[];
@@ -107,7 +107,10 @@ function UsageButton(props: {
     <RailButton
       label={label()}
       card={() => (
-        <div class="window-rail-usage-summary">
+        <div
+          class="window-rail-usage-summary"
+          style={{ "--rail-usage-columns": String((props.rows.length > 0 ? 1 : 0) + props.customAgents.length) }}
+        >
           <Show when={props.rows.length > 0}>
             <AccountUsageDetails
               rows={[...props.rows]}
@@ -132,49 +135,37 @@ function UsageButton(props: {
       class="window-rail-usage"
       onClick={props.onOpen}
     >
-      <Show
-        when={ringRow()}
-        fallback={<ProviderLogo provider="acp" class="window-rail-usage-logo window-rail-agent-usage-logo" />}
-      >
-        {(row) => (
-          <>
-            <svg
-              class="window-rail-usage-ring"
-              viewBox={`0 0 ${RING.size} ${RING.size}`}
-              fill="none"
-              aria-hidden="true"
-            >
-              <For each={windows()} keyed={false}>
-                {(window, index) => (
-                  <g>
-                    <circle
-                      class="window-rail-usage-track"
-                      cx={RING.size / 2}
-                      cy={RING.size / 2}
-                      r={outerRadius - index * RING.spacing}
-                      stroke-width={RING.stroke}
-                    />
-                    <Show when={window().remainingPercent < 100}>
-                      <circle
-                        class="window-rail-usage-arc"
-                        data-usage-tone={window().tone}
-                        cx={RING.size / 2}
-                        cy={RING.size / 2}
-                        r={outerRadius - index * RING.spacing}
-                        stroke-width={RING.stroke}
-                        stroke-linecap="round"
-                        pathLength={100}
-                        stroke-dasharray={`${100 - window().remainingPercent} 100`}
-                      />
-                    </Show>
-                  </g>
-                )}
-              </For>
-            </svg>
-            <ProviderLogo provider={row().provider} class="window-rail-usage-logo" />
-          </>
-        )}
+      <Show when={windows().length > 0}>
+        <svg class="window-rail-usage-ring" viewBox={`0 0 ${RING.size} ${RING.size}`} fill="none" aria-hidden="true">
+          <For each={windows()} keyed={false}>
+            {(window, index) => (
+              <g>
+                <circle
+                  class="window-rail-usage-track"
+                  cx={RING.size / 2}
+                  cy={RING.size / 2}
+                  r={outerRadius - index * RING.spacing}
+                  stroke-width={RING.stroke}
+                />
+                <Show when={window().remainingPercent < 100}>
+                  <circle
+                    class="window-rail-usage-arc"
+                    data-usage-tone={window().tone}
+                    cx={RING.size / 2}
+                    cy={RING.size / 2}
+                    r={outerRadius - index * RING.spacing}
+                    stroke-width={RING.stroke}
+                    stroke-linecap="round"
+                    pathLength={100}
+                    stroke-dasharray={`${100 - window().remainingPercent} 100`}
+                  />
+                </Show>
+              </g>
+            )}
+          </For>
+        </svg>
       </Show>
+      <Gauge class="window-rail-usage-icon" aria-hidden="true" />
     </RailButton>
   );
 }
