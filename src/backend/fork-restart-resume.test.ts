@@ -53,6 +53,17 @@ describe("restartResumeText", () => {
     expect(text).toContain("do NOT launch it again from scratch");
   });
 
+  it("after a long downtime still resumes, and asks to check time-sensitive steps", () => {
+    const short = restartResumeText({ ...base, now: "2026-11-06T14:00:00.000Z" });
+    expect(short).not.toContain("OpenBot was down for about");
+    const long = restartResumeText({ ...base, now: "2026-11-07T07:12:00.000Z" });
+    expect(long).toContain("OpenBot was down for about 18 hours; it is now 08:12 on 7 Nov (Europe/Berlin).");
+    expect(long).toContain("check that it still makes sense now");
+    expect(long).toContain("skip that step and tell the user why instead of doing it late");
+    expect(long).toContain("Then continue your work.");
+    expect(restartResumeText({ ...base, now: "2026-11-09T13:12:00.000Z" })).toContain("about 3 days");
+  });
+
   it("marks the second try as the last one", () => {
     expect(restartResumeText({ ...base, attempt: 2 })).toContain("This is the last automatic try.");
   });

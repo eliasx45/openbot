@@ -17,7 +17,7 @@
  *
  * No wake: in channel, messaging and task threads; for a turn that ran a routine or OpenBot's own
  * upkeep; when the turn waited for the user's answer; when a message waits in the queue or a turn
- * started since; after `RESTART_RESUME_MAX_AGE_MS` (the turn is stale); for an agent that is gone,
+ * started since; for an agent that is gone,
  * hidden, or has a new chat; when the provider session is gone or the provider is not ready in time.
  * A Stop or a turn that ended is not running, so it is never captured.
  */
@@ -30,8 +30,11 @@ import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 
 export const FORK_RESTART_RESUME_ROUTINE_ID = "fork-restart-resume";
-/** A turn interrupted longer ago than this (the app was down) is stale: no wake. */
-const RESTART_RESUME_MAX_AGE_MS = 2 * 60 * 60_000;
+/**
+ * A turn interrupted longer ago than this still gets its wake (the user wants every agent to go on),
+ * but the wake says how long the app was down and to check time-sensitive steps before doing them late.
+ */
+const RESTART_RESUME_LONG_DOWNTIME_MS = 2 * 60 * 60_000;
 /** The first wake and one more try when that wake's own turn is interrupted by a restart too. */
 const RESTART_RESUME_MAX_ATTEMPTS = 2;
 /** The routine id of `wait_until` wakes, which continue the agent's own work as a user message does. */
@@ -255,7 +258,7 @@ export class ForkRestartResume {
       waitId: null,
       deliveryId: null,
     };
-    const reason = this.#captureSkip(entry, own, messages, now.getTime());
+    const reason = this.#captureSkip(entry, own, messages);
     if (reason) {
       entry.state = "skipped";
       entry.reason = reason;
@@ -268,7 +271,6 @@ export class ForkRestartResume {
     entry: RestartResumeEntry,
     own: readonly QueueDelivery[],
     messages: readonly ConversationMessage[],
-    now: number,
   ): string | null {
     if (entry.attempt > RESTART_RESUME_MAX_ATTEMPTS) return "retry limit: the resume was interrupted again";
     if (messages.some((message) => message.questionPrompt && message.questionPrompt.resolution === null))
@@ -281,7 +283,6 @@ export class ForkRestartResume {
       if (routineId !== WAIT_ROUTINE_ID && routineId !== FORK_RESTART_RESUME_ROUTINE_ID) return "routine run";
     }
     if (this.#hooks.laneQueued(entry.agentId) > 0) return "a queued message runs instead";
-    if (now - Date.parse(entry.interruptedAt) > RESTART_RESUME_MAX_AGE_MS) return "stale";
     return null;
   }
 
@@ -407,7 +408,6 @@ export class ForkRestartResume {
       return "skipped";
     }
     if (agent.threadId !== entry.threadId) return skip("a new chat replaced the interrupted one");
-    if (now - Date.parse(entry.interruptedAt) > RESTART_RESUME_MAX_AGE_MS) return skip("stale");
     if (this.#tookOver.has(entry.agentId)) return skip("another turn started since the restart");
     if (entry.kind === "goal" && !this.#hooks.goalWorking(entry.agentId)) return skip("the goal no longer runs");
     if (this.#hooks.laneQueued(entry.agentId) > 0) return skip("a queued message runs instead");
@@ -466,6 +466,7 @@ export class ForkRestartResume {
         attempt: entry.attempt,
         subagents: agent.provider === "claude" ? subagents : [],
         requestText: entry.requestText,
+        now: new Date(now).toISOString(),
       }),
     });
     this.#log(entry);
@@ -518,8 +519,15 @@ export function restartResumeText(input: {
   attempt: number;
   subagents: readonly RestartResumeSubagent[];
   requestText: string;
+  /** When the wake is built; a long gap since `interruptedAt` adds the time-sensitive check. */
+  now?: string;
 }): string {
   const at = localTime(input.interruptedAt, input.timezone);
+  const downMs = input.now ? Date.parse(input.now) - Date.parse(input.interruptedAt) : 0;
+  const longDowntime =
+    downMs > RESTART_RESUME_LONG_DOWNTIME_MS
+      ? `OpenBot was down for about ${downtimeText(downMs)}; it is now ${localTime(input.now ?? "", input.timezone)}. Go on with your work, but before any step that depends on time (a send or post planned for a certain time, a deadline, "today", "tonight", a live event), check that it still makes sense now. If it doesn't, skip that step and tell the user why instead of doing it late.`
+      : null;
   const what =
     input.kind === "subagents"
       ? `Your background subagents were stopped at ${at} by an OpenBot restart while you waited for them — this is not a message from the user.`
@@ -532,6 +540,7 @@ export function restartResumeText(input: {
     input.attempt > 1
       ? "Your first resume after the restart was interrupted by another restart. This is the last automatic try."
       : null,
+    longDowntime,
     subagents.length > 0
       ? `These subagents were stopped mid-task: ${subagents
           .map(
@@ -550,6 +559,14 @@ export function restartResumeText(input: {
   ]
     .filter((line): line is string => line !== null)
     .join("\n");
+}
+
+/** "45 minutes", "9 hours", "2 days". */
+function downtimeText(ms: number): string {
+  const hours = ms / 3_600_000;
+  if (hours >= 48) return `${Math.round(hours / 24)} days`;
+  if (hours >= 1.5) return `${Math.round(hours)} hours`;
+  return `${Math.max(1, Math.round(ms / 60_000))} minutes`;
 }
 
 /** "15:12 on 6 Nov (Europe/Berlin)", in the user's zone. */

@@ -5,7 +5,7 @@
 //
 // I1 starts the agents' turns (held). I2 starts and stops at once (a crash before any wake). I3 runs the
 // wakes and the actions in the grace time (delete, Cancel, a new message). I4 and I5 interrupt a wake
-// twice (one more try, then no more). I5-I8: /autoresume off and on, a stale turn, a signed-out provider.
+// twice (one more try, then no more). I5-I8: /autoresume off and on, a turn after a long downtime, a signed-out provider.
 // `bun scripts/restart-resume-e2e.ts`. Writes .openbot-build/restart-resume-e2e/report.json.
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -933,11 +933,20 @@ try {
   const i7 = await start("I7", { OPENBOT_FORK_RESTART_RESUME_GRACE_MS: "800" });
   current = i7;
   await sleep(800 + STAGGER_MS * 2);
-  await runCase("R: a turn interrupted more than 2 h ago is stale", "2", (details) => {
+  await runCase("R: a turn interrupted more than 2 h ago still resumes, with the time check", "2", async (details) => {
+    const wakes =
+      (await waitFor(() => {
+        const found = wakeTurnsFor(stale.request);
+        return found.length > 0 ? found : null;
+      })) ?? [];
     details.entry = `${entry(stale)?.state}:${entry(stale)?.reason}`;
-    details.wakes = wakeTurnsFor(stale.request).length;
-    if (entry(stale)?.reason !== "stale") return "The stale turn was not skipped.";
-    if (wakeTurnsFor(stale.request).length !== 0) return "The stale turn got a wake.";
+    details.wakes = wakes.length;
+    const down = JSON.stringify("OpenBot was down for about 3 hours").slice(1, -1);
+    const check = JSON.stringify("check that it still makes sense now").slice(1, -1);
+    details.saysDowntime = wakes.some((wake) => wake.text?.includes(down));
+    if (wakes.length !== 1) return `The long-down turn got ${wakes.length} wakes, not 1.`;
+    if (!details.saysDowntime) return "The wake does not say how long OpenBot was down.";
+    if (!wakes[0]?.text?.includes(check)) return "The wake does not ask to check time-sensitive steps.";
     return null;
   });
   const notReady = await createAgent(i7, "Not ready", "HOLD7 NotReady: the provider signs out.");
