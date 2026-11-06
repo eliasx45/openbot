@@ -4,7 +4,7 @@ import { AgentFolderDropOverlay, createAgentFolders } from "@openbot/ui/features
 import { MessageSelectionActions } from "@openbot/ui/features/conversation/SelectionActions";
 import { useText } from "@openbot/ui/text";
 import { createEffect, Show } from "solid-js";
-import { currentDevicePlatform } from "../../send-shortcut-preference";
+import { deviceQuoteShortcut } from "../../send-shortcut-preference";
 import { agentFolderCalls } from "./agent-folders-port";
 import { ConversationComposer } from "./ConversationComposer";
 import { ConversationHeader } from "./ConversationHeader";
@@ -116,7 +116,7 @@ export function ConversationView(props: ConversationProps) {
           onSend={sendSelectionInstruction}
           onQuote={quoteSelection}
           onQueueNote={queueSelectionNote}
-          quoteShortcut={(props.platform ?? currentDevicePlatform()) === "darwin" ? "meta" : "ctrl"}
+          quoteShortcut={deviceQuoteShortcut(props.platform)}
         />
         <Show when={dropActive()}>
           <Show

@@ -23,6 +23,8 @@ const FILE_TEXT_SELECTOR = "[data-selection-file-quote]";
  * chips, code spans and citations are message text: their visible text is part of the selection.
  */
 const EDITABLE_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
+/** A view with its own selection actions, such as a side thread. The actions around it leave its text alone. */
+const SCOPE_SELECTOR = "[data-selection-scope]";
 const HIGHLIGHT_NAME = "openbot-message-selection";
 const VIEWPORT_MARGIN = 12;
 const TOOLBAR_GAP = 8;
@@ -104,6 +106,8 @@ export function MessageSelectionActions(props: {
    */
   onQueueNote?: ((messageId: string, text: string, note: string) => boolean) | undefined;
   quoteShortcut?: QuoteShortcutModifier;
+  /** The `data-selection-scope` element whose text these actions take. Without it, they take the text outside each scope. */
+  scope?: HTMLElement | undefined;
 }) {
   const [selection, setSelection] = createSignal<MessageTextSelection | null>(null);
   const [fallbackHighlight, setFallbackHighlight] = createSignal(false);
@@ -113,6 +117,8 @@ export function MessageSelectionActions(props: {
   let lastContextKey: string | undefined;
 
   const clearSelection = () => {
+    // The highlight has one name for all actions, so only the actions that hold a selection clear it.
+    if (!selection()) return;
     setSelection(null);
     clearPersistentHighlight();
   };
@@ -138,7 +144,7 @@ export function MessageSelectionActions(props: {
       return;
     }
     const next = messageTextSelection(window.getSelection());
-    if (!next) {
+    if (!next || selectionScope(next.range.startContainer) !== (props.scope ?? null)) {
       clearSelection();
       return;
     }
@@ -165,7 +171,8 @@ export function MessageSelectionActions(props: {
   createEffect(
     () => selection(),
     (active) => {
-      clearPersistentHighlight();
+      // The cleanup clears the highlight of the previous selection. Without a selection, the highlight
+      // can be of other actions, such as those of a side thread, so it stays.
       if (!active) {
         setFallbackHighlight(false);
         return;
@@ -209,7 +216,7 @@ export function MessageSelectionActions(props: {
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("keydown", onKeyDown);
-      clearPersistentHighlight();
+      if (selection()) clearPersistentHighlight();
     };
   });
 
@@ -660,6 +667,11 @@ const QUOTE_ACTION_WIDTH = 84;
 function isQuoteShortcut(event: KeyboardEvent, modifier: QuoteShortcutModifier): boolean {
   const modifierDown = modifier === "meta" ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
   return modifierDown && event.shiftKey && !event.altKey && event.code === "Period";
+}
+
+function selectionScope(node: Node): HTMLElement | null {
+  const element = node instanceof HTMLElement ? node : node.parentElement;
+  return element?.closest<HTMLElement>(SCOPE_SELECTOR) ?? null;
 }
 
 function messageTextBlock(node: Node): HTMLElement | null {

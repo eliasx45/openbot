@@ -54,6 +54,7 @@ import {
   routineInstructionZodSchema,
   routineLimitPolicyZodSchema,
   routineMissedPolicyZodSchema,
+  routineRunPlaceZodSchema,
   routineScheduleZodSchema,
   webhookEventTypeZodSchema,
   webhookFiltersZodSchema,
@@ -502,6 +503,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
       timezone: z.string().min(1).max(128).describe("IANA timezone such as Europe/Warsaw.").optional(),
       limitPolicy: routineLimitPolicyZodSchema.optional(),
       missedPolicy: routineMissedPolicyZodSchema.optional(),
+      runIn: routineRunPlaceZodSchema.optional(),
     },
   },
   {
@@ -522,6 +524,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
       filters: webhookFiltersZodSchema.optional(),
       active: z.boolean().optional(),
       limitPolicy: routineLimitPolicyZodSchema.optional(),
+      runIn: routineRunPlaceZodSchema.optional(),
     },
   },
   {
@@ -537,6 +540,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
       filters: webhookFiltersZodSchema.optional(),
       active: z.boolean().optional(),
       limitPolicy: routineLimitPolicyZodSchema.optional(),
+      runIn: routineRunPlaceZodSchema.optional(),
     },
   },
   {
@@ -554,6 +558,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
       active: z.boolean().optional(),
       limitPolicy: routineLimitPolicyZodSchema.optional(),
       missedPolicy: routineMissedPolicyZodSchema.optional(),
+      runIn: routineRunPlaceZodSchema.optional(),
     },
   },
   {
@@ -656,7 +661,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
   {
     name: "ask_user",
     description:
-      "Ask the user 1–3 short questions and wait for structured answers. Use this instead of asking questions in a normal assistant message whenever clarification or a choice is needed.",
+      "Ask the user 1–3 short questions and wait for structured answers. Use it, not a question in a normal message, when you need a clarification or a choice.",
     shape: {
       questions: z
         .array(
@@ -664,11 +669,12 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
             id: z.string().max(INPUT_LIMITS.identifier).optional(),
             header: z.string().max(INPUT_LIMITS.promptHeader).optional(),
             question: z.string().min(1).max(INPUT_LIMITS.promptQuestion),
+            detail: z.string().max(INPUT_LIMITS.promptQuestion).optional(),
             isSecret: z
               .boolean()
               .optional()
               .describe(
-                "Masks a private answer, such as a one-time code. Never use it for an API key or a token: use request_api_key, which keeps the key out of your context.",
+                "Masks a private answer, such as a one-time code. Not for an API key or a token: use request_api_key.",
               ),
             options: z
               .array(
@@ -691,7 +697,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
       "Before a long task, show the user a short acknowledgement and your plan in one card, and wait for the answer.",
       "Call it first, before other tools, when the work takes more than about a minute: a fix, a build, research, or a change in many files.",
       "Do not call it for a quick answer, a question, a small change, a routine run, or work that the user already approved in this chat.",
-      "The card has your start button, an optional alternative and a cancel button. When nobody answers in 10 s, OpenBot presses start.",
+      "The card has your start button, an optional alternative and a cancel button. It can start by itself after a wait the user set.",
       'The result is JSON {"status":"answered","actionId":…}: "start" means do the plan; "alternative" means do only the alternative; "cancel" means do not start and ask in one sentence what the user wants;',
       '"_text" with "text" means follow the user\'s words. {"status":"skipped"} or {"status":"expired"} means do not start; answer briefly.',
       "Write in the user's language. It works only when the user turned it on in your settings, and not in an external chat. In a channel, each member who reads the channel sees it.",

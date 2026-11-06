@@ -523,6 +523,16 @@ export function ConversationTimeline() {
     },
   );
   const webhookRoutines = createChatWebhookRoutines(webhookRoutineSource);
+  /**
+   * Opens the side thread of a routine's runs. A routine that now runs in the chat has no link, also when
+   * an earlier run made a thread: its new runs are not there. A remote host does not send the place.
+   */
+  const openRoutineThread = (routineId: string) => {
+    const routine =
+      props.routines?.find((candidate) => candidate.id === routineId) ??
+      webhookRoutines.state.routines.find((candidate) => candidate.id === routineId);
+    return routine?.runIn === "chat" ? undefined : props.threads?.routineThread(routineId);
+  };
   // The plain marker of a webhook routine opens it too: the host lists those routines on their own.
   const availableRoutineIds = createMemo(() =>
     props.availableRoutineIds
@@ -828,6 +838,17 @@ export function ConversationTimeline() {
                   const current = message();
                   return current?.author === "agent" ? current.senderAgentId : undefined;
                 };
+                // A bare file name can be a file that the same turn attached, from a subfolder or a tool
+                // that reports no path. It opens when the workspace has no such file (#5189).
+                const turnAttachment = (path: string) => {
+                  const turnId = message()?.turnId;
+                  if (!turnId || /[/\\]/u.test(path)) return undefined;
+                  const matches = timelineMessages()
+                    .filter((candidate) => candidate.turnId === turnId)
+                    .flatMap((candidate) => candidate.attachments ?? [])
+                    .filter((attachment) => attachment.name === path);
+                  return matches.length === 1 ? matches[0] : undefined;
+                };
                 // A row the host has not drawn yet has no reactions, replies or menu: its id is not the
                 // host's, even after the host answered.
                 const hostless = createMemo(() => message()?.id.startsWith(PENDING_SEND_ID_PREFIX) === true);
@@ -930,7 +951,7 @@ export function ConversationTimeline() {
                                                 )}
                                                 onSelectAgent={props.onSelectAgent}
                                                 onOpenRoutine={openRoutineSettings}
-                                                openRoutineThread={props.threads?.routineThread}
+                                                openRoutineThread={openRoutineThread}
                                                 onOpenHostedSite={(url) => void openExternalMessageUrl(url)}
                                                 onToggleRoutineRun={toggleRoutineRun}
                                                 onToggleAgentMessage={toggleAgentMessage}
@@ -1352,7 +1373,8 @@ export function ConversationTimeline() {
                             onOpenSharedFile={openSharedFile}
                             onOpenWorkspaceFile={
                               workspaceAgentId()
-                                ? (path) => openWorkspaceFile(path, undefined, workspaceAgentId())
+                                ? (path) =>
+                                    openWorkspaceFile(path, undefined, workspaceAgentId(), "tab", turnAttachment(path))
                                 : undefined
                             }
                             onOpenQuote={openQuote}

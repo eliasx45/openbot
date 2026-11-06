@@ -50,6 +50,9 @@
 :root[data-openbot-window-glass] .sidebar:not(.sidebar-compact) .sidebar-folder > header {
   position: static;
   background: transparent;
+  /* Upstream PR 5161 (`window-glass.css`) blurs the stuck header; in the transparent macOS window a
+   * backdrop filter here left old frames on screen (FEATURES.md entry 17). */
+  backdrop-filter: none;
 }
 
 /* As specific as the rule above, and after it, so a drop target keeps its tint. */
