@@ -133,37 +133,6 @@
   transform-origin: var(--kb-tooltip-content-transform-origin);
 }
 
-/* Usage rings: the provider logo inside one ring per limit window. The hover fill is a circle around
- * the rings. */
-.window-rail-button.window-rail-usage {
-  border-radius: var(--openbot-radius-pill);
-}
-
-.window-rail-button .window-rail-usage-ring {
-  position: absolute;
-  inset: 1px;
-  width: 34px;
-  height: 34px;
-  transform: rotate(-90deg);
-}
-
-.window-rail-usage-track {
-  stroke: currentcolor;
-  opacity: 0.15;
-}
-
-.window-rail-usage-arc {
-  stroke: var(--openbot-success);
-}
-
-.window-rail-usage-arc[data-usage-tone="warning"] {
-  stroke: var(--openbot-warning);
-}
-
-.window-rail-usage-arc[data-usage-tone="critical"] {
-  stroke: var(--openbot-danger);
-}
-
 .window-rail-agent-usage {
   display: grid;
   padding-inline: var(--openbot-space-1);
@@ -231,12 +200,6 @@
   > [role="menuitem"]
   > .agent-context-icon {
   color: var(--openbot-text-primary);
-}
-
-/* Fork: the one usage button shows a general gauge, not a provider logo, inside the rings. */
-.window-rail-button .window-rail-usage-icon {
-  width: var(--openbot-icon-sm);
-  height: var(--openbot-icon-sm);
 }
 
 /* Fork: its hover card shows the accounts side by side, one column each, then the custom agents. */

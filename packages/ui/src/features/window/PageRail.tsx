@@ -60,9 +60,6 @@ function RailButton(props: {
   );
 }
 
-/** Two tracks in a 34px box, with 4.5px between their centers. */
-const RING = { size: 34, stroke: 2.25, spacing: 4.5 };
-
 /** The answer of one custom agent to its usage prompt. OpenBot cannot read a percent from it. */
 export interface CustomAgentUsageRailRow {
   id: string;
@@ -72,9 +69,8 @@ export interface CustomAgentUsageRailRow {
 
 /**
  * Fork: one usage button for all providers, not one ring per provider (Elias, 6 Nov 2026: the stack
- * of rings was distracting). The button shows a gauge inside the rings of the provider with the least
- * left, one ring per limit window, the outer ring the longest window. The hover card shows every
- * provider side by side with its limits and reset times, then the answer of each custom agent.
+ * of rings was distracting). The button is a plain gauge icon with no rings. The hover card shows
+ * every provider side by side with its limits and reset times, then the answer of each custom agent.
  */
 function UsageButton(props: {
   rows: readonly AccountUsageProviderRow[];
@@ -95,14 +91,6 @@ function UsageButton(props: {
         .join(", "),
     });
   };
-  const ringRow = () =>
-    props.rows.reduce<AccountUsageProviderRow | undefined>(
-      (lowest, row) =>
-        lowest === undefined || (row.remainingPercent ?? 100) < (lowest.remainingPercent ?? 100) ? row : lowest,
-      undefined,
-    );
-  const windows = () => [...(ringRow()?.ringWindows ?? [])].reverse().slice(0, 2);
-  const outerRadius = (RING.size - RING.stroke) / 2;
   return (
     <RailButton
       label={label()}
@@ -132,40 +120,9 @@ function UsageButton(props: {
           </For>
         </div>
       )}
-      class="window-rail-usage"
       onClick={props.onOpen}
     >
-      <Show when={windows().length > 0}>
-        <svg class="window-rail-usage-ring" viewBox={`0 0 ${RING.size} ${RING.size}`} fill="none" aria-hidden="true">
-          <For each={windows()} keyed={false}>
-            {(window, index) => (
-              <g>
-                <circle
-                  class="window-rail-usage-track"
-                  cx={RING.size / 2}
-                  cy={RING.size / 2}
-                  r={outerRadius - index * RING.spacing}
-                  stroke-width={RING.stroke}
-                />
-                <Show when={window().remainingPercent < 100}>
-                  <circle
-                    class="window-rail-usage-arc"
-                    data-usage-tone={window().tone}
-                    cx={RING.size / 2}
-                    cy={RING.size / 2}
-                    r={outerRadius - index * RING.spacing}
-                    stroke-width={RING.stroke}
-                    stroke-linecap="round"
-                    pathLength={100}
-                    stroke-dasharray={`${100 - window().remainingPercent} 100`}
-                  />
-                </Show>
-              </g>
-            )}
-          </For>
-        </svg>
-      </Show>
-      <Gauge class="window-rail-usage-icon" aria-hidden="true" />
+      <Gauge aria-hidden="true" />
     </RailButton>
   );
 }
