@@ -20,6 +20,14 @@
  * started since; for an agent that is gone,
  * hidden, or has a new chat; when the provider session is gone or the provider is not ready in time.
  * A Stop or a turn that ended is not running, so it is never captured.
+ *
+ * Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): the same wake also runs while OpenBot
+ * runs, when a Claude process ends with background subagents still working (a crash, or a close for a
+ * settings, account or tool change). `captureStopped` notes it at once (`trigger` "process"). Then the
+ * same wait, skips and wake follow, with these extra rules: the wake runs only in the provider session
+ * the subagents ran in (`SendMessage` finds them only there); a new message in the chat since the stop,
+ * a session that changed, or more than `LIVE_WAKES_PER_HOUR` wakes of the agent in an hour gives a
+ * line that says the subagent was not continued, so the user knows.
  */
 
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -30,6 +38,12 @@ import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 
 export const FORK_RESTART_RESUME_ROUTINE_ID = "fork-restart-resume";
+/**
+ * Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): a client's notification that background
+ * subagents of a session stopped because its process ended while OpenBot ran. `cause` is "closed"
+ * (OpenBot closed the process) or "crashed" (the process ended by itself).
+ */
+export const FORK_BACKGROUND_STOPPED_METHOD = "openbot/fork-background-stopped";
 /**
  * A turn interrupted longer ago than this still gets its wake (the user wants every agent to go on),
  * but the wake says how long the app was down and to check time-sensitive steps before doing them late.
@@ -56,6 +70,9 @@ const SETTLE_WAIT_MS = () => envNumber("OPENBOT_FORK_RESTART_RESUME_SETTLE_WAIT_
 const RETRY_MS = 3_000;
 const KEEP_MS = 24 * 60 * 60_000;
 const REQUEST_LIMIT = 4_000;
+/** At most this many wakes for stopped subagents per agent per hour, so a crash loop ends. */
+const LIVE_WAKES_PER_HOUR = 3;
+const HOUR_MS = 60 * 60_000;
 
 export type RestartResumeKind = "turn" | "subagents" | "goal";
 type RestartResumeState = "pending" | "queued" | "skipped" | "cancelled";
@@ -90,6 +107,12 @@ export interface RestartResumeEntry {
   reason: string | null;
   waitId: string | null;
   deliveryId: string | null;
+  /** "process": the subagents stopped while OpenBot ran. Absent for a note of a restart. */
+  trigger?: "restart" | "process";
+  /** For "process": whether OpenBot closed the process or it crashed. */
+  cause?: "closed" | "crashed";
+  /** For "process": the provider session the subagents ran in. The wake runs only there. */
+  externalSessionId?: string;
 }
 
 interface SavedState {
@@ -148,8 +171,8 @@ export class ForkRestartResume {
   /** Per entry key: when it may be tried next, and when it was first tried. */
   readonly #notBefore = new Map<string, number>();
   readonly #firstTry = new Map<string, { settle: number | null; provider: number | null }>();
-  /** Agents in whose own chat another turn started since this run began. */
-  readonly #tookOver = new Set<string>();
+  /** When a turn last started in each agent's own chat. A note older than that was taken over. */
+  readonly #turnStartedAt = new Map<string, number>();
 
   constructor(options: { databasePath: string; hooks: ForkRestartResumeHooks }) {
     this.#hooks = options.hooks;
@@ -345,12 +368,116 @@ export class ForkRestartResume {
 
   /** A turn started in an agent's own chat: a wake not queued yet is no longer wanted. */
   turnStarted(agentId: string, threadId: string): void {
-    if (
-      this.#state.entries.some(
-        (entry) => entry.state === "pending" && entry.agentId === agentId && entry.threadId === threadId,
-      )
-    )
-      this.#tookOver.add(agentId);
+    if (this.#hooks.agent(agentId)?.threadId === threadId) this.#turnStartedAt.set(agentId, Date.now());
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): a Claude process ended while OpenBot
+   * ran, and these background subagents of `turnId` stopped with it. Notes one wake for the agent's
+   * own chat, or writes the line that says why the subagents are not continued.
+   */
+  captureStopped(input: {
+    agentId: string;
+    threadId: string;
+    externalSessionId: string;
+    turnId: string | null;
+    cause: "closed" | "crashed";
+    subagents: ReadonlyArray<{ id: string; title: string; providerAgentId: string | null }>;
+  }): void {
+    // Before start, at boot or while OpenBot quits: the restart resume notes the subagents instead.
+    if (this.#startedAt === 0 || !this.#hooks.isRunning() || input.subagents.length === 0) return;
+    const agent = this.#hooks.agent(input.agentId);
+    // Channel, messaging and task threads have no wake; an agent being deleted needs none.
+    if (!agent || agent.threadId !== input.threadId) return;
+    const title = input.subagents.map((subagent) => subagent.title || "subagent").join("”, “");
+    if (!this.enabled()) {
+      this.#hooks.line(input.agentId, sourceText("status.agent.subagentResumeOff", { title }));
+      return;
+    }
+    const now = new Date();
+    const key = `subagents:${input.turnId ?? input.externalSessionId}`;
+    const earlier = this.#state.entries.find((entry) => entry.key === key);
+    const subagents = input.subagents.map((subagent) => ({
+      id: subagent.id,
+      title: subagent.title,
+      providerAgentId: subagent.providerAgentId,
+      background: true,
+    }));
+    // The same subagents stopped again before their wake ran: one wake for both.
+    if (earlier?.state === "pending") {
+      earlier.subagents = mergeSubagents(earlier.subagents, subagents);
+      this.#save();
+      return;
+    }
+    const request = input.turnId ? this.#hooks.deliveryOfTurn(input.turnId) : null;
+    const entry: RestartResumeEntry = {
+      key,
+      agentId: input.agentId,
+      threadId: input.threadId,
+      kind: "subagents",
+      turnId: input.turnId,
+      deliveryIds: [],
+      interruptedAt: now.toISOString(),
+      capturedAt: now.toISOString(),
+      requestText: (earlier?.requestText ?? request?.text ?? "").slice(0, REQUEST_LIMIT),
+      subagents: mergeSubagents(earlier?.subagents ?? [], subagents),
+      goal: this.#hooks.goalWorking(input.agentId),
+      // A wake that ran, and whose continued subagents stopped again: one try further.
+      attempt: earlier ? earlier.attempt + 1 : 1,
+      state: "pending",
+      reason: null,
+      waitId: null,
+      deliveryId: null,
+      trigger: "process",
+      cause: input.cause,
+      externalSessionId: input.externalSessionId,
+    };
+    const recent = this.#state.entries.filter(
+      (item) =>
+        item.trigger === "process" &&
+        item.agentId === input.agentId &&
+        item.state === "queued" &&
+        now.getTime() - Date.parse(item.capturedAt) < HOUR_MS,
+    ).length;
+    this.#state.entries = [...this.#state.entries.filter((item) => item.key !== key), entry];
+    if (entry.attempt > RESTART_RESUME_MAX_ATTEMPTS) {
+      this.#skipLive(entry, "retry limit: the continued subagents stopped again", "status.agent.subagentResumeLimit");
+    } else if (recent >= LIVE_WAKES_PER_HOUR) {
+      this.#skipLive(entry, "too many stops in an hour", "status.agent.subagentResumeLimit");
+    } else {
+      entry.waitId = this.#hooks.openWait({
+        agentId: entry.agentId,
+        requestId: entry.key,
+        requestText: entry.requestText || title,
+        note: sourceText("status.agent.subagentResumeWait"),
+      });
+      this.#notBefore.set(entry.key, now.getTime() + GRACE_MS());
+      this.#startPump();
+    }
+    this.#save();
+  }
+
+  /** A note of stopped subagents that is not woken: the user gets a line, so they know. */
+  #skipLive(
+    entry: RestartResumeEntry,
+    reason: string,
+    line:
+      | "status.agent.subagentResumeLimit"
+      | "status.agent.subagentResumeTookOver"
+      | "status.agent.subagentResumeSessionChanged"
+      | "status.agent.subagentResumeNotReady",
+    extra: { provider?: string } = {},
+  ): void {
+    this.#skip(entry, reason);
+    const title = entry.subagents.map((subagent) => subagent.title || "subagent").join("”, “");
+    const text =
+      line === "status.agent.subagentResumeLimit"
+        ? sourceText(line, { title, count: String(LIVE_WAKES_PER_HOUR) })
+        : line === "status.agent.subagentResumeNotReady"
+          ? sourceText(line, { title, provider: extra.provider ?? "the provider" })
+          : sourceText(line, { title });
+    // An agent that is gone has no chat to write in.
+    if (this.#hooks.agent(entry.agentId)) this.#hooks.line(entry.agentId, text);
   }
 
   /** Whether this wait is a wake that waits for its turn; a routine run does not wake it. */
@@ -407,18 +534,30 @@ export class ForkRestartResume {
       this.#log(entry);
       return "skipped";
     }
+    const live = entry.trigger === "process";
+    const tookOver = (reason: string) => {
+      if (!live) return skip(reason);
+      this.#skipLive(entry, reason, "status.agent.subagentResumeTookOver");
+      return "skipped" as const;
+    };
     if (agent.threadId !== entry.threadId) return skip("a new chat replaced the interrupted one");
-    if (this.#tookOver.has(entry.agentId)) return skip("another turn started since the restart");
+    if ((this.#turnStartedAt.get(entry.agentId) ?? 0) >= Date.parse(entry.capturedAt))
+      return tookOver(live ? "another turn started since the stop" : "another turn started since the restart");
     if (entry.kind === "goal" && !this.#hooks.goalWorking(entry.agentId)) return skip("the goal no longer runs");
-    if (this.#hooks.laneQueued(entry.agentId) > 0) return skip("a queued message runs instead");
+    if (this.#hooks.laneQueued(entry.agentId) > 0) return tookOver("a queued message runs instead");
     const tries = this.#firstTry.get(entry.key) ?? { settle: null, provider: null };
     this.#firstTry.set(entry.key, tries);
     // A provider that is not ready, or signed out, gets some time; then one quiet line, no loop.
     if (!this.#hooks.providerReady(entry.agentId)) {
       tries.provider ??= now;
-      return now - tries.provider > PROVIDER_WAIT_MS()
-        ? skip("provider not ready", sourceText("status.agent.restartResumeNotReady", { provider: agent.provider }))
-        : "later";
+      if (now - tries.provider <= PROVIDER_WAIT_MS()) return "later";
+      if (!live)
+        return skip(
+          "provider not ready",
+          sourceText("status.agent.restartResumeNotReady", { provider: agent.provider }),
+        );
+      this.#skipLive(entry, "provider not ready", "status.agent.subagentResumeNotReady", { provider: agent.provider });
+      return "skipped";
     }
     // Boot recovery settles the interrupted deliveries once the provider is ready.
     const statuses = entry.deliveryIds.map((id) => this.#hooks.delivery(id)?.status ?? "missing");
@@ -428,8 +567,14 @@ export class ForkRestartResume {
     }
     if (entry.kind === "turn" && statuses.length > 0 && statuses.every((status) => status === "completed"))
       return skip("the interrupted turn had completed");
-    if (this.#hooks.laneBusy(entry.agentId)) return skip("another turn runs");
+    if (this.#hooks.laneBusy(entry.agentId)) return tookOver("another turn runs");
     const session = this.#hooks.session(entry.agentId, entry.threadId);
+    // `SendMessage` finds a subagent only in the session it ran in: a context reset, an account or
+    // provider change gives the chat a new one.
+    if (live && session?.externalSessionId !== entry.externalSessionId) {
+      this.#skipLive(entry, "the provider session changed", "status.agent.subagentResumeSessionChanged");
+      return "skipped";
+    }
     if (!session) return skip("provider session gone", sourceText("status.agent.restartResumeSessionGone"));
     let subagents = entry.subagents;
     if (agent.provider === "claude" && subagents.some((subagent) => !subagent.providerAgentId)) {
@@ -448,7 +593,7 @@ export class ForkRestartResume {
       return "skipped";
     }
     if (this.#hooks.laneBusy(entry.agentId) || this.#hooks.laneQueued(entry.agentId) > 0)
-      return skip("another turn runs");
+      return tookOver("another turn runs");
     if (entry.waitId) this.#hooks.closeWait(entry.agentId, entry.waitId);
     entry.waitId = null;
     // Saved once the delivery exists (`#tick`): a stop before that leaves the note pending, and the
@@ -458,9 +603,10 @@ export class ForkRestartResume {
     entry.deliveryId = await this.#hooks.enqueue({
       agentId: entry.agentId,
       runId: runIdOf(entry),
-      title: restartResumeTitle(entry.attempt),
+      title: restartResumeTitle(entry.attempt, entry.trigger),
       text: restartResumeText({
         kind: entry.kind,
+        ...(live ? { trigger: "process" as const, cause: entry.cause ?? "closed" } : {}),
         interruptedAt: entry.interruptedAt,
         timezone: this.#hooks.timezone(),
         attempt: entry.attempt,
@@ -506,14 +652,24 @@ export class ForkRestartResume {
 }
 
 /** The routine name of the wake, which the chat shows as its line. Within the contract's 80 characters. */
-export function restartResumeTitle(attempt: number): string {
-  const title = attempt > 1 ? "🔄 Resumed after restart (second try)" : "🔄 Resumed after restart";
+export function restartResumeTitle(attempt: number, trigger?: "restart" | "process"): string {
+  const title =
+    trigger === "process"
+      ? attempt > 1
+        ? "🔄 Stopped subagent continues (second try)"
+        : "🔄 Stopped subagent continues"
+      : attempt > 1
+        ? "🔄 Resumed after restart (second try)"
+        : "🔄 Resumed after restart";
   return title.slice(0, INPUT_LIMITS.routineName);
 }
 
 /** The whole prompt of the wake. */
 export function restartResumeText(input: {
   kind: RestartResumeKind;
+  /** "process": the subagents stopped while OpenBot ran, because their Claude process ended. */
+  trigger?: "restart" | "process";
+  cause?: "closed" | "crashed";
   interruptedAt: string;
   timezone: string | undefined;
   attempt: number;
@@ -528,8 +684,10 @@ export function restartResumeText(input: {
     downMs > RESTART_RESUME_LONG_DOWNTIME_MS
       ? `OpenBot was down for about ${downtimeText(downMs)}; it is now ${localTime(input.now ?? "", input.timezone)}. Go on with your work, but before any step that depends on time (a send or post planned for a certain time, a deadline, "today", "tonight", a live event), check that it still makes sense now. If it doesn't, skip that step and tell the user why instead of doing it late.`
       : null;
-  const what =
-    input.kind === "subagents"
+  const process = input.trigger === "process";
+  const what = process
+    ? `Your background subagents were stopped at ${at}: their Claude process ${input.cause === "crashed" ? "crashed" : "was closed by OpenBot (a settings, account or tool change)"} while OpenBot kept running — this is not a message from the user.`
+    : input.kind === "subagents"
       ? `Your background subagents were stopped at ${at} by an OpenBot restart while you waited for them — this is not a message from the user.`
       : input.kind === "goal"
         ? `Your goal turns were stopped at ${at} by an OpenBot restart, between two turns — this is not a message from the user.`
@@ -538,7 +696,9 @@ export function restartResumeText(input: {
   return [
     `[OpenBot: 🔄 restart] ${what}`,
     input.attempt > 1
-      ? "Your first resume after the restart was interrupted by another restart. This is the last automatic try."
+      ? process
+        ? "The subagents you continued after the first stop stopped again. This is the last automatic try."
+        : "Your first resume after the restart was interrupted by another restart. This is the last automatic try."
       : null,
     longDowntime,
     subagents.length > 0
@@ -551,9 +711,11 @@ export function restartResumeText(input: {
       : null,
     "Before you redo anything, check what already happened (files, git, messages already sent). Never repeat sends, posts, payments or other outward actions.",
     subagents.length > 0
-      ? `For each stopped subagent, continue it with SendMessage to its agent ID ("You were interrupted by a restart; check what's done and continue") — do NOT launch it again from scratch.`
+      ? `For each stopped subagent, continue it with SendMessage to its agent ID ("You were interrupted by ${process ? "a process stop" : "a restart"}; check what's done and continue") — do NOT launch it again from scratch.`
       : null,
-    "Then continue your work. This is the same chat and session: you know what you did before the restart.",
+    process
+      ? "Then tell the user in one line that you continued it, and end your turn: its result comes back to you as before."
+      : "Then continue your work. This is the same chat and session: you know what you did before the restart.",
     input.requestText ? "The request it continues:" : null,
     input.requestText || null,
   ]

@@ -316,6 +316,20 @@ export function endSubagentTurn(state: SubagentState, turnId: string, now: strin
   return changed ? update : null;
 }
 
+/**
+ * Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): the background subagents that still
+ * run, with their turn, read before the process ends so the agent can be told to continue them.
+ */
+export function runningBackgroundSubagents(
+  state: SubagentState,
+): Array<{ turnId: string; subagent: ConversationSubagent }> {
+  return [...state.turns].flatMap(([turnId, turn]) =>
+    turn.subagents
+      .filter((subagent) => subagent.background && subagent.status === "running")
+      .map((subagent) => ({ turnId, subagent: { ...subagent } })),
+  );
+}
+
 /** The process ended, and each subagent that still ran ended with it. */
 export function stopSubagents(state: SubagentState, now: string): SubagentChange[] {
   return [...state.turns].flatMap(([turnId, turn]) => {

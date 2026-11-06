@@ -117,4 +117,17 @@ export const messages = defineMessages("status.agent", {
   "status.agent.restartResumeSessionGone":
     "🔄 Not resumed after the restart: the provider session is gone. Send a message to go on.",
   "status.agent.restartResumeFailed": "🔄 Not resumed after the restart: the wake could not be queued.",
+  // Fork: a background subagent stopped while OpenBot ran (docs/fork/FEATURES.md, "Stopped subagents continue").
+  "status.agent.subagentResumeWait":
+    "🔄 A background subagent stopped when its Claude process ended. The agent continues it in a few seconds. Cancel keeps it stopped.",
+  "status.agent.subagentResumeTookOver":
+    "⏹ Background subagent “{title}” stopped when its Claude process ended. It was not continued, because a new message came first. Write “continue the subagent” to continue it.",
+  "status.agent.subagentResumeSessionChanged":
+    "⏹ Background subagent “{title}” stopped when its Claude process ended. It cannot be continued: the chat now has a new provider session. Start it again if you need it.",
+  "status.agent.subagentResumeLimit":
+    "⏹ Background subagent “{title}” stopped when its Claude process ended. It was not continued: subagents of this agent stopped {count} times in the last hour. Write “continue the subagent” to continue it.",
+  "status.agent.subagentResumeNotReady":
+    "⏹ Background subagent “{title}” stopped when its Claude process ended. It was not continued: {provider} did not start again in time. Write “continue the subagent” to continue it.",
+  "status.agent.subagentResumeOff":
+    "⏹ Background subagent “{title}” stopped when its Claude process ended. It was not continued, because /autoresume is off.",
 });

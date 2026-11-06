@@ -51,6 +51,7 @@ import {
   foldClaudeSubagentResult,
   foldClaudeTaskMessage,
   newSubagentState,
+  runningBackgroundSubagents,
   SUBAGENTS_UPDATED_METHOD,
   type SubagentChange,
   type SubagentState,
@@ -99,6 +100,7 @@ import {
 import { runCauseEffect } from "./effect-boundary";
 // Fork: the session's commands for the `$` list.
 import { type ClaudeCommandRow, claudeCommandsForList, isClaudeCommandRow } from "./fork-agent-skills";
+import { FORK_BACKGROUND_STOPPED_METHOD } from "./fork-restart-resume";
 import { IdleThreadPool } from "./idle-thread-pool";
 import {
   agentMcpServers,
@@ -550,8 +552,7 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
     runtime.query.close();
     yield* removeClaudeMcpConfig(runtime.mcpConfigFile);
     // A background subagent ends with the process (#1870).
-    for (const change of stopSubagents(runtime.subagents, new Date().toISOString()))
-      this.#emitSubagents(runtime, change);
+    this.#stopSubagentsOf(runtime, "closed");
     // The consumer rejects when the query ends in the middle of a turn. The runtime is already gone
     // from the map, so there is nothing left to report it against.
     if (runtime.consume) yield* Fiber.join(runtime.consume).pipe(Effect.ignore);
@@ -1356,8 +1357,39 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
 
   #fail(error: Error): void {
     if (!this.#running) return;
+    // Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): the client ends with its processes,
+    // and their background subagents with them. Before, they showed "running" until a restart.
+    for (const id of [...this.#threads.ids()]) {
+      const runtime = this.#threads.get(id);
+      if (runtime) this.#stopSubagentsOf(runtime, "crashed");
+    }
     this.#running = false;
     this.emit("exit", error);
+  }
+
+  /**
+   * Ends the subagents of a process that ends. Fork (docs/fork/FEATURES.md, "Stopped subagents
+   * continue"): while the client runs, the background ones that still worked are reported, so the
+   * agent can continue them. `stop` (OpenBot quits) does not come here: the restart resume does that.
+   */
+  #stopSubagentsOf(runtime: ThreadRuntime, cause: "closed" | "crashed"): void {
+    const background = this.#running ? runningBackgroundSubagents(runtime.subagents) : [];
+    for (const change of stopSubagents(runtime.subagents, new Date().toISOString()))
+      this.#emitSubagents(runtime, change);
+    if (background.length === 0) return;
+    this.emit("notification", {
+      method: FORK_BACKGROUND_STOPPED_METHOD,
+      params: {
+        threadId: runtime.id,
+        cause,
+        turnId: background[0]?.turnId ?? null,
+        subagents: background.map(({ subagent }) => ({
+          id: subagent.id,
+          title: subagent.title,
+          providerAgentId: subagent.providerAgentId ?? null,
+        })),
+      },
+    });
   }
 
   readonly #handleMessage = Effect.fn("ClaudeAgentClient.handleMessage")(function* (

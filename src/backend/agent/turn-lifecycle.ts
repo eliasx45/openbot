@@ -30,6 +30,7 @@ import type { BrowserDynamicToolHooks } from "../browser-tool-actions";
 import { newAssistantMessage, normalizeCompletionStatus } from "../conversation-snapshots";
 import { causeHelpers, reportOriginalFailure } from "../effect-boundary";
 import { forkHub } from "../fork-hub";
+import { FORK_BACKGROUND_STOPPED_METHOD } from "../fork-restart-resume";
 import type { DeliveryContext, MailboxStore, UsageLimitContinuation } from "../mailbox-store";
 import {
   type AppServerNotification,
@@ -836,6 +837,32 @@ export class TurnLifecycle {
         const turnId = getString(params, "turnId");
         const subagents = subagentsFromNotification(params);
         if (turnId && subagents) this.#applySubagents(agentId, threadId, turnId, subagents);
+        return;
+      }
+      // Fork (docs/fork/FEATURES.md, "Stopped subagents continue").
+      case FORK_BACKGROUND_STOPPED_METHOD: {
+        if (!threadId || !agentId || !isRecord(params) || !Array.isArray(params.subagents)) return;
+        const cause = params.cause === "crashed" ? "crashed" : "closed";
+        const subagents = params.subagents.filter(isRecord).flatMap((subagent) => {
+          const id = getString(subagent, "id");
+          return id
+            ? [
+                {
+                  id,
+                  title: getString(subagent, "title") ?? "",
+                  providerAgentId: getString(subagent, "providerAgentId"),
+                },
+              ]
+            : [];
+        });
+        forkHub.restartResume?.captureStopped({
+          agentId,
+          threadId: this.#conversation.publicThreadId(agentId, threadId),
+          externalSessionId: threadId,
+          turnId: getString(params, "turnId"),
+          cause,
+          subagents,
+        });
         return;
       }
       case "turn/completed": {
