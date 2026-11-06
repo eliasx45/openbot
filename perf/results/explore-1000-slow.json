@@ -1,0 +1,367 @@
+{
+  "label": "explore-1000-slow",
+  "mode": "single",
+  "createdAt": "2026-11-06T12:46:17.803Z",
+  "git": "01f1b907e",
+  "gitDirty": false,
+  "before": null,
+  "node": "v24.19.0",
+  "sqlite": "3.53.3",
+  "machine": {
+    "cpu": "Apple M1 Max",
+    "cores": 10,
+    "memoryGb": 64
+  },
+  "baseline": {
+    "agents": 8,
+    "mainChatMessagesPerAgent": 400,
+    "sideThreadsPerAgent": 5,
+    "messagesPerSideThread": 40,
+    "memoriesPerAgent": 30,
+    "memoryCap": 512,
+    "routinesPerAgent": 2,
+    "runsPerRoutine": 30,
+    "attachmentEvery": 30,
+    "dataTables": 4,
+    "dataRowsPerTable": 250
+  },
+  "reps": 30,
+  "warmup": 3,
+  "scales": {
+    "1000": {
+      "plan": {
+        "scale": 1000,
+        "agents": 80,
+        "mainChatMessagesPerAgent": 40000,
+        "sideThreadsPerAgent": 50,
+        "messagesPerSideThread": 400,
+        "memoriesPerAgent": 512,
+        "routinesPerAgent": 20,
+        "runsPerRoutine": 300,
+        "dataRowsPerTable": 250000
+      },
+      "seedSeconds": null,
+      "openMs": 11.944749999998749,
+      "schemaVersion": 58,
+      "fileBytes": 15259164672,
+      "rowCounts": {
+        "schema_migrations": 51,
+        "orchestration_events": 4800001,
+        "orchestration_command_receipts": 4800001,
+        "projection_threads": 4080,
+        "projection_agents": 80,
+        "projection_agent_memories": 40960,
+        "projection_agent_routines": 1600,
+        "projection_routine_triggers": 1600,
+        "projection_routine_runs": 480000,
+        "projection_provider_sessions": 10435,
+        "projection_turns": 1921027,
+        "projection_thread_messages": 4800000,
+        "projection_thread_reads": 0,
+        "projection_thread_read_baselines": 0,
+        "projection_thread_activities": 4800000,
+        "projection_mailbox_messages": 0,
+        "projection_deliveries": 0,
+        "projection_queue_state": 0,
+        "projection_reactions": 0,
+        "projection_attachments": 35134,
+        "projection_thread_summaries": 0,
+        "projection_direct_threads": 0,
+        "projection_direct_messages": 0,
+        "projection_direct_reads": 0,
+        "file_deletion_outbox": 0,
+        "agent_usage_records": 0,
+        "agent_usage_checkpoints": 0,
+        "agent_usage_activity": 0,
+        "projection_channels": 0,
+        "projection_channel_messages": 0,
+        "projection_channel_tasks": 0,
+        "projection_channel_assignments": 0,
+        "projection_channel_contexts": 0,
+        "projection_channel_summaries": 0,
+        "projection_channel_reads": 0,
+        "projection_channel_memories": 0,
+        "projection_channel_routines": 0,
+        "projection_channel_routine_triggers": 0,
+        "projection_channel_routine_runs": 0,
+        "projection_mcp_servers": 0,
+        "projection_messaging_connections": 0,
+        "projection_messaging_threads": 0,
+        "provider_history_imports": 0,
+        "provider_history_turns": 0,
+        "provider_history_staging": 0,
+        "projection_routine_webhooks": 0,
+        "projection_channel_routine_webhooks": 0,
+        "projection_webhook_route_revocations": 0,
+        "projection_webhook_receipts": 0,
+        "routine_flow_links": 0,
+        "routine_flow_positions": 0,
+        "routine_flow_steps": 0,
+        "agent_memory_selections": 40960,
+        "agent_memory_search_data": 462,
+        "agent_memory_search_idx": 277,
+        "agent_memory_search_docsize": 40960,
+        "agent_memory_search_config": 1,
+        "agent_waits": 0,
+        "projection_messaging_memories": 0,
+        "routine_result_destinations": 0,
+        "routine_result_deliveries": 0,
+        "projection_messaging_allowed_roles": 0,
+        "browser_profiles": 0,
+        "workflows": 0,
+        "workflow_nodes": 0,
+        "workflow_edges": 0,
+        "workflow_versions": 0,
+        "workflow_triggers": 0,
+        "workflow_trigger_webhooks": 0,
+        "workflow_webhook_receipts": 0,
+        "workflow_runs": 0,
+        "workflow_steps": 0,
+        "workflow_output_deliveries": 0,
+        "projection_agent_threads": 4000,
+        "workflow_github_runs": 0,
+        "workflow_github_deliveries": 0,
+        "workflow_github_actions": 0,
+        "projection_messaging_allowed_senders": 0,
+        "projection_deleted_thread_messages": 0,
+        "browser_proxies": 0,
+        "browser_profile_proxies": 0,
+        "agent_usage_skill_loads": 0
+      },
+      "unindexedForeignKeys": [
+        {
+          "child": "projection_turns",
+          "columns": ["provider_session_id"],
+          "parent": "projection_provider_sessions",
+          "onDelete": "SET NULL",
+          "childRows": 1921027
+        },
+        {
+          "child": "projection_turns",
+          "columns": ["thread_id"],
+          "parent": "projection_threads",
+          "onDelete": "CASCADE",
+          "childRows": 1921027
+        },
+        {
+          "child": "projection_thread_activities",
+          "columns": ["thread_id"],
+          "parent": "projection_threads",
+          "onDelete": "CASCADE",
+          "childRows": 4800000
+        },
+        {
+          "child": "projection_deliveries",
+          "columns": ["message_id"],
+          "parent": "projection_mailbox_messages",
+          "onDelete": "CASCADE",
+          "childRows": 0
+        },
+        {
+          "child": "projection_thread_summaries",
+          "columns": ["thread_id"],
+          "parent": "projection_threads",
+          "onDelete": "CASCADE",
+          "childRows": 0
+        },
+        {
+          "child": "projection_channel_assignments",
+          "columns": ["task_id"],
+          "parent": "projection_channel_tasks",
+          "onDelete": "NO ACTION",
+          "childRows": 0
+        },
+        {
+          "child": "routine_result_destinations",
+          "columns": ["connection_id"],
+          "parent": "projection_messaging_connections",
+          "onDelete": "NO ACTION",
+          "childRows": 0
+        },
+        {
+          "child": "workflow_output_deliveries",
+          "columns": ["connection_id"],
+          "parent": "projection_messaging_connections",
+          "onDelete": "NO ACTION",
+          "childRows": 0
+        },
+        {
+          "child": "workflow_github_actions",
+          "columns": ["workflow_id"],
+          "parent": "workflows",
+          "onDelete": "CASCADE",
+          "childRows": 0
+        }
+      ],
+      "operations": {
+        "sidebar.unreadNeverRead": {
+          "area": "sidebar",
+          "description": "Unread badge of every agent chat, none ever read: worst case (listStates)",
+          "write": false,
+          "samplesMs": [
+            13647.681833, 10996.423292, 5565.542917, 15850.874333, 11652.215375, 11658.478958, 11476.32975,
+            15144.117041, 15434.375167, 14162.720125, 14127.125709, 8345.340334, 4232.579458, 3099.650625, 2673.191667,
+            1946.390542, 2355.616792, 3000.889416, 2865.062708, 3406.46125, 3238.171833, 3284.015666, 1843.283,
+            1834.895959, 1861.529041, 1894.201958, 1930.653417, 2072.341708, 1847.5015, 1911.9385
+          ],
+          "p50": 3261.0937495,
+          "p95": 15303.759010299998,
+          "mean": 6445.319995799999,
+          "statements": 8,
+          "plans": [
+            {
+              "sql": "SELECT through_message_id FROM projection_thread_reads WHERE thread_id = ? AND member_id = ?",
+              "plan": [
+                "SEARCH projection_thread_reads USING INDEX sqlite_autoindex_projection_thread_reads_1 (thread_id=? AND member_id=?)"
+              ],
+              "flagged": []
+            },
+            {
+              "sql": "SELECT through_message_id FROM projection_thread_read_baselines WHERE thread_id = ?",
+              "plan": [
+                "SEARCH projection_thread_read_baselines USING INDEX sqlite_autoindex_projection_thread_read_baselines_1 (thread_id=?)"
+              ],
+              "flagged": []
+            },
+            {
+              "sql": "SELECT last_sequence, result_json FROM orchestration_command_receipts WHERE command_id = ?",
+              "plan": [
+                "SEARCH orchestration_command_receipts USING INDEX sqlite_autoindex_orchestration_command_receipts_1 (command_id=?)"
+              ],
+              "flagged": []
+            },
+            {
+              "sql": "INSERT INTO orchestration_events ( event_id, command_id, aggregate_type, aggregate_id, event_type, occurred_at, payload_json ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+              "plan": [],
+              "flagged": []
+            },
+            {
+              "sql": "INSERT INTO projection_thread_reads ( thread_id, member_id, through_message_id, updated_at ) VALUES (?, ?, ?, ?) ON CONFLICT(thread_id, member_id) DO UPDATE SET through_message_id = excluded.through_message_id, updated_at = excluded.updated_at",
+              "plan": [],
+              "flagged": []
+            },
+            {
+              "sql": "SELECT 1 FROM orchestration_events WHERE command_id = ? LIMIT 1",
+              "plan": ["SEARCH orchestration_events USING COVERING INDEX orchestration_events_command (command_id=?)"],
+              "flagged": []
+            },
+            {
+              "sql": "INSERT INTO orchestration_command_receipts (command_id, accepted_at, first_sequence, last_sequence, result_json) VALUES (?, ?, ?, ?, ?)",
+              "plan": [],
+              "flagged": []
+            },
+            {
+              "sql": "WITH ordered AS ( SELECT created_at, ordinal, message_id, author, item_type, group_start, group_first, group_id, turn_rank FROM projection_thread_messages WHERE thread_id = ? ) SELECT message_id, COUNT(*) OVER () AS unread_count FROM ordered WHERE 1 = 1 AND author != 'user' AND COALESCE(item_type, '') != 'commentary' AND COALESCE(item_type, '') != 'plan' AND COALESCE(item_type, '') != 'subagents' AND COALESCE(item_type, '') != 'memory-changes' AND COALESCE(item_type, '') != 'plan-continuation' AND COALESCE(item_type, '') != 'instructions-change' AND COALESCE(item_type, '') != 'routine_quiet_answer' AND COALESCE(item_type, '') != 'agent_attachment' AND COALESCE(item_type, '') != 'agent-exchange' AND COALESCE(item_type, '') != 'context-reset' AND COALESCE(item_type, '') NOT LIKE 'visual-reply:%' AND COALESCE(item_type, '') NOT LIKE 'skill-event:%' AND COALESCE(item_type, '') NOT LIKE 'routine-event:%' AND COALESCE(item_type, '') NOT LIKE 'routine-run-event:%' AND COALESCE(item_type, '') NOT LIKE 'hosted-site-event:%' AND COALESCE(item_type, '') NOT LIKE 'marketplace-suggestion:%' AND COALESCE(item_type, '') NOT LIKE 'model-switch:%' ORDER BY group_start, group_first, group_id, turn_rank, created_at, ordinal, message_id LIMIT 1",
+              "plan": [
+                "CO-ROUTINE (subquery-3)",
+                "SEARCH projection_thread_messages USING COVERING INDEX thread_messages_shown_order (thread_id=?)",
+                "SCAN (subquery-3)",
+                "USE TEMP B-TREE FOR ORDER BY"
+              ],
+              "flagged": []
+            }
+          ]
+        },
+        "stats.sentMessages": {
+          "area": "chat",
+          "description": "Messages sent by the user (readSentMessageStats)",
+          "write": false,
+          "samplesMs": [
+            1096.538, 1442.308792, 18038.155792, 18844.988834, 9276.584125, 987.04325, 622.681417, 724.712167,
+            1084.665542, 918.885, 691.255625, 879.864, 791.82675, 717.435791, 1036.569875, 848.603708, 777.23575,
+            828.791166, 922.240125, 917.838834, 729.786875, 888.611417, 772.617875, 740.582375, 968.465875, 713.296583,
+            737.306833, 761.210291, 691.019583, 693.998708
+          ],
+          "p50": 838.697437,
+          "p95": 14095.448541849975,
+          "mean": 2304.8373652666673,
+          "statements": 1,
+          "plans": [
+            {
+              "sql": "SELECT MIN(created_at) AS first_sent_at, COUNT(*) AS sent_count FROM projection_thread_messages WHERE author = 'user' AND item_type IS NOT 'routine'",
+              "plan": ["SCAN projection_thread_messages USING COVERING INDEX thread_messages_shown_order"],
+              "flagged": ["SCAN projection_thread_messages USING COVERING INDEX thread_messages_shown_order"]
+            }
+          ]
+        },
+        "search.messagesAll": {
+          "area": "search",
+          "description": "Search all chats for a word",
+          "write": false,
+          "samplesMs": [
+            50460.250625, 8100.911875, 8009.560292, 7821.146417, 10787.267583, 33986.244458, 33353.360959, 31576.744792,
+            34715.228208, 34822.331708, 31449.492208, 32590.115417, 39012.449167, 36473.407, 35647.959125, 35071.477917,
+            32513.33075, 30250.665083, 31129.499, 29761.504916, 30938.44975, 30631.826958, 30529.448916, 33314.682041,
+            32917.797, 30606.498708, 35725.504917, 33425.218083, 33918.449875, 70708.858708
+          ],
+          "p50": 32753.9562085,
+          "p95": 45308.739968899965,
+          "mean": 31674.989415199998,
+          "statements": 1,
+          "plans": [
+            {
+              "sql": "WITH matches AS MATERIALIZED ( SELECT message.rowid AS message_rowid, thread.agent_id, message.created_at, message.ordinal, message.message_id FROM projection_thread_messages message JOIN projection_threads thread ON thread.thread_id = message.thread_id WHERE LOWER(json_extract(message.message_json, '$.text')) LIKE ? ESCAPE '\\' AND COALESCE(json_extract(message.message_json, '$.delivery.status'), '') NOT IN ('queued', 'cancelled') AND COALESCE(message.item_type, '') NOT IN ('commentary', 'routine_quiet_answer') AND COALESCE(message.item_type, '') NOT LIKE 'skill-event:%' AND COALESCE(message.item_type, '') NOT LIKE 'routine-event:%' AND COALESCE(message.item_type, '') NOT LIKE 'routine-run-event:%' AND COALESCE(message.item_type, '') NOT LIKE 'hosted-site-event:%' AND COALESCE(message.item_type, '') NOT LIKE 'marketplace-suggestion:%' AND json_extract(message.message_json, '$.routine') IS NULL AND message.thread_id NOT IN (SELECT thread_id FROM projection_channel_contexts) AND message.thread_id NOT IN (SELECT thread_id FROM projection_agent_threads) ) SELECT counted.count, page.agent_id, message.message_json, COALESCE(side.legacy_task_id, side.thread_id) AS task_id FROM (SELECT COUNT(*) AS count FROM matches) counted LEFT JOIN ( SELECT * FROM matches ORDER BY created_at DESC, ordinal DESC, message_id DESC LIMIT ? OFFSET ? ) page LEFT JOIN projection_thread_messages message ON message.rowid = page.message_rowid LEFT JOIN projection_agent_threads side ON side.thread_id = message.thread_id ORDER BY page.created_at DESC, page.ordinal DESC, page.message_id DESC",
+              "plan": [
+                "CO-ROUTINE counted",
+                "MATERIALIZE matches",
+                "SCAN message",
+                "USING INDEX sqlite_autoindex_projection_channel_contexts_1 FOR IN-OPERATOR",
+                "USING INDEX sqlite_autoindex_projection_agent_threads_1 FOR IN-OPERATOR",
+                "SEARCH thread USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)",
+                "SCAN matches",
+                "MATERIALIZE page",
+                "SCAN matches",
+                "USE TEMP B-TREE FOR ORDER BY",
+                "SCAN counted",
+                "SCAN page LEFT-JOIN",
+                "SEARCH message USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN",
+                "SEARCH side USING INDEX sqlite_autoindex_projection_agent_threads_1 (thread_id=?) LEFT-JOIN",
+                "USE TEMP B-TREE FOR ORDER BY"
+              ],
+              "flagged": []
+            }
+          ]
+        },
+        "search.messagesAgent": {
+          "area": "search",
+          "description": "Search one agent's chats for a word",
+          "write": false,
+          "samplesMs": [
+            35889.902167, 35335.569625, 38347.446417, 36111.664416, 41825.886333, 43946.38775, 38476.547167,
+            38150.697834, 39628.456459, 43719.689917, 37434.409541, 36433.2485, 35718.157875, 58002.2325, 38894.159166,
+            42506.415709, 39798.342167, 46514.786583, 40690.529417, 57249.40375, 67756.310666, 47953.502417,
+            39294.085208, 45946.757541, 46874.108708, 39242.669666, 40358.971958, 48136.158208, 24595.166625,
+            23073.735459
+          ],
+          "p50": 39713.399313,
+          "p95": 57663.45956249999,
+          "mean": 41596.846658300004,
+          "statements": 1,
+          "plans": [
+            {
+              "sql": "WITH matches AS MATERIALIZED ( SELECT message.rowid AS message_rowid, thread.agent_id, message.created_at, message.ordinal, message.message_id FROM projection_thread_messages message JOIN projection_threads thread ON thread.thread_id = message.thread_id WHERE LOWER(json_extract(message.message_json, '$.text')) LIKE ? ESCAPE '\\' AND COALESCE(json_extract(message.message_json, '$.delivery.status'), '') NOT IN ('queued', 'cancelled') AND COALESCE(message.item_type, '') NOT IN ('commentary', 'routine_quiet_answer') AND COALESCE(message.item_type, '') NOT LIKE 'skill-event:%' AND COALESCE(message.item_type, '') NOT LIKE 'routine-event:%' AND COALESCE(message.item_type, '') NOT LIKE 'routine-run-event:%' AND COALESCE(message.item_type, '') NOT LIKE 'hosted-site-event:%' AND COALESCE(message.item_type, '') NOT LIKE 'marketplace-suggestion:%' AND json_extract(message.message_json, '$.routine') IS NULL AND message.thread_id NOT IN (SELECT thread_id FROM projection_channel_contexts) AND message.thread_id NOT IN (SELECT thread_id FROM projection_agent_threads) AND thread.agent_id = ? ) SELECT counted.count, page.agent_id, message.message_json, COALESCE(side.legacy_task_id, side.thread_id) AS task_id FROM (SELECT COUNT(*) AS count FROM matches) counted LEFT JOIN ( SELECT * FROM matches ORDER BY created_at DESC, ordinal DESC, message_id DESC LIMIT ? OFFSET ? ) page LEFT JOIN projection_thread_messages message ON message.rowid = page.message_rowid LEFT JOIN projection_agent_threads side ON side.thread_id = message.thread_id ORDER BY page.created_at DESC, page.ordinal DESC, page.message_id DESC",
+              "plan": [
+                "CO-ROUTINE counted",
+                "MATERIALIZE matches",
+                "SCAN message",
+                "USING INDEX sqlite_autoindex_projection_channel_contexts_1 FOR IN-OPERATOR",
+                "USING INDEX sqlite_autoindex_projection_agent_threads_1 FOR IN-OPERATOR",
+                "SEARCH thread USING INDEX sqlite_autoindex_projection_threads_1 (thread_id=?)",
+                "SCAN matches",
+                "MATERIALIZE page",
+                "SCAN matches",
+                "USE TEMP B-TREE FOR ORDER BY",
+                "SCAN counted",
+                "SCAN page LEFT-JOIN",
+                "SEARCH message USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN",
+                "SEARCH side USING INDEX sqlite_autoindex_projection_agent_threads_1 (thread_id=?) LEFT-JOIN",
+                "USE TEMP B-TREE FOR ORDER BY"
+              ],
+              "flagged": []
+            }
+          ]
+        }
+      }
+    }
+  }
+}

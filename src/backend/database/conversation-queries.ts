@@ -105,6 +105,9 @@ export class ConversationQueries {
    * so it does not load and parse the whole history of the thread for it. The turn row names the
    * thread that ran the turn: the agent's chat or a side thread, such as a routine thread. A branch
    * keeps the turn ids of the rows it copied, but the turn row stays with the source thread.
+   *
+   * The `+` keeps SQLite from reading the rows through the time index to save the sort: with it, the plan
+   * walked every message of the thread to find the turn's few. The turn index finds them, and they are sorted.
    */
   readTurnAssistantMessages(agentId: string, turnId: string): ConversationMessage[] {
     const rows = databaseRows(
@@ -115,7 +118,7 @@ export class ConversationQueries {
            JOIN projection_thread_messages AS message
              ON message.thread_id = turn.thread_id AND message.turn_id = turn.turn_id
            WHERE turn.turn_id = ? AND thread.agent_id = ? AND message.author = 'assistant'
-           ORDER BY message.created_at, message.ordinal, message.message_id`,
+           ORDER BY +message.created_at, message.ordinal, message.message_id`,
         )
         .all(turnId, agentId),
     );
@@ -142,8 +145,8 @@ export class ConversationQueries {
   /**
    * The turns that the store still shows as running, by thread. A running turn that is not the
    * thread's active turn has no writer left: its end was never stored. Restart recovery reads this
-   * once to close such rows (#2214); `projection_turns` has no thread index, so one scan serves
-   * every thread.
+   * once to close such rows (#2214). One read serves every thread; the partial index `turns_running`
+   * holds only the running turns, so it does not read the finished ones.
    */
   readRunningTurnIds(): Map<string, string[]> {
     const turns = new Map<string, string[]>();

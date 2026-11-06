@@ -8,10 +8,11 @@ import {
   DEFAULT_AGENT_MEMORY_LIMIT,
   type MemoryEntry,
 } from "@openbot/contracts/ipc";
+import type { DynamicRecord } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { Schema } from "effect";
 import { initializeAgentMemorySelection } from "./agent-memory-selection";
-import { databaseRows, requiredNumberColumn, requiredStringColumn } from "./database/database-rows";
+import { databaseRow, databaseRows, requiredNumberColumn, requiredStringColumn } from "./database/database-rows";
 import { MemoryStore, type MemoryTables, type SaveMemoryInput } from "./memory-store";
 import type { OpenBotDatabase } from "./openbot-database";
 
@@ -130,20 +131,23 @@ export class AgentMemoryStore extends MemoryStore {
        JOIN projection_agent_memories m ON m.memory_id = s.memory_id WHERE m.agent_id = ? ORDER BY s.memory_id`,
         )
         .all(agentId),
-    ).map((row) => {
-      const inclusion = requiredStringColumn(row, "inclusion");
-      if (inclusion !== "essential" && inclusion !== "searchable") throw new Error("Invalid memory inclusion.");
-      return {
-        memoryId: requiredStringColumn(row, "memory_id"),
-        inclusion,
-        userControlled: requiredNumberColumn(row, "user_controlled") === 1,
-        revision: requiredNumberColumn(row, "revision"),
-      };
-    });
+    ).map(decodeSelection);
   }
 
+  /**
+   * One selection, read by its key. `listPage`, `search` and `setInclusions` ask for one per memory, so
+   * a read of the whole list here made each of them read every selection of the agent once per memory.
+   */
   getSelection(agentId: string, memoryId: string): AgentMemorySelection | null {
-    return this.listSelections(agentId).find((selection) => selection.memoryId === memoryId) ?? null;
+    const row = databaseRow(
+      this.database.connection
+        .prepare(
+          `SELECT s.memory_id, s.inclusion, s.user_controlled, s.revision FROM agent_memory_selections s
+       JOIN projection_agent_memories m ON m.memory_id = s.memory_id WHERE s.memory_id = ? AND m.agent_id = ?`,
+        )
+        .get(memoryId, agentId),
+    );
+    return row ? decodeSelection(row) : null;
   }
 
   selectionState(agentId: string): AgentMemorySelectionState {
@@ -370,4 +374,15 @@ export class AgentMemoryStore extends MemoryStore {
       revision: selection.revision,
     };
   }
+}
+
+function decodeSelection(row: DynamicRecord): AgentMemorySelection {
+  const inclusion = requiredStringColumn(row, "inclusion");
+  if (inclusion !== "essential" && inclusion !== "searchable") throw new Error("Invalid memory inclusion.");
+  return {
+    memoryId: requiredStringColumn(row, "memory_id"),
+    inclusion,
+    userControlled: requiredNumberColumn(row, "user_controlled") === 1,
+    revision: requiredNumberColumn(row, "revision"),
+  };
 }
