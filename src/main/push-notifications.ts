@@ -38,6 +38,7 @@ import {
 import { Effect, Exit, Fiber, Result, Schema, Scope } from "effect";
 import { isNoUpdateAnswer } from "../backend/agent/routine-quiet-runs";
 import type { AgentService } from "../backend/agent-service";
+import { forkHub } from "../backend/fork-hub";
 import type { PushNotificationStore, PushTarget, StoredPushRegistration } from "./push-notification-store";
 import type { TeamApiAgents } from "./team-api/dependencies";
 import { markerExclusionsForCapabilities } from "./team-api/request-helpers";
@@ -501,11 +502,25 @@ export class PushNotificationService {
     registration.waiting = [];
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md, "Goal needs you" reaches the phone): a reply in the own chat of an
+   * agent whose goal runs. When the goal waits for the member at send time (`goalWaitsForUser`), the
+   * reply is the question. One per agent: a newer reply replaces it.
+   */
+  #goalReply(event: AgentEvent): { agentId: string; requestId: string } | null {
+    if (event.type !== "turn-completed" || event.status !== "completed") return null;
+    if (!forkHub.goals?.active(event.agentId)) return null;
+    const own = this.#options.agents.listAgents().find((agent) => agent.id === event.agentId)?.threadId;
+    return own === event.threadId ? { agentId: event.agentId, requestId: GOAL_REPLY } : null;
+  }
+
   /** Keeps a request that waits for the member, so the phone gets it when the member leaves the computer. */
   #keepWaiting(registration: Registration, event: AgentEvent, atHost: boolean): void {
-    const request = heldRequest(event);
+    const request = heldRequest(event) ?? this.#goalReply(event);
     if (!request) return;
-    const waiting = registration.waiting.filter((item) => !sameRequest(heldRequest(item.event), request));
+    const waiting = registration.waiting.filter(
+      (item) => !sameRequest(heldRequest(item.event) ?? this.#goalReply(item.event), request),
+    );
     waiting.push({ event, atHost });
     registration.waiting = waiting.slice(-HELD_EVENT_LIMIT);
     this.#idleTimer ??= setInterval(() => this.#sendWaiting(), WAITING_REQUEST_POLL_MS);
@@ -660,6 +675,17 @@ function heldEventUnseen(
   return (reads[event.agentId]?.unreadCount ?? 0) > 0;
 }
 
+/** Fork: the request id of a kept goal reply (`#goalReply`). */
+const GOAL_REPLY = "fork-goal-reply";
+
+/**
+ * Fork: whether the kept reply's agent still has a goal that waits for the member ("goal needs you").
+ * A message from the member starts the goal again (`ForkGoals.footer`), so an answered goal is not sent.
+ */
+function goalWaitsForUser(event: AgentEvent): boolean {
+  return event.type === "turn-completed" && forkHub.goals?.get(event.agentId)?.state === "paused";
+}
+
 /** The request that a kept event waits for, or `null` for an event that waits for nothing. */
 function heldRequest(event: AgentEvent): { agentId: string; requestId: string | number } | null {
   switch (event.type) {
@@ -690,7 +716,7 @@ function requestStillWaits(
   snapshot: ReturnType<PushNotificationAgents["getRuntimeSnapshot"]>,
 ): boolean {
   const request = heldRequest(event);
-  if (!request) return false;
+  if (!request) return goalWaitsForUser(event);
   const pending = [...snapshot.pendingPrompts, ...snapshot.pendingApprovals, ...snapshot.pendingBrowserTakeovers];
   return pending.some((item) => sameRequest(item, request)) || !snapshot.attentionComplete;
 }

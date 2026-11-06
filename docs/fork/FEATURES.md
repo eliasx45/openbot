@@ -370,6 +370,22 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Here:** `src/backend/claude-client.ts` (`extraArgs`).
 - **Check:** send an agent a task that needs several tool calls. Thinking text shows in its chat while it works, and new `thinking` blocks in its transcript `.jsonl` have text.
 
+## 39. "Goal needs you" reaches the phone
+
+- **Get:** when a `/goal` stops for Elias's answer (`needs-input`) while he is at the Mac, and he leaves without answering, the phone gets the agent's reply (the question) once the Mac has had no input for 2 minutes. A message to the agent before then starts the goal again, and nothing goes out.
+- **Why:** Elias, 6 Nov 2026: "Today since yesterday, it didn't update me." Bot Bot's Handy goal reported needs-input at 23:10 with two questions in its reply. He was at the Mac, so the reply push was skipped, and feature 37 sends later only question cards, approvals and browser steps. Before this, "goal needs you" was only a Mac banner (`forkNotify`).
+- **How (portable):** `PushNotificationService.#keepWaiting` also keeps a completed turn in the own chat of an agent with an active goal (`#goalReply`, one per agent, the newest replaces it). At send time `requestStillWaits` → `goalWaitsForUser`: send only while that goal is `paused` (it waits for the user). It reads the goal through `forkHub.goals`.
+- **Here:** `src/main/push-notifications.ts` (`#goalReply`, `GOAL_REPLY`, `goalWaitsForUser`).
+- **Check:** iPhone registered, app in the background. At the Mac, `/goal` an agent with a task that ends in a question (e.g. "pick a name for X: ask me"). When "Goal needs you" shows, leave the Mac untouched 2+ min: the phone gets the reply once. Again, but answer within 2 min: nothing on the phone.
+
+## 40. Goals build every option, then ask with a question card
+
+- **Get:** a goal agent that hits a choice for Elias does not stop. It builds each option (at most 3) side by side (code: a branch each; edits: a copy each, the original untouched), finishes the rest of the goal, then asks once with a question card (`ask_user` / `ask_ui`) that says what each option is, where it is, how to try it, and its pick. It asks first only for real-data changes, publishing, spending or what cannot be undone.
+- **Why:** Elias, 6 Nov 2026: "isn't there a way where I can let them continue working and do the options/alternatives, all of them … and put them in PR and wait for me?" The Handy goal stopped overnight on two questions in plain text.
+- **How (portable):** two lines in the goal prompt (`goalPrompt`). A question card also reaches the phone after 2 idle minutes (feature 37), where text in a reply did not.
+- **Here:** `src/backend/fork-goals.ts` (`goalPrompt`).
+- **Check:** `/goal` an agent with a task that has a real choice (e.g. "make 3 versions of the X card, I pick one"). It builds all of them without stopping, then shows one question card listing them.
+
 ---
 
 ## Checked, not needed

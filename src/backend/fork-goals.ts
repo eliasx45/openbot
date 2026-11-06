@@ -402,6 +402,9 @@ function goalPrompt(goal: Goal, note: string | null): string {
     note ? `Note from OpenBot: ${note}` : null,
     "Use the conversation as the progress ledger. Do the next concrete piece of work now with your tools — real work, not a plan of it. You may hand parts to teammates with openbot.send_message; their answers come back to this chat.",
     "Do not continue merely to generate discussion. Do not claim completion unless the requested deliverable or answer exists and you checked it.",
+    // Fork (docs/fork/FEATURES.md, "Goals build every option, then ask with a question card").
+    "A choice for the user (a design, a setting, an approach) does not stop the goal. Build each reasonable option (at most 3) side by side, each separate and named: code on its own branch with its commits, an edit as its own copy (a duplicated comp, a new file or version). Do not change the original or what the user runs now. Then go on with the rest of the goal.",
+    "When the options are built and checked, ask once with ask_user (or ask_ui with a choice block), never only in your message: what each option is, where it is, how to try it, and which one you recommend. When the user answers, apply the choice and go on; when the question is skipped or expires, report needs-input with the same summary. Ask before you build only when building would change or delete the user's real data, publish or send something, spend money, or cannot be undone.",
     `Write a brief update for the user, then, as your last action, call openbot.${GOAL_STATUS_TOOL} once: status "continue" with "next" (your concrete next step); "waiting" with "detail" while teammates work for you; or "completed", "needs-input" or "blocked" with "detail" (the result, your question, or the blocker).`,
   ]
     .filter(Boolean)
