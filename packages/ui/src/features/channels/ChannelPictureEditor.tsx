@@ -15,6 +15,7 @@ import {
 } from "@openbot/contracts/ipc";
 import { Button, IconButton, Input, Pencil, Plus, Popover, RotateCcw, toast } from "@openbot/ui";
 import { normalizeAvatarFile } from "@openbot/ui/avatar-image";
+import { createAvatarImageDrop } from "@openbot/ui/avatar-image-drop";
 import { AVATAR_HUE_CHOICES, avatarHueSwatch } from "@openbot/ui/bloub-avatar";
 import { useText } from "@openbot/ui/text";
 import { createSignal, For, Show } from "solid-js";
@@ -70,6 +71,10 @@ export function ChannelPictureEditor(props: ChannelPictureEditorProps) {
     });
   }
 
+  const drop = createAvatarImageDrop((file) => {
+    if (!busy()) void upload(file);
+  });
+
   function selectIcon(name: ChannelIconName): void {
     void run(() => props.onSelectIcon({ name, hue: hue() }));
   }
@@ -81,7 +86,14 @@ export function ChannelPictureEditor(props: ChannelPictureEditorProps) {
   return (
     <div class="agent-settings-avatar-picker">
       <Popover.Root open={open()} placement="bottom" gutter={11} onOpenChange={setOpen}>
-        <Popover.Trigger class="channel-picture-trigger" aria-label={t("channel.picture.edit")}>
+        <Popover.Trigger
+          class={["channel-picture-trigger", { "avatar-image-drop-active": drop.active() }]}
+          aria-label={t("channel.picture.edit")}
+          onDragEnter={drop.onDragEnter}
+          onDragOver={drop.onDragOver}
+          onDragLeave={drop.onDragLeave}
+          onDrop={drop.onDrop}
+        >
           <ChannelAvatar
             members={props.members}
             agents={props.agents}
@@ -124,9 +136,16 @@ export function ChannelPictureEditor(props: ChannelPictureEditorProps) {
             <Button
               variant="ghost"
               type="button"
-              class={["avatar-image-upload", { "avatar-image-upload-active": hasImage() }]}
+              class={[
+                "avatar-image-upload",
+                { "avatar-image-upload-active": hasImage(), "avatar-image-drop-active": drop.active() },
+              ]}
               disabled={busy()}
               onClick={() => fileInput?.click()}
+              onDragEnter={drop.onDragEnter}
+              onDragOver={drop.onDragOver}
+              onDragLeave={drop.onDragLeave}
+              onDrop={drop.onDrop}
             >
               <span class="avatar-image-upload-preview">
                 <Show when={props.imageUrl} fallback={<Plus aria-hidden="true" />}>

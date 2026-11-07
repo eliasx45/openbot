@@ -2774,6 +2774,19 @@ textarea {
   border-color: var(--openbot-border-strong);
 }
 
+/* A file dragged over an avatar or its image button: the drop sets the image. */
+.avatar-image-upload.avatar-image-drop-active {
+  border-style: solid;
+  border-color: var(--openbot-success);
+  background: var(--openbot-success-soft);
+}
+
+.agent-settings-avatar.avatar-image-drop-active,
+.channel-picture-trigger.avatar-image-drop-active {
+  outline: 2px solid var(--openbot-success);
+  outline-offset: 3px;
+}
+
 .avatar-image-upload-preview {
   display: grid;
   width: 42px;

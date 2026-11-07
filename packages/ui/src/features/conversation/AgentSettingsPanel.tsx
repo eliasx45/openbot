@@ -65,6 +65,7 @@ import {
   Text,
 } from "@openbot/ui";
 import { normalizeAvatarFile } from "@openbot/ui/avatar-image";
+import { createAvatarImageDrop } from "@openbot/ui/avatar-image-drop";
 import {
   AVATAR_COLOR_CHOICES,
   AVATAR_EXPRESSIONS,
@@ -731,6 +732,10 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
     }
   }
 
+  const avatarDrop = createAvatarImageDrop((file) => {
+    if (!draft.avatar.uploadBusy) void uploadAgentAvatar(file);
+  });
+
   async function uploadAgentAvatar(file: File | undefined): Promise<void> {
     if (!file) return;
     setDraft((state) => {
@@ -1088,7 +1093,14 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                     })
                   }
                 >
-                  <Popover.Trigger class="agent-settings-avatar" aria-label={t("agentSettings.avatar.edit")}>
+                  <Popover.Trigger
+                    class={["agent-settings-avatar", { "avatar-image-drop-active": avatarDrop.active() }]}
+                    aria-label={t("agentSettings.avatar.edit")}
+                    onDragEnter={avatarDrop.onDragEnter}
+                    onDragOver={avatarDrop.onDragOver}
+                    onDragLeave={avatarDrop.onDragLeave}
+                    onDrop={avatarDrop.onDrop}
+                  >
                     <AgentAvatar
                       seed={draft.avatar.seed}
                       hue={draft.avatar.hue}
@@ -1128,9 +1140,19 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                     <Button
                       variant="ghost"
                       type="button"
-                      class={["avatar-image-upload", { "avatar-image-upload-active": Boolean(avatarUrl()) }]}
+                      class={[
+                        "avatar-image-upload",
+                        {
+                          "avatar-image-upload-active": Boolean(avatarUrl()),
+                          "avatar-image-drop-active": avatarDrop.active(),
+                        },
+                      ]}
                       disabled={draft.avatar.uploadBusy}
                       onClick={() => avatarFileInput?.click()}
+                      onDragEnter={avatarDrop.onDragEnter}
+                      onDragOver={avatarDrop.onDragOver}
+                      onDragLeave={avatarDrop.onDragLeave}
+                      onDrop={avatarDrop.onDrop}
                     >
                       <span class="avatar-image-upload-preview">
                         <Show

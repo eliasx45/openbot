@@ -48,6 +48,7 @@
     "./select": "./src/select.tsx",
     "./form": "./src/form.tsx",
     "./avatar-image": "./src/avatar-image.ts",
+    "./avatar-image-drop": "./src/avatar-image-drop.ts",
     "./bloub-avatar": "./src/bloub-avatar.tsx",
     "./components/ProviderModelPicker": "./src/components/ProviderModelPicker.tsx",
     "./components/provider-accounts": "./src/components/provider-accounts.ts",

@@ -480,6 +480,15 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Tests:** Biome, `bun run typecheck:renderer`. Not run in the app yet (night queue).
 - **Check:** open a chat with an agent's MP4 that was never played: the player shows a frame of the video and its length.
 
+## 50. Drop an image on an agent's or channel's picture
+
+- **Get:** drag an image from Finder onto the picture in agent or channel settings, or onto the editor's "Upload image" button: it becomes the picture, as choosing it in the file picker does. The picture or button shows a green outline while a file is over it.
+- **Why:** Elias, 8 Nov 2026 (screenshot of the Editors channel's picture editor): "drag drop into icon not working … clicking and choosing from finder does work tho". Upstream has no drop handler there, so the desktop preload's window `drop` listener took the file as a chat attachment (over the settings panel), or nothing happened (over the editor popover).
+- **How (portable):** `createAvatarImageDrop(onFile)` gives `onDragEnter/Over/Leave/Drop` and an `active` signal. On a drag with files it calls `preventDefault` and `stopPropagation`, so the preload's window listener never sees the drop; it uploads the first image file through the same path as the file picker (`normalizeAvatarFile`). Wired on the avatar trigger and the upload button of both editors; ignored while an upload is running. The chat overlays already have `pointer-events: none` or stop at the settings panel, so they do not cover the picture.
+- **Here:** `packages/ui/src/avatar-image-drop.ts`, `AgentSettingsPanel.tsx`, `channels/ChannelPictureEditor.tsx`, `.avatar-image-drop-active` in `src/renderer/src/styles/app-shell.css`.
+- **Tests:** Biome, `bun run typecheck:renderer`. Ran in an isolated dev instance (sandbox HOME, CDP `Input.dispatchDragEvent` with a real file, which goes through Chromium's native drag path and the preload): a PNG dropped on the channel picture, on the channel editor's Upload button and on an agent editor's Upload button each became the picture; nothing was attached to the chat. Not yet a Finder drag on the installed build.
+- **Check:** in channel settings drag a PNG from Finder onto the picture: it shows a green outline, then becomes the picture; the message box gets no attachment. Same on the "Upload image" button and in agent settings.
+
 ---
 
 ## Checked, not needed
