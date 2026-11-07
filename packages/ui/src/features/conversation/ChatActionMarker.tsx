@@ -470,6 +470,15 @@ function SingleChatActionMarker(
     >
       <div class="chat-action-marker-summary">
         <MarkerContent class="chat-action-marker-content">
+          <Show when={props.marker.kind === "agent-message" && props.marker.channelHandoff && props.marker}>
+            {(marker) => (
+              <AgentButton
+                agent={props.agents.find((agent) => agent.id === marker().sourceAgentId)}
+                fallbackId={marker().sourceAgentId}
+                onSelectAgent={props.onSelectAgent}
+              />
+            )}
+          </Show>
           <span class="chat-action-marker-label">{label()}</span>
           <Show when={props.marker.kind === "agent-message" && props.marker}>
             {(marker) => <AgentTarget marker={marker()} agents={props.agents} onSelectAgent={props.onSelectAgent} />}
@@ -970,6 +979,10 @@ function markerLabel(
   if (marker.kind === "mcp-sign-in") return t("chat.marker.mcpSignIn");
   if (marker.kind === "skill-lifecycle") return t(SKILL_ACTION_LABELS[marker.action]);
   if (marker.kind === "agent-message") {
+    if (marker.channelHandoff)
+      return marker.channelHandoff === "assigned"
+        ? t("chat.marker.handoff.asked")
+        : t("chat.marker.handoff.handedOver");
     if (marker.expectsReply)
       return marker.direction === "outgoing" ? t("chat.marker.messaged") : t("chat.marker.messageFrom");
     return marker.direction === "outgoing" ? t("chat.marker.informed") : t("chat.marker.updateFrom");
@@ -1054,6 +1067,13 @@ function markerAccessibleLabel(
   const unavailable = t("chat.marker.unavailableAgent");
   if (marker.kind === "agent-message") {
     const agent = counterpartName(marker, agents, t);
+    if (marker.channelHandoff)
+      return t("chat.marker.accessible.handoff", {
+        source: agentName(agents, marker.sourceAgentId, t),
+        label,
+        agent,
+        status: t(STATUS_LABELS[marker.status]),
+      });
     return t("chat.marker.accessible.message", { label, agent, status: t(STATUS_LABELS[marker.status]) });
   }
   if (marker.kind === "channel-routing") {

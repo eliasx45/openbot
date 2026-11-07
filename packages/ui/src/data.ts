@@ -83,6 +83,11 @@ export interface AgentMessageMarkerModel {
   expectsReply: boolean;
   /** Set when the chat has the text of the message: whether the text shows under the marker. */
   expanded?: boolean;
+  /**
+   * Fork: a channel member gave work to another member (`channel_assign` / `channel_transfer`).
+   * The row then names the sender before the label: "Tapa Lead asked Gotham".
+   */
+  channelHandoff?: "assigned" | "transferred";
 }
 
 export interface RoutineRunMarkerModel {

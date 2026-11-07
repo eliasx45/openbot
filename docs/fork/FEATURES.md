@@ -489,6 +489,16 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Tests:** Biome, `bun run typecheck:renderer`. Ran in an isolated dev instance (sandbox HOME, CDP `Input.dispatchDragEvent` with a real file, which goes through Chromium's native drag path and the preload): a PNG dropped on the channel picture, on the channel editor's Upload button and on an agent editor's Upload button each became the picture; nothing was attached to the chat. Not yet a Finder drag on the installed build.
 - **Check:** in channel settings drag a PNG from Finder onto the picture: it shows a green outline, then becomes the picture; the message box gets no attachment. Same on the "Upload image" button and in agent settings.
 
+## 50. Channel handoffs are one line: "Tapa Lead asked Gotham ▸"
+
+- **Get:** in a channel, when a member gives work to another member, the chat shows one row: the sender, "asked" (or "handed over to"), the member, the time, and a chevron. The chevron opens the full brief under the row. Click a name to open that agent's chat.
+- **Why:** Elias, 8 Nov 2026 (4 screenshots of Editors): "it looks like it sent the message that I wanted to send to Gotham to me". Upstream posts every `channel_assign` / `channel_transfer` as a full bubble `"<recipient>: <brief>"` from the sender, as a reply to the person's request, so it showed a "You" quote and read like an answer to him. The brief did reach Gotham.
+- **How (portable):** only the desktop view changes. The stored handoff has no mark (author `system`, the sender as member author), so the row is found from the task it started: a child of the message's task (assign) or the same task with a new owner (transfer), whose instruction is exactly the text after `"<name>: "`. That message becomes an outgoing agent-message row (the "Messaged" row of agent chats) with `channelHandoff` set; the reply quote is dropped; the delivery state comes from the task state. The host, the database, the Team API and other clients keep the plain message. On Elias's Editors channel (221 messages, 55 tasks) it finds the one handoff and none of the 28 other agent messages that start with "Name: ".
+- **Here:** `channelHandoffMessage`, `channelHandoffRow` in `src/renderer/src/features/channels/channel-conversation-rows.ts` (called with `page.tasks` from `channel-conversation.tsx`); `AgentMessageMarkerModel.channelHandoff` in `packages/ui/src/data.ts`; sender button, label and accessible label in `packages/ui/src/features/conversation/ChatActionMarker.tsx`; i18n `chat.marker.handoff.asked`, `chat.marker.handoff.handedOver`, `chat.marker.accessible.handoff` (English only); story `ChannelHandoff` in `src/renderer/stories/ChatActionMarker.stories.tsx`.
+- **Tests:** Biome, `bun run typecheck:renderer`, `bun run i18n:check`; the row mapping run on a read-only copy of the Editors channel (only the handoff row changes); the Storybook story checked closed and open.
+- **Not done:** the phone and the web client still show the plain message.
+- **Check:** open Editors: at 12:07 AM the Gotham brief is one row "Tapa Lead asked Gotham ▸" with no "You" quote; the chevron opens the brief.
+
 ---
 
 ## Checked, not needed

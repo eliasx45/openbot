@@ -84,7 +84,7 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     const current = page();
     if (!current) return [];
     const next = new Map<string, AgentMessage>();
-    const rows = channelConversationRows(entries()).map((mapped) => {
+    const rows = channelConversationRows(entries(), current.tasks).map((mapped) => {
       const known = rowsById.get(mapped.id);
       const row = known && agentMessagesEqual(known, mapped) ? known : mapped;
       next.set(row.id, row);

@@ -11,8 +11,10 @@ import {
   type ChannelPage,
   type ChannelTask,
   type ChannelThread,
+  type ConversationMessage,
   type ConversationQuestionPrompt,
   channelRoutingConversationEvent,
+  type QueueDeliveryStatus,
 } from "@openbot/contracts/ipc";
 import type { AgentMessage, AgentProfile } from "@openbot/ui/data";
 import type { ChannelWorker } from "@openbot/ui/features/channels/ChannelActivityIndicator";
@@ -45,6 +47,86 @@ function channelConversationMessage(entry: ChannelMessage): AgentMessage {
   return { ...row, id: entry.id, author: "agent", senderAgentId: entry.author.id };
 }
 
+/** Fork: the delivery state that a handoff row shows for the task it started. */
+const HANDOFF_DELIVERY_STATUS: Record<ChannelTask["state"], QueueDeliveryStatus> = {
+  queued: "queued",
+  running: "running",
+  waiting: "running",
+  paused: "interrupted",
+  completed: "completed",
+  failed: "failed",
+  cancelled: "cancelled",
+};
+
+/**
+ * Fork: a `channel_assign` or `channel_transfer` handoff as an agent-message row ("Tapa Lead asked
+ * Gotham ▸"), closed, with the brief under its toggle.
+ *
+ * The host posts each handoff as an ordinary message of the assigning member, `<recipient>: <brief>`,
+ * as a reply to the request. It then drew as a full bubble with a quote of the person's message, so
+ * a brief for another member read as an answer to the person (Elias, 8 Nov 2026). The stored
+ * message has no handoff mark, so the row is found from the task it started: a child of the
+ * message's task (assign), or the same task with a new owner (transfer), whose instruction is the
+ * text after the prefix. The host, the stored data and other clients keep the plain message.
+ */
+export function channelHandoffMessage(entry: ChannelMessage, tasks: readonly ChannelTask[]): ChannelHandoff | null {
+  const { message } = entry;
+  if (entry.author.kind !== "agent" || !entry.taskId || message.author === "user" || message.status !== "completed")
+    return null;
+  const text = message.text;
+  const task = tasks.find((candidate) => {
+    if (candidate.parentTaskId !== entry.taskId && candidate.id !== entry.taskId) return false;
+    if (!candidate.ownerAgentId || candidate.ownerAgentId === entry.author.id || !candidate.instruction) return false;
+    if (!text.endsWith(`: ${candidate.instruction}`)) return false;
+    const recipient = text.slice(0, text.length - candidate.instruction.length - 2);
+    return recipient.length > 0 && !recipient.includes("\n");
+  });
+  if (!task?.ownerAgentId) return null;
+  const transferred = task.id === entry.taskId;
+  const { replyToMessageId: _reply, ...rest } = message;
+  const handoff: ConversationMessage & { id: string } = {
+    ...rest,
+    id: entry.id,
+    text: task.instruction,
+    senderAgentId: entry.author.id,
+    exchange: {
+      direction: "outgoing",
+      messageId: entry.id,
+      senderAgentId: entry.author.id,
+      recipientAgentIds: [task.ownerAgentId],
+      replyToMessageId: null,
+      deliveries: [
+        {
+          id: task.id,
+          recipientAgentId: task.ownerAgentId,
+          status: HANDOFF_DELIVERY_STATUS[task.state],
+          position: null,
+          error: null,
+        },
+      ],
+      expectsReply: !transferred,
+    },
+  };
+  return { message: handoff, kind: transferred ? "transferred" : "assigned" };
+}
+
+interface ChannelHandoff {
+  message: ConversationMessage & { id: string };
+  kind: "assigned" | "transferred";
+}
+
+function channelHandoffRow(entry: ChannelMessage, handoff: ChannelHandoff): AgentMessage {
+  const row = toAgentMessage(handoff.message);
+  const marker = row.actionMarker;
+  return {
+    ...row,
+    id: entry.id,
+    author: "agent",
+    senderAgentId: entry.author.id,
+    ...(marker?.kind === "agent-message" ? { actionMarker: { ...marker, channelHandoff: handoff.kind } } : {}),
+  };
+}
+
 /** The thinking and the narration of a turn, which fold into the steps above its answer. */
 function foldedEntry(entry: ChannelMessage): boolean {
   return entry.message.author === "assistant" && entry.message.itemType === "commentary";
@@ -56,13 +138,18 @@ function foldedEntry(entry: ChannelMessage): boolean {
  * as a message, and a model that streams its whole reasoning (DeepSeek through OpenCode) showed a
  * very long one.
  */
-export function channelConversationRows(entries: readonly ChannelMessage[]): AgentMessage[] {
+export function channelConversationRows(
+  entries: readonly ChannelMessage[],
+  tasks: readonly ChannelTask[] = [],
+): AgentMessage[] {
+  const mapped = entries.map((entry) => ({ entry, handoff: channelHandoffMessage(entry, tasks) }));
   return toAgentMessages(
-    entries.map((entry) => ({ ...entry.message, id: entry.id })),
+    mapped.map(({ entry, handoff }) => handoff?.message ?? { ...entry.message, id: entry.id }),
     undefined,
     (message, index) => {
-      const entry = entries[index];
-      return entry ? channelConversationMessage(entry) : toAgentMessage(message);
+      const item = mapped[index];
+      if (!item) return toAgentMessage(message);
+      return item.handoff ? channelHandoffRow(item.entry, item.handoff) : channelConversationMessage(item.entry);
     },
   );
 }

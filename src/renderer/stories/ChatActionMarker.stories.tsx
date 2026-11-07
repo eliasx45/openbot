@@ -312,6 +312,45 @@ export const AgentMessageText: Story = {
   },
 };
 
+/** Fork: a channel member gives work to another member; the brief opens under the row. */
+export const ChannelHandoff: Story = {
+  render: () => {
+    const [open, setOpen] = createSignal(false);
+    const handoff = (
+      deliveries: Extract<ChatActionMarkerModel, { kind: "agent-message" }>["targetDeliveries"],
+      status: Extract<ChatActionMarkerModel, { kind: "agent-message" }>["status"],
+      channelHandoff: "assigned" | "transferred",
+    ) => ({ ...agentMarker(deliveries, status), sourceAgentId: "sales", channelHandoff });
+    return (
+      <main class="foundation-story">
+        <Heading as="h1" size="lg">
+          Channel handoff
+        </Heading>
+        <Text tone="secondary">
+          A member asks another member, or hands a task over. The brief opens with the chevron.
+        </Text>
+        <section class="chat-primitives-stage chat-primitives-stage-narrow" aria-label="Channel handoff">
+          <ChatActionMarker
+            marker={{
+              ...handoff([{ agentId: "research", status: "running" }], "in-progress", "assigned"),
+              expanded: open(),
+            }}
+            agents={agents}
+            onSelectAgent={onSelectAgent}
+            onToggleAgentMessage={() => setOpen((value) => !value)}
+            agentMessageText={() => <Text>Find why the viewer draws black, and fix it if needed.</Text>}
+          />
+          <ChatActionMarker
+            marker={handoff([{ agentId: "research", status: "completed" }], "completed", "transferred")}
+            agents={agents}
+            onSelectAgent={onSelectAgent}
+          />
+        </section>
+      </main>
+    );
+  },
+};
+
 const timestamp = "2026-09-01T08:00:00.000Z";
 const routineStatuses: Array<Extract<ChatActionMarkerModel, { kind: "routine-run" }>["status"]> = [
   "queued",
