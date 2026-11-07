@@ -2,7 +2,7 @@ import type { AvatarImageInput, ChannelCommand, ChannelPage, ChannelSummary } fr
 import type { AppTextKey } from "@openbot/i18n";
 import type { AgentProfile } from "@openbot/ui/data";
 import { currentText } from "@openbot/ui/text";
-import { createEffect, createStore, flush, onSettled, reconcile, untrack } from "solid-js";
+import { createEffect, createStore, flush, onSettled, reconcile, snapshot, untrack } from "solid-js";
 import { actionToast } from "../../action-toast";
 import { type DesktopAnalyticsProperties, desktopAnalytics } from "../../analytics";
 import { mergeChannelPage } from "./channel-page-merge";
@@ -120,6 +120,28 @@ export function createChannelsController(env: ChannelsEnvironment) {
   let refreshId = 0;
   let failedCommand: ChannelCommand | null = null;
   const readThrough = new Map<string, number>();
+  /*
+   * Fork: the last page of each channel the reader left, newest last. Opening a channel shows its
+   * page at once and the read then merges what is new, so going back to a channel does not draw an
+   * empty view first (Elias, 7 Nov 2026: the "Editors" tile went empty, then came back).
+   */
+  const leftPages = new Map<string, ChannelPage>();
+  const LEFT_PAGES_LIMIT = 12;
+  function leavePage() {
+    const page = state.page;
+    if (!page) return;
+    leftPages.delete(page.channel.id);
+    leftPages.set(page.channel.id, snapshot(page));
+    for (const id of leftPages.keys()) {
+      if (leftPages.size <= LEFT_PAGES_LIMIT) break;
+      leftPages.delete(id);
+    }
+  }
+  function takeLeftPage(channelId: string): ChannelPage | null {
+    const page = leftPages.get(channelId) ?? null;
+    leftPages.delete(channelId);
+    return page;
+  }
 
   const supported = env.supported;
   /**
@@ -192,6 +214,7 @@ export function createChannelsController(env: ChannelsEnvironment) {
           state.selectedId = null;
           state.editing = null;
           readThrough.delete(selected);
+          leftPages.delete(selected);
           if (failedCommand?.channelId === selected) failedCommand = null;
         }
         if (page && state.page?.channel.id === page.channel.id) {
@@ -235,9 +258,11 @@ export function createChannelsController(env: ChannelsEnvironment) {
     if (!supported()) return;
     env.beforeOpen();
     env.writeSelection(channelId);
+    if (state.page?.channel.id !== channelId) leavePage();
+    const shown = state.page?.channel.id === channelId ? state.page : takeLeftPage(channelId);
     flush(() =>
       setState((state) => {
-        Object.assign(state, { selectedId: channelId, page: null, editing: null, loading: true });
+        Object.assign(state, { selectedId: channelId, page: shown, editing: null, loading: true });
       }),
     );
     await refreshAfter();
@@ -383,6 +408,7 @@ export function createChannelsController(env: ChannelsEnvironment) {
         const selected = next.supported ? env.readSelection(next.scope) : null;
         refreshId += 1;
         readThrough.clear();
+        leftPages.clear();
         failedCommand = null;
         pendingCommands = 0;
         flush(() =>
@@ -535,6 +561,7 @@ export function createChannelsController(env: ChannelsEnvironment) {
     loadOlder,
     close: () => {
       env.writeSelection(null);
+      leavePage();
       setState((state) => {
         Object.assign(state, { selectedId: null, page: null, editing: null });
       });

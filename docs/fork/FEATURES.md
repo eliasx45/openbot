@@ -462,6 +462,15 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Not done:** Codex and ACP agents (only Claude reports background subagents that outlive a turn). A subagent continued with `SendMessage` is not tracked as a subagent, so if it stops again, no wake (the hourly limit is the guard for loops). Not in CI: like entry 42's test, the script is not a `package.json` script.
 - **Check:** in an agent's chat: "start a background subagent that writes /tmp/sr-1..6.txt, one per 20 s". While it works, kill its `claude` process (`ps` → `kill -9 <pid>`). Within ~10 s: the "🔄 A background subagent stopped…" wait with Cancel, then "🔄 Stopped subagent continues"; the agent calls `SendMessage` and the files continue. Again, but write any message before the 10 s end: the line "…not continued, because a new message came first".
 
+## 48. A channel opens with its last page, not empty
+
+- **Get:** going back to a channel (a pinned tile such as "Editors", a channel row, a search result) shows its transcript at once. New messages come in a moment later, without the view going empty first.
+- **Why:** Elias, 7 Nov 2026 (screen recording, Bot Bot → Editors): "why is it flickering or going empty and then back to normal like that?". Upstream's controller holds one page only: opening a channel set it to `null` and waited for `listChannels` + `readChannel`, so the view drew empty for ~0.3 s each time.
+- **How (portable):** when the reader leaves a channel (opens another one, an agent, or closes it), a snapshot of its page goes into a small cache (last 12 channels, oldest dropped). Opening a channel puts its cached page on screen and still starts the read; the read merges with it through upstream's `mergeChannelPage` (joins or replaces on a sequence gap), so nothing old hides new messages. The cache is cleared on a scope change (another account or server) and a channel's entry is dropped when the channel is gone.
+- **Here:** `leftPages`, `leavePage`, `takeLeftPage` in `src/renderer/src/features/channels/channels-controller.ts` (`open`, `close`, the scope effect, `read`).
+- **Tests:** `bun run typecheck:renderer`, Biome. Not run in the app yet (night queue).
+- **Check:** open a channel with history, click an agent, click the channel again: the messages are there on the first frame (record with QuickShotX: no empty frame between).
+
 ---
 
 ## Checked, not needed
