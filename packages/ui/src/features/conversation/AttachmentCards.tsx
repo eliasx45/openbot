@@ -248,7 +248,7 @@ export function AttachmentCards(props: {
                   src={attachment.previewUrl ?? sourceUrl(attachment) ?? ""}
                   name={attachment.name}
                   class="attachment-media-player"
-                  preload={attachment.previewUrl ? "none" : "metadata"}
+                  preload={mediaPreload(attachment.previewUrl)}
                   autoplay={playRequested().has(attachment.id)}
                 />
               </Show>
@@ -258,6 +258,15 @@ export function AttachmentCards(props: {
       </For>
     </div>
   );
+}
+
+/**
+ * Fork: a file on this computer (`openbot-attachment:`) is served in byte ranges, so `metadata` reads
+ * only the start of the file and the player paints its first frame instead of a grey box (Elias,
+ * 8 Nov 2026). A file of a remote server is downloaded whole on each request, so it waits for Play.
+ */
+function mediaPreload(previewUrl: string | null): "none" | "metadata" {
+  return !previewUrl || previewUrl.startsWith("openbot-attachment:") ? "metadata" : "none";
 }
 
 export function fileBadge(attachment: AttachmentSummary): string {

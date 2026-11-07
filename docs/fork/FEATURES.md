@@ -471,6 +471,15 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Tests:** `bun run typecheck:renderer`, Biome. Not run in the app yet (night queue).
 - **Check:** open a channel with history, click an agent, click the channel again: the messages are there on the first frame (record with QuickShotX: no empty frame between).
 
+## 49. Chat videos show their first frame before Play
+
+- **Get:** a video file in a chat (an agent's `before-after.mp4`, a file you sent) shows its first frame in the player at once, not a grey box with `0:00`.
+- **Why:** Elias, 8 Nov 2026 (screenshot of the Editors channel): "Unless I click on the actual play icon, it stays as a gray gradient … i like for the thumbnail to be actually shown". Upstream gives every player with a host URL `preload="none"`, so Chromium reads no byte until Play.
+- **How (portable):** a file on this computer (`openbot-attachment:` URL) gets `preload="metadata"`: the protocol answers byte ranges, so Chromium reads only the start (and the `moov` box) and paints the first frame. A remote server's file (`openbot-remote-attachment:`) keeps `none`, because that protocol downloads the whole file on each request.
+- **Here:** `mediaPreload` in `packages/ui/src/features/conversation/AttachmentCards.tsx`.
+- **Tests:** Biome, `bun run typecheck:renderer`. Not run in the app yet (night queue).
+- **Check:** open a chat with an agent's MP4 that was never played: the player shows a frame of the video and its length.
+
 ---
 
 ## Checked, not needed
