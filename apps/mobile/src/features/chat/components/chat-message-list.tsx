@@ -57,7 +57,11 @@ import { useCSSVariable } from "uniwind";
 import { BloubAvatarThumbnail } from "@/features/agents/components/bloub-avatar";
 import { ChatActivityRow, type ChatActivitySpec } from "@/features/chat/components/chat-activity-row";
 import { type ApprovalDecision, approvalTitle, ChatApprovalCard } from "@/features/chat/components/chat-approval-card";
-import { ChatExchangeGroup, ChatExchangeMarker } from "@/features/chat/components/chat-exchange-marker";
+import {
+  ChatExchangeGroup,
+  ChatExchangeMarker,
+  ChatHandoffMarker,
+} from "@/features/chat/components/chat-exchange-marker";
 import { ChatMarkdown } from "@/features/chat/components/chat-markdown";
 import { ChatPlan } from "@/features/chat/components/chat-plan";
 import { ChatQuestionPrompt } from "@/features/chat/components/chat-question-prompt";
@@ -804,6 +808,15 @@ const MessageRow = memo(function MessageRow({
       <ContextResetMarkerRow key={message.id} muted={muted} />
     ) : message.kind === "exchange-group" ? (
       <ChatExchangeGroup key={message.id} group={message} agents={agents} agentsById={agentsById} muted={muted} />
+    ) : message.kind === "channel-handoff" ? (
+      <ChatHandoffMarker
+        key={message.id}
+        message={message}
+        agents={agents}
+        agentsById={agentsById}
+        muted={muted}
+        color={foreground}
+      />
     ) : message.kind === "exchange" || message.kind === "channel-routing" ? (
       <ChatExchangeMarker key={message.id} message={message} agents={agents} agentsById={agentsById} muted={muted} />
     ) : message.kind === "plan" ? (

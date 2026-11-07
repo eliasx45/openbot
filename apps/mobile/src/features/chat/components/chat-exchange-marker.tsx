@@ -4,9 +4,10 @@ import { Link } from "expo-router";
 import { Typography } from "heroui-native";
 import ChevronDown from "lucide-react-native/icons/chevron-down";
 import { useState } from "react";
-import { Pressable, View, type ViewStyle } from "react-native";
+import { type ColorValue, Pressable, View, type ViewStyle } from "react-native";
 import { BloubAvatarThumbnail } from "@/features/agents/components/bloub-avatar";
 import { ChatLinkPressable } from "@/features/agents/components/chat-link-pressable";
+import { ChatMarkdown } from "@/features/chat/components/chat-markdown";
 import type { ChatMessage, ExchangeGroup, ExchangeMarker } from "@/features/chat/model/chat-messages";
 import type { MobileAgent } from "@/features/workspace/context/mobile-workspace-context";
 import { haptics } from "@/shared/lib/haptics";
@@ -111,6 +112,79 @@ export function ChatExchangeMarker({
         {label}
       </Typography.Paragraph>
       {badges}
+    </View>
+  );
+}
+
+type HandoffMarker = Extract<ChatMessage, { kind: "channel-handoff" }>;
+
+/**
+ * Fork: a channel member gave work to another member, as on desktop: "Tapa Lead asked Gotham",
+ * closed, with the brief under the chevron. Each name opens that agent's chat.
+ */
+export function ChatHandoffMarker({
+  message,
+  agents,
+  agentsById,
+  muted,
+  color,
+}: MarkerContext & { message: HandoffMarker; color: ColorValue | undefined }) {
+  const { t } = useText();
+  const [open, setOpen] = useState(false);
+  const sender = agentsById.get(message.senderAgentId);
+  const recipient = agentsById.get(message.recipientAgentId);
+  const recipientName = recipient?.name ?? t("mobile.chat.exchange.unknownAgent");
+  const badge = (agent: MobileAgent | undefined) => {
+    const shown = (
+      <AgentBadge agent={agent} name={agent?.name ?? t("mobile.chat.exchange.unknownAgent")} muted={muted} />
+    );
+    return agent ? (
+      <Link href={{ pathname: "/chat/[agentId]", params: { agentId: agent.id } }} asChild>
+        <ChatLinkPressable
+          accessibilityRole="link"
+          accessibilityLabel={t("mobile.chat.exchange.openChat", { name: agent.name })}
+        >
+          {shown}
+        </ChatLinkPressable>
+      </Link>
+    ) : (
+      <View>{shown}</View>
+    );
+  };
+  return (
+    <View className="items-center gap-2 py-2">
+      <View className="flex-row flex-wrap items-center justify-center gap-2">
+        {badge(sender)}
+        <Typography.Paragraph type="body-sm" style={{ color: muted }}>
+          {message.transferred ? t("mobile.chat.exchange.handedOverTo") : t("mobile.chat.exchange.asked")}
+        </Typography.Paragraph>
+        {badge(recipient)}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={t(open ? "mobile.chat.exchange.hideBrief" : "mobile.chat.exchange.showBrief", {
+            name: recipientName,
+          })}
+          hitSlop={8}
+          onPress={() => {
+            void haptics.selection();
+            setOpen((value) => !value);
+          }}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        >
+          <ChevronDown
+            size={14}
+            color={String(muted)}
+            strokeWidth={2}
+            style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }}
+          />
+        </Pressable>
+      </View>
+      {open ? (
+        <View className="self-stretch px-2">
+          <ChatMarkdown agents={agents} body={message.brief} finished color={color} animationEnabled={false} />
+        </View>
+      ) : null}
     </View>
   );
 }

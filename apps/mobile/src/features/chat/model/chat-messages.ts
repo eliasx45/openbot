@@ -1,11 +1,13 @@
 import { chatVisualReply } from "@openbot/contracts/chat-visual";
 import { sortConversationMessages } from "@openbot/contracts/conversation-order";
 import { itemTypeCountsAsUnread } from "@openbot/contracts/conversation-read";
+import { channelHandoff } from "@openbot/contracts/fork-channel-handoffs";
 import type {
   AgentExchangeSummary,
   AttachmentSummary,
   ChannelMessage,
   ChannelRoutingConversationEvent,
+  ChannelTask,
   ConversationMessage,
   ConversationMessageSender,
   ConversationQuestionPrompt,
@@ -48,6 +50,18 @@ export type ChatMessage =
       exchange: AgentExchangeSummary;
       /** Incoming files show under the marker, so the marker keeps a row of its own. */
       standalone: boolean;
+    }
+  /**
+   * Fork: a channel member gave work to another member. One row, "Tapa Lead asked Gotham", that
+   * opens to the brief (`@openbot/contracts/fork-channel-handoffs`).
+   */
+  | {
+      id: string;
+      kind: "channel-handoff";
+      senderAgentId: string;
+      recipientAgentId: string;
+      transferred: boolean;
+      brief: string;
     }
   /** Where a new chat started: the agent does not see the messages above it. */
   | { id: string; kind: "context-reset" }
@@ -742,7 +756,11 @@ function projectChannelMessage(
 }
 
 /** Keep channel authors explicit: another human member is not the current user. */
-export function projectChannelMessages(messages: ChannelMessage[], memberId: string | null): ChatMessage[] {
+export function projectChannelMessages(
+  messages: ChannelMessage[],
+  memberId: string | null,
+  tasks: readonly ChannelTask[] = [],
+): ChatMessage[] {
   const latestRuns = latestRoutineRunMessages(messages.map((entry) => entry.message));
   return messages
     .filter(
@@ -753,6 +771,16 @@ export function projectChannelMessages(messages: ChannelMessage[], memberId: str
         entry.message.attachments?.length,
     )
     .flatMap((entry) => {
+      const handoff = channelHandoff(entry, tasks);
+      if (handoff)
+        return {
+          id: entry.id,
+          kind: "channel-handoff" as const,
+          senderAgentId: handoff.senderAgentId,
+          recipientAgentId: handoff.recipientAgentId,
+          transferred: handoff.kind === "transferred",
+          brief: handoff.brief,
+        };
       const self = entry.author.kind === "member" && entry.author.id === memberId;
       const cached = projectedChannelMessages.get(entry);
       const latest = latestRuns.has(entry.message.id);

@@ -4,6 +4,7 @@
  * desktop and the browser client build the same view from it.
  */
 
+import { channelHandoff } from "@openbot/contracts/fork-channel-handoffs";
 import {
   type AgentApproval,
   type BrowserTakeoverRequest,
@@ -60,54 +61,37 @@ const HANDOFF_DELIVERY_STATUS: Record<ChannelTask["state"], QueueDeliveryStatus>
 
 /**
  * Fork: a `channel_assign` or `channel_transfer` handoff as an agent-message row ("Tapa Lead asked
- * Gotham ▸"), closed, with the brief under its toggle.
- *
- * The host posts each handoff as an ordinary message of the assigning member, `<recipient>: <brief>`,
- * as a reply to the request. It then drew as a full bubble with a quote of the person's message, so
- * a brief for another member read as an answer to the person (Elias, 8 Nov 2026). The stored
- * message has no handoff mark, so the row is found from the task it started: a child of the
- * message's task (assign), or the same task with a new owner (transfer), whose instruction is the
- * text after the prefix. The host, the stored data and other clients keep the plain message.
+ * Gotham ▸"), closed, with the brief under its toggle and no quote of the person's request. See
+ * `@openbot/contracts/fork-channel-handoffs` for how a handoff is found.
  */
 export function channelHandoffMessage(entry: ChannelMessage, tasks: readonly ChannelTask[]): ChannelHandoff | null {
-  const { message } = entry;
-  if (entry.author.kind !== "agent" || !entry.taskId || message.author === "user" || message.status !== "completed")
-    return null;
-  const text = message.text;
-  const task = tasks.find((candidate) => {
-    if (candidate.parentTaskId !== entry.taskId && candidate.id !== entry.taskId) return false;
-    if (!candidate.ownerAgentId || candidate.ownerAgentId === entry.author.id || !candidate.instruction) return false;
-    if (!text.endsWith(`: ${candidate.instruction}`)) return false;
-    const recipient = text.slice(0, text.length - candidate.instruction.length - 2);
-    return recipient.length > 0 && !recipient.includes("\n");
-  });
-  if (!task?.ownerAgentId) return null;
-  const transferred = task.id === entry.taskId;
-  const { replyToMessageId: _reply, ...rest } = message;
+  const found = channelHandoff(entry, tasks);
+  if (!found) return null;
+  const { replyToMessageId: _reply, ...rest } = entry.message;
   const handoff: ConversationMessage & { id: string } = {
     ...rest,
     id: entry.id,
-    text: task.instruction,
-    senderAgentId: entry.author.id,
+    text: found.brief,
+    senderAgentId: found.senderAgentId,
     exchange: {
       direction: "outgoing",
       messageId: entry.id,
-      senderAgentId: entry.author.id,
-      recipientAgentIds: [task.ownerAgentId],
+      senderAgentId: found.senderAgentId,
+      recipientAgentIds: [found.recipientAgentId],
       replyToMessageId: null,
       deliveries: [
         {
-          id: task.id,
-          recipientAgentId: task.ownerAgentId,
-          status: HANDOFF_DELIVERY_STATUS[task.state],
+          id: found.task.id,
+          recipientAgentId: found.recipientAgentId,
+          status: HANDOFF_DELIVERY_STATUS[found.task.state],
           position: null,
           error: null,
         },
       ],
-      expectsReply: !transferred,
+      expectsReply: found.kind === "assigned",
     },
   };
-  return { message: handoff, kind: transferred ? "transferred" : "assigned" };
+  return { message: handoff, kind: found.kind };
 }
 
 interface ChannelHandoff {
