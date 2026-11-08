@@ -112,6 +112,24 @@ install_deps() {
     echo "$sum" >"$state/deps-hash"
 }
 
+# electron-builder fetches Electron's SHASUMS256.txt from GitHub on every build, even with the zip
+# cached, so a GitHub release-server outage (504 and a hang on 8 Nov 2026) stops the build. Give it
+# the cached zip when that zip matches the checksum the installed `electron` package ships: then
+# packaging needs no network. No match (a new Electron version): the normal download.
+electron_dist() {
+    v=$(sed -n 's/^ *"version": "\([^"]*\)".*/\1/p' node_modules/electron/package.json | head -1)
+    name="electron-v$v-darwin-arm64.zip"
+    want=$(sed -n "s/^ *\"$name\": \"\\([0-9a-f]*\\)\".*/\\1/p" node_modules/electron/checksums.json)
+    [ -n "$want" ] || return 0
+    for z in "${electron_config_cache:-$HOME/Library/Caches/electron}"/*/"$name"; do
+        [ -f "$z" ] || continue
+        if [ "$(shasum -a 256 "$z" | cut -d' ' -f1)" = "$want" ]; then
+            echo "-c.electronDist=$z"
+            return 0
+        fi
+    done
+}
+
 # Upstream's `bun run package`, signed. The runtimes are pinned downloads (nothing compiles) and
 # each step skips what is already installed.
 steps() {
@@ -125,8 +143,9 @@ steps() {
     bun run prepare:iphone-photo
     bun run build
     rm -rf dist/mac-arm64
+    dist=$(electron_dist)
     # shellcheck disable=SC2086 # word-split flags
-    bunx electron-builder $builder_flags "-c.mac.identity=$identity_name"
+    bunx electron-builder $builder_flags "-c.mac.identity=$identity_name" ${dist:+"$dist"}
     rm -rf "$staged"
     mv dist/mac-arm64/OpenBot.app "$staged"
     codesign --verify --deep --strict "$staged"
@@ -156,8 +175,9 @@ patch() {
         rm -rf dist/mac-arm64
         # Unsigned, only for its app.asar (out/ and the production node_modules), the unpacked
         # hosts, and the Info.plist that carries app.asar's hash (ElectronAsarIntegrity).
+        dist=$(electron_dist)
         # shellcheck disable=SC2086 # word-split flags
-        bunx electron-builder $builder_flags -c.mac.identity=null
+        bunx electron-builder $builder_flags -c.mac.identity=null ${dist:+"$dist"}
         built="dist/mac-arm64/OpenBot.app/Contents"
         cp "$built/Resources/app.asar" "$res/app.asar"
         rsync -a --delete "$built/Resources/app.asar.unpacked/" "$res/app.asar.unpacked/"
