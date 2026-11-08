@@ -508,6 +508,15 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Tests:** Biome, `bun run typecheck:renderer`; isolated dev instance (sandbox HOME): the icon shows left of Back, a click opens the search dialog, the list starts right under the top bar, compact mode still shows its search icon.
 - **Check:** in the expanded sidebar click the magnifier left of ←: global search opens; no Search field row above the chats.
 
+## 52. Video cards you can resize, with less frame
+
+- **Get:** drag the outer edge of a video's bubble (left side on your own messages, right side on an agent's) to make every video card in chats wider or narrower, 280–1100 px, capped by the chat column; the width is kept across restarts, and a double-click on the grip resets it. Default 560 px (was 360). One slim header row (name and size), a thin frame, and Chromium's controls only while the pointer or focus is on the video, so a paused frame shows whole.
+- **Why:** Elias, 8 Nov 2026 (screenshot of a before/after MP4): "redesign the video card so we can resize it (within limits so i dont have to go full screen to see more details) and make less border … rn just the icons are taking up the space of the vid". Then, testing it: "it works when i drag my mouse diagonally, + its inverted directions", "let me drag from the outer point instead of the inner".
+- **How (portable):** one width signal (`video-card-width.ts`) written to `--video-card-width` on the document and to localStorage. The grip is a full-height strip on the card's free side (measured on hover: a right-aligned bubble keeps its right edge, so it grows left) that reaches into the bubble padding; only the horizontal move counts, outward grows. The video's bubble takes `min(100%, width + padding)` instead of its 800 px cap, and its content stops clipping. `<video controls>` follows pointer enter/leave and focus.
+- **Here:** `packages/ui/src/features/conversation/video-card-width.ts`, `AttachmentCards.tsx`, `MediaFilePreview.tsx`, `styles/attachments.css`, `attachment.resizeVideo` in every locale.
+- **Tests:** Biome, `bun run typecheck:renderer`; isolated dev instance (sandbox HOME) with a real MP4: CDP mouse drag on the left edge of a right-aligned card, 358 px outward, grew it 427 → 783 px with the edge under the pointer; paused frame without controls; Elias tried it in that instance.
+- **Check:** in a chat with an MP4 hover the video: controls appear; leave: the frame shows whole. Drag the bubble's outer edge outward: the card grows with the pointer; restart: same width.
+
 ---
 
 ## Checked, not needed

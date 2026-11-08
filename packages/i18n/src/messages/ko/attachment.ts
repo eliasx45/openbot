@@ -2,6 +2,7 @@ import type { PartialTranslation } from "../../message";
 import type { messages as source } from "../en/attachment";
 
 export const messages = {
+  "attachment.resizeVideo": "동영상 크기 조절(두 번 클릭: 기본 크기)",
   "attachment.openFile": "파일 열기",
   "attachment.preview": "{name} 미리 보기",
   "attachment.notFound": "파일을 찾을 수 없어요",

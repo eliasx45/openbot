@@ -2,6 +2,7 @@ import type { PartialTranslation } from "../../message";
 import type { messages as source } from "../en/attachment";
 
 export const messages = {
+  "attachment.resizeVideo": "Redimensionar vídeo (clique duplo: tamanho padrão)",
   "attachment.openFile": "Abrir arquivo",
   "attachment.preview": "Visualizar {name}",
   "attachment.notFound": "Arquivo não encontrado",

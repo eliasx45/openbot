@@ -2,6 +2,7 @@ import type { PartialTranslation } from "../../message";
 import type { messages as source } from "../en/attachment";
 
 export const messages = {
+  "attachment.resizeVideo": "调整视频大小（双击：默认大小）",
   "attachment.openFile": "打开文件",
   "attachment.preview": "预览 {name}",
   "attachment.notFound": "未找到文件",

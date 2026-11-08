@@ -287,3 +287,100 @@
 .message-attachment[data-media="audio"] .attachment-media-player {
   height: var(--openbot-control-xl);
 }
+
+/*
+ * Fork: a video card is as wide as the person dragged it (280-1100 px, default 560), capped by the
+ * chat column, with a slim header and border so the picture gets the room (Elias, 8 Nov 2026).
+ */
+.message-attachments-group:has(.message-attachment[data-media="video"]),
+.message-attachments:has(.message-attachment[data-media="video"]) {
+  width: 100%;
+}
+
+/* The grip reaches into the bubble's padding, so the bubble's content must not clip it. */
+[data-slot="bubble"]:has(.message-attachment[data-media="video"]) > [data-slot="bubble-content"] {
+  overflow: visible;
+}
+
+/* The bubble's own cap (at most 800 px) would hold the card back, so a video's bubble takes its width. */
+[data-slot="bubble"]:has(.message-attachment[data-media="video"]) {
+  width: min(100%, calc(var(--video-card-width, 560px) + 2 * var(--openbot-space-3)));
+  max-width: 100%;
+}
+
+.message-attachment[data-media="video"] {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  row-gap: var(--openbot-space-1);
+  column-gap: 2px;
+  padding: var(--openbot-space-1);
+}
+
+.message-attachment[data-media="video"] .attachment-preview-button {
+  min-height: 0;
+  padding-block: 0;
+}
+
+.message-attachment[data-media="video"] .attachment-file-visual {
+  width: var(--openbot-control-sm);
+  height: var(--openbot-control-sm);
+  background: transparent;
+}
+
+.message-attachment[data-media="video"] .attachment-file-copy {
+  display: flex;
+  align-items: baseline;
+  gap: var(--openbot-space-2);
+}
+
+.message-attachment[data-media="video"] .attachment-media-player {
+  border-radius: var(--openbot-radius-md);
+}
+
+/*
+ * The grip: the whole outer edge of the bubble on the card's free side, drawn as a corner mark at its
+ * outer bottom corner. It reaches past the card into the bubble's padding, so the outermost point drags.
+ */
+.attachment-video-resize {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: calc(-1 * var(--openbot-space-3) - 2px);
+  bottom: calc(-1 * var(--openbot-space-3) - 2px);
+  width: calc(var(--openbot-space-3) + 8px);
+  cursor: ew-resize;
+  opacity: 0;
+  transition: opacity var(--openbot-duration-hover) ease;
+  touch-action: none;
+}
+
+.attachment-video-resize::after {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 14px;
+  height: 14px;
+  background: linear-gradient(
+    135deg,
+    transparent 0 52%,
+    var(--openbot-text-muted) 52% 60%,
+    transparent 60% 72%,
+    var(--openbot-text-muted) 72% 80%,
+    transparent 80%
+  );
+  content: "";
+}
+
+.attachment-video-resize[data-side="left"] {
+  right: auto;
+  left: calc(-1 * var(--openbot-space-3) - 2px);
+  transform: scaleX(-1);
+}
+
+[data-slot="bubble"]:hover .attachment-video-resize,
+.message-attachment[data-media="video"]:hover .attachment-video-resize,
+.attachment-video-resize:active {
+  opacity: 1;
+}

@@ -17,6 +17,7 @@ import { createSignal, For, Match, Show, Switch } from "solid-js";
 import { useText } from "../../text";
 import { attachmentReferenceTone } from "./AttachmentReference";
 import { MediaFilePreview } from "./MediaFilePreview";
+import { resetVideoCardWidth, startVideoCardResize, videoCardFreeSide } from "./video-card-width";
 
 /**
  * Reads attachments that have no `previewUrl`: the browser client gets none. Absent (desktop), a card
@@ -117,12 +118,16 @@ export function AttachmentCards(props: {
             attachment.size <= source.thumbnailLimit
           )
             void source.load(attachment);
+          const [gripSide, setGripSide] = createSignal<"left" | "right">("right");
           return (
             <div
               class="message-attachment"
               data-media={mediaKind(attachment) ?? undefined}
               data-status={isMissing(attachment) ? "missing" : undefined}
               data-download={download(attachment)?.phase}
+              onPointerEnter={(event) => {
+                if (mediaKind(attachment) === "video") setGripSide(videoCardFreeSide(event.currentTarget));
+              }}
             >
               <Button
                 variant="ghost"
@@ -250,6 +255,17 @@ export function AttachmentCards(props: {
                   class="attachment-media-player"
                   preload={mediaPreload(attachment.previewUrl)}
                   autoplay={playRequested().has(attachment.id)}
+                />
+              </Show>
+              {/* Fork: drag the corner to size every video card (Elias, 8 Nov 2026). */}
+              <Show when={mediaKind(attachment) === "video" && !isMissing(attachment)}>
+                <span
+                  class="attachment-video-resize"
+                  data-side={gripSide()}
+                  aria-hidden="true"
+                  title={t("attachment.resizeVideo")}
+                  onPointerDown={startVideoCardResize}
+                  onDblClick={resetVideoCardWidth}
                 />
               </Show>
             </div>

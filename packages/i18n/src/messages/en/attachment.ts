@@ -1,6 +1,7 @@
 import { defineMessages } from "../../message";
 
 export const messages = defineMessages("attachment", {
+  "attachment.resizeVideo": "Resize video (double-click: default size)",
   "attachment.openFile": "Open file",
   "attachment.preview": "Preview {name}",
   "attachment.notFound": "File not found",
