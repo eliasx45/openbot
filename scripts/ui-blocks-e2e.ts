@@ -3,7 +3,8 @@
 // conversation as a host sends it to each kind of client. No provider or account is used.
 // `bun scripts/ui-blocks-e2e.ts`. Writes .openbot-build/ui-blocks-e2e/report.json.
 import assert from "node:assert/strict";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   type AgentEvent,
@@ -48,6 +49,9 @@ import {
   type UiBlockValue,
   type UiBlockVaultRequest,
   uiBlockAnswersFromResponse,
+  uiBlockFitsV1Wire,
+  uiFormClipNotesKey,
+  uiFormClipNoteValue,
 } from "@openbot/contracts/ui-blocks";
 import { Effect } from "effect";
 import { AttentionRegistry, type PromptResponder } from "../src/backend/agent/attention-registry";
@@ -72,6 +76,8 @@ interface AgentAnswer {
   values?: Record<string, UiBlockValue>;
   text?: string;
   next?: string;
+  reason?: string;
+  notes?: Array<{ field: string; time: number; text: string; frame?: string }>;
 }
 
 /** Records what OpenBot answers to the agent. The process never starts: only the answer is read. */
@@ -224,9 +230,12 @@ const AUTO_START = { actionId: "start", afterMs: 50 };
 
 const hasUiBlock = (json: string) => json.includes('"uiBlock"');
 
-/** A block as `ui-blocks-v1` carries it: the host's auto-answer state stays on the host. */
+/**
+ * A block as `ui-blocks-v1` carries it: the host's auto-answer state stays on the host. A review card
+ * (fork) stays off the wire.
+ */
 function onV1Wire(block: ConversationUiBlock | undefined): ConversationUiBlock | undefined {
-  if (!block) return block;
+  if (!block || !uiBlockFitsV1Wire(block)) return undefined;
   const { autoAnswer: _autoAnswer, ...state } = block.state;
   return { ...block, state };
 }
@@ -349,6 +358,73 @@ try {
     await answer(id, {}, MEMBER);
     assert.deepEqual(client.answers.get(id)?.value, { status: "skipped", blockId: `block-${id}` });
     assert.equal(message.uiBlock?.state.status, "closed");
+  });
+
+  // Fork (docs/fork/FEATURES.md, "Review cards" and "A message closes the open card").
+  await step("a review card: Other text and a pause note reach the agent with the frame", async () => {
+    const video = resolve(OUT, "clip.mp4");
+    execFileSync(existsFfmpeg(), [
+      "-v",
+      "error",
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc=size=320x180:rate=25:duration=4",
+      "-pix_fmt",
+      "yuv420p",
+      video,
+    ]);
+    const reviewSpec: UiBlockSpec = {
+      type: "form",
+      title: "6 choices",
+      fields: [
+        {
+          id: "steps",
+          kind: "segmented",
+          label: "Step cards",
+          options: ["Keep big number", "10-10 blueprint"],
+          clip: { path: video, start: 1, end: 3, src: "openbot-attachment://file/clip-1" },
+        },
+      ],
+    };
+    const { id, spec, message } = ask(reviewSpec, "turn-review");
+    assert.ok(
+      message.questionPrompt?.questions.some((question) => question.id === uiFormClipNotesKey("steps")),
+      "no notes question for the clip",
+    );
+    const notesKey = uiFormClipNotesKey("steps");
+    await answer(
+      id,
+      asNewClient(spec, {
+        actionId: "submit",
+        values: { steps: "Big number, but in the blueprint frame", [notesKey]: [uiFormClipNoteValue(2.04, "Smaller")] },
+      }),
+      OWNER,
+    );
+    const value = client.answers.get(id)?.value;
+    assert.equal(value?.status, "answered");
+    assert.deepEqual(value?.values, { steps: "Big number, but in the blueprint frame" });
+    const note = value?.notes?.[0];
+    assert.equal(note?.field, "steps");
+    assert.equal(note?.time, 2.04);
+    assert.equal(note?.text, "Smaller");
+    assert.ok(note?.frame, "the note has no frame");
+    const png = await readFile(note.frame);
+    assert.equal(png.subarray(1, 4).toString("latin1"), "PNG");
+    assert.equal(message.uiBlock?.state.status, "answered");
+    assert.ok(message.uiBlock && !uiBlockFitsV1Wire(message.uiBlock), "a review card would go on the v1 wire");
+    return { note, outcome: message.uiBlock?.state.outcome };
+  });
+
+  await step("a user message closes the open card, and the agent gets the reason", async () => {
+    const { id, message } = ask(repliesSpec, "turn-message");
+    registry.skipUiBlocksForUserMessage("agent-1", "turn-message");
+    const value = client.answers.get(id)?.value;
+    assert.equal(value?.status, "skipped");
+    assert.match(String(value?.reason), /sent a message instead/u);
+    assert.equal(message.uiBlock?.state.status, "closed");
+    return value;
   });
 
   await step("nobody answers a plan card: the host presses Start after its delay", async () => {
@@ -613,4 +689,15 @@ try {
   );
   process.stderr.write(`ui-blocks-e2e failed: ${error instanceof Error ? error.message : String(error)}\n`);
   process.exitCode = 1;
+}
+
+/** The ffmpeg of this Mac: the script's PATH may not hold Homebrew. */
+function existsFfmpeg(): string {
+  for (const path of ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"]) {
+    try {
+      execFileSync(path, ["-version"], { stdio: "ignore" });
+      return path;
+    } catch {}
+  }
+  return "ffmpeg";
 }

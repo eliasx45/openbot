@@ -61,6 +61,7 @@ import {
 import type { VaultAgentChange, VaultAgentResult, VaultEnteredItem, VaultItems, VaultTypedLogin } from "../vault-items";
 import { type ApprovalAutomationPolicy, NO_APPROVAL_AUTOMATION, shouldAutoApprove } from "./approval-automation";
 import type { ConversationRuntime } from "./conversation-runtime";
+import { cardNotes, withNoteFrames } from "./fork-card-notes";
 import type { HostedSiteOperationFailed } from "./hosted-site-coordinator";
 import {
   HOSTED_SITE_APPROVAL_METHOD,
@@ -611,6 +612,11 @@ export class AttentionRegistry {
   ) {
     const saved = yield* this.#saveApiKeyAnswer(input, responder);
     const savedItem = yield* this.#saveVaultAnswer(input, responder);
+    // Fork (docs/fork/FEATURES.md, "Review cards"): the frame of each pause note, before the answer goes.
+    const notePending = this.#prompts.get(input.requestId);
+    const notes = notePending?.uiBlock
+      ? yield* withNoteFrames(notePending.uiBlock.blockId, cardNotes(notePending.uiBlock.spec, input.answers))
+      : [];
     yield* attentionStep(() => {
       const pending = this.#prompts.get(input.requestId);
       // The turn ended while the key or the item was saved. It stays saved, and the agent can list it.
@@ -633,7 +639,12 @@ export class AttentionRegistry {
           : pending.uiBlock
             ? uiBlockPromptResult(
                 uiBlockResponse
-                  ? { status: "answered", blockId: pending.uiBlock.blockId, response: uiBlockResponse }
+                  ? {
+                      status: "answered",
+                      blockId: pending.uiBlock.blockId,
+                      response: uiBlockResponse,
+                      notes: notes.map(({ file: _file, ...note }) => note),
+                    }
                   : { status: "skipped", blockId: pending.uiBlock.blockId },
               )
             : pending.responseKind === "dynamic-tool"

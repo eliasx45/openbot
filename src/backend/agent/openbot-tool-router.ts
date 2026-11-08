@@ -539,7 +539,7 @@ export class OpenBotToolRouter {
             }
             // Every provider gets ask_ui, Claude too: its call arrives here through the SDK MCP server.
             if (toolRequest.params.tool === "ask_ui") {
-              this.#askUi(client, toolRequest, toolRequest.params);
+              yield* this.#askUi(client, toolRequest, toolRequest.params);
               return;
             }
             if (toolRequest.params.tool === "acknowledge_request") {
@@ -640,7 +640,12 @@ export class OpenBotToolRouter {
    * Checks an `ask_ui` call and shows its block. Like `ask_user`, it answers the call only when the
    * person answers or the turn ends. The agent can correct a refused block, so it gets the reason.
    */
-  #askUi(client: AgentClient, request: AppServerRequest, params: DynamicToolCallParams): void {
+  readonly #askUi = Effect.fn("OpenBotToolRouter.askUi")(function* (
+    this: OpenBotToolRouter,
+    client: AgentClient,
+    request: AppServerRequest,
+    params: DynamicToolCallParams,
+  ) {
     const refuse = (message: string) => client.respond(request.id, openBotToolFailure(message));
     const parsed = askUiToolSchema.safeParse(params.arguments);
     if (!parsed.success) {
@@ -656,8 +661,35 @@ export class OpenBotToolRouter {
       );
       return;
     }
+    // Fork (docs/fork/FEATURES.md, "Review cards"): the clip files go in the chat as the agent's
+    // attachments, and each clip plays from its attachment.
+    if (spec.type === "form" && spec.fields.some((field) => field.clip)) {
+      const agentId = this.#conversation.agentForThread(params.threadId);
+      const paths = [...new Set(spec.fields.flatMap((field) => (field.clip ? [field.clip.path] : [])))];
+      const attached = agentId
+        ? yield* this.#attachments
+            .attachFiles(
+              agentId,
+              params,
+              paths,
+              responseAttachmentMessageId(params.threadId, params.turnId, params.callId),
+            )
+            .pipe(Effect.result)
+        : null;
+      const ids = attached && Result.isSuccess(attached) ? attachedIds(attached.success) : null;
+      if (!ids || ids.length !== paths.length) {
+        refuse(
+          `OpenBot could not attach the clip files (${paths.join(", ")}). Check that each path is a video file in your workspace or shared folders, and retry.`,
+        );
+        return;
+      }
+      for (const field of spec.fields) {
+        if (!field.clip) continue;
+        field.clip.src = `openbot-attachment://file/${ids[paths.indexOf(field.clip.path)]}`;
+      }
+    }
     this.#attention.surfaceUiBlock(client, request, { blockId, spec });
-  }
+  });
 
   /**
    * The API key tools. `request_api_key` shows a form with one secret field, and the attention registry
@@ -2162,4 +2194,15 @@ export class OpenBotToolRouter {
     Effect.catchDefect((cause) => Effect.fail(new ToolOperationFailed({ cause }))),
     Effect.uninterruptible,
   );
+}
+
+/** Fork: the attachment ids in an `attach_files_to_response` result, in the order of its paths. */
+function attachedIds(response: OpenBotToolResponse): string[] | null {
+  try {
+    const value = JSON.parse(response.contentItems[0]?.text ?? "");
+    if (!isRecord(value) || !Array.isArray(value.attachments)) return null;
+    return value.attachments.flatMap((item) => (isRecord(item) && isString(item.id) ? [item.id] : []));
+  } catch {
+    return null;
+  }
 }

@@ -590,3 +590,58 @@
     transition: none;
   }
 }
+
+/* Fork (docs/fork/FEATURES.md, "Review cards"): the clip of a form field, its pause notes and the
+   note being written. */
+.ui-block-clip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-1);
+}
+
+.ui-block-clip-video {
+  width: 100%;
+  max-height: 22rem;
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-surface-raised);
+}
+
+.ui-block-clip-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-0-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-block-clip-note,
+.ui-block-clip-draft {
+  display: flex;
+  align-items: center;
+  gap: var(--openbot-space-1);
+  min-width: 0;
+}
+
+.ui-block-clip-note svg {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--openbot-text-muted);
+}
+
+.ui-block-clip-note-time {
+  flex: none;
+  color: var(--openbot-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-block-clip-note-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ui-block-clip-add {
+  align-self: flex-start;
+}

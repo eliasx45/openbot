@@ -31,4 +31,10 @@ export const messages = {
   "uiBlock.hint.show": "Подсказка",
   "uiBlock.hint.next": "Подсказка {index}/{count}",
   "uiBlock.hint.label": "Подсказка {index} из {count}",
+  "uiBlock.form.other": "Другое",
+  "uiBlock.form.otherPlaceholder": "Свой ответ",
+  "uiBlock.clip.note": "Заметка здесь",
+  "uiBlock.clip.notePlaceholder": "Что изменить в этом кадре?",
+  "uiBlock.clip.addNote": "Добавить заметку",
+  "uiBlock.clip.removeNote": "Удалить заметку",
 } as const satisfies PartialTranslation<typeof source>;

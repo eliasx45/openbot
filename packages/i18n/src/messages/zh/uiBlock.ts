@@ -31,4 +31,10 @@ export const messages = {
   "uiBlock.hint.show": "提示",
   "uiBlock.hint.next": "提示 {index}/{count}",
   "uiBlock.hint.label": "提示 {index}/{count}",
+  "uiBlock.form.other": "其他",
+  "uiBlock.form.otherPlaceholder": "你自己的回答",
+  "uiBlock.clip.note": "在此备注",
+  "uiBlock.clip.notePlaceholder": "这一帧需要改什么？",
+  "uiBlock.clip.addNote": "添加备注",
+  "uiBlock.clip.removeNote": "删除备注",
 } as const satisfies PartialTranslation<typeof source>;

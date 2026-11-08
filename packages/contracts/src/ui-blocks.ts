@@ -53,6 +53,8 @@ export const UI_BLOCK_LIMITS = {
   holdMinMs: 400,
   holdMaxMs: 3_000,
   timestamp: 160,
+  /** Fork: the pause notes on one clip of a form field. */
+  clipNotes: 20,
 } as const;
 
 /** Letters, digits, `_ . : -`; 1 to 64 characters. See `isUiBlockId` for the reserved ids. */
@@ -172,6 +174,39 @@ export interface UiChoiceBlock {
   hints?: string[];
 }
 
+/**
+ * Fork (docs/fork/FEATURES.md, "Review cards"). The part of a video on this computer that a form field
+ * is about. The app plays `start`..`end` in a loop above the field, and the user can pause it and add a
+ * note at the frame on screen. The ui-blocks-v1 wire leaves such a block out (`uiBlockFitsV1Wire`).
+ */
+export interface UiFormClip {
+  /** The absolute path of the video, as the agent gave it. */
+  path: string;
+  /** Seconds in the file. */
+  start?: number;
+  /** Seconds in the file, after `start`. */
+  end?: number;
+  /** `openbot-attachment://file/<id>`. The host sets it when it shows the block; the agent does not. */
+  src?: string;
+}
+
+/** Fork: the response key of the pause notes on the clip of form field `fieldId`. */
+export function uiFormClipNotesKey(fieldId: string): string {
+  return `notes:${fieldId}`;
+}
+
+/** Fork: one pause note as a response value holds it: the seconds in the file, a space, the words. */
+export function uiFormClipNoteValue(time: number, text: string): string {
+  return `${Math.max(0, Math.round(time * 1000) / 1000)} ${text}`;
+}
+
+/** Fork: reads a pause note value back, or null. */
+export function readUiFormClipNote(value: string): { time: number; text: string } | null {
+  const match = /^(\d+(?:\.\d+)?) ([\s\S]+)$/u.exec(value);
+  if (!match?.[1] || !match[2]?.trim()) return null;
+  return { time: Number(match[1]), text: match[2].trim() };
+}
+
 export interface UiFormTextField {
   id: string;
   kind: "text" | "textarea";
@@ -185,6 +220,7 @@ export interface UiFormTextField {
    * resolution leave it out.
    */
   secret?: boolean;
+  clip?: UiFormClip;
 }
 
 export interface UiFormOptionsField {
@@ -193,8 +229,14 @@ export interface UiFormOptionsField {
   label?: string;
   options: string[];
   required?: boolean;
-  /** One of `options`. */
+  /** One of `options`, or with `other` any text. */
   value?: string;
+  /**
+   * Fork: absent or true, the app adds "Other" after the options, with a text box; the value is then
+   * the typed text. False shows the options only.
+   */
+  other?: boolean;
+  clip?: UiFormClip;
 }
 
 export interface UiFormDateField {
@@ -204,6 +246,12 @@ export interface UiFormDateField {
   required?: boolean;
   /** `YYYY-MM-DD`. */
   value?: string;
+  clip?: UiFormClip;
+}
+
+/** Fork: an options field takes typed text, not only one of its options. */
+export function uiFormFieldTakesOther(field: UiFormOptionsField): boolean {
+  return field.other !== false;
 }
 
 export type UiFormField = UiFormTextField | UiFormOptionsField | UiFormDateField;
@@ -571,6 +619,26 @@ function isUiDate(value: unknown): value is string {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
+function readClip(value: unknown): UiFormClip {
+  const record = readRecord(value);
+  const path = readString(record.path, INPUT_LIMITS.path);
+  check(path.startsWith("/"));
+  const clipValue: UiFormClip = { path };
+  const start = readOptionalNumber(record.start, 0, 86_400);
+  const end = readOptionalNumber(record.end, 0, 86_400);
+  if (start !== undefined) clipValue.start = start;
+  if (end !== undefined) {
+    check(end > (start ?? 0));
+    clipValue.end = end;
+  }
+  const src = readOptionalString(record.src, 200);
+  if (src !== undefined) {
+    check(/^openbot-attachment:\/\/file\/[A-Za-z0-9_-]+$/u.test(src));
+    clipValue.src = src;
+  }
+  return clipValue;
+}
+
 function readFormField(value: unknown): UiFormField {
   const record = readRecord(value);
   const id = readId(record.id);
@@ -585,9 +653,13 @@ function readFormField(value: unknown): UiFormField {
     const optionsField: UiFormOptionsField = { id, kind, options };
     const label = readOptionalString(record.label, UI_BLOCK_LIMITS.label);
     if (label !== undefined) optionsField.label = label;
+    const other = readOptionalBoolean(record.other);
+    if (other !== undefined) optionsField.other = other;
     if (record.value !== undefined) {
-      check(isOneOf(options, record.value));
-      optionsField.value = record.value;
+      if (other === false) {
+        check(isOneOf(options, record.value));
+        optionsField.value = record.value;
+      } else optionsField.value = readString(record.value, UI_BLOCK_LIMITS.fieldValue);
     }
     field = optionsField;
   } else if (kind === "date") {
@@ -608,6 +680,7 @@ function readFormField(value: unknown): UiFormField {
     field = textField;
   }
   if (required !== undefined) field.required = required;
+  if (record.clip !== undefined) field.clip = readClip(record.clip);
   return field;
 }
 
@@ -655,6 +728,26 @@ export function uiBlockSpecWithoutHints(spec: UiBlockSpec): UiBlockSpec {
   if (spec.type === "confirm" || spec.hints === undefined) return spec;
   const { hints: _hints, ...rest } = spec;
   return rest;
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md, "Review cards"). False for a block that a released ui-blocks-v1 reader
+ * would refuse: an answer with pause notes, or an options field whose value or answer is not one of
+ * its options (Other). A released reader drops the keys it does not know (`clip`, `other`). The wire
+ * then leaves the block out, and the client shows its questions.
+ */
+export function uiBlockFitsV1Wire(block: ConversationUiBlock): boolean {
+  if (block.spec.type !== "form") return true;
+  const values = block.state.response?.values ?? {};
+  if (Object.keys(values).some((key) => key.startsWith("notes:"))) return false;
+  return block.spec.fields.every((field) => {
+    if (field.kind !== "select" && field.kind !== "segmented") return true;
+    const answer = values[field.id];
+    return (
+      (field.value === undefined || field.options.includes(field.value)) &&
+      (answer === undefined || answer === "" || (typeof answer === "string" && field.options.includes(answer)))
+    );
+  });
 }
 
 export function isUiBlockSpec(value: unknown): value is UiBlockSpec {
@@ -713,10 +806,23 @@ function readResponseValues(
     }
     case "form": {
       const raw =
-        record.values === undefined ? new Map<string, unknown>() : readValues(record.values, spec.fields.length);
+        record.values === undefined ? new Map<string, unknown>() : readValues(record.values, spec.fields.length * 2);
       const values: Record<string, UiBlockValue> = {};
       const fields = new Map(spec.fields.map((field) => [field.id, field] as const));
-      for (const key of raw.keys()) check(fields.has(key));
+      const notesKeys = new Map(
+        spec.fields.flatMap((field) => (field.clip ? [[uiFormClipNotesKey(field.id), field] as const] : [])),
+      );
+      for (const key of raw.keys()) check(fields.has(key) || notesKeys.has(key));
+      for (const [key] of notesKeys) {
+        const entry = raw.get(key);
+        if (entry === undefined) continue;
+        const notes = readArray(entry, UI_BLOCK_LIMITS.clipNotes).map((note) => {
+          const text = readString(note, UI_BLOCK_LIMITS.fieldValue);
+          check(readUiFormClipNote(text) !== null);
+          return text;
+        });
+        if (notes.length) values[key] = notes;
+      }
       for (const field of spec.fields) {
         // A stored response never holds a secret value; reading one drops it.
         const secret = isSecretFormField(field);
@@ -727,8 +833,11 @@ function readResponseValues(
           continue;
         }
         if (field.kind === "select" || field.kind === "segmented") {
-          check(isOneOf(field.options, entry));
-          values[field.id] = entry;
+          if (uiFormFieldTakesOther(field)) values[field.id] = readString(entry, UI_BLOCK_LIMITS.fieldValue);
+          else {
+            check(isOneOf(field.options, entry));
+            values[field.id] = entry;
+          }
         } else if (field.kind === "date") {
           check(isUiDate(entry));
           values[field.id] = entry;
@@ -997,14 +1106,19 @@ export function uiBlockFallbackQuestions(spec: UiBlockSpec): AgentPromptQuestion
       return [question(UI_CHOICE_QUESTION_ID, spec.title, `${spec.title}\n\n${listText(labels)}`, null)];
     }
     case "form":
-      return spec.fields.map((field) => {
+      return spec.fields.flatMap((field) => {
         const label = field.label ?? field.id;
+        // Fork: the notes on a clip are one more question, so `respondToPrompt` carries them.
+        const notes = field.clip ? [question(uiFormClipNotesKey(field.id), label, `${label} (notes)`, null)] : [];
         if (field.kind === "select" || field.kind === "segmented") {
           const options = fittingOptions(field.options);
-          return question(field.id, label, options ? label : `${label}\n\n${listText(field.options)}`, options);
+          return [
+            question(field.id, label, options ? label : `${label}\n\n${listText(field.options)}`, options),
+            ...notes,
+          ];
         }
-        if (field.kind === "date") return question(field.id, label, `${label} (YYYY-MM-DD)`, null);
-        return question(field.id, label, label, null, isSecretFormField(field));
+        if (field.kind === "date") return [question(field.id, label, `${label} (YYYY-MM-DD)`, null), ...notes];
+        return [question(field.id, label, label, null, isSecretFormField(field)), ...notes];
       });
   }
 }
@@ -1104,9 +1218,16 @@ function structuredResponse(
         if (given === undefined) continue;
         if (field.kind === "select" || field.kind === "segmented") {
           const option = matchOption(field.options, given);
-          if (option === undefined) return null;
-          values[field.id] = option;
+          if (option !== undefined) values[field.id] = option;
+          else if (uiFormFieldTakesOther(field)) values[field.id] = given.trim();
+          else return null;
         } else values[field.id] = field.kind === "date" ? given.trim() : given;
+      }
+      for (const field of spec.fields) {
+        if (!field.clip) continue;
+        const key = uiFormClipNotesKey(field.id);
+        const notes = (answers[key] ?? []).filter((note) => readUiFormClipNote(note) !== null);
+        if (notes.length) values[key] = notes;
       }
       return { actionId: UI_BLOCK_SUBMIT_ACTION_ID, values };
     }
@@ -1172,6 +1293,8 @@ export function uiBlockAnswersFromResponse(spec: UiBlockSpec, response: UiBlockR
       for (const field of spec.fields) {
         const value = values[field.id];
         if (value !== undefined && value !== "") answers[field.id] = [String(value)];
+        const notes = field.clip ? values[uiFormClipNotesKey(field.id)] : undefined;
+        if (Array.isArray(notes) && notes.length) answers[uiFormClipNotesKey(field.id)] = [...notes];
       }
       return answers;
     }
@@ -1206,8 +1329,11 @@ export function uiBlockOutcomeText(
       text = list(
         spec.fields.flatMap((field) => {
           const value = values[field.id];
-          if (isSecretFormField(field) || value === undefined || value === "") return [];
-          return [`${field.label ?? field.id}: ${String(value)}`];
+          const notes = field.clip ? values[uiFormClipNotesKey(field.id)] : undefined;
+          const noted = Array.isArray(notes) && notes.length ? ` (+${notes.length} 📌)` : "";
+          if (isSecretFormField(field) || value === undefined || value === "")
+            return noted ? [`${field.label ?? field.id}${noted}`] : [];
+          return [`${field.label ?? field.id}: ${String(value)}${noted}`];
         }),
       );
       break;

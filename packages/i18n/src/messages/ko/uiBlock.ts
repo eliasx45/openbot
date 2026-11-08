@@ -31,4 +31,10 @@ export const messages = {
   "uiBlock.hint.show": "힌트",
   "uiBlock.hint.next": "힌트 {index}/{count}",
   "uiBlock.hint.label": "힌트 {index}/{count}",
+  "uiBlock.form.other": "기타",
+  "uiBlock.form.otherPlaceholder": "직접 입력",
+  "uiBlock.clip.note": "여기에 메모",
+  "uiBlock.clip.notePlaceholder": "이 프레임에서 무엇을 바꿔야 하나요?",
+  "uiBlock.clip.addNote": "메모 추가",
+  "uiBlock.clip.removeNote": "메모 삭제",
 } as const satisfies PartialTranslation<typeof source>;

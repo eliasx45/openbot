@@ -30,4 +30,10 @@ export const messages = defineMessages("uiBlock", {
   "uiBlock.hint.show": "Hint",
   "uiBlock.hint.next": "Hint {index}/{count}",
   "uiBlock.hint.label": "Hint {index} of {count}",
+  "uiBlock.form.other": "Other",
+  "uiBlock.form.otherPlaceholder": "Your own answer",
+  "uiBlock.clip.note": "Note here",
+  "uiBlock.clip.notePlaceholder": "What should change at this frame?",
+  "uiBlock.clip.addNote": "Add note",
+  "uiBlock.clip.removeNote": "Remove note",
 });

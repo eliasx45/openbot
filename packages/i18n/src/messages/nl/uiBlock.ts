@@ -32,4 +32,10 @@ export const messages = {
   "uiBlock.hint.show": "Hint",
   "uiBlock.hint.next": "Hint {index}/{count}",
   "uiBlock.hint.label": "Hint {index} van {count}",
+  "uiBlock.form.other": "Anders",
+  "uiBlock.form.otherPlaceholder": "Eigen antwoord",
+  "uiBlock.clip.note": "Notitie hier",
+  "uiBlock.clip.notePlaceholder": "Wat moet er in dit beeld veranderen?",
+  "uiBlock.clip.addNote": "Notitie toevoegen",
+  "uiBlock.clip.removeNote": "Notitie verwijderen",
 } as const satisfies PartialTranslation<typeof source>;

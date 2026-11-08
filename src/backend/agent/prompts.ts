@@ -316,7 +316,13 @@ export function expiredPromptResult(
 
 /** What a blocking UI block (`ask_ui`) ended with. */
 export type UiBlockPromptOutcome =
-  | { status: "answered"; blockId: string; response: UiBlockResponse }
+  | {
+      status: "answered";
+      blockId: string;
+      response: UiBlockResponse;
+      /** Fork: the pause notes on the clips of a form, with their frames. */
+      notes?: ReadonlyArray<{ field: string; time: number; text: string; frame?: string }>;
+    }
   | { status: "skipped" | "expired"; blockId: string; reason?: string };
 
 /**
@@ -326,7 +332,19 @@ export type UiBlockPromptOutcome =
 export function uiBlockPromptResult(outcome: UiBlockPromptOutcome): DynamicToolResult {
   const value =
     outcome.status === "answered"
-      ? { status: outcome.status, blockId: outcome.blockId, ...outcome.response }
+      ? {
+          status: outcome.status,
+          blockId: outcome.blockId,
+          ...outcome.response,
+          ...(outcome.response.values
+            ? {
+                values: Object.fromEntries(
+                  Object.entries(outcome.response.values).filter(([key]) => !key.startsWith("notes:")),
+                ),
+              }
+            : {}),
+          ...(outcome.notes?.length ? { notes: outcome.notes } : {}),
+        }
       : outcome.status === "expired"
         ? {
             status: outcome.status,
@@ -381,6 +399,8 @@ export function apiKeyFormSpec(input: {
               options: [allAgents, API_KEY_SCOPE_AGENT],
               required: true,
               value: allAgents,
+              // Fork: who may use the key is one of the two, never typed text.
+              other: false,
             },
           ]
         : []),

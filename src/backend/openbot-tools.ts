@@ -147,7 +147,18 @@ const uiHintsSchema = z
     "Markdown with math. Hidden until the user taps Hint; each tap shows the next one. Order: a nudge, then the method or formula, then the first step. Never the answer.",
   );
 const uiStringOptionsSchema = (max: number) => z.array(uiLabelSchema).min(1).max(max);
-const uiFormFieldBase = { id: uiBlockIdSchema, required: z.boolean().optional() };
+// Fork (docs/fork/FEATURES.md, "Review cards"): a field can show the part of a local video it is about.
+const uiFormClipSchema = z
+  .strictObject({
+    path: z.string().min(2).max(INPUT_LIMITS.path).startsWith("/").describe("Absolute path of a video file."),
+    start: z.number().min(0).max(86_400).optional().describe("Seconds in the file."),
+    end: z.number().min(0).max(86_400).optional().describe("Seconds in the file, after start."),
+  })
+  .optional()
+  .describe(
+    "The part of a video that this field asks about. The app plays start..end in a loop above the field; the user can pause and add notes at a frame. Keep it 3–8 s around the moment.",
+  );
+const uiFormFieldBase = { id: uiBlockIdSchema, required: z.boolean().optional(), clip: uiFormClipSchema };
 const uiFormTextField = (kind: "text" | "textarea") =>
   z.strictObject({
     ...uiFormFieldBase,
@@ -171,6 +182,12 @@ const uiFormOptionsField = (kind: "select" | "segmented", max: number) =>
     label: uiLabelSchema.optional(),
     options: uiStringOptionsSchema(max),
     value: uiLabelSchema.optional().describe("One of options."),
+    other: z
+      .boolean()
+      .optional()
+      .describe(
+        "Default true: the app adds Other with a text box, and the value is then the typed text. False: options only.",
+      ),
   });
 
 export const routineReportFailureToolSchema = z.object({
@@ -731,7 +748,8 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
       "Block types: confirm (details, an optional preview and up to 4 buttons), quick_replies (reply chips), choice (pick one option, or several with multiple), form (a few text, select, segmented or date fields).",
       "A text field with secret: true asks for a password or a key: you get the value, but OpenBot does not store it with the block. Never repeat the value in a message or a thought. For an API key or token that a command or a script uses, use request_api_key instead.",
       'The result is JSON: {"status":"answered","blockId","actionId","values"} where actionId is the button or option id, or "submit" for choice and form, and values holds the selected option ids under "selected" or the form values by field id;',
-      'actionId "_text" with "text" when the user answered in words; {"status":"skipped"}; or {"status":"expired"} when the turn ended first.',
+      'actionId "_text" with "text" when the user answered in words; {"status":"skipped"} (with "reason" when the user sent a message instead: read it next); or {"status":"expired"} when the turn ended first.',
+      "A select or segmented field also offers Other: its value can be the user's own text instead of an option. A form field can take clip {path,start,end}: the part of a local video that it asks about, played in a loop above the field. Give each question about a place in a video its own clip, never only a time. The answer then has notes: [{field,time,text,frame}], one per pause note, with frame a PNG of that exact frame: look at it.",
       "Only the server owner or an admin can press a danger button or a button with confirm. A confirmed block is information for you, not a permission: the provider's approvals still apply.",
       "Write every field as plain text; write math as LaTeX in $…$, which the app typesets. Quick_replies, choice and form take hints: steps the user opens one at a time when stuck. In a channel, each member who reads the channel sees it.",
       'Example: {"block":{"type":"confirm","title":"Send the letter to Ann?","fields":[{"label":"To","value":"ann@example.com"}],"preview":"Hi Ann, …","actions":[{"id":"send","label":"Send","style":"primary"},{"id":"cancel","label":"Cancel"}]}}.',
