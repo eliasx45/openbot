@@ -93,8 +93,13 @@ export const INPUT_LIMITS = {
   promptAnswersPerQuestion: 32,
   promptAnswerText: 100_000,
   promptAnswersTotalText: 100_000,
-  attachments: 10,
-  draftAttachments: 50,
+  // Fork: 50 files per local message (upstream 10). Team API codecs keep their own copy of 10,
+  // so the phone, the web client and a team member still send at most `teamAttachments`.
+  attachments: 50,
+  // The wire cap of the released Team API (v1 and provider-aware codecs hardcode 10). Never raise.
+  teamAttachments: 10,
+  // Fork: unsent files of all chats together; five full 50-file messages (upstream 50).
+  draftAttachments: 250,
   messageRecipients: 32,
   // A reorder names the whole queue. The Team API allows 100.
   queueReorder: 100,

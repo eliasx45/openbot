@@ -2179,8 +2179,8 @@ export function createWebWorkspace(
     async upload(file: File) {
       const id = selectedId;
       if (!id) return;
-      if ((state.conversations[id]?.attachments.length ?? 0) >= INPUT_LIMITS.attachments) {
-        report(new Error(currentText().t("webClient.error.attachmentLimit", { limit: INPUT_LIMITS.attachments })));
+      if ((state.conversations[id]?.attachments.length ?? 0) >= INPUT_LIMITS.teamAttachments) {
+        report(new Error(currentText().t("webClient.error.attachmentLimit", { limit: INPUT_LIMITS.teamAttachments })));
         return;
       }
       const current = generation;

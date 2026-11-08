@@ -322,7 +322,7 @@ export function pathIdentifier(value: string | undefined, field: string): string
 export function stringArray(
   value: DynamicRecord,
   field: string,
-  maxItems: number = INPUT_LIMITS.attachments,
+  maxItems: number = INPUT_LIMITS.teamAttachments,
   maxLength: number = INPUT_LIMITS.identifier,
 ): string[] {
   const item = value[field];

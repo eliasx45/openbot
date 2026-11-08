@@ -199,7 +199,7 @@ export function createWebConversationRuntime(
   async function importPick(files: readonly File[]) {
     // The pick belongs to the host on screen now. After a host change, its other files go nowhere.
     const serverId = hostId();
-    if (files.length > INPUT_LIMITS.attachments) {
+    if (files.length > INPUT_LIMITS.teamAttachments) {
       const requestId = crypto.randomUUID();
       announceImport(requestId, serverId, files, false);
       await runImportFiles(requestId, serverId, files, false);
@@ -226,8 +226,8 @@ export function createWebConversationRuntime(
       const job = { cancelled: false, serverId };
       importing = job;
       try {
-        if (files.length > INPUT_LIMITS.attachments)
-          throw new Error(currentText().t("webClient.error.attachmentLimit", { limit: INPUT_LIMITS.attachments }));
+        if (files.length > INPUT_LIMITS.teamAttachments)
+          throw new Error(currentText().t("webClient.error.attachmentLimit", { limit: INPUT_LIMITS.teamAttachments }));
         const attachments = await uploadFiles(files, serverId, () => job.cancelled);
         emit({ type: "completed", serverId, requestId, attachments: attachments ?? [] });
       } catch (error) {

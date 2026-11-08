@@ -27,7 +27,7 @@ export function decodeQueueEditRequest(value: unknown): QueueEditRequest {
   if (
     value.action === "retain-attachments" &&
     Array.isArray(value.attachmentDraftIds) &&
-    value.attachmentDraftIds.length <= INPUT_LIMITS.attachments &&
+    value.attachmentDraftIds.length <= INPUT_LIMITS.teamAttachments &&
     value.attachmentDraftIds.every(isIdentifier)
   )
     return {
@@ -43,7 +43,7 @@ export function decodeQueueEditRequest(value: unknown): QueueEditRequest {
     !value.keepAttachmentIds.every(isIdentifier) ||
     !Array.isArray(value.attachmentDraftIds) ||
     !value.attachmentDraftIds.every(isIdentifier) ||
-    value.keepAttachmentIds.length + value.attachmentDraftIds.length > INPUT_LIMITS.attachments
+    value.keepAttachmentIds.length + value.attachmentDraftIds.length > INPUT_LIMITS.teamAttachments
   )
     throw new Error("Invalid queue edit request.");
   return {

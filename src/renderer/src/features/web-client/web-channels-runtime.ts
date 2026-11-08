@@ -49,8 +49,8 @@ export function createWebChannelsPort(
   const attachmentMedia = createWebAttachmentMedia(remote, hostId);
   onCleanup(() => attachmentMedia.dispose());
   async function importAttachments(chosen: File[]): Promise<AttachmentSummary[]> {
-    if (chosen.length > INPUT_LIMITS.attachments)
-      throw new Error(currentText().t("webClient.error.attachmentLimit", { limit: INPUT_LIMITS.attachments }));
+    if (chosen.length > INPUT_LIMITS.teamAttachments)
+      throw new Error(currentText().t("webClient.error.attachmentLimit", { limit: INPUT_LIMITS.teamAttachments }));
     const serverId = hostId();
     const uploaded: AttachmentSummary[] = [];
     try {

@@ -804,8 +804,8 @@ export function ChatView({
     const files = attachments.items;
     if (!body && files.length === 0) return;
     // Files given back by Edit can add up to more than one message takes.
-    if (files.length > INPUT_LIMITS.attachments) {
-      const message = t("mobile.chat.attachment.limit", { limit: INPUT_LIMITS.attachments });
+    if (files.length > INPUT_LIMITS.teamAttachments) {
+      const message = t("mobile.chat.attachment.limit", { limit: INPUT_LIMITS.teamAttachments });
       void haptics.notification("error");
       setSendError({
         cause: classifyFailure(new Error(message)),

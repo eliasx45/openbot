@@ -66,7 +66,7 @@ function parseQueueEditDraft(value: unknown): QueueEditDraft {
   const addedAttachments = value.addedAttachments ?? [];
   if (
     !Array.isArray(addedAttachments) ||
-    addedAttachments.length > INPUT_LIMITS.attachments ||
+    addedAttachments.length > INPUT_LIMITS.teamAttachments ||
     !addedAttachments.every(isStoredQueueAttachment)
   )
     throw new QueueEditDraftError("attachments", "Could not read the saved edit attachments.");

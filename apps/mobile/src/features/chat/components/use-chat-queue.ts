@@ -304,8 +304,8 @@ export function useChatQueue(
           await clearEdit();
           return;
         }
-        if (edit.keepAttachmentIds.length + files.length > INPUT_LIMITS.attachments)
-          throw new Error(currentText().t("mobile.chat.attachment.limit", { limit: INPUT_LIMITS.attachments }));
+        if (edit.keepAttachmentIds.length + files.length > INPUT_LIMITS.teamAttachments)
+          throw new Error(currentText().t("mobile.chat.attachment.limit", { limit: INPUT_LIMITS.teamAttachments }));
         await uploadChatAttachments(files, {
           upload: async (file) => {
             const stored = edit.addedAttachments.find((item) => item.id === file.id);

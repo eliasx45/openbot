@@ -624,6 +624,17 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 
 ---
 
+## 61. 50 files per message (upstream 10)
+
+- **Why:** 8 Nov 2026, 13 screenshots for Tapa Lead stopped at "You can attach at most 10 files." Elias: "I don't want the limit of 10. Let's do 50."
+- **How (portable):** `INPUT_LIMITS.attachments` is 50, so the desktop composer, side threads, tasks, the attach IPC, the mailbox, and agent tools (`attach_files_to_response`, browser upload, messaging) take 50. The released Team API codecs (`v1.ts`, `provider-aware-codec.ts`) hardcode 10 on the wire, so a new `INPUT_LIMITS.teamAttachments: 10` keeps every Team API path at 10: `queue-edit-v1`, the host's `stringArray` default, the phone (`chat-view`, `use-chat-queue`, `queue-edit-draft`) and the web client. `draftAttachments` (unsent files of all chats together) goes from 50 to 250, so one full message does not block the other chats. The 250 MB total per message stays.
+- **Here:** `packages/contracts/src/input-limits.ts`; `teamAttachments` in `packages/contracts/src/team-protocol/queue-edit-v1.ts`, `src/main/team-api/request-helpers.ts`, `apps/mobile/src/features/chat/{components/chat-view.tsx,components/use-chat-queue.ts,model/queue-edit-draft.ts}`, `src/renderer/src/features/web-client/{web-client-context.tsx,web-conversation-runtime.ts,web-channels-runtime.ts}`.
+- **Phone and web client:** stay at 10. More needs a new Team API capability and a phone build.
+- **Tests:** not run (Elias runs them at night). Biome on changed files.
+- **Check:** drop 13+ files in a desktop chat composer: no error; send; the agent gets all of them. Drop 51: "You can attach at most 50 files."
+
+---
+
 ## Checked, not needed
 
 - **Several agents use the computer at once (Codync entry 9 / ADR 0006):** OpenBot has no lock between agents. Each provider starts its own `cua-driver mcp` proxy on the shared daemon (`src/main/cua-driver-runtime.ts`), and the action tap (`src/main/cua-driver-action-tap.ts`) only watches calls for the rim and cursor; it refuses and delays nothing. So several agents can already work at once, in different apps or the same one (no "another agent is using this app" guard). The only rule: an agent's task threads get no Computer Use, so one agent's own chat holds its screen work (`#sessionAgent` in `thread-lifecycle.ts`). Checked 2026-11-03; skipped. If two agents clashing in one app becomes a problem, Codync's per-app hold (look-only free, `pid` + background holds that app 20 s, foreground/untargeted holds all) would go in the tap's `data` handler, which sees each call's `name` and `args`.
