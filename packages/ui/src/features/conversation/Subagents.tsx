@@ -131,6 +131,28 @@ export function SubagentStatus(props: { status: ConversationSubagentStatus }) {
   );
 }
 
+/**
+ * Fork: a step as a person reads it. Home paths become `~/`, an agent folder's long id is cut to
+ * its first block, a file step shows its folder and name, and a command loses its error redirects
+ * (Elias, 8 Nov 2026: the live lines were `ls /Users/elias/OpenBot/Agents/agent-dfc2ff03-…`).
+ * The full text stays in the panel's tooltip.
+ */
+export function readableStep(kind: ConversationSubagentStepKind, text: string): string {
+  let value = text
+    .replace(/\/(?:Users|home)\/[^/\s'"]+\//gu, "~/")
+    .replace(/\bagent-([0-9a-f]{8})(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/gu, "agent-$1…");
+  if (kind === "read" || kind === "edit") {
+    const parts = value.split("/").filter(Boolean);
+    if (parts.length > 2) value = `…/${parts.slice(-2).join("/")}`;
+  }
+  if (kind === "command")
+    value = value
+      .replace(/\s*2>(?:&1|\/dev\/null)/gu, "")
+      .replace(/\s+/gu, " ")
+      .trim();
+  return value;
+}
+
 /** What the subagent does now, with the icon of that kind of step, or how it ended. */
 export function LiveLine(props: { subagent: ConversationSubagent }) {
   const { t } = useText();
@@ -143,7 +165,8 @@ export function LiveLine(props: { subagent: ConversationSubagent }) {
   const text = () => {
     const subagent = props.subagent;
     if (subagent.status === "failed") return subagent.error ?? t(STATE_LABEL.failed);
-    return shown()?.text ?? t(STATE_LABEL[subagent.status]);
+    const step = shown();
+    return step ? readableStep(step.kind, step.text) : t(STATE_LABEL[subagent.status]);
   };
   return (
     <span class="subagents-live" data-state={props.subagent.status}>
@@ -482,14 +505,33 @@ export function SubagentPanel(props: SubagentPanelProps) {
                 )}
               </Show>
               <Show when={subagent().prompt}>
-                {(prompt) => (
-                  <p class="subagents-prompt">
-                    <span class="subagents-prompt-label">
-                      {t("chat.subagents.taskFrom", { name: props.agentName })}
-                    </span>
-                    <span dir="auto">{prompt()}</span>
-                  </p>
-                )}
+                {(prompt) => {
+                  // Fork: a brief is often a page long; it folds to three lines so the work shows first.
+                  const [briefOpen, setBriefOpen] = createSignal(false);
+                  const long = () => prompt().length > 240 || prompt().split("\n").length > 3;
+                  return (
+                    <div class="subagents-prompt" data-open={briefOpen() || !long() ? "true" : undefined}>
+                      <span class="subagents-prompt-label">
+                        {t("chat.subagents.taskFrom", { name: props.agentName })}
+                      </span>
+                      <span class="subagents-prompt-text" dir="auto">
+                        {prompt()}
+                      </span>
+                      <Show when={long()}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          class="subagents-prompt-toggle"
+                          aria-expanded={briefOpen() ? "true" : "false"}
+                          onClick={() => setBriefOpen(!briefOpen())}
+                        >
+                          {briefOpen() ? t("chat.subagents.hideBrief") : t("chat.subagents.showBrief")}
+                        </Button>
+                      </Show>
+                    </div>
+                  );
+                }}
               </Show>
               <ol class="subagents-step-list" aria-label={t("chat.subagents.steps", { title: subagent().title })}>
                 <For each={subagent().steps} keyed={(step) => step.id}>
@@ -502,8 +544,9 @@ export function SubagentPanel(props: SubagentPanelProps) {
                         <span
                           class={["subagents-step-text", { "agent-activity-label": live() }]}
                           dir={step().kind === "command" ? "ltr" : "auto"}
+                          title={step().text}
                         >
-                          {step().text}
+                          {readableStep(step().kind, step().text)}
                         </span>
                       </li>
                     );

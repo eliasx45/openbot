@@ -58,6 +58,8 @@ export const messages = {
   "chat.subagents.state.completed": "Bitti",
   "chat.subagents.state.failed": "Başarısız",
   "chat.subagents.state.stopped": "Durduruldu",
+  "chat.subagents.showBrief": "Görevi göster",
+  "chat.subagents.hideBrief": "Görevi gizle",
   "chat.subagents.taskFrom": "{name} tarafından görev",
   "chat.subagents.steps": "“{title}” adımları",
   "chat.subagents.stepCount": { one: "{count} adım", other: "{count} adım" },

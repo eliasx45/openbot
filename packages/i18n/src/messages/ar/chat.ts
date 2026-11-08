@@ -142,6 +142,8 @@ export const messages = {
   "chat.subagents.state.completed": "مكتمل",
   "chat.subagents.state.failed": "فشل",
   "chat.subagents.state.stopped": "متوقف",
+  "chat.subagents.showBrief": "عرض المهمة",
+  "chat.subagents.hideBrief": "إخفاء المهمة",
   "chat.subagents.taskFrom": "مهمة من {name}",
   "chat.subagents.steps": "خطوات «{title}»",
   "chat.subagents.stepCount": {

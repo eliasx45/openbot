@@ -198,7 +198,16 @@ export class ChannelStore {
                 AND json_extract(t.task_json, '$.state') = 'running') AS running,
             (SELECT COUNT(*) FROM projection_channel_tasks AS t
               WHERE t.channel_id = c.channel_id
-                AND json_extract(t.task_json, '$.state') IN ('queued', 'waiting', 'running')) AS open
+                AND json_extract(t.task_json, '$.state') IN ('queued', 'waiting', 'running')) AS open,
+            (SELECT COUNT(*) FROM projection_channel_messages AS m,
+                json_each(json_extract(m.message_json, '$.message.subagents')) AS s
+              WHERE m.channel_id = c.channel_id
+                AND json_extract(m.message_json, '$.message.itemType') = 'subagents'
+                AND json_extract(s.value, '$.status') = 'running')
+            + (SELECT COUNT(*) FROM projection_channel_messages AS m
+              WHERE m.channel_id = c.channel_id
+                AND json_extract(m.message_json, '$.message.itemType') = 'plan'
+                AND json_extract(m.message_json, '$.message.status') = 'streaming') AS subagents
             FROM projection_channels AS c ORDER BY c.rowid`,
         )
         .all(memberId, memberId, excludedId, `${CHANNEL_ROUTING_EVENT_ITEM_TYPE_PREFIX}%`),
@@ -234,6 +243,7 @@ export class ChannelStore {
         unreadCount: Number(row.unread ?? 0),
         activeTasks: Number(row.running ?? 0),
         openTasks: Number(row.open ?? 0),
+        runningSubagents: Number(row.subagents ?? 0),
         lastMessage: latest
           ? {
               authorName: latest.author.name,

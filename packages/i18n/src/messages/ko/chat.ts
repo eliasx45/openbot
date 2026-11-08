@@ -58,6 +58,8 @@ export const messages = {
   "chat.subagents.state.completed": "완료",
   "chat.subagents.state.failed": "실패",
   "chat.subagents.state.stopped": "중지됨",
+  "chat.subagents.showBrief": "지시 보기",
+  "chat.subagents.hideBrief": "지시 숨기기",
   "chat.subagents.taskFrom": "{name}의 작업",
   "chat.subagents.steps": "“{title}” 단계",
   "chat.subagents.stepCount": { other: "{count}단계" },

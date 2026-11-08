@@ -58,6 +58,8 @@ export const messages = {
   "chat.subagents.state.completed": "已完成",
   "chat.subagents.state.failed": "失败",
   "chat.subagents.state.stopped": "已停止",
+  "chat.subagents.showBrief": "显示任务说明",
+  "chat.subagents.hideBrief": "隐藏任务说明",
   "chat.subagents.taskFrom": "来自 {name} 的任务",
   "chat.subagents.steps": "“{title}”的步骤",
   "chat.subagents.stepCount": { other: "{count} 个步骤" },

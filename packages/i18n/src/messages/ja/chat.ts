@@ -58,6 +58,8 @@ export const messages = {
   "chat.subagents.state.completed": "完了",
   "chat.subagents.state.failed": "失敗",
   "chat.subagents.state.stopped": "停止",
+  "chat.subagents.showBrief": "依頼内容を表示",
+  "chat.subagents.hideBrief": "依頼内容を隠す",
   "chat.subagents.taskFrom": "{name} からのタスク",
   "chat.subagents.steps": "「{title}」のステップ",
   "chat.subagents.stepCount": { other: "{count} ステップ" },

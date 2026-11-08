@@ -113,6 +113,8 @@ export const messages = {
   "chat.subagents.state.completed": "Gotowe",
   "chat.subagents.state.failed": "Błąd",
   "chat.subagents.state.stopped": "Zatrzymano",
+  "chat.subagents.showBrief": "Pokaż zadanie",
+  "chat.subagents.hideBrief": "Ukryj zadanie",
   "chat.subagents.taskFrom": "Zadanie od {name}",
   "chat.subagents.steps": "Kroki „{title}”",
   "chat.subagents.stepCount": {

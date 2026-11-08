@@ -578,3 +578,40 @@
 .live-work-waiting-badge {
   color: var(--openbot-warning);
 }
+
+/* Fork: a long brief folds to three lines. */
+.subagents-prompt:not([data-open]) .subagents-prompt-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.subagents-prompt-toggle.ui-button {
+  height: auto;
+  min-height: 0;
+  align-self: flex-start;
+  padding: 0;
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+}
+
+.subagents-prompt-toggle.ui-button:hover {
+  background: none;
+  color: var(--openbot-text-primary);
+}
+
+/* Fork: the sidebar row of a group chat where work runs: "3 working" in place of the time. */
+.channel-row-working {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--openbot-space-1);
+  color: var(--openbot-success);
+  font-size: var(--openbot-text-xs);
+}
+
+.channel-row-working .live-work-pulse {
+  width: 6px;
+  height: 6px;
+}

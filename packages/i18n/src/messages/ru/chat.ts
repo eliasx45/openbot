@@ -113,6 +113,8 @@ export const messages = {
   "chat.subagents.state.completed": "Готово",
   "chat.subagents.state.failed": "Ошибка",
   "chat.subagents.state.stopped": "Остановлен",
+  "chat.subagents.showBrief": "Показать задание",
+  "chat.subagents.hideBrief": "Скрыть задание",
   "chat.subagents.taskFrom": "Задача от {name}",
   "chat.subagents.steps": "Шаги «{title}»",
   "chat.subagents.stepCount": { one: "{count} шаг", few: "{count} шага", many: "{count} шагов", other: "{count} шага" },

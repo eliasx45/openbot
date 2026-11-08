@@ -530,6 +530,25 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Tests:** Biome; `typecheck:renderer`, `typecheck:node`, `typecheck:i18n`. Isolated dev instance (sandbox HOME) with channel rows copied from his Editors subagents (two running subagents on two cards with task lists, a running plan), before (main) and after: the bar lists all three, the working line names Builder and Research, a click on "Builder" opens the tree, a subagent opens on the side with its task list. Not run: a live Claude subagent writing `TodoWrite` end to end, and the waiting-on-you rows (no pending question in the demo).
 - **Check:** in a group chat start two agents that each start a background subagent: the bar shows both with their steps while you scroll and after their tasks end; a subagent that keeps a todo list shows "n/m"; click an agent's name in the working line: the tree opens at it.
 
+## 55. Readable subagent steps, a folded brief, and "N working" in the sidebar
+
+- **Get:**
+  - Subagent steps read `ls ~/OpenBot/Agents/agent-dfc2ff03…/videos/24-10/h1fix-1108/` instead of the full home path and agent id. Error redirects (`2>/dev/null`, `2>&1`) are gone, and a read or edit step shows `…/folder/file`. The panel keeps the full text as a tooltip.
+  - In the subagent panel, a long brief folds to three lines with "Show brief", so the task list and steps show first.
+  - A group chat's sidebar row shows "● 3 working" in place of the time while work runs, counting the same things as the chat's live-work bar.
+- **Why:** Elias, 8 Nov 2026, approved after today/suggestion screenshots ("ok yea go ahead"). This follows his "i keep asking 'whats the progress'". In the panel the brief of a Tapa Lead subagent filled the whole height and the steps started below the screen. The live lines were raw commands with `/Users/elias/OpenBot/Agents/agent-<uuid>/…`.
+- **How (portable):**
+  - `readableStep(kind, text)` in `Subagents.tsx` is used by `LiveLine` and the panel's step list.
+  - The brief folds with `-webkit-line-clamp: 3` when it is over 240 characters or 3 lines.
+  - `ChannelSummary.runningSubagents` comes from one more subquery in `ChannelStore.list`: the running subagents of the channel's subagent rows plus its streaming plan rows. The sidebar shows `max(activeTasks, runningSubagents)`, so a running task with neither still counts once.
+  - The field is optional and the Team API (channel-attention-v1) does not carry it.
+- **Here:** `packages/ui/src/features/conversation/Subagents.tsx`, `styles/subagents.css`, `packages/ui/src/features/sidebar/SidebarChannelRow.tsx`, `src/backend/channel-store.ts`, `packages/contracts/src/ipc-chat-channels.ts`, `chat.subagents.showBrief` / `hideBrief` in every locale.
+- **Tests:** Biome, `check:ui`, `typecheck:renderer`, `typecheck:node`, `typecheck:i18n`. The subquery returned 2 for Editors on a read-only copy of his database. Isolated dev instance before and after: folded brief, readable steps, "3 working" on the sidebar matching the bar.
+- **Check:**
+  - In a group chat with running subagents, the sidebar row shows "N working", the same N as the bar.
+  - In a subagent's panel the brief shows 3 lines and "Show brief" opens it.
+  - Steps show `~/` paths.
+
 ---
 
 ## Checked, not needed

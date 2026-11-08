@@ -53,16 +53,18 @@ export function SidebarChannelRow(rowProps: { channel: ChannelSummary; waiting?:
    * carries both and the row keeps the height every other row in the list has. */
   const time = () =>
     previewPending() ? "" : sidebarMessageTime(rowProps.channel.lastMessage?.at ?? rowProps.channel.createdAt, format);
+  /** Fork: the count the chat's live-work bar shows; a running task with no plan or subagent counts once. */
+  const working = () => Math.max(rowProps.channel.activeTasks, rowProps.channel.runningSubagents ?? 0);
   const preview = () => {
     // A waiting row previews the question, as on the agent row.
     const text =
       wait()?.detail ||
       (rowProps.channel.lastMessage?.text ?? (previewPending() ? "" : t("sidebar.channel.noMessages")));
-    return rowProps.channel.activeTasks > 0 ? t("sidebar.channel.workingPreview", { preview: text }) : text;
+    return working() > 0 ? t("sidebar.channel.workingPreview", { preview: text }) : text;
   };
   // The wait label already reads the question, so the label does not say it twice, unless the
   // preview also says that work runs.
-  const labelPreview = () => (wait()?.detail && rowProps.channel.activeTasks === 0 ? "" : `. ${preview()}`);
+  const labelPreview = () => (wait()?.detail && working() === 0 ? "" : `. ${preview()}`);
   const row = (): JSX.Element => (
     <ContextMenu.Root modal={false} onOpenChange={setMenuOpen}>
       <ContextMenu.Trigger
@@ -106,7 +108,17 @@ export function SidebarChannelRow(rowProps: { channel: ChannelSummary; waiting?:
                 )}
               </Show>
             </span>
-            <Show when={wait()} fallback={<span class="agent-row-time">{time()}</span>}>
+            <Show
+              when={wait()}
+              fallback={
+                <Show when={working() > 0} fallback={<span class="agent-row-time">{time()}</span>}>
+                  <Badge class="channel-row-working">
+                    <span class="live-work-pulse" aria-hidden="true" />
+                    {t("chat.liveWork.title", { count: working() })}
+                  </Badge>
+                </Show>
+              }
+            >
               {(current) => <SidebarWaitChip reason={current().reason} />}
             </Show>
           </span>
