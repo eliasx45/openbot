@@ -6,7 +6,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { readFile, rm } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { IphonePhotoResult } from "@openbot/contracts/ipc";
 import { app } from "electron";
@@ -14,6 +14,29 @@ import { app } from "electron";
 /** How long the helper waits for the photo after a choice in the menu, in seconds. */
 const WAIT_SECONDS = 120;
 const HELPER_OUTCOMES = new Set(["picked", "dismissed", "noDevice", "timeout", "failed"]);
+/** The log rolls over to `.1` at this size, in bytes. */
+const LOG_LIMIT = 256 * 1024;
+
+/**
+ * One line per menu in `<userData>/logs/iphone-photo.log`: when, how long, the helper's outcome, its
+ * exit, and its stderr (`active=… key=… firstResponder=…`). In the packaged app the helper's stderr goes
+ * nowhere else, so a failure leaves only this. No photo data and no secret is written.
+ */
+async function logRun(line: string): Promise<void> {
+  try {
+    const dir = join(app.getPath("userData"), "logs");
+    const file = join(dir, "iphone-photo.log");
+    await mkdir(dir, { recursive: true });
+    const size = await stat(file).then(
+      (info) => info.size,
+      () => 0,
+    );
+    if (size > LOG_LIMIT) await rename(file, `${file}.1`);
+    await appendFile(file, `${line}\n`, { mode: 0o600 });
+  } catch {
+    // The log only helps to find a failure; the photo goes on without it.
+  }
+}
 
 export interface IphonePhotoService {
   take(): Promise<IphonePhotoResult>;
@@ -47,18 +70,30 @@ export function createIphonePhotoService(options: { testImage?: string | undefin
     const out = join(app.getPath("temp"), `openbot-iphone-photo-${randomUUID()}.jpg`);
     const args = [out, "--wait", String(WAIT_SECONDS)];
     if (options.testImage) args.push("--test-image", options.testImage);
+    const started = new Date();
+    let helperLog = "";
+    let exit = "";
     const outcome = await new Promise<string>((done) => {
-      const child = spawn(helper, args, { stdio: ["ignore", "pipe", "inherit"] });
+      const child = spawn(helper, args, { stdio: ["ignore", "pipe", "pipe"] });
       running = child;
       let output = "";
       child.stdout?.on("data", (chunk: Buffer) => {
         output += chunk.toString("utf8");
       });
+      child.stderr?.on("data", (chunk: Buffer) => {
+        // The dev log still shows it, as before.
+        if (!app.isPackaged) process.stderr.write(chunk);
+        if (helperLog.length < 2_000) helperLog += chunk.toString("utf8");
+      });
       // The helper stops itself after its wait; this is only for a helper that hangs.
       const stop = setTimeout(() => child.kill(), (WAIT_SECONDS + 30) * 1000);
-      child.on("error", () => done("failed"));
-      child.on("close", () => {
+      child.on("error", (error) => {
+        exit = `error ${error.message}`;
+        done("failed");
+      });
+      child.on("close", (code, signal) => {
         clearTimeout(stop);
+        exit ||= signal ? `signal ${signal}` : `exit ${code}`;
         if (running === child) running = undefined;
         // The helper took the focus to own the menu. Give it back to OpenBot's window, so the person
         // can type at once. (A replaced helper is not the running one: the newer menu keeps the focus.)
@@ -67,10 +102,16 @@ export function createIphonePhotoService(options: { testImage?: string | undefin
         done(match?.[1] && HELPER_OUTCOMES.has(match[1]) ? match[1] : "dismissed");
       });
     });
+    const seconds = ((Date.now() - started.getTime()) / 1000).toFixed(1);
+    const stderr = helperLog.trim().replace(/\s*\n\s*/gu, " | ");
+    await logRun(`${started.toISOString()} ${seconds}s outcome=${outcome} ${exit}${stderr ? ` · ${stderr}` : ""}`);
     try {
       if (outcome === "picked") {
         const bytes = await readFile(out).catch(() => undefined);
-        if (!bytes?.length) return { outcome: "failed" };
+        if (!bytes?.length) {
+          await logRun(`${new Date().toISOString()} picked, but the photo file was empty or missing`);
+          return { outcome: "failed" };
+        }
         return { outcome, name: photoName(new Date()), bytes: new Uint8Array(bytes) };
       }
       if (outcome === "noDevice" || outcome === "timeout" || outcome === "failed") return { outcome };
