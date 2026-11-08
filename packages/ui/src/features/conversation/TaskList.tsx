@@ -3,6 +3,7 @@ import { createMemo, createSignal, createUniqueId, For, onSettled, Show, untrack
 import { createDigitRoll } from "../../digit-roll";
 import { DigitRuns } from "../../digit-runs";
 import { useText } from "../../text";
+import { activeTask } from "./task-list-active";
 
 export type TaskListItemState = "pending" | "active" | "done";
 /** The glyph states. `failed` is for work that another agent could not finish. */
@@ -22,6 +23,11 @@ export interface TaskListProps {
   title?: string;
   /** The list starts collapsed when this is false. */
   defaultOpen?: boolean;
+  /**
+   * Fork: the id of the task that the agent works on now, when more than one is active. Without it,
+   * the last active task.
+   */
+  current?: string | undefined;
   class?: string;
 }
 
@@ -46,7 +52,8 @@ export function TaskList(props: TaskListProps) {
   const [open, setOpen] = createSignal(untrack(() => props.defaultOpen ?? true));
   const total = () => props.items.length;
   const done = () => props.items.filter((item) => item.state === "done").length;
-  const active = () => props.items.find((item) => item.state === "active");
+  // Fork: the task the agent works on now, not the first active one.
+  const active = () => activeTask(props.items, props.current);
   return (
     <section
       style={{ "--task-list-play-state": playState() }}

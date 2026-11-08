@@ -1,4 +1,4 @@
-import type { ConversationSubagent } from "@openbot/contracts/ipc";
+import { type ConversationSubagent, currentPlanStep } from "@openbot/contracts/ipc";
 import type { AgentMessage } from "@openbot/ui/data";
 import type { LiveWorkItem } from "@openbot/ui/features/conversation/LiveWork";
 import type { VirtualItem } from "@tanstack/virtual-core";
@@ -40,8 +40,8 @@ export function createSubagentDock(deps: SubagentDockDeps) {
             list.push({ kind: "subagent", key: `${message.id}:${subagent.id}`, cardId: message.id, agentId, subagent });
       if (message.kind === "plan" && message.streaming && message.plan?.steps.length) {
         const steps = message.plan.steps;
-        const current =
-          steps.find((step) => step.status === "inProgress") ?? steps.find((step) => step.status !== "completed");
+        // Fork: the step the agent started last, not the first running one.
+        const current = currentPlanStep(message.plan) ?? steps.find((step) => step.status !== "completed");
         plans.set(agentId ?? "", {
           kind: "plan",
           key: message.id,

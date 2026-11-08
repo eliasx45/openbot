@@ -58,7 +58,7 @@ import { type InstructionsChanges, instructionsChangeMessage } from "./instructi
 import type { MailboxSync } from "./mailbox-sync";
 import { memoryChangesMessage } from "./memory-changes-message";
 import { type PlanContinuation, waitsForUser } from "./plan-continuation";
-import { PLAN_UPDATED_METHOD, planFromNotification } from "./plan-updates";
+import { PLAN_UPDATED_METHOD, planFromNotification, withPlanCurrent } from "./plan-updates";
 import {
   isBalanceDiagnostic,
   isPlanLimitDiagnostic,
@@ -1988,13 +1988,18 @@ export class TurnLifecycle {
     const snapshot = this.#conversation.ensureSnapshot(agentId, threadId);
     const id = `${turnId}:plan`;
     let message = snapshot.messages.find((candidate) => candidate.id === id);
+    // Fork: the step that runs now follows the order in which steps start. A new turn's plan
+    // continues the open steps of the agent's last plan.
+    const previous =
+      message?.plan ??
+      snapshot.messages.findLast((candidate) => candidate.itemType === CONVERSATION_PLAN_ITEM_TYPE)?.plan;
     if (!message) {
       message = newAssistantMessage(id, turnId);
       snapshot.messages.push(message);
     }
     message.itemType = CONVERSATION_PLAN_ITEM_TYPE;
     message.text = conversationPlanText(plan);
-    message.plan = plan;
+    message.plan = withPlanCurrent(previous, plan);
     message.status = "streaming";
     this.#itemTurns.set(id, turnId);
     this.#conversation.emitConversation(snapshot);

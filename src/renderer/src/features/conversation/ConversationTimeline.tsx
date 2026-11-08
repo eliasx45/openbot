@@ -1,5 +1,5 @@
 import { chatVisualReply } from "@openbot/contracts/chat-visual";
-import type { ConversationMessageSender, MessageReaction } from "@openbot/contracts/ipc";
+import { type ConversationMessageSender, currentPlanStep, type MessageReaction } from "@openbot/contracts/ipc";
 import type { ConversationUiBlock } from "@openbot/contracts/ui-blocks";
 import { Button } from "@openbot/ui";
 import type { AgentMessage, ChatActionMarkerModel } from "@openbot/ui/data";
@@ -1116,6 +1116,7 @@ export function ConversationTimeline() {
                             {(current) => (
                               <TaskList
                                 items={planItems(current(), message()?.streaming === true)}
+                                current={currentPlanStep(current())?.id}
                                 title={planTitle(current())}
                                 defaultOpen={untrack(() => initialMessage.streaming === true)}
                               />

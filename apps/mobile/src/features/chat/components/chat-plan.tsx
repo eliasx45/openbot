@@ -248,7 +248,10 @@ export function ChatPlan({ message }: { message: PlanMessage }) {
   });
   const total = message.steps.length;
   const done = message.steps.filter((step) => step.state === "done").length;
-  const active = message.steps.find((step) => step.state === "active");
+  // Fork: the step that runs now, not the first active one: an agent can keep several active.
+  const active =
+    message.steps.find((step) => step.id === message.current && step.state === "active") ??
+    message.steps.findLast((step) => step.state === "active");
   const title = message.stopped ? t("mobile.chat.plan.stopped") : (message.heading ?? t("mobile.chat.plan.title"));
   // A closed list names the running step, so the work stays visible.
   const headerText = !open && active ? active.text : title;

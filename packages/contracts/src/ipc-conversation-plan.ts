@@ -23,6 +23,12 @@ export interface ConversationPlanStep {
 export interface ConversationPlan {
   explanation: string | null;
   steps: ConversationPlanStep[];
+  /**
+   * Fork: the id of the step that the agent started last and that still runs. An agent can keep
+   * more than one step in progress, so the first one is not always the work of now. Absent from a
+   * host before this field; `currentPlanStep` then takes the last running step.
+   */
+  current?: string;
 }
 
 export const CONVERSATION_PLAN_STEP_LIMIT = 100;
@@ -35,7 +41,8 @@ export function isConversationPlan(value: unknown): value is ConversationPlan {
     (value.explanation === null || isBoundedString(value.explanation, EXPLANATION_LIMIT)) &&
     Array.isArray(value.steps) &&
     value.steps.length <= CONVERSATION_PLAN_STEP_LIMIT &&
-    value.steps.every(isConversationPlanStep)
+    value.steps.every(isConversationPlanStep) &&
+    (value.current === undefined || isIdentifier(value.current))
   );
 }
 
@@ -56,6 +63,7 @@ function isConversationPlanStep(value: unknown): value is ConversationPlanStep {
 export function clampConversationPlan(plan: ConversationPlan): ConversationPlan | null {
   const steps: ConversationPlanStep[] = [];
   const ids = new Set<string>();
+  let current: string | undefined;
   for (const step of plan.steps) {
     if (steps.length >= CONVERSATION_PLAN_STEP_LIMIT) break;
     const text = clampText(step.text);
@@ -66,10 +74,27 @@ export function clampConversationPlan(plan: ConversationPlan): ConversationPlan 
     const activeText = step.activeText === undefined ? "" : clampText(step.activeText);
     const status = isOneOf(CONVERSATION_PLAN_STEP_STATUSES, step.status) ? step.status : "pending";
     steps.push({ id, text, ...(activeText ? { activeText } : {}), status });
+    // The clamp can rename a step; the current step follows its step, and names only a running one.
+    if (plan.current !== undefined && step.id === plan.current && status === "inProgress") current = id;
   }
   if (!steps.length) return null;
   const explanation = plan.explanation === null ? "" : clampText(plan.explanation);
-  return { explanation: explanation || null, steps };
+  return { explanation: explanation || null, steps, ...(current === undefined ? {} : { current }) };
+}
+
+/**
+ * Fork: the step the agent works on now: the plan's `current` step while it runs, else the last
+ * running step. Before, every view took the first running step, so a plan with two steps in
+ * progress showed step 1 while the agent worked on a later one (Elias, 8 Nov 2026: "stay running on
+ * step 1 visually even though it's on a later step"). `undefined` when no step runs.
+ */
+export function currentPlanStep<Step extends { id: string; status: ConversationPlanStepStatus }>(plan: {
+  steps: readonly Step[];
+  current?: string | undefined;
+}): Step | undefined {
+  const named = plan.current === undefined ? undefined : plan.steps.find((step) => step.id === plan.current);
+  if (named?.status === "inProgress") return named;
+  return plan.steps.findLast((step) => step.status === "inProgress");
 }
 
 function clampText(value: string): string {

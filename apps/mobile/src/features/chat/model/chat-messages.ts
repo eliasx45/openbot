@@ -20,6 +20,7 @@ import type {
 import {
   CONVERSATION_PLAN_ITEM_TYPE,
   channelRoutingConversationEvent,
+  currentPlanStep,
   isContextResetMarker,
   parseConversationPlanText,
   routineConversationEvent,
@@ -122,6 +123,8 @@ export type ChatMessage =
       explanation: string | null;
       stopped: boolean;
       steps: { id: string; text: string; state: ChatPlanStepState }[];
+      /** Fork: the id of the step that runs now, when the host names one. */
+      current?: string;
     }
   | { id: string; kind: "thinking"; turnId: string | undefined; steps: { id: string; text: string }[] };
 
@@ -300,6 +303,7 @@ function projectPlan(message: ConversationMessage): ChatMessage | null {
     return { id: step.id, text: state === "active" ? (step.activeText ?? step.text) : step.text, state };
   });
   const short = plan.explanation !== null && plan.explanation.length <= PLAN_HEADING_LIMIT;
+  const current = streaming ? currentPlanStep(plan)?.id : undefined;
   return {
     id: message.id,
     kind: "plan",
@@ -308,6 +312,7 @@ function projectPlan(message: ConversationMessage): ChatMessage | null {
     stopped:
       (message.status === "interrupted" || message.status === "failed") && steps.some((step) => step.state !== "done"),
     steps,
+    ...(current ? { current } : {}),
   };
 }
 

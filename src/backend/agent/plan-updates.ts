@@ -41,6 +41,29 @@ export function planFromNotification(params: unknown): ConversationPlan | null {
   });
 }
 
+/**
+ * Fork: the plan with its `current` step: the step that started last and still runs. Each update
+ * holds the full list, so a step that runs now and did not run in the previous plan has just
+ * started; with several, the last one in the list. With none, the previous current step stays while
+ * it runs. A step is matched by its text: the ids are list positions, which move when a step goes.
+ * `previous` is this turn's plan, else the agent's plan of an earlier turn, whose open steps carry on.
+ */
+export function withPlanCurrent(
+  previous: ConversationPlan | null | undefined,
+  next: ConversationPlan,
+): ConversationPlan {
+  const plan: ConversationPlan = { explanation: next.explanation, steps: next.steps };
+  const ranBefore = new Set(previous?.steps.filter((step) => step.status === "inProgress").map((step) => step.text));
+  const started = next.steps.findLast((step) => step.status === "inProgress" && !ranBefore.has(step.text));
+  const previousText = previous?.steps.find((step) => step.id === previous.current)?.text;
+  const kept =
+    previousText === undefined
+      ? undefined
+      : next.steps.find((step) => step.status === "inProgress" && step.text === previousText);
+  const current = (started ?? kept)?.id;
+  return current === undefined ? plan : { ...plan, current };
+}
+
 /** Codex writes `inProgress`; Claude and ACP write `in_progress`. Anything else is not started. */
 function planStepStatus(value: unknown): ConversationPlanStepStatus {
   if (value === "completed") return "completed";

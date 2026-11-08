@@ -186,7 +186,8 @@ export function subagentPlanProgress(
 ): { done: number; total: number; current: string | null } | undefined {
   const plan = subagent.plan;
   if (!plan?.length) return undefined;
-  const now = plan.find((step) => step.status === "inProgress") ?? plan.find((step) => step.status !== "completed");
+  // A subagent's task list has no current step; the last running one is the newest work.
+  const now = plan.findLast((step) => step.status === "inProgress") ?? plan.find((step) => step.status !== "completed");
   return {
     done: plan.filter((step) => step.status === "completed").length,
     total: plan.length,

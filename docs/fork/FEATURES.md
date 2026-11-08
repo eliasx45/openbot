@@ -622,8 +622,6 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Tests:** Storybook `Conversation/UiBlocks › Form Math Hints` (Owl's card: math in title, labels and hints; three taps open the three hints; a11y panel: 0 violations), checked 8 Nov 2026. `bun run test:changed` (66 files) passed; `typecheck:renderer`, `typecheck:node`, `typecheck:storybook`, contracts typecheck, Biome. Not run in the app: night queue.
 - **Check:** ask an agent: "show me an ask_ui form with math in the title and 3 hints". The title shows typeset math; Hint opens hint 1, then "Hint 2/3" opens hint 2.
 
----
-
 ## 61. 50 files per message (upstream 10)
 
 - **Why:** 8 Nov 2026, 13 screenshots for Tapa Lead stopped at "You can attach at most 10 files." Elias: "I don't want the limit of 10. Let's do 50."
@@ -632,6 +630,20 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Phone and web client:** stay at 10. More needs a new Team API capability and a phone build.
 - **Tests:** not run (Elias runs them at night). Biome on changed files.
 - **Check:** drop 13+ files in a desktop chat composer: no error; send; the agent gets all of them. Drop 51: "You can attach at most 50 files."
+
+## 62. The plan shows the step that runs now, not step 1
+
+- **Get:** the plan card's header (list closed), the live-work bar and the phone's plan header name the step the agent works on now. Before, they named the first step in progress, so when an agent started a later step and left an earlier one open, the card "stayed on step 1".
+- **Why:** Elias, 8 Nov 2026: the step / task-list cards "stay running on step 1 visually even though it's on a later step". Measured on his transcripts (51 sessions, read-only): 52 of 183 task-list updates had 2+ steps in progress, and the first one was not the newest for 108 min in all. Example: Tatiana pack, 03:39 UTC: task 12 "Writing Tatiana style" was in progress since 03:02 and task 14 "Proving and shipping" had just started; every view showed task 12. The data was right (the agent's calls were folded exactly); only the pick was wrong. Subagent task lists had the same pick (no subagent used one yet).
+- **How (portable):**
+  - `ConversationPlan.current` (optional step id, contract): the step that started last and still runs. `withPlanCurrent(previous, next)` in `plan-updates.ts` sets it in `TurnLifecycle#applyPlan`: a step running now that did not run in the previous plan just started (several: the last one); else the previous current step stays while it runs. Steps match by text (ids are list positions). A new turn compares with the agent's last plan, whose open steps carry on. Codex, ACP and Claude plans all get it.
+  - `currentPlanStep(plan)` (contracts): `current` while it runs, else the last running step. Hosts before this field send no `current` and get the last running step.
+  - Desktop: `TaskList` takes `current`; its header uses `activeTask` (`task-list-active.ts`). `ConversationTimeline` passes `currentPlanStep(plan)?.id`; `createSubagentDock` uses `currentPlanStep`. `subagentPlanProgress` takes the last running step.
+  - Phone: `projectPlan` adds `current`; `chat-plan.tsx` names it, else the last active step.
+  - Wire: the field is optional and additive. `isConversationPlan` accepts it; Team API v4 copies the plan as it is; protocols 1–3 read the checklist text, which has no running step.
+- **Here:** `packages/contracts/src/ipc-conversation-plan.ts`, `src/backend/agent/plan-updates.ts`, `src/backend/agent/turn-lifecycle.ts`, `packages/ui/src/features/conversation/TaskList.tsx`, `task-list-active.ts`, `Subagents.tsx`, `src/renderer/src/features/conversation/ConversationTimeline.tsx`, `subagent-dock.ts`, `apps/mobile/src/features/chat/model/chat-messages.ts`, `components/chat-plan.tsx`.
+- **Tests:** `bun scripts/fork-plan-current-step-e2e.ts`: the real agent service and `ClaudeAgentClient` with a stand-in `claude` that plays 3 turns of `TaskCreate` / `TaskUpdate` / `TodoWrite` step by step, in the order his agents did. After each step it reads the live conversation and asks the views' own functions what they show. Report `.openbot-build/fork-plan-current-step-e2e/report.json`: 11/11 samples show the real step on the card and the bar; the old rule was wrong on 5/11. `bun run test:changed` (66 files), Biome; the pre-commit hook ran all 14 typecheck projects, mobile included. Not run: the phone app itself and a look in the desktop app.
+- **Check:** ask an agent for a 4-step task where it starts step 3 before it closes step 2. Close the plan card: the header names step 3, and so does the live-work bar.
 
 ---
 
