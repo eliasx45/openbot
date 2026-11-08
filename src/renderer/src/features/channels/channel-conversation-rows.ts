@@ -234,10 +234,25 @@ export function channelWorkers(
     page.tasks.some((task) => !task.ownerAgentId && (task.state === "queued" || task.state === "waiting"))
   )
     ids.add(lead);
-  return [...ids].map((id) => {
+  // Fork: the owner of a queued task waits on its turn in another chat; the chat says so.
+  const queued = new Set<string>();
+  for (const task of page.tasks)
+    if (
+      task.state === "queued" &&
+      task.ownerAgentId &&
+      !ids.has(task.ownerAgentId) &&
+      !hiddenAgentIds.has(task.ownerAgentId)
+    )
+      queued.add(task.ownerAgentId);
+  return [...ids, ...queued].map((id) => {
     const agent = agents.find((candidate) => candidate.id === id);
     const authored = page.messages.find((entry) => entry.author.id === id);
-    return { id, name: agent?.name ?? authored?.author.name ?? fallbackName, ...(agent ? { agent } : {}) };
+    return {
+      id,
+      name: agent?.name ?? authored?.author.name ?? fallbackName,
+      ...(agent ? { agent } : {}),
+      ...(queued.has(id) ? { queued: true as const } : {}),
+    };
   });
 }
 

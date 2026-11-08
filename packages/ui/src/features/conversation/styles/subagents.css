@@ -615,3 +615,9 @@
   width: 6px;
   height: 6px;
 }
+
+/* Fork: an agent this group chat waits for, while it finishes a turn in another chat. */
+.channel-activity-queued {
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+}

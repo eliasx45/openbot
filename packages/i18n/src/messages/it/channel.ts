@@ -2,6 +2,8 @@ import type { PartialTranslation } from "../../message";
 import type { messages as source } from "../en/channel";
 
 export const messages = {
+  "channel.activity.queuedLabel": "· finisce prima un’altra chat, questa è la prossima",
+  "channel.activity.queuedNames": "{names}: finisce prima un’altra chat",
   "channel.activity.one": "{name} sta lavorando",
   "channel.activity.many": "{names} e {last} stanno lavorando",
   "channel.activity.status": "{sentence}: {label}",

@@ -2,6 +2,8 @@ import type { PartialTranslation } from "../../message";
 import type { messages as source } from "../en/channel";
 
 export const messages = {
+  "channel.activity.queuedLabel": "· 別のチャットを先に終えています。次はこのチャットです",
+  "channel.activity.queuedNames": "{names}: 別のチャットを先に終えています",
   "channel.activity.one": "{name} が作業中です",
   "channel.activity.many": "{names}、{last} が作業中です",
   "channel.activity.status": "{sentence}: {label}",

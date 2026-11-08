@@ -562,6 +562,18 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
   - In a subagent's panel the brief shows 3 lines and "Show brief" opens it.
   - Steps show `~/` paths.
 
+## 56. A group chat says when its agent is finishing another chat first
+
+- **Get:** a message to a group chat whose agent is busy in another chat no longer shows nothing. The working line reads "Tapa Lead · finishing another chat first, this one is next", or, when others work too, "Chief is working … Tapa Lead: finishing another chat first". The composer's Stop button was the only sign before.
+- **Why:** Elias, 8 Nov 2026: "sometimes i send it a message in a group chat and no response, is that normal? what's the reason? investigate and fix". Measured on his Editors channel (read-only copy): "progress ? and whta tasks are running?" at 01:44:35 UTC was routed at 01:44:41. Tapa Lead's turn started at 01:46:56, the moment its turn in its own 1:1 chat ended (turn 2271bbbd, which made a "Morning brief" routine); the reply came 37 s later. Over 84 of his Editors messages, the wait before the turn started was 5 s median, over 2 min 4 times, and 19.5 min at worst. All that time the channel showed no worker, because `channelWorkers` only named owners of running tasks.
+- **How (portable):**
+  - An agent runs one turn at a time across all its chats. `ChannelService` keeps a task queued while `hooks.busy(owner)` (`AgentService.#runsTurn`). That design stays: running turns in parallel would share one session, folder and memory.
+  - `channelWorkers` now also returns the owner of each queued task that is not already working and not hidden, with `queued: true`.
+  - `ChannelActivityIndicator` shows the queued text instead of the animated label when everyone it names is queued, and adds a muted "{names}: finishing another chat first" when only some are.
+- **Here:** `src/renderer/src/features/channels/channel-conversation-rows.ts`, `packages/ui/src/features/channels/ChannelActivityIndicator.tsx`, `styles/subagents.css`, `channel.activity.queuedLabel` / `queuedNames` in every locale.
+- **Tests:** Biome, `check:ui`, `typecheck:renderer`, `typecheck:i18n`. The isolated dev instance could not start: load average was over 200 from other agents' renders. Visual check in the night queue.
+- **Check:** start a long turn in an agent's own chat, then write to a group chat where that agent owns the work. The working line names the agent with "finishing another chat first" until its turn there ends, then the usual working label shows.
+
 ---
 
 ## Checked, not needed

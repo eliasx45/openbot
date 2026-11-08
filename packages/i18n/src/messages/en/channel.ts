@@ -1,6 +1,8 @@
 import { defineMessages } from "../../message";
 
 export const messages = defineMessages("channel", {
+  "channel.activity.queuedLabel": "· finishing another chat first, this one is next",
+  "channel.activity.queuedNames": "{names}: finishing another chat first",
   "channel.activity.one": "{name} is working",
   "channel.activity.many": "{names} and {last} are working",
   "channel.activity.status": "{sentence}: {label}",

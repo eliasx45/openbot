@@ -1,6 +1,6 @@
 import type { AppFormat, AppTranslate } from "@openbot/i18n";
 import { focusLiveWork } from "@openbot/ui/features/conversation/LiveWork";
-import { createMemo, For } from "solid-js";
+import { createMemo, For, Show } from "solid-js";
 import { avatarHeadColor } from "../../bloub-avatar";
 import { Button } from "../../button";
 import type { AgentProfile } from "../../data";
@@ -19,6 +19,12 @@ export interface ChannelWorker {
   id: string;
   name: string;
   agent?: AgentProfile | undefined;
+  /**
+   * Fork: the agent owns a queued task here but works in another chat now (an agent runs one turn
+   * at a time), so this chat waits for it. Elias, 8 Nov 2026: "sometimes i send it a message in a
+   * group chat and no response"; a message waited up to 19 min with nothing on screen.
+   */
+  queued?: true;
 }
 
 /**
@@ -152,7 +158,19 @@ export function ChannelActivityIndicator(props: {
             }
           </For>
         </span>
-        <span class="agent-activity-label">{t(agentActivityLabelKey(label()))}</span>
+        <Show
+          when={props.workers.every((worker) => worker.queued)}
+          fallback={<span class="agent-activity-label">{t(agentActivityLabelKey(label()))}</span>}
+        >
+          <span class="channel-activity-queued">{t("channel.activity.queuedLabel")}</span>
+        </Show>
+        <Show when={props.workers.some((worker) => worker.queued) && props.workers.some((worker) => !worker.queued)}>
+          <span class="channel-activity-queued">
+            {t("channel.activity.queuedNames", {
+              names: format.list(props.workers.filter((worker) => worker.queued).map((worker) => worker.name)),
+            })}
+          </span>
+        </Show>
       </AgentActivityBody>
     </div>
   );
