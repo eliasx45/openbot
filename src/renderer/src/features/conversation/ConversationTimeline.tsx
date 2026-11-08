@@ -18,11 +18,12 @@ import { ChatSearch } from "@openbot/ui/features/conversation/ChatSearch";
 import { ChatVisual } from "@openbot/ui/features/conversation/ChatVisual";
 import { ContextCompactionMarker, type ContextCompactionView } from "@openbot/ui/features/conversation/ContextUsage";
 import { dayMarkerLabel } from "@openbot/ui/features/conversation/chat-day-markers";
+import { LiveWorkDock } from "@openbot/ui/features/conversation/LiveWork";
 import { markdownPlainText } from "@openbot/ui/features/conversation/MarkdownMessageText";
 import { ReplyReturnButton, ScrollToLatestButton } from "@openbot/ui/features/conversation/MessageNavigation";
 import { DeleteMessageDialog, MessageActions, MessageMenu } from "@openbot/ui/features/conversation/MessageRendering";
 import { PendingSendStatus } from "@openbot/ui/features/conversation/PendingSendStatus";
-import { SubagentDock, SubagentGroup } from "@openbot/ui/features/conversation/Subagents";
+import { SubagentGroup } from "@openbot/ui/features/conversation/Subagents";
 import { TaskList } from "@openbot/ui/features/conversation/TaskList";
 import { UnreadMessagesBanner, UnreadMessagesDivider } from "@openbot/ui/features/conversation/UnreadMessages";
 import { VoicePlayer } from "@openbot/ui/features/conversation/VoicePlayer";
@@ -567,14 +568,34 @@ export function ConversationTimeline() {
     drawnRows: virtualMessageRows,
     scrollElement: () => timelineScrollElement,
     hidden: sideThreadOpen,
+    waiting: () => [
+      ...(props.prompt
+        ? [
+            {
+              kind: "waiting" as const,
+              key: "prompt",
+              agentId: undefined,
+              label: markdownPlainText(props.prompt.questions[0]?.question ?? ""),
+            },
+          ]
+        : []),
+      ...(props.approval
+        ? [
+            {
+              kind: "waiting" as const,
+              key: "approval",
+              agentId: channel ? props.approval.agentId : undefined,
+              label: props.approval.command ?? props.approval.reason ?? t("chat.liveWork.approval"),
+            },
+          ]
+        : []),
+    ],
   });
   /**
    * Scrolls back to the subagent card, with its header in view when the card is taller than the chat.
    * The bar that had focus goes away, so focus goes to the card header.
    */
-  const revealSubagents = async () => {
-    const cardId = subagentDock.cardId();
-    if (!cardId) return;
+  const revealCard = async (cardId: string) => {
     const row = await replyJump.reveal(cardId, undefined, props.agent?.id);
     const header = row?.querySelector<HTMLElement>(".subagents-group-header");
     header?.scrollIntoView({ block: "nearest" });
@@ -679,10 +700,14 @@ export function ConversationTimeline() {
         />
       </Show>
 
-      <SubagentDock
-        subagents={subagentDock.subagents()}
-        cardHeader={subagentDock.cardHeader}
-        onReveal={() => void revealSubagents()}
+      <LiveWorkDock
+        items={subagentDock.items()}
+        agentName={(id) =>
+          (id ? props.agents.find((agent) => agent.id === id)?.name : props.agent?.name) ??
+          t("chat.message.agentFallback")
+        }
+        onOpenSubagent={toggleSubagentPanel}
+        onReveal={(cardId) => void revealCard(cardId)}
       />
 
       <div

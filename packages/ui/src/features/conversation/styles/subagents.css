@@ -446,3 +446,135 @@
 :dir(rtl) svg[class~="lucide-chevron-right"].subagents-row-chevron {
   transform: scaleX(-1);
 }
+
+/*
+ * Fork: the live-work bar. It lists every piece of work of the chat (all subagents of all members,
+ * the plans that run), opens downward as one card, and names who works.
+ */
+.live-work-panel {
+  position: absolute;
+  top: var(--openbot-space-1);
+  inset-inline-start: 0;
+  width: var(--message-wide-bubble-width);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-card);
+  background: var(--openbot-bg-canvas);
+  box-shadow: var(--openbot-shadow-md);
+}
+
+.live-work-dock .live-work-panel .live-work-bar {
+  position: static;
+  width: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.live-work-names {
+  flex: 0 0 auto;
+  max-width: 40%;
+  overflow: hidden;
+  color: var(--openbot-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-work-pulse {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-success);
+  animation: live-work-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes live-work-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.live-work-panel[data-open] .live-work-chevron {
+  rotate: -90deg;
+}
+
+.live-work-list {
+  width: 100%;
+  max-height: min(50vh, 420px);
+  overflow-y: auto;
+  border-top: 1px solid var(--openbot-border);
+  border-radius: 0;
+}
+
+.live-work-agent {
+  margin-inline-end: var(--openbot-space-2);
+  color: var(--openbot-text-muted);
+  font-weight: var(--openbot-weight-medium);
+}
+
+.live-work-plan-icon {
+  width: var(--openbot-icon-md);
+  height: var(--openbot-icon-md);
+  flex: 0 0 auto;
+  color: var(--openbot-text-muted);
+}
+
+.live-work-list .subagents-live-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.channel-activity-name-button.ui-button {
+  height: auto;
+  min-height: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.channel-activity-name-button:hover {
+  text-decoration: underline;
+}
+
+.live-work-children {
+  margin: 0;
+  padding: 0 0 0 var(--openbot-space-6);
+  list-style: none;
+}
+
+.live-work-agent-row:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.live-work-agent-name {
+  margin-inline-end: var(--openbot-space-2);
+  font-weight: var(--openbot-weight-semibold);
+}
+
+.live-work-group[data-focused] {
+  border-radius: var(--openbot-radius-md);
+  background: var(--openbot-hover);
+  transition: background-color var(--openbot-duration-normal) ease;
+}
+
+.live-work-waiting {
+  display: flex;
+  align-items: center;
+  gap: var(--openbot-space-2);
+  padding: var(--openbot-space-2) var(--openbot-space-3);
+}
+
+.live-work-waiting-icon {
+  width: var(--openbot-icon-md);
+  height: var(--openbot-icon-md);
+  flex: 0 0 auto;
+  color: var(--openbot-warning);
+}
+
+.live-work-waiting-badge {
+  color: var(--openbot-warning);
+}

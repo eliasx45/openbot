@@ -129,6 +129,7 @@
     "./features/conversation/ChatSearch": "./src/features/conversation/ChatSearch.tsx",
     "./features/conversation/ChatVisual": "./src/features/conversation/ChatVisual.tsx",
     "./features/conversation/TaskList": "./src/features/conversation/TaskList.tsx",
+    "./features/conversation/LiveWork": "./src/features/conversation/LiveWork.tsx",
     "./features/conversation/Subagents": "./src/features/conversation/Subagents.tsx",
     "./features/conversation/TraceWaterfall": "./src/features/conversation/TraceWaterfall.tsx",
     "./features/conversation/AwaitingReplies": "./src/features/conversation/AwaitingReplies.tsx",

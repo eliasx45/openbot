@@ -1,6 +1,8 @@
 import type { AppFormat, AppTranslate } from "@openbot/i18n";
+import { focusLiveWork } from "@openbot/ui/features/conversation/LiveWork";
 import { createMemo, For } from "solid-js";
 import { avatarHeadColor } from "../../bloub-avatar";
+import { Button } from "../../button";
 import type { AgentProfile } from "../../data";
 import { useText } from "../../text";
 import { AgentAvatar } from "../agents/AgentAvatar";
@@ -132,9 +134,18 @@ export function ChannelActivityIndicator(props: {
           <For each={channelWorkerNameParts(props.workers, format.list)}>
             {(part) =>
               "worker" in part ? (
-                <span class="channel-activity-name" style={workerNameStyle(part.worker)}>
+                // Fork: a name opens the live-work bar at that agent's plan and subagents.
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  class="channel-activity-name channel-activity-name-button"
+                  style={workerNameStyle(part.worker)}
+                  title={t("chat.liveWork.showWork", { name: part.worker.name })}
+                  onClick={() => focusLiveWork(part.worker.id)}
+                >
                   {part.worker.name}
-                </span>
+                </Button>
               ) : (
                 part.text
               )

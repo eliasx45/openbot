@@ -68,6 +68,21 @@ export const messages = {
   "chat.taskList.state.done": "Готово",
   "chat.taskList.stopped": "Остановлено",
   "chat.subagents.label": "Субагенты",
+  "chat.liveWork.waiting": {
+    one: "Ждёт вас: {count}",
+    few: "Ждут вас: {count}",
+    many: "Ждут вас: {count}",
+    other: "Ждут вас: {count}",
+  },
+  "chat.liveWork.waitsForYou": "ждёт вас",
+  "chat.liveWork.approval": "Подтверждение",
+  "chat.liveWork.showWork": "Показать, что делает {name}",
+  "chat.liveWork.title": {
+    one: "В работе: {count}",
+    few: "В работе: {count}",
+    many: "В работе: {count}",
+    other: "В работе: {count}",
+  },
   "chat.subagents.running": {
     one: "Работает {count} субагент",
     few: "Работают {count} субагента",

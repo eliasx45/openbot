@@ -222,6 +222,11 @@ export function channelWorkers(
       (entry.taskId === null || active.has(entry.taskId))
     )
       ids.add(entry.author.id);
+  // Fork: a member whose subagents still work is working, though its task ended: a background
+  // subagent reports after its turn (Elias, 8 Nov 2026: the channel looked idle while two ran).
+  for (const entry of page.messages)
+    if (entry.author.kind === "agent" && entry.message.subagents?.some((subagent) => subagent.status === "running"))
+      ids.add(entry.author.id);
   const lead = page.channel.leadAgentId;
   if (
     lead &&

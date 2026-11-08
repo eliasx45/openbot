@@ -1,7 +1,8 @@
 import type { ConversationSubagent } from "@openbot/contracts/ipc";
 import type { AgentMessage } from "@openbot/ui/data";
+import type { LiveWorkItem } from "@openbot/ui/features/conversation/LiveWork";
 import type { VirtualItem } from "@tanstack/virtual-core";
-import { createEffect, createMemo, createSignal, untrack } from "solid-js";
+import { createMemo } from "solid-js";
 
 export interface SubagentDockDeps {
   /** The rows of the chat, oldest first. */
@@ -11,71 +12,56 @@ export interface SubagentDockDeps {
   scrollElement: () => HTMLElement | undefined;
   /** True while something covers the chat, such as a side thread. */
   hidden: () => boolean;
+  /** Fork: what waits for the person now: a question or an approval. */
+  waiting?: () => readonly LiveWorkItem[];
 }
 
 const working = (subagent: ConversationSubagent) => subagent.status === "running";
 
 /**
- * The newest subagent card in the chat whose subagents still work, and whether the reader is away
- * from it: its header is out of the chat view, or its row is so far away that it is not drawn.
- * Call `update` when the chat scrolls.
+ * Fork: all the live work of the chat, not only the newest subagent card. Every subagent that still
+ * works, in any card and of any member (a background subagent works on after its turn and its channel
+ * task ended), and the plan of each agent whose turn still runs. Before, the bar followed the newest
+ * card only, so an older card's subagents and every plan were out of sight in a group chat (Elias,
+ * 8 Nov 2026: "a subagent is working but idk what OTHER subagents are working/tasks being done in
+ * the group chat … i keep asking 'whats the progress'").
+ *
+ * The bar shows while any of it works, on screen or not: it answers "what is the progress".
  */
 export function createSubagentDock(deps: SubagentDockDeps) {
-  const card = createMemo(() =>
-    deps.rows().findLast((message) => message.kind === "subagents" && message.subagents?.some(working) === true),
-  );
-  const [away, setAway] = createSignal(false);
-  // The bar morphs back to the card after its subagents end, so the card stays known.
-  let lastCardId: string | undefined;
-
-  function header(id: string): HTMLElement | undefined {
-    const article = deps.scrollElement()?.querySelector<HTMLElement>(`[data-chat-search-message="${CSS.escape(id)}"]`);
-    return article?.querySelector<HTMLElement>(".subagents-group-header") ?? article ?? undefined;
-  }
-
-  function update(): void {
-    const scroller = deps.scrollElement();
-    const current = untrack(card);
-    if (!scroller || !current) {
-      setAway(false);
-      return;
+  const items = createMemo((): LiveWorkItem[] => {
+    const list: LiveWorkItem[] = [];
+    const plans = new Map<string, LiveWorkItem>();
+    for (const message of deps.rows()) {
+      const agentId = message.author === "agent" ? message.senderAgentId : undefined;
+      if (message.kind === "subagents")
+        for (const subagent of message.subagents ?? [])
+          if (working(subagent))
+            list.push({ kind: "subagent", key: `${message.id}:${subagent.id}`, cardId: message.id, agentId, subagent });
+      if (message.kind === "plan" && message.streaming && message.plan?.steps.length) {
+        const steps = message.plan.steps;
+        const current =
+          steps.find((step) => step.status === "inProgress") ?? steps.find((step) => step.status !== "completed");
+        plans.set(agentId ?? "", {
+          kind: "plan",
+          key: message.id,
+          cardId: message.id,
+          agentId,
+          plan: {
+            title: message.plan.explanation ?? null,
+            done: steps.filter((step) => step.status === "completed").length,
+            total: steps.length,
+            current: current ? (current.activeText ?? current.text) : null,
+          },
+        });
+      }
     }
-    lastCardId = current.id;
-    const element = header(current.id);
-    if (!element) {
-      // A drawn row whose element is not there yet keeps the last state.
-      if (!untrack(deps.drawnRows).some((row) => row.key === current.id)) setAway(true);
-      return;
-    }
-    const view = scroller.getBoundingClientRect();
-    const box = element.getBoundingClientRect();
-    setAway(box.bottom <= view.top || box.top >= view.bottom);
-  }
-
-  createEffect(
-    () => [card()?.id, deps.drawnRows(), deps.hidden()] as const,
-    () => {
-      const frame = requestAnimationFrame(update);
-      return () => cancelAnimationFrame(frame);
-    },
-  );
-
+    return [...plans.values(), ...list];
+  });
   return {
-    update,
-    /** The subagents of the card while the reader is away from it and one of them works. */
-    subagents: (): readonly ConversationSubagent[] | undefined =>
-      !deps.hidden() && away() ? card()?.subagents : undefined,
-    /** The header of the card, held inside the chat view, so that the bar morphs from and to its edge. */
-    cardHeader(): DOMRect | undefined {
-      const scroller = deps.scrollElement();
-      const element = lastCardId ? header(lastCardId) : undefined;
-      if (!scroller || !element) return undefined;
-      const view = scroller.getBoundingClientRect();
-      const box = element.getBoundingClientRect();
-      const top = Math.min(Math.max(box.top, view.top), view.bottom - box.height);
-      return new DOMRect(box.left, top, box.width, box.height);
-    },
-    /** The card to scroll back to. */
-    cardId: () => card()?.id,
+    /** The bar no longer depends on the scroll position; kept for the timeline's scroll handler. */
+    update: () => {},
+    /** All the live work: what waits for the person first, then the work. Empty while a side thread covers the chat. */
+    items: (): readonly LiveWorkItem[] => (deps.hidden() ? [] : [...(deps.waiting?.() ?? []), ...items()]),
   };
 }

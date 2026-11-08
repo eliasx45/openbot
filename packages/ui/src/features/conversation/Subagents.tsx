@@ -27,6 +27,7 @@ import { useText } from "@openbot/ui/text";
 import { prefersReducedMotion } from "@openbot/ui/utils";
 import type { JSX } from "@solidjs/web";
 import { createEffect, createMemo, createSignal, createUniqueId, For, Match, Show, Switch } from "solid-js";
+import { TaskList } from "./TaskList";
 
 const STATE_LABEL = {
   running: "chat.subagents.state.running",
@@ -39,7 +40,7 @@ const STATE_LABEL = {
 const GENERAL_AGENT_TYPE = "general-purpose";
 
 /** The time now, once a second while `running` is true. */
-function createClock(running: () => boolean) {
+export function createClock(running: () => boolean) {
   const [now, setNow] = createSignal(Date.now());
   createEffect(running, (active) => {
     setNow(Date.now());
@@ -61,7 +62,7 @@ function timeOf(value: string | null, fallback: number): number {
   return Number.isFinite(time) ? time : fallback;
 }
 
-function elapsedMs(subagent: ConversationSubagent, now: number): number {
+export function elapsedMs(subagent: ConversationSubagent, now: number): number {
   return timeOf(subagent.endedAt, now) - timeOf(subagent.startedAt, now);
 }
 
@@ -110,7 +111,7 @@ function StepGlyph(props: { kind: ConversationSubagentStepKind; class: string })
 }
 
 /** The state of one subagent, in the icons and colours of the chat action markers. */
-function SubagentStatus(props: { status: ConversationSubagentStatus }) {
+export function SubagentStatus(props: { status: ConversationSubagentStatus }) {
   const { t } = useText();
   return (
     <span class="subagents-status" data-state={props.status} role="img" aria-label={t(STATE_LABEL[props.status])}>
@@ -131,7 +132,7 @@ function SubagentStatus(props: { status: ConversationSubagentStatus }) {
 }
 
 /** What the subagent does now, with the icon of that kind of step, or how it ended. */
-function LiveLine(props: { subagent: ConversationSubagent }) {
+export function LiveLine(props: { subagent: ConversationSubagent }) {
   const { t } = useText();
   /** The step that the line shows: the current step, or the answer of a subagent that ended. */
   const shown = () => {
@@ -151,6 +152,41 @@ function LiveLine(props: { subagent: ConversationSubagent }) {
         {text()}
       </span>
     </span>
+  );
+}
+
+/**
+ * Fork: how far a subagent's own task list is, and the step it does now. `undefined` without a list.
+ */
+export function subagentPlanProgress(
+  subagent: ConversationSubagent,
+): { done: number; total: number; current: string | null } | undefined {
+  const plan = subagent.plan;
+  if (!plan?.length) return undefined;
+  const now = plan.find((step) => step.status === "inProgress") ?? plan.find((step) => step.status !== "completed");
+  return {
+    done: plan.filter((step) => step.status === "completed").length,
+    total: plan.length,
+    current: now ? (now.activeText ?? now.text) : null,
+  };
+}
+
+/** "2/5" with its ring: a subagent's own task list. */
+export function SubagentPlanBadge(props: { subagent: ConversationSubagent }) {
+  const { t } = useText();
+  return (
+    <Show when={subagentPlanProgress(props.subagent)}>
+      {(progress) => (
+        <Badge class="subagents-progress subagents-plan-badge">
+          <RadialProgress
+            class="subagents-ring"
+            aria-hidden="true"
+            value={(progress().done / Math.max(progress().total, 1)) * 100}
+          />
+          {t("chat.taskList.count", { done: progress().done, total: progress().total })}
+        </Badge>
+      )}
+    </Show>
   );
 }
 
@@ -262,6 +298,7 @@ export function SubagentGroup(props: SubagentGroupProps) {
                       <span class="subagents-row-title">{subagent().title}</span>
                       <LiveLine subagent={subagent()} />
                     </span>
+                    <SubagentPlanBadge subagent={subagent()} />
                     <span class="subagents-elapsed">{duration(elapsedMs(subagent(), now()))}</span>
                     <ChevronRight class="subagents-row-chevron" aria-hidden="true" />
                   </Button>
@@ -425,6 +462,25 @@ export function SubagentPanel(props: SubagentPanelProps) {
                 .join(" · ")}
             </p>
             <div class="subagents-steps">
+              <Show when={subagent().plan?.length ? subagent().plan : undefined}>
+                {(plan) => (
+                  <TaskList
+                    items={plan().map((step, index) => ({
+                      id: String(index),
+                      label:
+                        step.status === "inProgress" && subagent().status === "running"
+                          ? (step.activeText ?? step.text)
+                          : step.text,
+                      state:
+                        step.status === "completed"
+                          ? "done"
+                          : step.status === "inProgress" && subagent().status === "running"
+                            ? "active"
+                            : "pending",
+                    }))}
+                  />
+                )}
+              </Show>
               <Show when={subagent().prompt}>
                 {(prompt) => (
                   <p class="subagents-prompt">

@@ -9,6 +9,7 @@ import {
 } from "@openbot/contracts/ipc";
 import { type DynamicRecord, isString } from "@openbot/contracts/runtime-values";
 import { isRecord } from "../protocol";
+import { type ClaudePlanState, foldClaudePlanCall, newClaudePlanState } from "./plan-updates";
 
 /**
  * The notification that carries the subagents of a turn:
@@ -110,6 +111,8 @@ export interface SubagentState {
   aliases: Map<string, string>;
   /** The text of steps that still stream, under the subagent's id and then the step's id. */
   streams: Map<string, Map<string, string>>;
+  /** Fork: the task list each subagent keeps with its own tools, under the subagent's id. */
+  plans?: Map<string, ClaudePlanState>;
 }
 
 export function newSubagentState(): SubagentState {
@@ -211,6 +214,11 @@ export function foldClaudeSubagentMessage(
   message.content.forEach((block, index) => {
     if (!isRecord(block)) return;
     const id = `${messageId}:${index}`;
+    // Fork: a task-list call of the subagent becomes its plan, not a "TodoWrite" step.
+    if (block.type === "tool_use" && isString(block.name) && foldSubagentPlan(state, subagent, block)) {
+      changed = true;
+      return;
+    }
     const step =
       block.type === "thinking" && isString(block.thinking)
         ? { id, kind: "thinking" as const, text: block.thinking }
@@ -222,6 +230,41 @@ export function foldClaudeSubagentMessage(
     if (step && pushSubagentStep(subagent, step)) changed = true;
   });
   return changed ? subagentChange(state, state.turnOf.get(parentToolUseId)) : null;
+}
+
+const SUBAGENT_PLAN_TOOLS = new Set(["TodoWrite", "TaskCreate", "TaskUpdate"]);
+
+/**
+ * Fork: folds a subagent's `TodoWrite` / `TaskCreate` / `TaskUpdate` call into its plan. True when
+ * the call was a task-list call that the plan took. A `TaskCreate` gets the next number as its id
+ * (the CLI answers "Task #n created" and the result is not read here; a guess that holds while the
+ * subagent numbers its own tasks from 1).
+ */
+function foldSubagentPlan(state: SubagentState, subagent: ConversationSubagent, block: DynamicRecord): boolean {
+  const name = isString(block.name) ? block.name : "";
+  if (!SUBAGENT_PLAN_TOOLS.has(name)) return false;
+  state.plans ??= new Map();
+  let plan = state.plans.get(subagent.id);
+  if (!plan) {
+    plan = newClaudePlanState();
+    state.plans.set(subagent.id, plan);
+  }
+  const callId = isString(block.id) ? block.id : `${subagent.id}:${plan.steps.size}`;
+  const steps = foldClaudePlanCall(plan, { id: callId, name, input: block.input });
+  if (!steps) return false;
+  if (name === "TaskCreate" && plan.creates.delete(callId)) {
+    const created = plan.steps.get(callId);
+    if (created) {
+      plan.steps.delete(callId);
+      plan.steps.set(String(plan.steps.size + 1), created);
+    }
+  }
+  subagent.plan = [...plan.steps.values()].map((step) => ({
+    text: step.step,
+    ...(step.activeText ? { activeText: step.activeText } : {}),
+    status: step.status,
+  }));
+  return true;
 }
 
 /**

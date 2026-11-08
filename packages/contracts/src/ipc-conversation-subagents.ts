@@ -28,6 +28,20 @@ export const CONVERSATION_SUBAGENT_STEP_KINDS = [
 ] as const;
 export type ConversationSubagentStepKind = (typeof CONVERSATION_SUBAGENT_STEP_KINDS)[number];
 
+/**
+ * Fork: the task list a subagent keeps with its own tools (Claude `TodoWrite`), so its progress shows
+ * as "2/5 · what it does now" instead of a "TodoWrite" step (Elias, 8 Nov 2026).
+ */
+export const CONVERSATION_SUBAGENT_PLAN_STATUSES = ["pending", "inProgress", "completed"] as const;
+export interface ConversationSubagentPlanStep {
+  text: string;
+  /** The present-tense text of the step that runs, such as "Rendering before/after". */
+  activeText?: string;
+  status: (typeof CONVERSATION_SUBAGENT_PLAN_STATUSES)[number];
+}
+export const CONVERSATION_SUBAGENT_PLAN_LIMIT = 30;
+const PLAN_TEXT_LIMIT = 300;
+
 export interface ConversationSubagentStep {
   /** Stays the same when older steps are dropped, so a list keeps its rows. */
   id: string;
@@ -58,6 +72,8 @@ export interface ConversationSubagent {
    * `Agent` result. Absent when the provider gave none.
    */
   providerAgentId?: string;
+  /** Fork: the subagent's own task list, when it keeps one. */
+  plan?: ConversationSubagentPlanStep[];
 }
 
 export const CONVERSATION_SUBAGENT_LIMIT = 24;
@@ -88,7 +104,20 @@ function isConversationSubagent(value: unknown): value is ConversationSubagent {
     value.steps.every(isConversationSubagentStep) &&
     isNullableBoundedString(value.error, ERROR_LIMIT) &&
     (value.background === undefined || value.background === true) &&
-    (value.providerAgentId === undefined || isIdentifier(value.providerAgentId))
+    (value.providerAgentId === undefined || isIdentifier(value.providerAgentId)) &&
+    (value.plan === undefined ||
+      (Array.isArray(value.plan) &&
+        value.plan.length <= CONVERSATION_SUBAGENT_PLAN_LIMIT &&
+        value.plan.every(isConversationSubagentPlanStep)))
+  );
+}
+
+function isConversationSubagentPlanStep(value: unknown): value is ConversationSubagentPlanStep {
+  return (
+    isDynamicRecord(value) &&
+    isBoundedString(value.text, PLAN_TEXT_LIMIT) &&
+    (value.activeText === undefined || isBoundedString(value.activeText, PLAN_TEXT_LIMIT)) &&
+    isOneOf(CONVERSATION_SUBAGENT_PLAN_STATUSES, value.status)
   );
 }
 
@@ -129,6 +158,15 @@ export function clampConversationSubagents(subagents: readonly ConversationSubag
       ...(subagent.background ? { background: true as const } : {}),
       ...(subagent.providerAgentId && isIdentifier(subagent.providerAgentId)
         ? { providerAgentId: subagent.providerAgentId }
+        : {}),
+      ...(subagent.plan?.length
+        ? {
+            plan: subagent.plan.slice(0, CONVERSATION_SUBAGENT_PLAN_LIMIT).map((step) => ({
+              text: clampText(step.text, PLAN_TEXT_LIMIT),
+              ...(step.activeText ? { activeText: clampText(step.activeText, PLAN_TEXT_LIMIT) } : {}),
+              status: step.status,
+            })),
+          }
         : {}),
     });
   }
