@@ -593,6 +593,15 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Tests:** `typecheck:node`, `typecheck:renderer`, `typecheck:i18n`, Biome on each changed file, `fork-restart-resume-projection.test.ts`. Scratch runs: `waitsForUser` on the 4 real Gotham lines (all now wait) and 4 lines that must not; a simulated turn through `TurnTraces` (thinking 0–34 ms, tool 34–234 ms, thinking #2, answer; modelCalls 2). Not run in the app: night queue.
 - **Check:** in a Claude agent's own chat, ask for a task with a 2-minute shell command. While it runs, send a message with ↩: "⏳ Waits for the current step", then "👀 Seen …" after the command ends. Send another with ⌘↩: it shows in the queue and starts a new turn after the answer. Open the trace (the "N steps" row): thinking bars are short, LLM calls ≈ the requests. For the compaction, a chat over 300k shows "🗜 Compact a big chat" 20 s after a turn.
 
+## 58. Sliders save a click on the track (Contrast was never saved)
+
+- **Get:** Settings › General › Appearance › Contrast keeps its value after a restart or a new install, also when you click the track instead of dragging the thumb. The machine alert sliders (Files › machine) save a click too; before, they showed a draft that was never saved.
+- **Why:** Elias, 8 Nov 2026: "i think my contrast setting for ex not being saved accross restarts/rebuilds". Checked on his profile: the window's `localStorage` (LevelDB, decoded from a copy) keeps 30+ keys across installs (`openbot.appearance` = dark since 5 Nov), but `openbot.fork.glassContrast` was never written. Kobalte calls `onChangeEnd` only after a thumb drag; a click on the track changes the value (applied live) and ends nothing, and Contrast saves only in `onChangeEnd`. Theme, transparent window, interface size and logo color are main-process files (`openbot-*-preference-v1.json`) and were kept; chat color is an account value.
+- **How (portable):** `SliderField` (`packages/ui/src/slider.tsx`) tracks a change the user started (`changing`, `lastValue`) and ends it once: Kobalte's `onChangeEnd`, a `pointerup` on the document after any press on the track, or a step-key release. `SeekSlider` already did this.
+- **Here:** `packages/ui/src/slider.tsx`.
+- **Tests:** `typecheck:renderer`, Biome. Not run in the app: night queue.
+- **Check:** Settings › General: click the far right of the Contrast track (100 %). Quit OpenBot and open it again: Contrast is 100 %. Drag the thumb to 40 %, restart: 40 %.
+
 ---
 
 ## Checked, not needed

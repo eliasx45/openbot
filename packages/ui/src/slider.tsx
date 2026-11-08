@@ -38,13 +38,28 @@ export function SliderField(props: SliderFieldProps): JSX.Element {
   // applied the write yet, so the second report is the old value and would undo the drag. The first
   // report of a task is the real one.
   let reportedThisTask = false;
+  /**
+   * Fork (docs/fork/FEATURES.md, "Sliders save a click on the track"): Kobalte ends a change only for
+   * a thumb drag. A click on the track moved the value but never called `onChangeEnd`, so Contrast
+   * applied and was never saved (Elias, 8 Nov 2026). Each change the user starts now ends once: on
+   * Kobalte's end, on the release of any press on the track, or on a key release.
+   */
+  let changing = false;
+  let lastValue = props.value;
   function reportChange(value: number): void {
     if (reportedThisTask) return;
     reportedThisTask = true;
     queueMicrotask(() => {
       reportedThisTask = false;
     });
+    changing = true;
+    lastValue = value;
     props.onChange?.(value);
+  }
+  function endChange(value: number): void {
+    if (!changing) return;
+    changing = false;
+    props.onChangeEnd?.(value);
   }
   return (
     <SliderPrimitive.Root
@@ -57,7 +72,7 @@ export function SliderField(props: SliderFieldProps): JSX.Element {
       disabled={props.disabled ?? false}
       getValueLabel={(params) => props.formatValue(params.values[0] ?? props.value)}
       onChange={(values) => reportChange(values[0] ?? props.value)}
-      onChangeEnd={(values) => props.onChangeEnd?.(values[0] ?? props.value)}
+      onChangeEnd={(values) => endChange(values[0] ?? lastValue)}
     >
       <div class="ui-slider-header">
         <SliderPrimitive.Label class="ui-slider-label">{props.label}</SliderPrimitive.Label>
@@ -71,6 +86,7 @@ export function SliderField(props: SliderFieldProps): JSX.Element {
         class="ui-slider-track"
         data-cuelume-select={props.disabled ? undefined : ""}
         data-cuelume-emphasis="subtle"
+        onPointerDown={() => document.addEventListener("pointerup", () => endChange(lastValue), { once: true })}
       >
         <SliderPrimitive.Fill class="ui-slider-fill" />
         {/* Kobalte renders `calc(NaN%)` until the thumb registers, so the wrapper sets the position.
@@ -84,7 +100,7 @@ export function SliderField(props: SliderFieldProps): JSX.Element {
           aria-valuetext={props.formatValue(props.value)}
           aria-disabled={props.disabled ? "true" : undefined}
           onKeyUp={(event) => {
-            if (SLIDER_STEP_KEYS.has(event.key)) props.onChangeEnd?.(props.value);
+            if (SLIDER_STEP_KEYS.has(event.key)) endChange(props.value);
           }}
         />
       </SliderPrimitive.Track>
