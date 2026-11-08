@@ -37,9 +37,20 @@ const NAMES_NEXT_STEP =
 const WAITS_FOR_USER =
   /\b(?:i['\u2019]ll|i will|i['\u2019]m going to|let me)\s+(?:now\s+)?(?:wait|hold|pause|stop)\b|\bwaiting\s+(?:for|on)\s+(?:you|your)\b/i;
 
-/** The last line of an answer, without Markdown emphasis, code, quote or heading marks. */
+/**
+ * Fork (docs/fork/FEATURES.md, "Long turns stay visible"): a last line that asks the user to act,
+ * such as "Approve 3\u20135 and I'll commit them." or "Still waiting: your approval to commit 3\u20135." A list
+ * marker in front of the line does not count. Gotham, 8 Nov 2026: both lines started two empty turns.
+ */
+const ASKS_USER_TO_ACT =
+  /^(?:approve|confirm|tell me|let me know|say|reply|pick|choose|decide)\b|\byour\s+(?:approval|go-?ahead|ok(?:ay)?|sign-?off|confirmation|decision|answer|choice|call|input|review)\b/i;
+
+/** The last line of an answer, without Markdown emphasis, code, quote, heading or list marks. */
 function lastLine(answer: string | undefined): string {
-  return (answer?.trimEnd().split("\n").at(-1) ?? "").replace(/[*_`>#]/g, "").trim();
+  return (answer?.trimEnd().split("\n").at(-1) ?? "")
+    .replace(/[*_`>#]/g, "")
+    .trim()
+    .replace(/^(?:[-+\u2022]|\d+[.)])\s+/, "");
 }
 
 function asksToContinue(answer: string | undefined): boolean {
@@ -53,7 +64,9 @@ function asksToContinue(answer: string | undefined): boolean {
  */
 export function waitsForUser(answer: string | undefined): boolean {
   const line = lastLine(answer);
-  return (/[?？]/.test(line) && !ASKS_TO_CONTINUE.test(line)) || WAITS_FOR_USER.test(line);
+  return (
+    (/[?？]/.test(line) && !ASKS_TO_CONTINUE.test(line)) || WAITS_FOR_USER.test(line) || ASKS_USER_TO_ACT.test(line)
+  );
 }
 
 /** Whether a turn stopped before the next step: it named the step, or asked whether to continue. */

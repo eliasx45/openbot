@@ -290,7 +290,8 @@ export interface ConversationProps {
   /**
    * Sends one message. `clientMessageId` names it for the host, so a retry with the same id
    * returns the first receipt; the answer carries the host's id for the message, or why it failed.
-   * `voiceRecordingDraftId` names what the user said, when a voice turn sends the message.
+   * `voiceRecordingDraftId` names what the user said, when a voice turn sends the message. `queue`
+   * (fork, ⌘↩) makes the message wait for the running turn instead of steering it.
    */
   onSendMessage: (
     body: string,
@@ -299,6 +300,7 @@ export interface ConversationProps {
     target?: ConversationTarget,
     clientMessageId?: string,
     voiceRecordingDraftId?: string,
+    queue?: boolean,
   ) => Promise<SendMessageResult>;
   onMarkRead: () => Promise<void>;
   /** Marks an agent message and the messages after it unread. Without it, the message menu has no such item. */

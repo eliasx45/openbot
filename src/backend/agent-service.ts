@@ -871,11 +871,13 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         Boolean(this.#conversation.workingSnapshot(agentId)?.activeTurnId) ||
         this.#mailbox.unresolvedDeliveries().some(({ delivery }) => delivery.recipientAgentId === agentId) ||
         this.#compaction.heldThreads(agentId).length > 0,
-      compact: (agentId, { runId, tokens }) =>
+      compact: (agentId, { runId, tokens, big }) =>
         this.#forkCacheTurn(agentId, {
           runId,
           routineId: FORK_COMPACT_ROUTINE_ID,
-          routineName: `🗜 Compact before the cache goes cold (${Math.round(tokens / 1000)}k tokens)`,
+          routineName: big
+            ? `🗜 Compact a big chat (${Math.round(tokens / 1000)}k tokens)`
+            : `🗜 Compact before the cache goes cold (${Math.round(tokens / 1000)}k tokens)`,
           text: forkCompactPrompt(),
         }),
       ping: (agentId, { runId, until }) =>
@@ -5603,7 +5605,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
             Effect.sync(() => this.#emitError("message_preview_failed", failure.cause, agent.id)),
           ),
         );
-    yield* this.#steerWhenBusy(agent, task, snapshot, delivery.delivery.id, true);
+    // Fork (docs/fork/FEATURES.md, "Long turns stay visible"): ⌘↩ queues; the message waits for the turn.
+    if (input.queue !== true) yield* this.#steerWhenBusy(agent, task, snapshot, delivery.delivery.id, true);
     if (!task) {
       this.#emit({ type: "agents-changed", agents: this.listAgents() });
       this.#conversation.emitConversation(snapshot);

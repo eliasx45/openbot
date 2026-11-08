@@ -100,6 +100,9 @@ export function toAgentMessage(message: ConversationMessage, ownerAgentId?: stri
     body: message.author === "user" ? message.text : cleanAgentMessageText(message.text),
     time: formatMessageTime(message.createdAt),
     createdAt: message.createdAt,
+    ...(message.author === "user" && message.delivery?.steered
+      ? { receipt: { seenTime: message.delivery.readAt ? formatMessageTime(message.delivery.readAt) : null } }
+      : {}),
     streaming: message.status === "streaming",
     ...(message.itemType === undefined ? {} : { itemType: message.itemType }),
     kind: message.questionPrompt
@@ -291,6 +294,8 @@ export function agentMessagesEqual(left: AgentMessage, right: AgentMessage): boo
     left.streaming === right.streaming &&
     left.itemType === right.itemType &&
     left.status === right.status &&
+    left.receipt?.seenTime === right.receipt?.seenTime &&
+    (left.receipt === undefined) === (right.receipt === undefined) &&
     left.senderAgentId === right.senderAgentId &&
     left.senderMember?.id === right.senderMember?.id &&
     left.senderMember?.name === right.senderMember?.name &&

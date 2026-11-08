@@ -65,6 +65,11 @@ export interface TraceSpan {
   tokens?: number;
   /** The cost of this span's own work, without its children. A parent row shows its total. */
   costUsd?: number;
+  /**
+   * The model requests that the provider reported for this span's own work. When set, the total
+   * uses it in place of a count of the span's model children, which are segments, not requests.
+   */
+  modelCalls?: number;
 }
 
 /** The keyboard that the shortcut hint names. */
@@ -451,13 +456,19 @@ export function TraceWaterfall(props: TraceWaterfallProps) {
     let modelCalls = 0;
     let toolCalls = 0;
     let errors = 0;
+    const reported = new Set<string>();
+    for (const span of view().spans)
+      if (span.modelCalls !== undefined) {
+        reported.add(span.id);
+        modelCalls += span.modelCalls;
+      }
     for (const span of view().spans) {
       if (span.costUsd !== undefined) cost = (cost ?? 0) + span.costUsd;
       if (span.tokens !== undefined) tokens = (tokens ?? 0) + span.tokens;
       if (span.failed) errors += 1;
       // An agent row holds calls; it is not one.
       if (children.has(span.id)) continue;
-      if (span.kind === "model") modelCalls += 1;
+      if (span.kind === "model" && !(span.parentId !== null && reported.has(span.parentId))) modelCalls += 1;
       // A handoff is the tool call that sends a message or starts a subagent.
       else if (span.kind === "tool" || span.kind === "handoff") toolCalls += 1;
     }

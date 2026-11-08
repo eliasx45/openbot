@@ -261,6 +261,11 @@ export class MailboxStore {
   readonly #deliveryGate = new MailboxDeliveryGate();
   readonly #stagedGeneratedAttachments = new Map<string, StoredGeneratedAttachment>();
   #state: StoredState = structuredClone(EMPTY_STATE);
+  /**
+   * Fork (docs/fork/FEATURES.md, "Long turns stay visible"): when the model read each steered
+   * message. In memory only: no stored row changes, and a restart drops the receipts.
+   */
+  readonly #steerReads = new Map<string, string>();
   /** The rows changed, added or removed, since the last committed write. `#persist` writes only these. */
   readonly #changes = {
     messageIds: new Set<string>(),
@@ -1411,6 +1416,7 @@ export class MailboxStore {
             id: delivery.id,
             status: delivery.status,
             position: delivery.position,
+            ...this.#steerReceipt(storedDelivery),
           },
           exchange:
             message.sender.kind === "agent"
@@ -2452,6 +2458,33 @@ export class MailboxStore {
       return yield* new StoredStateFailure({ cause });
     }
   }, Effect.uninterruptible).bind(this);
+
+  /** The read receipt of a delivery, for the chat. */
+  steerReceipt(deliveryId: string): { steered?: true; readAt?: string } {
+    const delivery = this.#state.deliveries.find((candidate) => candidate.id === deliveryId);
+    return delivery ? this.#steerReceipt(delivery) : {};
+  }
+
+  /** A steer shows its receipt while its turn runs, and its read time after, while it is known. */
+  #steerReceipt(delivery: StoredDelivery): { steered?: true; readAt?: string } {
+    const readAt = this.#steerReads.get(delivery.id);
+    if (delivery.steeredAt === undefined || (readAt === undefined && !isActiveDelivery(delivery))) return {};
+    return readAt === undefined ? { steered: true } : { steered: true, readAt };
+  }
+
+  /** Notes that the model read a steered message. False when the delivery is unknown or already read. */
+  noteSteerRead(deliveryId: string): boolean {
+    if (this.#steerReads.has(deliveryId)) return false;
+    const delivery = this.#state.deliveries.find((candidate) => candidate.id === deliveryId);
+    if (!delivery || delivery.steeredAt === undefined) return false;
+    this.#steerReads.set(deliveryId, new Date().toISOString());
+    // Bounded: the oldest receipts go first.
+    if (this.#steerReads.size > 500) {
+      const oldest = this.#steerReads.keys().next().value;
+      if (oldest !== undefined) this.#steerReads.delete(oldest);
+    }
+    return true;
+  }
 
   markSteering = Effect.fn("MailboxStore.markSteering")(function* (
     this: MailboxStore,

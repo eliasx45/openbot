@@ -801,6 +801,7 @@ export function createComposerActions(deps: ComposerActionsDeps) {
     submittedSnapshot?: ComposerDraft,
     voice?: VoiceSend,
     steer = false,
+    queue = false,
   ): Promise<boolean> {
     if (deps.attachmentBusy(targetOverride)) return false;
     if (!draftOverride && deps.currentEditingDeliveryId()) {
@@ -841,7 +842,7 @@ export function createComposerActions(deps: ComposerActionsDeps) {
     stopTeamTyping();
     deps.setComposerError(null, target);
     deps.clearConversationError(target);
-    queueSend(target, draft, text, voice, steer);
+    queueSend(target, draft, text, voice, steer, queue);
     deps.clearSubmittedDraft(target, submittedSnapshot ?? draft);
     return true;
   }
@@ -856,6 +857,7 @@ export function createComposerActions(deps: ComposerActionsDeps) {
     text: string,
     voice?: VoiceSend,
     steer = false,
+    queue = false,
   ): void {
     const onScreen = () => {
       const activeTarget = deps.currentTarget();
@@ -892,6 +894,7 @@ export function createComposerActions(deps: ComposerActionsDeps) {
         target,
         pending.clientMessageId,
         pending.voiceRecordingDraftId ?? undefined,
+        queue,
       );
       if ("error" in result) {
         playActionSound("error");
@@ -993,6 +996,15 @@ export function createComposerActions(deps: ComposerActionsDeps) {
     void submitMessage(undefined, undefined, undefined, undefined, !hostSteers);
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md, "Long turns stay visible"): ⌘↩ while the agent works. The message
+   * waits in the queue and starts the agent's next turn, even when the agent steers each message.
+   */
+  function queueComposer(): void {
+    if (deps.attachmentBusy() || deps.uploadFailed() || deps.voicePhase() !== "idle" || !deps.agentReady()) return;
+    void submitMessage(undefined, undefined, undefined, undefined, false, true);
+  }
+
   /** An instruction about selected text is a reply to that message. A failure shows on its row. */
   async function sendSelectionInstruction(messageId: string, body: string): Promise<boolean> {
     const target = deps.currentTarget();
@@ -1069,6 +1081,7 @@ export function createComposerActions(deps: ComposerActionsDeps) {
     submitMessage,
     submitComposer,
     steerComposer,
+    queueComposer,
     composerAnswersPrompt,
     sendSelectionInstruction,
     queueSelectionNote,

@@ -109,6 +109,7 @@ export function ConversationComposer() {
     cancelVoiceRecording,
     submitComposer,
     steerComposer,
+    queueComposer,
     composerAnswersPrompt,
     removeSelectionNote,
     editSelectionNote,
@@ -274,6 +275,19 @@ export function ConversationComposer() {
     !uploadFailed() &&
     !submitting()
       ? steerComposer
+      : undefined;
+  /** Fork: ⌘↩ while the agent works queues the message for its next turn. */
+  const queueOnModEnter = () =>
+    props.activeTurnId &&
+    !channel &&
+    !editingDeliveryId() &&
+    composerHasContent() &&
+    voicePhase() === "idle" &&
+    agentReady() &&
+    !attachmentBusy() &&
+    !uploadFailed() &&
+    !submitting()
+      ? queueComposer
       : undefined;
   /** Why the running turn has no reply: the computer is offline, or the provider sends nothing. */
   const providerWaitNotice = createMemo(() => {
@@ -712,6 +726,7 @@ export function ConversationComposer() {
               }}
               onSubmit={submitComposer}
               onSteer={steerOnTab()}
+              onQueue={queueOnModEnter()}
               sendShortcut={deviceSendShortcut(props.platform)}
               onPickerOpenChange={setPickerOpen}
               dictation={{ text: voiceLiveText(), final: voicePhase() === "transcribing" }}

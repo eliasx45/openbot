@@ -6,6 +6,7 @@ import {
   type ConversationPageInfo,
   type ConversationReadState,
   type ConversationSnapshot,
+  LOCAL_SERVER_ID,
 } from "@openbot/contracts/ipc";
 import { cleanAgentMessageText } from "@openbot/team-client/agent-message-text";
 import type { AgentMessage } from "@openbot/ui/data";
@@ -832,6 +833,7 @@ const Conversation = createSimpleContext({
       target?: { agentId: string; serverId: string },
       clientMessageId?: string,
       voiceRecordingDraftId?: string,
+      queue?: boolean,
     ): Promise<SendMessageResult> {
       const agentId = target?.agentId ?? activeAgent()?.id;
       const serverId = target?.serverId ?? activeServerId();
@@ -845,6 +847,7 @@ const Conversation = createSimpleContext({
         serverId,
         clientMessageId,
         voiceRecordingDraftId,
+        queue,
       );
     }
 
@@ -857,6 +860,7 @@ const Conversation = createSimpleContext({
       serverId = activeServerId(),
       clientMessageId?: string,
       voiceRecordingDraftId?: string,
+      queue?: boolean,
     ): Promise<SendMessageResult> {
       const analytics = desktopAnalytics.scope();
       const properties = analyticsAgentProperties(agentId);
@@ -869,6 +873,8 @@ const Conversation = createSimpleContext({
           ...(replyToMessageId ? { replyToMessageId } : {}),
           ...(clientMessageId ? { clientMessageId } : {}),
           ...(voiceRecordingDraftId ? { voiceRecordingDraftId } : {}),
+          // Fork: only this computer's host knows the flag; a remote host steers by its own mode.
+          ...(queue && serverId === LOCAL_SERVER_ID ? { queue: true as const } : {}),
         };
         const receipt = await conversationPort().agent.sendMessage(input, serverId);
         const errorKey = agentConversationKey(serverId, agentId);

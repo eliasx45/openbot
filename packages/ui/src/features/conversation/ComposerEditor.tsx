@@ -127,6 +127,11 @@ interface ComposerEditorProps {
   /** Tab sends the message into the agent's running turn. Absent, Tab moves the focus as usual. */
   onSteer?: (() => void) | undefined;
   /**
+   * Fork: ⌘↩ (Ctrl+Enter off macOS) puts the message in the queue for the agent's next turn, even
+   * when the agent steers each message. Only while plain Enter sends; absent, the chord sends.
+   */
+  onQueue?: (() => void) | undefined;
+  /**
    * Which chord sends the message. Enter keeps the current behavior; the platform modifier with
    * Enter sends and plain Enter adds a line. The renderer resolves the platform and passes it.
    */
@@ -953,6 +958,11 @@ export function ComposerEditor(props: ComposerEditorProps) {
       return;
     }
     if (event.key === "Enter") {
+      if (sendShortcut === "enter" && props.onQueue && (event.metaKey || event.ctrlKey) && !event.altKey) {
+        event.preventDefault();
+        props.onQueue();
+        return;
+      }
       if (sendShortcut !== "enter" && !isSendShortcutKey(event, sendShortcut)) {
         event.preventDefault();
         if (!editor) return;

@@ -237,6 +237,8 @@ interface ActiveTurn {
   thinkingTail: string | null;
   /** How many thinking blocks the complete messages of each message id have given. */
   thinkingSnapshotCounts: Map<string, number>;
+  /** Fork (docs/fork/FEATURES.md, "Long turns stay visible"): the model message ids of the turn, one per request. */
+  modelCallIds: Set<string>;
   /** The complete messages whose thinking is applied, so that a repeated one is not counted again. */
   thinkingSnapshots: Set<string>;
   assistantMessages: Map<string, string>;
@@ -289,6 +291,11 @@ interface ThreadRuntime {
    * after the turn's last request. Its history names the turn by that uuid (#3365).
    */
   nextTurnId: string | null;
+  /**
+   * Fork (docs/fork/FEATURES.md, "Long turns stay visible"): the steers that the model has not read
+   * yet, by the uuid sent to the CLI, with the host's id of each message.
+   */
+  unreadSteers?: Map<string, string>;
   /** The message the stream sends now, and the thinking block key of each of its content indexes. */
   streamMessage: { id: string | null; thinkingBlocks: Map<number, string> };
   /** Fork: the last command list of the SDK and the terminal-only names of `system/init`, for the `$` list. */
@@ -341,6 +348,8 @@ interface ClaudeStreamMessage {
   tasks?: unknown;
   /** The uuid of the user message that the turn answers, on the turn's first stream event and assistant message. */
   user_message_uuid?: string;
+  /** Fork: the uuids of every user message the turn has read so far, a steer folded in mid-turn too. */
+  user_message_uuids?: unknown;
   /** Set when the turn runs an interrupted turn again, and `user_message_uuid` names that turn's prompt. */
   resume_reason?: string;
   /** `api_retry`: the retry that starts next, its limit, and the HTTP status, null when no answer came. */
@@ -1261,6 +1270,7 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
       thinkingBlocks: new Map<string, string>(),
       thinkingTail: null,
       thinkingSnapshotCounts: new Map<string, number>(),
+      modelCallIds: new Set<string>(),
       thinkingSnapshots: new Set<string>(),
       assistantMessages: new Map<string, string>(),
       toolCalls: new Map<string, { name: string; input: Record<string, string> }>(),
@@ -1306,6 +1316,10 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
     }
     const clientId = getString(params, "clientUserMessageId");
     const messageId = clientId && isUuid(clientId) ? clientId : randomUUID();
+    if (clientId) {
+      runtime.unreadSteers ??= new Map();
+      runtime.unreadSteers.set(messageId, clientId);
+    }
     runtime.input.push({
       type: "user",
       message: { role: "user", content: readInputText(params) },
@@ -1566,6 +1580,26 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
     if (message.type === "assistant") {
       if (message.parent_tool_use_id !== null || !message.uuid) return;
       const turn = this.#outputTurn(runtime);
+      // Fork: a reply names every user message its turn has read, a steer folded in mid-turn too.
+      if (runtime.unreadSteers?.size)
+        for (const uuid of Array.isArray(message.user_message_uuids) ? message.user_message_uuids : []) {
+          const clientUserMessageId = isString(uuid) ? runtime.unreadSteers.get(uuid) : undefined;
+          if (clientUserMessageId === undefined) continue;
+          runtime.unreadSteers.delete(uuid);
+          this.emit("notification", {
+            method: "openbot/steer-read",
+            params: { threadId: runtime.id, turnId: turn.id, clientUserMessageId },
+          });
+        }
+      // The CLI sends one message per content block; the blocks of one request share the message id.
+      const modelMessageId = isRecord(message.message) ? message.message.id : undefined;
+      if (isString(modelMessageId) && modelMessageId && !turn.modelCallIds.has(modelMessageId)) {
+        turn.modelCallIds.add(modelMessageId);
+        this.emit("notification", {
+          method: "openbot/model-call",
+          params: { threadId: runtime.id, turnId: turn.id },
+        });
+      }
       const text = messageText(message.message);
       if (message.error === "rate_limit") {
         // A spent balance does not reset, so it is not held: the turn fails with its own text.

@@ -601,6 +601,8 @@ export function parseSendMessage(value: unknown): SendMessageInput {
   ) {
     throw new Error("Invalid voice recording draft.");
   }
+  const queue = value.queue;
+  if (queue !== undefined && queue !== true) throw new Error("Invalid queue flag.");
   return {
     agentId: requireString(value.agentId, "agentId"),
     text: value.text,
@@ -609,6 +611,7 @@ export function parseSendMessage(value: unknown): SendMessageInput {
     ...(clientMessageId === undefined ? {} : { clientMessageId }),
     ...(taskId === undefined ? {} : { taskId }),
     ...(voiceRecordingDraftId === undefined ? {} : { voiceRecordingDraftId }),
+    ...(queue === true ? { queue } : {}),
   };
 }
 

@@ -70,6 +70,7 @@ export class MailboxSync {
       id: context.delivery.id,
       status: context.delivery.status,
       position: context.delivery.position,
+      ...this.#mailbox.steerReceipt(deliveryId),
     };
   }
 

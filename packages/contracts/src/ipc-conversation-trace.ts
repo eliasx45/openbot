@@ -37,6 +37,11 @@ export interface ConversationTurnTrace {
   tokens?: number | undefined;
   /** The cost in US dollars. Null when one record of the turn has no cost; absent when no record has one. */
   costUsd?: number | null | undefined;
+  /**
+   * Fork (docs/fork/FEATURES.md, "Long turns stay visible"): the model requests that the provider
+   * reported for the turn. Absent when the provider does not report them.
+   */
+  modelCalls?: number | undefined;
 }
 
 export const CONVERSATION_TRACE_STEP_LIMIT = 500;
@@ -52,7 +57,8 @@ export function isConversationTurnTrace(value: unknown): value is ConversationTu
     value.steps.length <= CONVERSATION_TRACE_STEP_LIMIT &&
     value.steps.every(isConversationTraceStep) &&
     (value.tokens === undefined || isCount(value.tokens)) &&
-    (value.costUsd === undefined || value.costUsd === null || isCost(value.costUsd))
+    (value.costUsd === undefined || value.costUsd === null || isCost(value.costUsd)) &&
+    (value.modelCalls === undefined || isCount(value.modelCalls))
   );
 }
 

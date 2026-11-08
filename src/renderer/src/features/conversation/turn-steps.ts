@@ -363,6 +363,7 @@ export function createTurnSteps(deps: {
           end: turnEnd,
           ...(stored?.tokens === undefined ? {} : { tokens: stored.tokens }),
           ...(typeof stored?.costUsd === "number" ? { costUsd: stored.costUsd } : {}),
+          ...(stored?.modelCalls === undefined ? {} : { modelCalls: stored.modelCalls }),
         },
       ];
       const titles = new Map(ran.map(({ subagent }) => [subagent.id, subagent.title]));

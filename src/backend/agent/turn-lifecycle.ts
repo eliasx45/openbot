@@ -606,6 +606,9 @@ export class TurnLifecycle {
     )
       return false;
     if (waitsForUser(answer)) return false;
+    // Fork (docs/fork/FEATURES.md, "Long turns stay visible"): a background subagent's finish starts
+    // the agent's next turn by itself, so a note now only makes it say "still waiting".
+    if (this.#subagentTurns.has(agentId)) return false;
     return (
       !this.#hooks.turnStopped(agentId, taskId, turnId) &&
       !this.#hooks.hasOpenWait(
@@ -933,6 +936,19 @@ export class TurnLifecycle {
         if (status !== "running" && status !== "completed" && status !== "failed") return;
         // Native Claude compaction does not report comparable full-context counts.
         this.#compaction.observeCompaction(threadId, status, "none");
+        return;
+      }
+      case "openbot/steer-read": {
+        // Fork (docs/fork/FEATURES.md, "Long turns stay visible"): the read receipt of a steer.
+        const deliveryId = getString(params, "clientUserMessageId");
+        if (!agentId || !deliveryId || !this.#mailbox.noteSteerRead(deliveryId)) return;
+        this.#mailboxSync.emitQueue(agentId);
+        return;
+      }
+      case "openbot/model-call": {
+        // Fork (docs/fork/FEATURES.md, "Long turns stay visible"): the trace counts the real requests.
+        const turnId = getString(params, "turnId");
+        if (turnId) this.#traces.countModelCall(turnId);
         return;
       }
       case "openbot/turn-progress": {

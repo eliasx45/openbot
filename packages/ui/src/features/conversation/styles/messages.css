@@ -183,6 +183,19 @@
   order: -1;
 }
 
+/* Fork: the read receipt of a message sent into a running turn stays visible, unlike the time. */
+.message-receipt {
+  padding-inline: var(--openbot-space-1);
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+  line-height: var(--openbot-leading-sm);
+  white-space: nowrap;
+}
+
+.message-entry-user .message-action-row > .message-receipt {
+  order: -2;
+}
+
 .message-entry:hover .message-actions,
 .message-entry:focus-within .message-actions,
 .message-actions-open {

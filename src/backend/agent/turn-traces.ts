@@ -14,19 +14,49 @@ import { redactText } from "@openbot/logging";
 
 interface RunningTrace {
   startedAt: string;
-  steps: Map<string, ConversationTraceStep>;
+  /** Every step in start order, the closed thinking segments included. */
+  steps: ConversationTraceStep[];
+  /** The open step of each provider item id. */
+  open: Map<string, ConversationTraceStep>;
+  /** The time of the last event of each open step that is not a tool. */
+  lastEventAt: Map<string, string>;
+  /** The item id of the latest event, to see that another step came between two thinking events. */
+  lastItemId: string | null;
+  /** How many segments each item id has, for the id of the next one. */
+  segments: Map<string, number>;
+  /** The model requests that the provider reported. */
+  modelCalls: number | null;
 }
 
 /**
  * Owns the steps of each running turn, by provider item id, until the turn ends. The providers send
  * no times, so each time is when the host got the event. A turn ends with `take`, which removes it;
  * only a turn that `begin` started records steps, so a compaction turn keeps nothing here.
+ *
+ * Fork (docs/fork/FEATURES.md, "Long turns stay visible"): Claude keeps all thinking of a turn in one
+ * item, so one step covered the whole turn and the trace named it the slowest (Gotham, 8 Nov 2026:
+ * "20m 6s"). A thought or message that gets an event after another step had one starts a new segment,
+ * and the segment before it ends at its own last event.
  */
 export class TurnTraces {
   readonly #turns = new Map<string, RunningTrace>();
 
   begin(turnId: string, startedAt: string): void {
-    this.#turns.set(turnId, { startedAt, steps: new Map() });
+    this.#turns.set(turnId, {
+      startedAt,
+      steps: [],
+      open: new Map(),
+      lastEventAt: new Map(),
+      lastItemId: null,
+      segments: new Map(),
+      modelCalls: null,
+    });
+  }
+
+  /** Counts a model request of the turn, as the provider reports it. */
+  countModelCall(turnId: string): void {
+    const trace = this.#turns.get(turnId);
+    if (trace) trace.modelCalls = (trace.modelCalls ?? 0) + 1;
   }
 
   /**
@@ -52,13 +82,34 @@ export class TurnTraces {
     // A step id must pass the message guard, or the message that holds the trace would not decode.
     if (!trace || !itemId || itemId.length > INPUT_LIMITS.identifier) return;
     const now = new Date().toISOString();
-    let step = trace.steps.get(itemId);
-    if (!step) {
-      if (trace.steps.size >= CONVERSATION_TRACE_STEP_LIMIT) return;
-      step = { id: itemId, kind, startedAt: now, endedAt: null };
-      trace.steps.set(itemId, step);
+    let step = trace.open.get(itemId);
+    if (step && step.kind !== "tool" && kind !== "tool" && trace.lastItemId !== itemId) {
+      // Another step came between: the open segment ends at its last event. A completion only ends it.
+      step.endedAt = trace.lastEventAt.get(itemId) ?? step.startedAt;
+      if (event.completed) {
+        step.kind = kind;
+        trace.open.delete(itemId);
+        return;
+      }
+      step = undefined;
     }
-    if (step.kind !== "tool") step.kind = kind;
+    // A repeated completion of an item whose last segment has ended starts no new one.
+    if (!step && event.completed && trace.segments.has(itemId)) return;
+    trace.lastItemId = itemId;
+    if (!step) {
+      if (trace.steps.length >= CONVERSATION_TRACE_STEP_LIMIT) return;
+      const segment = (trace.segments.get(itemId) ?? 0) + 1;
+      const id = segment === 1 ? itemId : `${itemId}#${segment}`;
+      if (id.length > INPUT_LIMITS.identifier) return;
+      trace.segments.set(itemId, segment);
+      step = { id, kind, startedAt: now, endedAt: null };
+      trace.steps.push(step);
+      trace.open.set(itemId, step);
+    }
+    if (step.kind !== "tool") {
+      step.kind = kind;
+      trace.lastEventAt.set(itemId, now);
+    }
     if (kind === "tool" && step.text === undefined && event.text)
       step.text = event.text.slice(0, CONVERSATION_TRACE_TEXT_LIMIT);
     // The trace stays on this computer, but a command can hold a token, as a log line can.
@@ -69,6 +120,7 @@ export class TurnTraces {
       step.recipientAgentIds = [...event.recipientAgentIds];
     if (event.completed && step.endedAt === null) step.endedAt = now;
     if (event.completed && event.failed) step.failed = true;
+    if (event.completed) trace.open.delete(itemId);
   }
 
   /** The trace of a turn that ends now, without its usage. It removes the turn. */
@@ -76,7 +128,15 @@ export class TurnTraces {
     const trace = this.#turns.get(turnId);
     this.#turns.delete(turnId);
     if (!trace) return null;
-    return { startedAt: trace.startedAt, endedAt, steps: [...trace.steps.values()] };
+    // A thought that the turn's end completes ends at its own last event, not at the end of the turn.
+    for (const [itemId, step] of trace.open)
+      if (step.kind !== "tool" && step.endedAt === null) step.endedAt = trace.lastEventAt.get(itemId) ?? null;
+    return {
+      startedAt: trace.startedAt,
+      endedAt,
+      steps: trace.steps,
+      ...(trace.modelCalls === null ? {} : { modelCalls: trace.modelCalls }),
+    };
   }
 
   drop(turnId: string): void {

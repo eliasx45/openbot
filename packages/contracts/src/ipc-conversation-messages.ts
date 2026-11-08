@@ -217,7 +217,17 @@ export interface ConversationMessage {
   /** What the user said, on a message that a voice turn sent. The agent got only the text. */
   voiceRecording?: AttachmentSummary | undefined;
   imageGeneration?: ImageGenerationInfo | undefined;
-  delivery?: Pick<QueueDelivery, "id" | "status" | "position"> | undefined;
+  delivery?:
+    | (Pick<QueueDelivery, "id" | "status" | "position"> & {
+        /**
+         * Fork (docs/fork/FEATURES.md, "Long turns stay visible"): the message went into a running
+         * turn. `readAt` is when the model first answered after reading it; absent, it still waits for
+         * the current step to end. Kept in memory by the host only, so a restart drops both.
+         */
+        steered?: true | undefined;
+        readAt?: string | undefined;
+      })
+    | undefined;
   exchange?: AgentExchangeSummary | undefined;
   reaction?: MessageReaction | null | undefined;
   reactions?: ConversationReaction[] | undefined;
@@ -305,7 +315,10 @@ function isConversationDelivery(value: unknown): boolean {
     isDynamicRecord(value) &&
     isIdentifier(value.id) &&
     isOneOf(QUEUE_DELIVERY_STATUSES, value.status) &&
-    (value.position === null || (isNumber(value.position) && Number.isInteger(value.position) && value.position >= 1))
+    (value.position === null ||
+      (isNumber(value.position) && Number.isInteger(value.position) && value.position >= 1)) &&
+    (value.steered === undefined || value.steered === true) &&
+    (value.readAt === undefined || isBoundedString(value.readAt, 160))
   );
 }
 

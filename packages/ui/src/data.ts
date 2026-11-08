@@ -206,6 +206,11 @@ export interface AgentMessage {
   itemType?: string | undefined;
   kind?: MessageKind;
   status?: string | undefined;
+  /**
+   * Fork (docs/fork/FEATURES.md, "Long turns stay visible"): a message sent into the agent's running
+   * turn. `seenTime` is when the agent read it, or null while it waits for the current step.
+   */
+  receipt?: { seenTime: string | null } | undefined;
   senderAgentId?: string | undefined;
   /** The person who wrote a `you` message. Absent on the reader's own older messages. */
   senderMember?: ConversationMessageSender | undefined;

@@ -28,6 +28,15 @@ export function isForkCacheRoutine(routineId: string | undefined): boolean {
 /** The context size from which a compaction pays for itself. Elias chose 100k (4 Nov 2026). */
 const FORK_COMPACT_MIN_TOKENS = 100_000;
 /**
+ * Fork (docs/fork/FEATURES.md, "Long turns stay visible"): a chat that never goes quiet for 55 minutes
+ * grows without limit (Gotham, 8 Nov 2026: 510k–550k tokens in each of 30 requests of one turn,
+ * $3.88). From this size, the chat is compacted as soon as a turn ends and nothing else waits, while
+ * the user reads the answer. Elias approved 300k on 8 Nov 2026.
+ */
+const FORK_COMPACT_BIG_TOKENS = 300_000;
+/** The wait after a turn ends: a plan continuation or a waiting message starts first, and the size arrives. */
+const BIG_CHECK_DELAY_MS = 20_000;
+/**
  * Claude's prompt cache lives one hour; the compaction runs in the last minutes of it. Test switch:
  * `OPENBOT_FORK_COMPACT_QUIET_MINUTES=2` compacts after 2 quiet minutes.
  */
@@ -50,7 +59,7 @@ export interface ForkCacheCompactHooks {
   /** A turn runs, a message waits, or a compaction runs for the agent. */
   busy(agentId: string): boolean;
   /** Queues the `/compact` delivery in the agent's own chat. */
-  compact(agentId: string, input: { runId: string; tokens: number }): void;
+  compact(agentId: string, input: { runId: string; tokens: number; big?: boolean }): void;
   /** Queues the keep-warm ping in the agent's own chat. */
   ping(agentId: string, input: { runId: string; until: number }): void;
   isRunning(): boolean;
@@ -63,6 +72,9 @@ export class ForkCacheCompact {
   readonly #endedAt = new Map<string, number>();
   /** The end of each agent's `/keepwarm` window. In memory: a restart ends every window. */
   readonly #warmUntil = new Map<string, number>();
+  /** Agents whose big chat was just sent `/compact`: the end of that turn starts no other one. */
+  readonly #bigCompacted = new Set<string>();
+  readonly #bigChecks = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(hooks: ForkCacheCompactHooks) {
     this.#hooks = hooks;
@@ -72,7 +84,28 @@ export class ForkCacheCompact {
 
   /** A turn of the agent's own chat ended: the cache was written now. */
   turnEnded(agentId: string): void {
-    this.#endedAt.set(agentId, Date.now());
+    const endedAt = Date.now();
+    this.#endedAt.set(agentId, endedAt);
+    clearTimeout(this.#bigChecks.get(agentId));
+    if (this.#bigCompacted.delete(agentId)) return;
+    const timer = setTimeout(() => {
+      this.#bigChecks.delete(agentId);
+      this.#compactBig(agentId, endedAt);
+    }, BIG_CHECK_DELAY_MS);
+    timer.unref?.();
+    this.#bigChecks.set(agentId, timer);
+  }
+
+  /** Compacts a chat over `FORK_COMPACT_BIG_TOKENS` right after its turn, unless something else runs. */
+  #compactBig(agentId: string, endedAt: number): void {
+    if (!this.#hooks.isRunning() || this.#endedAt.get(agentId) !== endedAt || this.#hooks.busy(agentId)) return;
+    // A keep-warm window means the user wants the whole chat kept.
+    if (this.warmUntil(agentId) !== null || !this.supports(agentId)) return;
+    const tokens = this.#hooks.contextTokens(agentId);
+    if (tokens === null || tokens < FORK_COMPACT_BIG_TOKENS) return;
+    logger.info("Compacting a big chat after its turn.", { agentId, tokens });
+    this.#bigCompacted.add(agentId);
+    this.#hooks.compact(agentId, { runId: `${agentId}:${endedAt}:big`, tokens, big: true });
   }
 
   /** Whether the agent's own chat runs on Claude, the only provider with this cache handling. */
@@ -98,6 +131,8 @@ export class ForkCacheCompact {
 
   dispose(): void {
     clearInterval(this.#timer);
+    for (const timer of this.#bigChecks.values()) clearTimeout(timer);
+    this.#bigChecks.clear();
   }
 
   #check(): void {

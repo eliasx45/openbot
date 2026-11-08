@@ -296,6 +296,15 @@ export function ChatMessageRow(props: ChatMessageRowProps): JSX.Element {
           {props.message.time}
         </time>
       </Show>
+      <Show when={props.message.receipt}>
+        {(receipt) => (
+          <span class="message-receipt" data-seen={receipt().seenTime === null ? undefined : ""}>
+            {receipt().seenTime === null
+              ? t("chat.receipt.waiting")
+              : t("chat.receipt.seen", { time: receipt().seenTime ?? "" })}
+          </span>
+        )}
+      </Show>
       <Show when={steps.toArray().length > 0}>
         <div class="message-steps">{steps()}</div>
       </Show>

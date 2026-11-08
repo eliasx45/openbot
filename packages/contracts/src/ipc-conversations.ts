@@ -184,6 +184,11 @@ export interface SendMessageInput {
    * the message for replay and never gives it to the agent.
    */
   voiceRecordingDraftId?: string;
+  /**
+   * Fork (docs/fork/FEATURES.md, "Long turns stay visible"): the message waits for the running turn to
+   * end and starts the next one, even when the agent's busy-message mode steers. Sent by ⌘↩.
+   */
+  queue?: true;
 }
 
 /**
