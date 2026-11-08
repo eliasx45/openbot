@@ -647,6 +647,7 @@ export class ProviderRuntime implements ProviderPort {
               Effect.mapError((error) => new ProviderAccountFailed({ cause: error.cause })),
             ),
           changed: () => this.#setStatus({}),
+          accountSignedIn: (provider) => this.#hooks.onProviderResumed(provider),
           usageChanged: (limit) => this.#emit({ type: "usage-changed", usage: { limits: [structuredClone(limit)] } }),
           redact: (text) => this.#redactMcp(redactText(text)),
         })
@@ -829,6 +830,18 @@ export class ProviderRuntime implements ProviderPort {
     return (
       this.#status.providers?.some((status) => status.id === provider && status.state === "sign-in-required") ?? false
     );
+  }
+
+  /**
+   * Fork: true while the sign-in that runs this agent waits. An agent on an account after the first
+   * runs in that account's own process, so it waits for that account only: the provider's own sign-in
+   * can be signed out while the account works (8 Nov 2026, every Claude agent held for hours).
+   */
+  signInRequiredForAgent(agent: AgentSummary): boolean {
+    const provider = providerForAgent(agent);
+    const account = this.#providerAccounts?.account(provider, agent.providerAccountId);
+    if (!account || !this.#providerAccounts) return this.signInRequired(provider);
+    return this.#providerAccounts.signedOut(account.id);
   }
 
   /**

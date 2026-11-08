@@ -128,6 +128,7 @@ import { BrowserHost } from "../backend/browser-host";
 import { BrowserProfileStore } from "../backend/browser-profiles/browser-profile-store";
 import { BrowserProxyStore } from "../backend/browser-profiles/browser-proxy-store";
 import { runCauseEffect } from "../backend/effect-boundary";
+import { prepareForkClaudeHome } from "../backend/fork-claude-home";
 import { MailboxStore } from "../backend/mailbox-store";
 import { McpOAuth } from "../backend/mcp-oauth-provider";
 import { discordDriver, downloadDiscordAttachment } from "../backend/messaging/discord/discord-driver";
@@ -1425,6 +1426,9 @@ export async function createApplicationServices({
    */
   const providerUse = new ProviderUseSettingsStore(join(app.getPath("userData"), "openbot-provider-use-v1.json"));
   await runCauseEffect(providerUse.load());
+  // Fork: the own Claude sign-in gets a folder of its own, before a provider starts. Development
+  // keeps `~/.claude`: each dev profile would need a sign-in of its own.
+  if (app.isPackaged) await runCauseEffect(prepareForkClaudeHome(join(app.getPath("userData"), "fork-claude-home")));
   const providerAccounts = new ProviderAccountStore(
     join(app.getPath("userData"), "openbot-provider-accounts-v1.json"),
     join(app.getPath("userData"), "provider-accounts"),

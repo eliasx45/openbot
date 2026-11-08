@@ -101,6 +101,7 @@ import {
 import { runCauseEffect } from "./effect-boundary";
 // Fork: the session's commands for the `$` list.
 import { type ClaudeCommandRow, claudeCommandsForList, isClaudeCommandRow } from "./fork-agent-skills";
+import { forkClaudeHomeEnvironment } from "./fork-claude-home";
 import { FORK_BACKGROUND_STOPPED_METHOD } from "./fork-restart-resume";
 import { IdleThreadPool } from "./idle-thread-pool";
 import {
@@ -2446,6 +2447,8 @@ function spawnClaudeWrapper({ command, args, cwd, env, signal }: SpawnOptions): 
 function claudeEnvironment(cli: ClaudeCliInfo): NodeJS.ProcessEnv {
   return {
     ...process.env,
+    // Fork: the own sign-in's folder. An account after the first sets its own folder after this.
+    ...forkClaudeHomeEnvironment(),
     ...cliPathEnvironment(cli),
     ...(cli.source === "managed" ? { DISABLE_AUTOUPDATER: "1" } : {}),
   };

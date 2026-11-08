@@ -59,6 +59,7 @@ import {
 import { clineFreeModels } from "./cline-free-models";
 import { readCursorUsage } from "./cursor-usage";
 import { CustomAcpAgentsClient, type CustomAgentConfig, type CustomAgentSource } from "./custom-acp-agents-client";
+import { forkClaudeHomeEnvironment } from "./fork-claude-home";
 import { GrokAgentClient } from "./grok-client";
 import { isPythonKimiCli, kimiPythonLoginEnv, kimiPythonSavedRegionEnv, type SignInRegion } from "./kimi-region";
 import { readKimiUsage } from "./kimi-usage";
@@ -155,8 +156,11 @@ export interface ProviderAccountSupport {
   readonly usageLeavesSession?: boolean;
 }
 
-const CLAUDE_COMMAND_ENV = (cli: AgentCliInfo): Record<string, string> =>
-  cli.source === "managed" ? { DISABLE_AUTOUPDATER: "1" } : {};
+// Fork: the own sign-in's folder (`fork-claude-home.ts`). An account's folder replaces it after this.
+const CLAUDE_COMMAND_ENV = (cli: AgentCliInfo): Record<string, string> => ({
+  ...forkClaudeHomeEnvironment(),
+  ...(cli.source === "managed" ? { DISABLE_AUTOUPDATER: "1" } : {}),
+});
 
 /**
  * The environment one OpenCode process gets, read at spawn time.

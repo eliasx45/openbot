@@ -96,6 +96,8 @@ export interface ProviderAccountsHost {
   resetCredits(client: AgentClient): number | null | undefined;
   consumeUsageReset(client: AgentClient): Effect.Effect<ProviderUsageResetOutcome, ProviderAccountFailed>;
   changed(): void;
+  /** Fork: an account left the signed-out state, so the messages that waited for its sign-in can start. */
+  accountSignedIn?(provider: AgentProviderId): void;
   /** Sends the reading of an account check: after a sign-in, and when the provider's own sign-in connects. */
   usageChanged(limit: AccountUsageLimit): void;
   redact(text: string): string;
@@ -150,6 +152,14 @@ export class ProviderAccounts {
     if (!support) throw new Error("Invalid provider account.");
     const key = isKeyAccount(account) ? this.#host.apiKey(account.provider) : null;
     return { [support.homeVariable]: this.#store.home(account), ...(key ? { ANTHROPIC_API_KEY: key } : {}) };
+  }
+
+  /**
+   * Fork: true when the account's last check found it signed out. Its agents wait for its sign-in,
+   * not for the provider's own one; an account that has no check yet does not hold them.
+   */
+  signedOut(accountId: string): boolean {
+    return this.#states.get(accountId)?.state === "signed-out";
   }
 
   /** Whether the provider's connected CLI can hold accounts after the first. */
@@ -813,6 +823,10 @@ export class ProviderAccounts {
       checkedAt: patch.state === "connected" || patch.state === "signed-out" ? Date.now() : (current?.checkedAt ?? 0),
     });
     this.#host.changed();
+    if (current?.state === "signed-out" && patch.state && patch.state !== "signed-out") {
+      const account = this.#store.list().find((candidate) => candidate.id === accountId);
+      if (account) this.#host.accountSignedIn?.(account.provider);
+    }
   }
 
   /** A failure as the account row shows it: the CLI's own words, with every secret taken out. */

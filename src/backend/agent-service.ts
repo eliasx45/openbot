@@ -3696,7 +3696,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         return Boolean(
           agent &&
             this.#providers.isReady() &&
-            !this.#providers.signInRequired(agent.provider) &&
+            !this.#providers.signInRequiredForAgent(agent) &&
             this.#providers.clientForAgent(agent),
         );
       },

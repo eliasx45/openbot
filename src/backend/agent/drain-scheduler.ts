@@ -340,7 +340,7 @@ export class DrainScheduler {
     // rather than fail (#4326). The provider runtime schedules the drain again when it is signed in.
     if (
       agent &&
-      this.#providers.signInRequired(providerForAgent(agent)) &&
+      this.#providers.signInRequiredForAgent(agent) &&
       this.#waitsForSignIn(this.#mailbox.nextQueued(agentId, taskId)?.delivery)
     )
       return "sign-in";
@@ -1000,7 +1000,7 @@ export class DrainScheduler {
           const recipient = this.#store.list().find((candidate) => candidate.id === delivery.recipientAgentId);
           if (
             error instanceof ProviderTurnActiveError ||
-            (recipient && this.#providers.signInRequired(providerForAgent(recipient)) && this.#waitsForSignIn(delivery))
+            (recipient && this.#providers.signInRequiredForAgent(recipient) && this.#waitsForSignIn(delivery))
           ) {
             for (const item of batch) yield* this.#mailbox.restoreQueued(item.delivery.id).pipe(toDeliveryStartFailed);
             this.#mailboxSync.emitQueue(delivery.recipientAgentId);

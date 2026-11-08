@@ -248,7 +248,17 @@ export function ConversationComposer() {
     // its notice would carry a button that does nothing. Every other provider opens its own OAuth.
     if (provider === "opencode") return null;
     const status = props.agentStatus.providers?.find((item) => item.id === provider);
-    return status?.state === "sign-in-required" ? status : null;
+    // Fork: an agent on an account after the first waits for that account only, as the backend does
+    // (`signInRequiredForAgent`). Its sign-in is in the provider's settings, where each account has one.
+    const accountId = props.agent?.providerAccountId ?? DEFAULT_PROVIDER_ACCOUNT_ID;
+    if (status && accountId !== DEFAULT_PROVIDER_ACCOUNT_ID) {
+      const account = status.accounts?.find((item) => item.id === accountId);
+      if (account)
+        return account.state === "signed-out" ? { id: status.id, connectionState: null, account: true } : null;
+    }
+    return status?.state === "sign-in-required"
+      ? { id: status.id, connectionState: status.connectionState, account: false }
+      : null;
   });
   /**
    * An expired OpenCode key is replaced in this server's Providers settings, so its banner opens
@@ -580,8 +590,15 @@ export function ConversationComposer() {
                   })
                 }
                 signingIn={signInRequired()?.connectionState === "connecting"}
-                onSignIn={(provider) => props.onSignInProvider?.(provider)}
-                onSignInWithCode={props.onSignInWithCodeProvider}
+                onSignIn={(provider) =>
+                  signInRequired()?.account
+                    ? // The pressed button has the focus: the settings give it back when they close.
+                      props.onManageProviders?.(
+                        document.activeElement instanceof HTMLElement ? document.activeElement : document.body,
+                      )
+                    : props.onSignInProvider?.(provider)
+                }
+                onSignInWithCode={signInRequired()?.account ? undefined : props.onSignInWithCodeProvider}
               />
             )}
           </Show>
