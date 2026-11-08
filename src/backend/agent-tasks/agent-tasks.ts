@@ -648,6 +648,13 @@ export class AgentTasks implements TaskLanes {
           this.#hooks.emit({ type: "routine-thread-turn-completed", taskId: task.taskId, turn: event });
         return true;
       }
+      // Fork: background subagents of a task turn ended, so the task may be done now. The phone
+      // hears of them too, so the event is not taken.
+      case "subagents-ended": {
+        const task = this.#taskOf(event.threadId);
+        if (task) this.changed(task.agentId);
+        return false;
+      }
       case "queue-changed":
         // A queued task message changes the task's state, and the drain's reason to hold it.
         if (this.#store.openTaskIds(event.snapshot.agentId).length > 0) this.changed(event.snapshot.agentId);
@@ -705,6 +712,7 @@ export class AgentTasks implements TaskLanes {
       closedAt: task.closedAt,
       branch: this.#publicBranch(task),
       routineId: task.routineId,
+      ...(task.closedAt === null && subagentsRunning(snapshot?.messages) ? { subagentsRunning: true } : {}),
     };
   }
 
@@ -722,6 +730,17 @@ export class AgentTasks implements TaskLanes {
       throughMessageId,
     };
   }
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): whether a
+ * subagent list among the newest messages still has a running subagent. A list lives with its turn,
+ * and a background subagent that still runs belongs to one of the last turns.
+ */
+function subagentsRunning(messages: readonly ConversationMessage[] | undefined): boolean {
+  return (messages ?? [])
+    .slice(-200)
+    .some((message) => message.subagents?.some((subagent) => subagent.status === "running") === true);
 }
 
 /** The files of the copied messages: attachments and voice recordings. */

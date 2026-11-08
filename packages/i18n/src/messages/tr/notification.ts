@@ -14,6 +14,16 @@ export const messages = {
   "notification.failed": "Bir hatayla durdu.",
   "notification.subagentFailed": "Bir alt ajan bir hatayla durdu.",
   "notification.subagentFailedFor": "Bir alt ajan bir hatayla durdu: {task}",
+  "notification.subagentFinished": "Bir alt ajan işini bitirdi.",
+  "notification.subagentFinishedFor": "Bir alt ajan işini bitirdi: {task}",
+  "notification.subagentsFinished": {
+    one: "{count} alt ajan işini bitirdi.",
+    other: "{count} alt ajan işini bitirdi.",
+  },
+  "notification.subagentsFailed": {
+    one: "{count} alt ajan bir hatayla durdu.",
+    other: "{count} alt ajan bir hatayla durdu.",
+  },
   "notification.channelTitle": "{channel} kanalında {agent}",
   "notification.channelMessage": "Bir mesaj gönderdi.",
   "notification.usageLimit.title": "{provider} hesabı sınırına ulaştı",

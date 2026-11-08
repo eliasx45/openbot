@@ -416,6 +416,14 @@ export class TurnLifecycle {
     return turns;
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): whether
+   * subagents that `turnId` of the agent started still work.
+   */
+  subagentsRunning(agentId: string, turnId: string): boolean {
+    return this.#subagentTurns.get(agentId)?.has(turnId) === true;
+  }
+
   forgetAgent(agentId: string): void {
     this.fileHistory.forgetAgent(agentId);
     this.#failedTurns.delete(agentId);
@@ -2010,6 +2018,25 @@ export class TurnLifecycle {
     if (this.#trackSubagents(agentId, turnId, subagents)) this.#hooks.emitRuntimeSnapshot();
     const publicThreadId = snapshot.threadId;
     if (!publicThreadId) return;
+    // Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): subagents that
+    // end after their turn ended tell the channel task that waits for them and the phone.
+    if (!this.#runningTurns.has(turnId)) {
+      const runningBefore = new Set(previous?.filter((subagent) => subagent.status === "running").map(({ id }) => id));
+      const ended = subagents.flatMap((subagent) =>
+        runningBefore.has(subagent.id) && subagent.status !== "running"
+          ? [{ id: subagent.id, title: subagent.title, status: subagent.status }]
+          : [],
+      );
+      if (ended.length > 0)
+        this.#hooks.emit({
+          type: "subagents-ended",
+          agentId,
+          threadId: publicThreadId,
+          turnId,
+          subagents: ended,
+          running: subagents.some((subagent) => subagent.status === "running"),
+        });
+    }
     const failedBefore = new Set(previous?.filter((subagent) => subagent.status === "failed").map(({ id }) => id));
     for (const subagent of subagents)
       if (subagent.status === "failed" && !failedBefore.has(subagent.id))

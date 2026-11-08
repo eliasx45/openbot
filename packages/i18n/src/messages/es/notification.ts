@@ -14,6 +14,16 @@ export const messages = {
   "notification.failed": "Se detuvo con un error.",
   "notification.subagentFailed": "Un subagente se detuvo con un error.",
   "notification.subagentFailedFor": "Un subagente se detuvo con un error: {task}",
+  "notification.subagentFinished": "Un subagente terminó.",
+  "notification.subagentFinishedFor": "Un subagente terminó: {task}",
+  "notification.subagentsFinished": {
+    one: "{count} subagente terminó.",
+    other: "{count} subagentes terminaron.",
+  },
+  "notification.subagentsFailed": {
+    one: "{count} subagente se detuvo con un error.",
+    other: "{count} subagentes se detuvieron con un error.",
+  },
   "notification.channelTitle": "{agent} en {channel}",
   "notification.channelMessage": "Envió un mensaje.",
   "notification.usageLimit.title": "La cuenta de {provider} alcanzó su límite",

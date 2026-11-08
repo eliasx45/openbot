@@ -144,6 +144,7 @@ export function agentEventAgentId(event: AgentEvent): string | null {
     case "prompt":
     case "turn-completed":
     case "subagent-failed":
+    case "subagents-ended":
       return event.agentId;
     case "approval":
       return event.approval.agentId;
@@ -232,6 +233,31 @@ function notificationSubject(
     const body = task
       ? translate("notification.subagentFailedFor", { task })
       : translate("notification.subagentFailed");
+    return { body, agentId: event.agentId, threadId: event.threadId };
+  }
+  // Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): background
+  // subagents that finished or failed after their turn. Only the phone passes this event.
+  if (event.type === "subagents-ended") {
+    const ended = event.subagents.filter((subagent) => subagent.status !== "stopped");
+    const failed = ended.filter((subagent) => subagent.status === "failed").length;
+    const finished = ended.length - failed;
+    const only = ended.length === 1 ? ended[0] : undefined;
+    if (!only && ended.length === 0) return null;
+    const task = only && preview && plainPreview(preview.redact(only.title));
+    const body = only
+      ? failed
+        ? task
+          ? translate("notification.subagentFailedFor", { task })
+          : translate("notification.subagentFailed")
+        : task
+          ? translate("notification.subagentFinishedFor", { task })
+          : translate("notification.subagentFinished")
+      : [
+          finished ? translate("notification.subagentsFinished", { count: finished }) : "",
+          failed ? translate("notification.subagentsFailed", { count: failed }) : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
     return { body, agentId: event.agentId, threadId: event.threadId };
   }
   if (event.type === "error" && event.agentId && agentEventCanNotify(event))

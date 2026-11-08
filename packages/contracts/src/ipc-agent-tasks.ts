@@ -106,6 +106,12 @@ export interface AgentTask {
    * never sent on the frozen `agent-tasks-v1` routes.
    */
   routineId?: string | null;
+  /**
+   * Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): true while
+   * subagents that a turn of this thread started work on after the turn ended, so the thread is not
+   * done though no turn runs. Absent otherwise, and only from this computer.
+   */
+  subagentsRunning?: boolean;
 }
 
 /** Where a branch was copied from. */
@@ -242,7 +248,8 @@ export function isAgentTask(value: unknown): value is AgentTask {
     isBoundedString(value.updatedAt, 160) &&
     (value.closedAt === null || isBoundedString(value.closedAt, 160)) &&
     (value.branch === undefined || value.branch === null || isAgentTaskBranch(value.branch)) &&
-    (value.routineId === undefined || value.routineId === null || isIdentifier(value.routineId))
+    (value.routineId === undefined || value.routineId === null || isIdentifier(value.routineId)) &&
+    (value.subagentsRunning === undefined || typeof value.subagentsRunning === "boolean")
   );
 }
 
