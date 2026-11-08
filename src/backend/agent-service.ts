@@ -1720,6 +1720,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           return this.#tasks.threadForDelivery(deliveryId);
         },
         tagReferences: (agentId, threadId) => this.#tagReferences(agentId, threadId),
+        // Fork (docs/fork/FEATURES.md, "A message closes the open card").
+        userMessageSteered: (agentId, turnId) => this.#attention.skipUiBlocksForUserMessage(agentId, turnId),
       },
     });
     this.#turn = new TurnLifecycle({

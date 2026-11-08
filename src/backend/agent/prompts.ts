@@ -317,7 +317,7 @@ export function expiredPromptResult(
 /** What a blocking UI block (`ask_ui`) ended with. */
 export type UiBlockPromptOutcome =
   | { status: "answered"; blockId: string; response: UiBlockResponse }
-  | { status: "skipped" | "expired"; blockId: string };
+  | { status: "skipped" | "expired"; blockId: string; reason?: string };
 
 /**
  * The `ask_ui` result. Only the model reads it: the ids it gave, the values, and the user's words when
@@ -333,7 +333,7 @@ export function uiBlockPromptResult(outcome: UiBlockPromptOutcome): DynamicToolR
             blockId: outcome.blockId,
             next: "The block closed before the user answered. Ask again only if you still need the answer.",
           }
-        : { status: outcome.status, blockId: outcome.blockId };
+        : { status: outcome.status, blockId: outcome.blockId, ...(outcome.reason ? { reason: outcome.reason } : {}) };
   return { success: outcome.status !== "expired", contentItems: [{ type: "inputText", text: JSON.stringify(value) }] };
 }
 

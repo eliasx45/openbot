@@ -1831,6 +1831,49 @@ export class AttentionRegistry {
     }
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md, "A message closes the open card"). The user wrote into turn `turnId`
+   * of the agent instead of answering its `ask_ui` card. A provider reads a steered message only after
+   * the tool call returns, and `ask_ui` waits for the card, so the message waited unread (Elias, 8 Nov
+   * 2026: "it ignored my message"). The card closes as skipped and the agent reads the message next.
+   * The forms of `request_api_key` and `request_vault_item` stay open: they hold secrets.
+   */
+  skipUiBlocksForUserMessage(agentId: string, turnId: string): void {
+    let changed = false;
+    for (const [requestId, pending] of this.#prompts) {
+      const block = pending.uiBlock;
+      if (pending.agentId !== agentId || pending.turnId !== turnId || !block || block.apiKey || block.vault) continue;
+      this.#prompts.delete(requestId);
+      clearTimeout(pending.autoAnswer?.timer);
+      this.#emitInputResolved("prompt", requestId, pending.agentId);
+      this.#routines.markRunningForTurn(turnId);
+      try {
+        pending.client.respond(
+          pending.id,
+          uiBlockPromptResult({
+            status: "skipped",
+            blockId: block.blockId,
+            reason:
+              "The user sent a message instead of answering this card. Read it next: it may answer the card, change it or skip it.",
+          }),
+        );
+      } catch (error) {
+        logger.warn("Unable to skip a card for a user message", { error: toLogValue(error) });
+      }
+      try {
+        this.#resolvePersistedPrompt(
+          pending,
+          { status: "cancelled" },
+          answeredUiBlockState(block.spec, null, undefined, pending.autoAnswer?.state),
+        );
+      } catch (error) {
+        this.#emitError("prompt_persistence_failed", error, pending.agentId);
+      }
+      changed = true;
+    }
+    if (changed) this.#emitRuntimeSnapshot();
+  }
+
   /** Expires the prompts of one lost provider client, or of all clients when none is given. */
   clearPrompts(client?: AgentClient): void {
     for (const [requestId, pending] of this.#prompts) {

@@ -35,6 +35,11 @@ export interface QueueControlsHooks {
   /** The tabs and threads of this agent, as the tags of a steered message name them. */
   /** `threadId` is the public thread that gets the prompt. */
   tagReferences(agentId: string, threadId: string | null): TagReferenceSource;
+  /**
+   * Fork: a message of the user is in turn `turnId` now. An open `ask_ui` card of that turn would
+   * keep the provider from reading it, so the card closes.
+   */
+  userMessageSteered?(agentId: string, turnId: string): void;
 }
 
 export interface QueueControlsOptions {
@@ -323,6 +328,7 @@ export class QueueControls {
       );
     yield* this.#mailbox.markRunning(input.deliveryId, turnId).pipe(toQueueOperationFailed);
     yield* queueStep(() => {
+      if (context.delivery.sender.kind === "user") this.#hooks.userMessageSteered?.(agent.id, turnId);
       // A side thread reads no mailbox copies, so the steered message joins it here, as its provider
       // history gives it after a restart (#5263).
       if (
