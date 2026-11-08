@@ -85,6 +85,7 @@ export { default as Info } from "lucide-solid/icons/info";
 export { default as KeyRound } from "lucide-solid/icons/key-round";
 export { default as KeySquare } from "lucide-solid/icons/key-square";
 export { default as LifeBuoy } from "lucide-solid/icons/life-buoy";
+export { default as Lightbulb } from "lucide-solid/icons/lightbulb";
 export { default as Link } from "lucide-solid/icons/link";
 export { default as Link2 } from "lucide-solid/icons/link-2";
 export { default as Link2Off } from "lucide-solid/icons/link-2-off";

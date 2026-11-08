@@ -28,4 +28,7 @@ export const messages = {
   "uiBlock.form.hiddenValue": "Скрыто",
   "uiBlock.skip": "Пропустить",
   "uiBlock.error.answerFailed": "Не удалось отправить ответ. Попробуйте ещё раз.",
+  "uiBlock.hint.show": "Подсказка",
+  "uiBlock.hint.next": "Подсказка {index}/{count}",
+  "uiBlock.hint.label": "Подсказка {index} из {count}",
 } as const satisfies PartialTranslation<typeof source>;

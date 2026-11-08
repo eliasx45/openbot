@@ -120,6 +120,29 @@ const formSpec: UiFormSpec = {
   submit: "Create ticket",
 };
 
+/** A study question with math in its text and a hint ladder: nudge, then method, then first step. */
+const studySpec: UiFormSpec = {
+  type: "form",
+  title: "Does $f_n(x) = x^n$ converge uniformly on $[0,1[$?",
+  fields: [
+    { id: "limit", kind: "text", label: "Step 1: pointwise limit $f(x) =$" },
+    { id: "sup", kind: "text", label: "Step 2: $\\sup_{x \\in [0,1[} |x^n - f(x)| =$" },
+    {
+      id: "uniform",
+      kind: "segmented",
+      label: "Step 3: uniform?",
+      options: ["Yes", "No", "I don't know"],
+      required: true,
+    },
+  ],
+  submit: "Check",
+  hints: [
+    "Fix one $x$ in $[0,1[$ first. What does $x^n$ do when $n \\to \\infty$?",
+    "Uniform means $M_n = \\sup_{x \\in I} |f_n(x) - f(x)| \\to 0$. Find $M_n$, then its limit.",
+    "$f = 0$ on $[0,1[$, so $M_n = \\sup_{x \\in [0,1[} x^n$. Take $x$ close to $1$.",
+  ],
+};
+
 function answered(spec: UiBlockSpec, response: UiBlockResponse): UiBlockState {
   return { status: "answered", response, outcome: uiBlockOutcomeText(spec, response) };
 }
@@ -268,6 +291,10 @@ export const QuickRepliesAnswered: Story = {
 
 export const FormPending: Story = {
   render: (args) => <LiveForm spec={formSpec} onRespond={args.onRespond} />,
+};
+
+export const FormMathHints: Story = {
+  render: (args) => <LiveForm spec={studySpec} onRespond={args.onRespond} />,
 };
 
 export const FormAnswered: Story = {

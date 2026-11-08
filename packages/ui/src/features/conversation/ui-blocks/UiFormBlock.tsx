@@ -26,6 +26,7 @@ import { createSignal, createUniqueId, For, Match, Show, Switch } from "solid-js
 import { useText } from "../../../text";
 import { cx } from "../../../utils";
 import { UiBlockCard } from "./UiBlockCard";
+import { UiMathText } from "./UiMathText";
 import { sendUiBlockResponse, type UiBlockProps, uiBlockState } from "./ui-block-support";
 
 function fieldLabel(field: UiFormField): string {
@@ -219,6 +220,8 @@ export function UiFormBlock(props: UiFormBlockProps) {
         </Button>
       }
       elementRef={props.elementRef}
+      hints={props.spec.hints}
+      renderMarkdown={props.renderMarkdown}
     >
       <Show when={!summarized()} fallback={<FormAnswerRows rows={answerRows()} />}>
         <form
@@ -237,7 +240,7 @@ export function UiFormBlock(props: UiFormBlockProps) {
                   {(segmented) => (
                     <fieldset class="ui-block-field" data-invalid={errorOf(field) ? "" : undefined}>
                       <legend class="ui-block-field-label">
-                        {fieldLabel(field)}
+                        <UiMathText text={fieldLabel(field)} />
                         <Show when={field.required}>
                           <span class="ui-block-required" aria-hidden="true">
                             *
@@ -258,7 +261,7 @@ export function UiFormBlock(props: UiFormBlockProps) {
                                 setValue(field, currentValue(field) === option && field.required !== true ? "" : option)
                               }
                             >
-                              {option}
+                              <UiMathText text={option} />
                             </Button>
                           )}
                         </For>
@@ -274,7 +277,11 @@ export function UiFormBlock(props: UiFormBlockProps) {
                   )}
                 </Match>
                 <Match when={true}>
-                  <Field label={fieldLabel(field)} required={field.required === true} error={errorOf(field)}>
+                  <Field
+                    label={<UiMathText text={fieldLabel(field)} />}
+                    required={field.required === true}
+                    error={errorOf(field)}
+                  >
                     <Switch>
                       <Match when={field.kind === "textarea"}>
                         <Textarea

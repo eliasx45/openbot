@@ -8,6 +8,7 @@ import { createSignal, createUniqueId, For, Show } from "solid-js";
 import { useText } from "../../../text";
 import { cx } from "../../../utils";
 import { UiBlockCard } from "./UiBlockCard";
+import { UiMathText } from "./UiMathText";
 import {
   optionIndexForKey,
   optionLetter,
@@ -77,6 +78,8 @@ export function UiChoiceBlock(props: UiBlockProps<UiChoiceSpec>) {
         </Button>
       }
       elementRef={props.elementRef}
+      hints={props.spec.hints}
+      renderMarkdown={props.renderMarkdown}
     >
       <fieldset class="ui-block-options" aria-label={props.spec.title} aria-describedby={frozen() ? undefined : hintId}>
         <For each={props.spec.options}>
@@ -99,7 +102,9 @@ export function UiChoiceBlock(props: UiBlockProps<UiChoiceSpec>) {
               <Kbd class="ui-block-option-key" aria-hidden="true">
                 {optionLetter(index())}
               </Kbd>
-              <span class="ui-block-option-label">{option.label}</span>
+              <span class="ui-block-option-label">
+                <UiMathText text={option.label} />
+              </span>
               <Show when={option.meta}>
                 <span class="ui-block-option-meta">{option.meta}</span>
               </Show>

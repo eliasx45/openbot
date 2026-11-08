@@ -4,6 +4,7 @@ import {
   type UiBlockState,
   validateUiBlockResponse,
 } from "@openbot/contracts/ui-blocks";
+import type { JSX } from "@solidjs/web";
 
 /**
  * What every blocking block takes. The components know nothing about IPC: the host owns the stored
@@ -25,6 +26,8 @@ export interface UiBlockProps<Spec extends UiBlockSpec> {
   onSkip?: (() => void) | undefined;
   class?: string | undefined;
   elementRef?: ((element: HTMLElement) => void) | undefined;
+  /** Draws safe Markdown, such as a hint. Without it the block shows the text plain. */
+  renderMarkdown?: ((markdown: string) => JSX.Element) | undefined;
 }
 
 export const PENDING_UI_BLOCK_STATE: UiBlockState = { status: "pending" };

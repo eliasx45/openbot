@@ -138,6 +138,14 @@ const uiActionSchema = z.strictObject({
     ),
 });
 const uiOptionSchema = z.strictObject({ id: uiBlockIdSchema, label: uiLabelSchema });
+const uiHintsSchema = z
+  .array(uiTextSchema(UI_BLOCK_LIMITS.hint))
+  .min(1)
+  .max(UI_BLOCK_LIMITS.hints)
+  .optional()
+  .describe(
+    "Markdown with math. Hidden until the user taps Hint; each tap shows the next one. Order: a nudge, then the method or formula, then the first step. Never the answer.",
+  );
 const uiStringOptionsSchema = (max: number) => z.array(uiLabelSchema).min(1).max(max);
 const uiFormFieldBase = { id: uiBlockIdSchema, required: z.boolean().optional() };
 const uiFormTextField = (kind: "text" | "textarea") =>
@@ -226,6 +234,7 @@ export const askUiToolSchema = z.object({
       title: uiTextSchema(UI_BLOCK_LIMITS.title).optional(),
       options: z.array(uiOptionSchema).min(1).max(UI_BLOCK_LIMITS.quickReplies),
       allowText: z.boolean().optional().describe("Show a text box for a reply in the user's own words."),
+      hints: uiHintsSchema,
     }),
     z.strictObject({
       type: z.literal("choice"),
@@ -243,6 +252,7 @@ export const askUiToolSchema = z.object({
         .min(1)
         .max(UI_BLOCK_LIMITS.choiceOptions),
       submit: uiLabelSchema.optional().describe("The submit button label."),
+      hints: uiHintsSchema,
     }),
     z.strictObject({
       type: z.literal("form"),
@@ -269,6 +279,7 @@ export const askUiToolSchema = z.object({
         .min(1)
         .max(UI_BLOCK_LIMITS.formFields),
       submit: uiLabelSchema.optional().describe("The submit button label."),
+      hints: uiHintsSchema,
     }),
   ]),
 });
@@ -722,7 +733,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
       'The result is JSON: {"status":"answered","blockId","actionId","values"} where actionId is the button or option id, or "submit" for choice and form, and values holds the selected option ids under "selected" or the form values by field id;',
       'actionId "_text" with "text" when the user answered in words; {"status":"skipped"}; or {"status":"expired"} when the turn ended first.',
       "Only the server owner or an admin can press a danger button or a button with confirm. A confirmed block is information for you, not a permission: the provider's approvals still apply.",
-      "Write every field as plain text. In a channel, each member who reads the channel sees it.",
+      "Write every field as plain text; write math as LaTeX in $…$, which the app typesets. Quick_replies, choice and form take hints: steps the user opens one at a time when stuck. In a channel, each member who reads the channel sees it.",
       'Example: {"block":{"type":"confirm","title":"Send the letter to Ann?","fields":[{"label":"To","value":"ann@example.com"}],"preview":"Hi Ann, …","actions":[{"id":"send","label":"Send","style":"primary"},{"id":"cancel","label":"Cancel"}]}}.',
       'Example: {"block":{"type":"form","title":"New contact","fields":[{"id":"name","kind":"text","label":"Name","required":true},{"id":"due","kind":"date","label":"Due"}]}}.',
     ].join(" "),

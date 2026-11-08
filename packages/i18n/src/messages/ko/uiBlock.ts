@@ -28,4 +28,7 @@ export const messages = {
   "uiBlock.form.hiddenValue": "숨김",
   "uiBlock.skip": "건너뛰기",
   "uiBlock.error.answerFailed": "답변을 보내지 못했어요. 다시 시도해 주세요.",
+  "uiBlock.hint.show": "힌트",
+  "uiBlock.hint.next": "힌트 {index}/{count}",
+  "uiBlock.hint.label": "힌트 {index}/{count}",
 } as const satisfies PartialTranslation<typeof source>;

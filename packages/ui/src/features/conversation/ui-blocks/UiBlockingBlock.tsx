@@ -8,8 +8,8 @@ import { UiQuickReplies } from "./UiQuickReplies";
 import type { UiBlockProps } from "./ui-block-support";
 
 export interface UiBlockingBlockProps extends UiBlockProps<UiBlockSpec> {
-  /** Draws a confirm block's preview as safe Markdown. */
-  renderPreview?: ((markdown: string) => JSX.Element) | undefined;
+  /** Draws safe Markdown: a confirm block's preview, a hint. */
+  renderMarkdown?: ((markdown: string) => JSX.Element) | undefined;
   /** Only for a form: the id of a choice field that the footer shows as a small select. */
   footerFieldId?: string | undefined;
 }
@@ -41,11 +41,14 @@ export function UiBlockingBlock(props: UiBlockingBlockProps) {
     get elementRef() {
       return props.elementRef;
     },
+    get renderMarkdown() {
+      return props.renderMarkdown;
+    },
   };
   return (
     <Switch>
       <Match when={props.spec.type === "confirm" && props.spec}>
-        {(spec) => <UiConfirmBlock {...shared} spec={spec()} renderPreview={props.renderPreview} />}
+        {(spec) => <UiConfirmBlock {...shared} spec={spec()} renderPreview={props.renderMarkdown} />}
       </Match>
       <Match when={props.spec.type === "choice" && props.spec}>
         {(spec) => <UiChoiceBlock {...shared} spec={spec()} />}

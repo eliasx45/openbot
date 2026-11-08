@@ -4,6 +4,8 @@ import type { JSX } from "@solidjs/web";
 import { createUniqueId, Match, Show, Switch } from "solid-js";
 import { useText } from "../../../text";
 import { cx } from "../../../utils";
+import { UiBlockHints } from "./UiBlockHints";
+import { UiMathText } from "./UiMathText";
 
 export interface UiBlockCardProps {
   title?: string | undefined;
@@ -28,6 +30,10 @@ export interface UiBlockCardProps {
   class?: string | undefined;
   elementRef?: ((element: HTMLElement) => void) | undefined;
   children?: JSX.Element;
+  /** The block's hints, under the body. See `UiBlockHints`. */
+  hints?: readonly string[] | undefined;
+  /** Draws a hint as safe Markdown. */
+  renderMarkdown?: ((markdown: string) => JSX.Element) | undefined;
 }
 
 /** The line under a frozen block: the answer with a check, or why there is none. */
@@ -128,7 +134,7 @@ export function UiBlockCard(props: UiBlockCardProps) {
             <div class="ui-block-heading">
               <Show when={props.title}>
                 <h3 id={titleId} class="ui-block-title">
-                  {props.title}
+                  <UiMathText text={props.title ?? ""} />
                 </h3>
               </Show>
               <Show when={props.subtitle}>
@@ -138,6 +144,7 @@ export function UiBlockCard(props: UiBlockCardProps) {
           </header>
         </Show>
         <div class="ui-block-body">{props.children}</div>
+        <UiBlockHints hints={props.hints} pending={pending()} renderMarkdown={props.renderMarkdown} />
         <Show when={pending() && props.error}>
           <p class="ui-block-error" role="alert">
             {props.error}

@@ -29,4 +29,7 @@ export const messages = {
   "uiBlock.form.hiddenValue": "Verborgen",
   "uiBlock.skip": "Overslaan",
   "uiBlock.error.answerFailed": "Kan je antwoord niet versturen. Probeer het opnieuw.",
+  "uiBlock.hint.show": "Hint",
+  "uiBlock.hint.next": "Hint {index}/{count}",
+  "uiBlock.hint.label": "Hint {index} van {count}",
 } as const satisfies PartialTranslation<typeof source>;

@@ -27,4 +27,7 @@ export const messages = defineMessages("uiBlock", {
   "uiBlock.form.hiddenValue": "Hidden",
   "uiBlock.skip": "Skip",
   "uiBlock.error.answerFailed": "Could not send your answer. Try again.",
+  "uiBlock.hint.show": "Hint",
+  "uiBlock.hint.next": "Hint {index}/{count}",
+  "uiBlock.hint.label": "Hint {index} of {count}",
 });

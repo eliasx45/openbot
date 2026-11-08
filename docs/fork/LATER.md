@@ -23,3 +23,4 @@ What's needed:
 
 - Fallback chain (Claude → Codex → Gemini in the same turn). Elias: "no need for that, skip".
 - Terminal app, iPhone Shortcuts/Action button (whole new clients).
+- Card hints on the phone and the web client (FEATURES 60): the frozen `ui-blocks-v1` wire leaves `hints` out. Needs a second capability string (such as `ui-block-hints-v1`) that the client advertises, the phone's card UI, and a phone build. Gap signal: "the phone doesn't show the Hint button".

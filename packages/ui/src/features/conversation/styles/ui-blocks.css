@@ -258,6 +258,32 @@
   margin-top: calc(var(--openbot-space-2) * -1);
 }
 
+/* Hints sit under the body, one box each, in the order the person opened them. */
+.ui-block-hints {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-2);
+}
+
+.ui-block-hint {
+  padding: var(--openbot-space-3);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-surface-raised);
+  color: var(--openbot-text-secondary);
+  font-size: var(--openbot-text-md);
+  line-height: var(--openbot-leading-lg);
+}
+
+.ui-block-hint-text {
+  white-space: pre-wrap;
+}
+
+/* The button that opens the next hint sits at the start of the line. */
+.ui-block-hint-toggle {
+  align-self: flex-start;
+}
+
 .ui-block-preview-text {
   margin: 0;
   overflow-wrap: anywhere;

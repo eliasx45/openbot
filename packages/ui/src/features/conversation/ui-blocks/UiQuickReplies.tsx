@@ -8,6 +8,8 @@ import { createSignal, For, Show } from "solid-js";
 import { useText } from "../../../text";
 import { cx } from "../../../utils";
 import { UiBlockFooter, UiBlockOutcome } from "./UiBlockCard";
+import { UiBlockHints } from "./UiBlockHints";
+import { UiMathText } from "./UiMathText";
 import { sendUiBlockResponse, type UiBlockProps, uiBlockState } from "./ui-block-support";
 
 /**
@@ -45,7 +47,11 @@ export function UiQuickReplies(props: UiBlockProps<UiQuickRepliesSpec>) {
       ref={(element) => props.elementRef?.(element)}
     >
       <Show when={props.spec.title}>
-        <p class="ui-block-quick-title">{props.spec.title}</p>
+        {(title) => (
+          <p class="ui-block-quick-title">
+            <UiMathText text={title()} />
+          </p>
+        )}
       </Show>
       <div class="ui-block-chips">
         <For each={props.spec.options}>
@@ -60,11 +66,12 @@ export function UiQuickReplies(props: UiBlockProps<UiQuickRepliesSpec>) {
               disabled={locked()}
               onClick={() => choose(option.id)}
             >
-              {option.label}
+              <UiMathText text={option.label} />
             </Button>
           )}
         </For>
       </div>
+      <UiBlockHints hints={props.spec.hints} pending={!frozen()} renderMarkdown={props.renderMarkdown} />
       <Show when={props.spec.allowText === true && !frozen()}>
         <form
           class="ui-block-quick-text"

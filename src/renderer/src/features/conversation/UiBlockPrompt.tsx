@@ -200,7 +200,7 @@ export function UiBlockPrompt(props: UiBlockPromptProps) {
         onRespond={respond}
         onSkip={props.onAnswer ? skip : undefined}
         elementRef={(element) => props.elementRef?.(element)}
-        renderPreview={(markdown) => (
+        renderMarkdown={(markdown) => (
           <div class="message-markdown">
             <MarkdownMessageText
               imagesAsLinks

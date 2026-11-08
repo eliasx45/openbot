@@ -28,4 +28,7 @@ export const messages = {
   "uiBlock.form.hiddenValue": "Ukryte",
   "uiBlock.skip": "Pomiń",
   "uiBlock.error.answerFailed": "Nie udało się wysłać odpowiedzi. Spróbuj ponownie.",
+  "uiBlock.hint.show": "Podpowiedź",
+  "uiBlock.hint.next": "Podpowiedź {index}/{count}",
+  "uiBlock.hint.label": "Podpowiedź {index} z {count}",
 } as const satisfies PartialTranslation<typeof source>;

@@ -14,7 +14,9 @@ import { type DynamicRecord, isBoolean, isDynamicRecord, isNumber, isOneOf, isSt
  * through the released `respondToPrompt` route and `uiBlockResponseFromAnswers` reads it.
  *
  * Every field is plain text. No field is HTML, and no renderer may read one as HTML or Markdown,
- * except that `confirm.preview` may go through the app's safe Markdown renderer.
+ * except that `confirm.preview` and each of `hints` may go through the app's safe Markdown renderer.
+ * A renderer may typeset LaTeX math in a text, with the delimiters of `chat-math.ts` (`$…$`, `\(…\)`).
+ * A client that does not do so shows the source, which stays readable.
  *
  * No key in a spec, a response or a state starts with `bot`: the legacy message read renames such
  * keys anywhere in the stored tree. For the same reason an id a response uses as a record key may
@@ -35,6 +37,9 @@ export const UI_BLOCK_LIMITS = {
   meta: 60,
   text: 2_000,
   preview: 8_000,
+  /** The hints of a block. */
+  hints: 3,
+  hint: 2_000,
   /** A text the person types: a form field, a free-text reply. */
   fieldValue: 8_000,
   outcome: 300,
@@ -138,6 +143,11 @@ export interface UiQuickRepliesBlock {
   options: UiOption[];
   /** Shows a text box beside the chips. A typed reply is valid either way (`UI_BLOCK_TEXT_ACTION_ID`). */
   allowText?: boolean;
+  /**
+   * Up to `UI_BLOCK_LIMITS.hints` hints, safe Markdown with math. The app hides them until the person
+   * asks, and shows one more each time: a nudge first, then the method, then the first step.
+   */
+  hints?: string[];
 }
 
 export interface UiChoiceOption extends UiOption {
@@ -155,6 +165,11 @@ export interface UiChoiceBlock {
   options: UiChoiceOption[];
   /** The submit button label. */
   submit?: string;
+  /**
+   * Up to `UI_BLOCK_LIMITS.hints` hints, safe Markdown with math. The app hides them until the person
+   * asks, and shows one more each time: a nudge first, then the method, then the first step.
+   */
+  hints?: string[];
 }
 
 export interface UiFormTextField {
@@ -201,6 +216,11 @@ export interface UiFormBlock {
   fields: UiFormField[];
   /** The submit button label. */
   submit?: string;
+  /**
+   * Up to `UI_BLOCK_LIMITS.hints` hints, safe Markdown with math. The app hides them until the person
+   * asks, and shows one more each time: a nudge first, then the method, then the first step.
+   */
+  hints?: string[];
 }
 
 export type UiBlockSpec = UiConfirmBlock | UiQuickRepliesBlock | UiChoiceBlock | UiFormBlock;
@@ -464,6 +484,11 @@ function readStringOptions(value: unknown, max: number): string[] {
   return options;
 }
 
+function readHints(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  return readArray(value, UI_BLOCK_LIMITS.hints, 1).map((hint) => readString(hint, UI_BLOCK_LIMITS.hint));
+}
+
 function readConfirmField(value: unknown): UiConfirmField {
   const record = readRecord(value);
   const label = readString(record.label, UI_BLOCK_LIMITS.label);
@@ -504,6 +529,8 @@ function readQuickReplies(record: DynamicRecord): UiQuickRepliesBlock {
   if (title !== undefined) block.title = title;
   const allowText = readOptionalBoolean(record.allowText);
   if (allowText !== undefined) block.allowText = allowText;
+  const hints = readHints(record.hints);
+  if (hints !== undefined) block.hints = hints;
   return block;
 }
 
@@ -526,6 +553,8 @@ function readChoice(record: DynamicRecord): UiChoiceBlock {
   check(multiple === true || options.filter((option) => option.selected).length <= 1);
   const submit = readOptionalString(record.submit, UI_BLOCK_LIMITS.label);
   if (submit !== undefined) block.submit = submit;
+  const hints = readHints(record.hints);
+  if (hints !== undefined) block.hints = hints;
   return block;
 }
 
@@ -588,6 +617,8 @@ function readForm(record: DynamicRecord): UiFormBlock {
   const block: UiFormBlock = { type: "form", title: readString(record.title, UI_BLOCK_LIMITS.title), fields };
   const submit = readOptionalString(record.submit, UI_BLOCK_LIMITS.label);
   if (submit !== undefined) block.submit = submit;
+  const hints = readHints(record.hints);
+  if (hints !== undefined) block.hints = hints;
   return block;
 }
 
@@ -614,6 +645,16 @@ function readSpec(value: unknown): UiBlockSpec {
  */
 export function normalizeUiBlockSpec(value: unknown): UiBlockSpec | null {
   return attempt(() => readSpec(value));
+}
+
+/**
+ * The spec without `hints`. The hints came after ui-blocks-v1, so that wire leaves them out; a remote
+ * client shows the block without them.
+ */
+export function uiBlockSpecWithoutHints(spec: UiBlockSpec): UiBlockSpec {
+  if (spec.type === "confirm" || spec.hints === undefined) return spec;
+  const { hints: _hints, ...rest } = spec;
+  return rest;
 }
 
 export function isUiBlockSpec(value: unknown): value is UiBlockSpec {
@@ -900,6 +941,8 @@ function confirmFieldLine(field: UiConfirmField): string {
  * - `choice`: `choice`. A `multiple` choice always takes a typed answer: one or more labels, one per
  *   line or comma-separated.
  * - `form`: one question per field, id = field id. A secret field is a secret question.
+ *
+ * The hints are left out: they help, but the questions do not need them.
  */
 export function uiBlockFallbackQuestions(spec: UiBlockSpec): AgentPromptQuestion[] {
   switch (spec.type) {
