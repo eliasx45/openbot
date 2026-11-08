@@ -16,6 +16,16 @@ export const messages = {
   "notification.failed": "因错误而停止。",
   "notification.subagentFailed": "一个子助手因错误而停止。",
   "notification.subagentFailedFor": "一个子助手因错误而停止：{task}",
+  "notification.subagentFinished": "一个子助手已完成。",
+  "notification.subagentFinishedFor": "一个子助手已完成：{task}",
+  "notification.subagentsFinished": {
+    one: "{count} 个子助手已完成。",
+    other: "{count} 个子助手已完成。",
+  },
+  "notification.subagentsFailed": {
+    one: "{count} 个子助手因错误而停止。",
+    other: "{count} 个子助手因错误而停止。",
+  },
   // The title of a notification about an agent in a channel: the agent and the channel name.
   "notification.channelTitle": "{channel} 中的 {agent}",
   // The body of a channel reply notification when the preview of agent words is off.

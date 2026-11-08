@@ -2941,6 +2941,9 @@ export async function createApplicationServices({
       // Also a locked screen. In a Wayland session, `computerIdle` counts the input in OpenBot only.
       if (powerMonitor.getSystemIdleState(awayAfterMs / 1_000) !== "active") return false;
       if (computerIdle.seconds() * 1_000 >= awayAfterMs) return false;
+      // Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): input in the
+      // last 30 s means the owner is at this Mac, and the end of background work waits for 2 min idle.
+      if (event.type === "subagents-ended") return true;
       if (window.isFocused()) return true;
       // Without a notification service, as on Linux without a daemon, the desktop shows nothing.
       if (!Notification.isSupported()) return false;

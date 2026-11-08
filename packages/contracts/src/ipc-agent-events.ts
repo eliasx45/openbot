@@ -206,7 +206,31 @@ export type AgentEvent =
       turnId: string;
       subagentId: string;
       title: string;
+    }
+  /**
+   * Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): subagents of a
+   * turn that had already ended stopped working, as a background subagent does after its turn. One
+   * event for each update of the list; the phone groups them. `running` says whether other subagents
+   * of the same turn still work. Local only, like `subagent-failed`.
+   */
+  | {
+      type: "subagents-ended";
+      agentId: string;
+      threadId: string;
+      turnId: string;
+      subagents: AgentEndedSubagent[];
+      running: boolean;
     };
+
+/** A subagent in a `subagents-ended` event. `stopped` is a stop by a person or by a closed process. */
+export interface AgentEndedSubagent {
+  id: string;
+  title: string;
+  status: "completed" | "failed" | "stopped";
+}
+
+/** The most subagents that one `subagents-ended` event names. */
+const ENDED_SUBAGENTS_LIMIT = 100;
 
 export function isAgentEvent(value: unknown): value is AgentEvent {
   if (!isDynamicRecord(value) || !isString(value.type)) return false;
@@ -393,6 +417,22 @@ export function isAgentEvent(value: unknown): value is AgentEvent {
         isIdentifier(value.turnId) &&
         isIdentifier(value.subagentId) &&
         isBoundedString(value.title, CONVERSATION_SUBAGENT_TITLE_LIMIT)
+      );
+    case "subagents-ended":
+      return (
+        isIdentifier(value.agentId) &&
+        isIdentifier(value.threadId) &&
+        isIdentifier(value.turnId) &&
+        typeof value.running === "boolean" &&
+        Array.isArray(value.subagents) &&
+        value.subagents.length <= ENDED_SUBAGENTS_LIMIT &&
+        value.subagents.every(
+          (subagent) =>
+            isDynamicRecord(subagent) &&
+            isIdentifier(subagent.id) &&
+            isBoundedString(subagent.title, CONVERSATION_SUBAGENT_TITLE_LIMIT) &&
+            (subagent.status === "completed" || subagent.status === "failed" || subagent.status === "stopped"),
+        )
       );
     case "usage-limit-reached":
       return (

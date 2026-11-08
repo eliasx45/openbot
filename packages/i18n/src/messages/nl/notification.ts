@@ -12,6 +12,16 @@ export const messages = {
   "notification.failed": "Gestopt met een fout.",
   "notification.subagentFailed": "Een subagent is gestopt met een fout.",
   "notification.subagentFailedFor": "Een subagent is gestopt met een fout: {task}",
+  "notification.subagentFinished": "Een subagent is klaar.",
+  "notification.subagentFinishedFor": "Een subagent is klaar: {task}",
+  "notification.subagentsFinished": {
+    one: "{count} subagent is klaar.",
+    other: "{count} subagents zijn klaar.",
+  },
+  "notification.subagentsFailed": {
+    one: "{count} subagent is gestopt met een fout.",
+    other: "{count} subagents zijn gestopt met een fout.",
+  },
   "notification.channelTitle": "{agent} in {channel}",
   "notification.channelMessage": "Heeft een bericht gestuurd.",
   "notification.usageLimit.title": "Account van {provider} heeft de limiet bereikt",

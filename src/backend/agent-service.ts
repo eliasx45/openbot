@@ -1424,6 +1424,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           this.#conversation.workingTaskSnapshots(agentId).some((snapshot) => snapshot.activeTurnId)) ||
         !this.#usageLimits.mayDrain(agentId),
       usageLimited: (agentId) => !this.#usageLimits.mayDrain(agentId),
+      // Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone").
+      subagentsRunning: (agentId, turnId) => this.#turn.subagentsRunning(agentId, turnId),
       skipAtLimit: (task) => this.#channelRoutines.skipAtLimit(task.channelId, task.requestMessageId),
       usageLimitBackup: (agentId) => this.#usageLimitBackup(agentId) !== undefined,
       steer: (agentId, threadId, turnId, messageId, text) =>

@@ -72,6 +72,11 @@ const HELD_FLUSH_DELAY_MS = 3_000;
  * for this long and the request still waits. Replies do not, because the desktop showed them.
  */
 export const WAITING_REQUEST_IDLE_MS = 2 * 60 * 1000;
+/**
+ * Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): subagents of one
+ * agent that end within this time after the first one go to the phone as one notification.
+ */
+export const ENDED_SUBAGENTS_GROUP_MS = 15_000;
 /** How often the host reads the idle time of this computer while a request waits for it. */
 const WAITING_REQUEST_POLL_MS = 15_000;
 /** A notification that the account service, Apple or Google did not take is sent again after these times. */
@@ -197,8 +202,14 @@ export class PushNotificationService {
   #idleTimer: ReturnType<typeof setInterval> | null = null;
   readonly #listener = (event: AgentEvent) => {
     this.#releaseAnswered(event);
+    if (event.type === "subagents-ended") {
+      this.#groupEnded(event);
+      return;
+    }
     Effect.runFork(this.#deliver(event).pipe(Effect.forkIn(this.#scope, { startImmediately: true })));
   };
+  /** Fork: by agent, the ended subagents that go out together when the group time is over. */
+  readonly #endedGroups = new Map<string, { event: EndedSubagentsEvent; timer: ReturnType<typeof setTimeout> }>();
   #scope = Scope.makeUnsafe();
   #listening = false;
   /** Between `start` and `dispose`. A request that comes later must not save a list without the other phones. */
@@ -296,9 +307,33 @@ export class PushNotificationService {
     this.#save();
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): a subagent that
+   * finished or failed after its turn waits `ENDED_SUBAGENTS_GROUP_MS`, so the ones of the same agent
+   * that end in that time make one notification. A stop by a person or a closed process is not news.
+   */
+  #groupEnded(event: EndedSubagentsEvent): void {
+    const news = event.subagents.filter((subagent) => subagent.status !== "stopped");
+    if (!news.length) return;
+    const group = this.#endedGroups.get(event.agentId);
+    if (group) {
+      group.event = mergeEnded(group.event, { ...event, subagents: news });
+      return;
+    }
+    const timer = setTimeout(() => {
+      const ready = this.#endedGroups.get(event.agentId);
+      this.#endedGroups.delete(event.agentId);
+      if (!ready || !this.#running) return;
+      Effect.runFork(this.#deliver(ready.event).pipe(Effect.forkIn(this.#scope, { startImmediately: true })));
+    }, ENDED_SUBAGENTS_GROUP_MS);
+    this.#endedGroups.set(event.agentId, { event: { ...event, subagents: news }, timer });
+  }
+
   /** The saved phones stay in the file for the next start. */
   readonly dispose = Effect.fn("PushNotifications.dispose")(function* (this: PushNotificationService) {
     this.#running = false;
+    for (const group of this.#endedGroups.values()) clearTimeout(group.timer);
+    this.#endedGroups.clear();
     if (this.#listening) this.#options.agents.off("event", this.#listener);
     this.#listening = false;
     for (const registration of this.#registrations.values()) this.#dropHeld(registration);
@@ -368,8 +403,9 @@ export class PushNotificationService {
     });
     if (!targets.length) return;
     const agents = this.#options.agents.listAgents();
-    // A prompt, an approval or a takeover on a channel thread names the channel, as on desktop.
-    const requestThread = agentEventRequestThread(event);
+    // A prompt, an approval or a takeover on a channel thread names the channel, as on desktop. So do
+    // the ended subagents of a channel turn.
+    const requestThread = agentEventRequestThread(event) ?? (event.type === "subagents-ended" ? event.threadId : null);
     const channel = requestThread ? (this.#options.channelForThread?.(requestThread) ?? null) : null;
     let answer: string | null | undefined;
     for (const registration of targets) {
@@ -390,8 +426,10 @@ export class PushNotificationService {
         const sound = soundOf(stored.value);
         const startedAt =
           stored.value.liveActivityStartedAt === null ? null : stored.value.liveActivityStartedAt * 1_000;
+        // The Live Activity does not show subagents, so their end always notifies.
         if (
           event.type !== "error" &&
+          event.type !== "subagents-ended" &&
           this.#options.liveActivityShows(sessionId, subject, sound ? { sound } : null, startedAt)
         )
           continue;
@@ -516,6 +554,19 @@ export class PushNotificationService {
 
   /** Keeps a request that waits for the member, so the phone gets it when the member leaves the computer. */
   #keepWaiting(registration: Registration, event: AgentEvent, atHost: boolean): void {
+    // Fork: background work that ended while the member was at a computer goes to the phone when the
+    // member leaves it, as a request does. A later end of the same agent joins it.
+    if (event.type === "subagents-ended") {
+      const index = registration.waiting.findIndex(
+        (item) => item.event.type === "subagents-ended" && item.event.agentId === event.agentId,
+      );
+      const kept = registration.waiting[index];
+      if (kept?.event.type === "subagents-ended")
+        registration.waiting[index] = { event: mergeEnded(kept.event, event), atHost: kept.atHost || atHost };
+      else registration.waiting = [...registration.waiting, { event, atHost }].slice(-HELD_EVENT_LIMIT);
+      this.#idleTimer ??= setInterval(() => this.#sendWaiting(), WAITING_REQUEST_POLL_MS);
+      return;
+    }
     const request = heldRequest(event) ?? this.#goalReply(event);
     if (!request) return;
     const waiting = registration.waiting.filter(
@@ -675,6 +726,15 @@ function heldEventUnseen(
   return (reads[event.agentId]?.unreadCount ?? 0) > 0;
 }
 
+type EndedSubagentsEvent = Extract<AgentEvent, { type: "subagents-ended" }>;
+
+/** Fork: two ends of the same agent's subagents as one, each subagent once with its last state. */
+function mergeEnded(kept: EndedSubagentsEvent, next: EndedSubagentsEvent): EndedSubagentsEvent {
+  const subagents = new Map(kept.subagents.map((subagent) => [subagent.id, subagent] as const));
+  for (const subagent of next.subagents) subagents.set(subagent.id, subagent);
+  return { ...next, subagents: [...subagents.values()].slice(-100), running: next.running };
+}
+
 /** Fork: the request id of a kept goal reply (`#goalReply`). */
 const GOAL_REPLY = "fork-goal-reply";
 
@@ -715,6 +775,8 @@ function requestStillWaits(
   event: AgentEvent,
   snapshot: ReturnType<PushNotificationAgents["getRuntimeSnapshot"]>,
 ): boolean {
+  // Fork: the end of background work is news until the phone gets it.
+  if (event.type === "subagents-ended") return true;
   const request = heldRequest(event);
   if (!request) return goalWaitsForUser(event);
   const pending = [...snapshot.pendingPrompts, ...snapshot.pendingApprovals, ...snapshot.pendingBrowserTakeovers];
@@ -723,6 +785,12 @@ function requestStillWaits(
 
 /** The agent and the kind of an event that can notify. `notificationForAgentEvent` decides the rest. */
 function eventSubject(event: AgentEvent): PushNotificationSubject | null {
+  // Fork: subagents that ended after their turn. Only the phone notifies about them.
+  if (event.type === "subagents-ended")
+    return {
+      agentId: event.agentId,
+      kind: event.subagents.some((subagent) => subagent.status === "failed") ? "failed" : "reply",
+    };
   if (!agentEventCanNotify(event)) return null;
   switch (event.type) {
     case "turn-completed":

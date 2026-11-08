@@ -116,6 +116,12 @@ export interface ChannelTask {
   revision: number;
   assignmentCount: number;
   error: string | null;
+  /**
+   * Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): `subagents`
+   * while the task waits for background subagents that its turn started, and while the turn that
+   * reports their result runs. Absent otherwise. Only this computer sets it; the Team API drops it.
+   */
+  waitingFor?: "subagents";
 }
 
 export interface ChannelMessage {

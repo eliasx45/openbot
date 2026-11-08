@@ -16,6 +16,18 @@ export const messages = defineMessages("notification", {
   // A subagent of a turn failed. {task} is the task that the subagent card shows.
   "notification.subagentFailed": "A subagent stopped with an error.",
   "notification.subagentFailedFor": "A subagent stopped with an error: {task}",
+  // Fork: a background subagent finished after its turn. {task} is the task that the subagent card shows.
+  "notification.subagentFinished": "A subagent finished.",
+  "notification.subagentFinishedFor": "A subagent finished: {task}",
+  // Fork: several background subagents of one agent ended close together.
+  "notification.subagentsFinished": {
+    one: "{count} subagent finished.",
+    other: "{count} subagents finished.",
+  },
+  "notification.subagentsFailed": {
+    one: "{count} subagent stopped with an error.",
+    other: "{count} subagents stopped with an error.",
+  },
   // The title of a notification about an agent in a channel: the agent and the channel name.
   "notification.channelTitle": "{agent} in {channel}",
   // The body of a channel reply notification when the preview of agent words is off.

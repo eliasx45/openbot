@@ -65,6 +65,12 @@ import type { OpenBotDatabase } from "./openbot-database";
 import { extractJsonObject, StructuredOutputError } from "./structured-output";
 
 const logger = createOpenBotLogger("channel-service");
+/**
+ * Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): how long a task
+ * whose background subagents all ended waits for the provider's turn that reports them. Claude starts
+ * it within seconds; a turn of the agent that runs then takes the report, and the task closes.
+ */
+const SUBAGENT_REPORT_GRACE_MS = 3 * 60_000;
 
 export interface ChannelHooks {
   agents(): AgentSummary[];
@@ -80,6 +86,8 @@ export interface ChannelHooks {
   busy(agentId: string): boolean;
   /** Whether a spent provider plan holds this agent, so a routing turn on its model would be refused. */
   usageLimited?(agentId: string): boolean;
+  /** Fork: whether subagents that this turn of the agent started still work, as a background one does after it. */
+  subagentsRunning?(agentId: string, turnId: string): boolean;
   /**
    * Whether a task that a spent plan holds is dropped, because its routine has no use for a late
    * result. It settles the routine run before the task is cancelled.
@@ -248,6 +256,21 @@ export class ChannelService {
   readonly #preparedChanges = new Map<string, number>();
   /** By delivery: the channel facts in its packet. */
   readonly #preparedFacts = new Map<string, string>();
+  /**
+   * Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): by task, the
+   * turns whose background subagents the task waits for. In memory only: a restart stops every
+   * subagent, and `recover` closes the tasks that waited. `endedAt` is the last end of one of them,
+   * and `timer` closes the task when no report turn starts after the last one ended.
+   */
+  readonly #subagentWaits = new Map<
+    string,
+    {
+      channelId: string;
+      turns: Array<{ agentId: string; turnId: string }>;
+      endedAt: number;
+      timer: ReturnType<typeof setTimeout> | null;
+    }
+  >();
 
   constructor(
     database: OpenBotDatabase,
@@ -2181,6 +2204,28 @@ export class ChannelService {
         // or runs is a live turn of this run: on another provider, or on an agent's own process that
         // outlived a restart of the shared one.
         if (context?.delivery.status === "starting" || context?.delivery.status === "running") continue;
+        // Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): the turn
+        // that reported background subagents has no delivery. Its task's own work had ended, so the
+        // restart closes it as done, as it closes a task that still waited for them below.
+        if (
+          !context &&
+          !assignment.deliveryId &&
+          assignment.state === "running" &&
+          assignment.turnId &&
+          task?.waitingFor === "subagents"
+        ) {
+          const tasks = yield* channelSync(() => this.store.tasks(channelId));
+          const current = task.revision === assignment.taskRevision && task.state === "running";
+          yield* channelSync(() =>
+            this.store.update(this.store.get(channelId), {
+              assignments: [{ ...assignment, state: "completed" }],
+              tasks: current
+                ? [{ ...withoutWaitingFor(task), state: "completed" }, ...releasedParent(tasks, task, "completed")]
+                : [],
+            }),
+          );
+          continue;
+        }
         if (
           context?.delivery.status === "queued" &&
           task?.state === "queued" &&
@@ -2220,6 +2265,23 @@ export class ChannelService {
             }),
           );
         }
+      }
+      // Fork: a restart stops every background subagent, so a task that waited for them is done. The
+      // subagent card shows each one as stopped.
+      {
+        const tasks = yield* channelSync(() => this.store.tasks(channelId));
+        const waited = tasks.filter(
+          (task) => task.state === "waiting" && task.waitingFor === "subagents" && !this.#subagentWaits.has(task.id),
+        );
+        if (waited.length)
+          yield* channelSync(() =>
+            this.store.update(this.store.get(channelId), {
+              tasks: waited.flatMap((task) => [
+                { ...withoutWaitingFor(task), state: "completed" as const },
+                ...releasedParent(tasks, task, "completed"),
+              ]),
+            }),
+          );
       }
       // A stop in older versions gave no reason, so the task showed no way to continue it. An archive
       // also pauses with no reason, so only a channel that is not archived gets the stop reason.
@@ -2443,7 +2505,8 @@ export class ChannelService {
       // ends. That turn is not the member's next assignment: taking it ran the provider's answer as
       // that task, and the task's own start then failed.
       if (event.origin === "unknown") {
-        this.#providerTurns.add(event.turnId);
+        // Fork: the turn that reports background subagents belongs to the task that waits for them.
+        if (!this.#bindReportTurn(channelId, event.agentId, event.turnId)) this.#providerTurns.add(event.turnId);
         return true;
       }
       const assignment = this.store
@@ -2456,6 +2519,13 @@ export class ChannelService {
       return true;
     }
     if (event.type === "turn-progress") return this.store.channelForThread(event.threadId) !== null;
+    // Fork: not taken, so the phone hears of the ended subagents too.
+    if (event.type === "subagents-ended") {
+      for (const [taskId, wait] of this.#subagentWaits)
+        if (wait.turns.some((turn) => turn.turnId === event.turnId && turn.agentId === event.agentId))
+          this.#subagentsEnded(taskId);
+      return false;
+    }
     if (event.type === "queue-changed") {
       const waiting = [...this.#waitingForAgents];
       this.#waitingForAgents.clear();
@@ -2699,19 +2769,29 @@ export class ChannelService {
       const pendingChildren = task.dependencies.some((id) => !tasks.some((item) => item.id === id && settled(item)));
       const state = status === "completed" ? "completed" : status === "interrupted" ? "interrupted" : "failed";
       const updated: ChannelTask[] = [];
-      if (task.revision === assignment.taskRevision && task.state === "running") {
+      const current = task.revision === assignment.taskRevision && task.state === "running";
+      // Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): a turn that
+      // ends while subagents it started work on in the background leaves its task open. The turn
+      // that reports them is the task's too (`#bindReportTurn`).
+      const subagentTurns = this.#runningSubagentTurns(task.id, assignment.agentId, turnId);
+      const waitsForSubagents = current && state === "completed" && !newChildren.length && subagentTurns.length > 0;
+      this.#keepSubagentWait(channelId, task.id, subagentTurns);
+      if (current) {
         const nextState =
           state === "completed"
             ? newChildren.length
               ? pendingChildren
                 ? "waiting"
                 : "queued"
-              : "completed"
+              : waitsForSubagents
+                ? "waiting"
+                : "completed"
             : state === "interrupted"
               ? "paused"
               : "failed";
         updated.push({
-          ...task,
+          ...withoutWaitingFor(task),
+          ...(waitsForSubagents ? { waitingFor: "subagents" as const } : {}),
           state: nextState,
           revision: nextState === "queued" ? task.revision + 1 : task.revision,
           // The turn stored the provider's redacted reason on its delivery before it reported the end.
@@ -2725,7 +2805,8 @@ export class ChannelService {
                 : null,
         });
       }
-      updated.push(...releasedParent(tasks, task, state));
+      // A task that waits for its subagents has not settled, so its parent waits on.
+      updated.push(...releasedParent(tasks, task, waitsForSubagents ? "waiting" : state));
       yield* channelSync(() =>
         this.store.update(this.store.get(channelId), { assignments: [{ ...assignment, state }], tasks: updated }),
       );
@@ -2733,6 +2814,120 @@ export class ChannelService {
       this.publish(channelId);
       yield* this.#releaseHeldAgents([assignment.agentId]);
     });
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md, "Background work stays open and reaches the phone"): the turns of a
+   * task, this one and those it already waits for, whose subagents still work.
+   */
+  #runningSubagentTurns(taskId: string, agentId: string, turnId: string): Array<{ agentId: string; turnId: string }> {
+    const turns = [...(this.#subagentWaits.get(taskId)?.turns ?? [])];
+    if (!turns.some((turn) => turn.turnId === turnId)) turns.push({ agentId, turnId });
+    return turns.filter((turn) => this.hooks.subagentsRunning?.(turn.agentId, turn.turnId) === true);
+  }
+
+  /** Notes the turns a task waits for, or forgets the task when none of them works. */
+  #keepSubagentWait(channelId: string, taskId: string, turns: Array<{ agentId: string; turnId: string }>): void {
+    const wait = this.#subagentWaits.get(taskId);
+    if (wait?.timer) clearTimeout(wait.timer);
+    if (turns.length === 0) {
+      this.#subagentWaits.delete(taskId);
+      return;
+    }
+    this.#subagentWaits.set(taskId, { channelId, turns, endedAt: wait?.endedAt ?? 0, timer: null });
+  }
+
+  /**
+   * Subagents of a turn that the task waits for ended. When none works any more, the provider's own
+   * turn reports them (Claude starts one for each ended background task). Without one in a short
+   * time, as when the report went into another turn of the agent, the task closes as completed.
+   */
+  #subagentsEnded(taskId: string): void {
+    const wait = this.#subagentWaits.get(taskId);
+    if (!wait) return;
+    wait.endedAt = Date.now();
+    if (wait.timer) clearTimeout(wait.timer);
+    wait.timer = null;
+    if (wait.turns.some((turn) => this.hooks.subagentsRunning?.(turn.agentId, turn.turnId) === true)) return;
+    if (this.#stopped) return;
+    wait.timer = setTimeout(() => {
+      wait.timer = null;
+      if (this.#subagentWaits.get(taskId) !== wait || this.#stopped) return;
+      this.#dispatchEvent(this.#closeSubagentWait(taskId));
+    }, SUBAGENT_REPORT_GRACE_MS);
+  }
+
+  /** Closes a task whose subagents all ended and whose report turn did not come. */
+  readonly #closeSubagentWait = Effect.fn("ChannelService.closeSubagentWait")(function* (
+    this: ChannelService,
+    taskId: string,
+  ): Effect.fn.Return<void, ChannelOperationError> {
+    const wait = this.#subagentWaits.get(taskId);
+    if (!wait) return;
+    const { channelId } = wait;
+    if (wait.turns.some((turn) => this.hooks.subagentsRunning?.(turn.agentId, turn.turnId) === true)) return;
+    this.#subagentWaits.delete(taskId);
+    if (!this.store.exists(channelId)) return;
+    const tasks = yield* channelSync(() => this.store.tasks(channelId));
+    const task = tasks.find((item) => item.id === taskId);
+    // A stop, a cancel or a new request changed the task; it is not reopened or closed here.
+    if (task?.state !== "waiting" || task.waitingFor !== "subagents") return;
+    yield* channelSync(() =>
+      this.store.update(this.store.get(channelId), {
+        tasks: [{ ...withoutWaitingFor(task), state: "completed" }, ...releasedParent(tasks, task, "completed")],
+      }),
+    );
+    this.publish(channelId);
+    yield* this.wake(channelId);
+  });
+
+  /**
+   * A turn that the provider started with no delivery, in a channel where a task of the agent waits
+   * for its background subagents, reports them: it becomes a new assignment of that task, so its
+   * answer shows under the task and its end closes the task. True when it took the turn.
+   */
+  #bindReportTurn(channelId: string, agentId: string, turnId: string): boolean {
+    const waits = [...this.#subagentWaits]
+      .filter(([, wait]) => wait.channelId === channelId && wait.turns.some((turn) => turn.agentId === agentId))
+      .sort(([, left], [, right]) => right.endedAt - left.endedAt);
+    if (waits.length === 0) return false;
+    if (this.store.assignments(channelId).some((item) => item.agentId === agentId && activeAssignment(item)))
+      return false;
+    if (this.store.get(channelId).archived) return false;
+    for (const [taskId, wait] of waits) {
+      const task = this.store.task(channelId, taskId);
+      if (task?.state !== "waiting" || task.waitingFor !== "subagents") continue;
+      if (wait.timer) clearTimeout(wait.timer);
+      wait.timer = null;
+      const previous = this.store
+        .assignments(channelId)
+        .filter((item) => item.taskId === taskId)
+        .at(-1);
+      const assignment: ChannelAssignment = {
+        id: randomUUID(),
+        channelId,
+        taskId,
+        agentId,
+        taskRevision: task.revision,
+        requestMessageId: task.requestMessageId,
+        resources: [],
+        deliveryId: null,
+        turnId,
+        state: "running",
+        throughSequence: previous?.throughSequence ?? 0,
+        summaryVersion: previous?.summaryVersion ?? 0,
+        awaitedTaskIds: [...task.dependencies],
+        pendingRevision: null,
+        pendingOutcome: null,
+      };
+      this.store.update(this.store.get(channelId), {
+        assignments: [assignment],
+        tasks: [{ ...task, state: "running" }],
+      });
+      this.publish(channelId);
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -3758,6 +3953,8 @@ export class ChannelService {
     this: ChannelService,
   ): Effect.fn.Return<void, ChannelOperationError> {
     this.#stopped = true;
+    for (const wait of this.#subagentWaits.values()) if (wait.timer) clearTimeout(wait.timer);
+    this.#subagentWaits.clear();
     yield* Fiber.awaitAll([
       ...this.#events,
       ...this.#pumps.values(),
@@ -3816,6 +4013,13 @@ function releasedParent(tasks: readonly ChannelTask[], task: ChannelTask, state:
   )
     return [];
   return [{ ...parent, state: "queued", revision: parent.revision + 1 }];
+}
+
+/** Fork: the task without the mark that it waits for its subagents. */
+function withoutWaitingFor(task: ChannelTask): ChannelTask {
+  if (task.waitingFor === undefined) return task;
+  const { waitingFor: _waitingFor, ...rest } = task;
+  return rest;
 }
 
 function terminal(task: ChannelTask): boolean {
