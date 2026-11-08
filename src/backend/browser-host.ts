@@ -471,6 +471,7 @@ export class BrowserHost {
   readonly #browserProfile: (agentId: string) => AgentBrowserProfile;
   readonly #profileExists: (profileId: string) => boolean;
   readonly #profileChoices: (agentId: string) => { profileId: string; name: string; isDefault: boolean }[];
+  readonly #siteProfile: (agentId: string, url: string) => string | undefined;
   readonly #profileProxy: (profileId: string) => BrowserProxyConnection | null;
   readonly #onProxyStatusChanged: () => void;
   readonly #computerExit: (memberId: string) => RelayExit;
@@ -554,6 +555,11 @@ export class BrowserHost {
        */
       profileChoices?: (agentId: string) => { profileId: string; name: string; isDefault: boolean }[];
       /**
+       * Fork (FEATURES.md 32): the profile a tab opens in when the agent names none: a profile linked to
+       * Chrome that holds a sign-in of the URL's site. Undefined keeps the agent's default profile.
+       */
+      siteProfile?: (agentId: string, url: string) => string | undefined;
+      /**
        * The proxy of a named profile, with its password, or null for the proxy settings of the
        * computer. It throws when the password cannot be read: the tab then does not open.
        */
@@ -574,6 +580,7 @@ export class BrowserHost {
     this.#browserProfile = options.browserProfile ?? (() => ({ kind: "shared" }));
     this.#profileExists = options.profileExists ?? (() => false);
     this.#profileChoices = options.profileChoices ?? (() => []);
+    this.#siteProfile = options.siteProfile ?? (() => undefined);
     this.#profileProxy = options.profileProxy ?? (() => null);
     this.#onProxyStatusChanged = options.onProxyStatusChanged ?? (() => {});
     this.#computerExit = options.computerExit ?? (() => () => Promise.reject(new Error("No computer exit")));
@@ -941,7 +948,9 @@ export class BrowserHost {
     const normalizedUrl = yield* browserSync(() => normalizeBrowserUrl(url));
     const previouslyFocused = focus ? null : this.#focusedContentsOutsideTabs();
     const tabSession =
-      privateSession || !ownerAgentId ? undefined : yield* this.#agentTabSession(ownerAgentId, profileName);
+      privateSession || !ownerAgentId
+        ? undefined
+        : yield* this.#agentTabSession(ownerAgentId, profileName, normalizedUrl);
     yield* this.#applyProfileProxy(tabSession);
     const tab = this.#createTab(
       randomUUID(),
@@ -2934,6 +2943,7 @@ export class BrowserHost {
     this: BrowserHost,
     agentId: string,
     profileName?: string,
+    url?: string,
   ): Effect.fn.Return<BrowserTabSession | undefined, BrowserOperationError> {
     // Fork (FEATURES.md 32): a profile the agent chose by name, from the profiles it may use.
     const wanted = profileName?.trim().toLowerCase();
@@ -2953,6 +2963,9 @@ export class BrowserHost {
         return yield* browserFailure(new Error(sourceText("error.backend.browserProfileMissing")));
       return { kind: "profile", profileId: choice.profileId };
     }
+    // An agent that names no profile still gets the Chrome sign-in of the site when one of its profiles holds it.
+    const forSite = url ? this.#siteProfile(agentId, url) : undefined;
+    if (forSite && this.#profileExists(forSite)) return { kind: "profile", profileId: forSite };
     const profile = this.#browserProfile(agentId);
     if (profile.kind === "shared") return undefined;
     if (profile.kind === "agent") return { kind: "agent", key: agentBrowserSessionKey(agentId) };
@@ -3131,6 +3144,12 @@ export class BrowserHost {
 
   #tabSession(tab: Pick<BrowserHostTab, "privateSession" | "tabSession">): Session {
     return tab.privateSession ?? (tab.tabSession ? this.#persistentTabSession(tab.tabSession) : this.#session);
+  }
+
+  /** Fork (FEATURES.md 32): the cookie store of an open tab's session, for the Chrome import. */
+  tabCookies(tabId: string): Cookies | undefined {
+    const tab = this.#tabs.get(tabId);
+    return tab && !tab.closing ? this.#tabSession(tab).cookies : undefined;
   }
 
   /** Fork (FEATURES.md 32): the cookie store of a named profile, for the Chrome import. */

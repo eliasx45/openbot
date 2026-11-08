@@ -864,11 +864,20 @@ export function createComposerActions(deps: ComposerActionsDeps) {
       return activeTarget?.agentId === target.agentId && activeTarget.serverId === target.serverId;
     };
     if (onScreen()) deps.setStickToLatest(true);
+    // Fork (FEATURES.md, "Long turns stay visible"): a message that goes into the running turn (Steer,
+    // or an agent that steers each message) shows in the chat at once. It does not pass through the
+    // queue panel first. If the host queues it after all, the panel shows it after the start grace.
+    const agentSteers =
+      (deps.props.agent?.id === target.agentId
+        ? (deps.props.agent.busyMessageMode ?? deps.props.defaultBusyMessageMode)
+        : deps.props.defaultBusyMessageMode) === "steer";
+    const steered = !queue && (steer || agentSteers);
     // A message to a working agent waits behind its turn or its queue. A channel has no such queue.
     // An earlier send that has not failed is about to start a turn, so this one waits behind it.
     const queued =
       onScreen() &&
       !deps.props.channel &&
+      !steered &&
       (Boolean(deps.props.activeTurnId) ||
         deps.orderedQueuedDeliveries().length > 0 ||
         deps.pendingSends.list(target).some((send) => send.state !== "failed"));

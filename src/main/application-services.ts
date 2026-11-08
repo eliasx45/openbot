@@ -1232,6 +1232,19 @@ export async function createApplicationServices({
   let browserProxyStatusChanged = () => {};
   // Fork (FEATURES.md 32): the extra named profiles of each agent, set when the Chrome import starts.
   let agentExtraProfiles = (_agentId: string): string[] => [];
+  // Fork (FEATURES.md 32): the first of these linked profiles that holds an imported sign-in of the URL's site.
+  let linkedProfileWithSite: (profileIds: readonly string[], url: string) => string | undefined = () => undefined;
+  const agentProfileChoices = (agentId: string) => {
+    const agent = store.list().find((candidate) => candidate.id === agentId);
+    const own = agent ? agentBrowserProfile(agent) : { kind: "shared" as const };
+    const ids = [...(own.kind === "profile" ? [own.profileId] : []), ...agentExtraProfiles(agentId)];
+    return [...new Set(ids)].flatMap((profileId) => {
+      const profile = browserProfileStore.get(profileId);
+      return profile
+        ? [{ profileId, name: profile.name, isDefault: own.kind === "profile" && own.profileId === profileId }]
+        : [];
+    });
+  };
   const browser = new BrowserHost(mainWindow, store.downloadsRoot, join(app.getPath("userData"), BROWSER_STATE_FILE), {
     memoryLow: () => (hostMemory?.level() ?? "ok") !== "ok",
     browserProfile: (agentId) => {
@@ -1239,16 +1252,15 @@ export async function createApplicationServices({
       return agent ? agentBrowserProfile(agent) : { kind: "shared" };
     },
     profileExists: (profileId) => browserProfileStore.get(profileId) !== undefined,
-    profileChoices: (agentId) => {
-      const agent = store.list().find((candidate) => candidate.id === agentId);
-      const own = agent ? agentBrowserProfile(agent) : { kind: "shared" as const };
-      const ids = [...(own.kind === "profile" ? [own.profileId] : []), ...agentExtraProfiles(agentId)];
-      return [...new Set(ids)].flatMap((profileId) => {
-        const profile = browserProfileStore.get(profileId);
-        return profile
-          ? [{ profileId, name: profile.name, isDefault: own.kind === "profile" && own.profileId === profileId }]
-          : [];
-      });
+    profileChoices: (agentId) => agentProfileChoices(agentId),
+    // The default keeps its own sign-in: an extra profile is picked only when the default has none from Chrome.
+    siteProfile: (agentId, url) => {
+      const choices = agentProfileChoices(agentId);
+      const found = linkedProfileWithSite(
+        choices.map((choice) => choice.profileId),
+        url,
+      );
+      return choices.find((choice) => choice.profileId === found)?.isDefault ? undefined : found;
     },
     profileProxy: (profileId) => browserProxyConnection(browserProxyStore, browserProxyCipher, profileId),
     onProxyStatusChanged: () => browserProxyStatusChanged(),
@@ -2572,8 +2584,14 @@ export async function createApplicationServices({
       const tab = browser.listTabs().find((candidate) => candidate.id === tabId);
       if (!tab) return undefined;
       const tabSession = browser.listTabSessions().find((entry) => entry.tabId === tabId)?.tabSession;
-      return { url: tab.url, profileId: tabSession?.kind === "profile" ? tabSession.profileId : undefined };
+      return {
+        url: tab.url,
+        profileId: tabSession?.kind === "profile" ? tabSession.profileId : undefined,
+        agentId: tab.ownerAgentId,
+      };
     },
+    tabCookies: (tabId) => browser.tabCookies(tabId),
+    agentProfileIds: (agentId) => agentProfileChoices(agentId).map((choice) => choice.profileId),
     reloadTab: (tabId) => runCauseEffect(browser.reload(tabId)),
     // Codex asks for Touch ID before an import too. A Mac without Touch ID goes on to the Keychain question.
     confirmUser: async () => {
@@ -2586,6 +2604,7 @@ export async function createApplicationServices({
     },
   });
   agentExtraProfiles = (agentId) => chromeImport.agentChoices(agentId);
+  linkedProfileWithSite = (profileIds, url) => chromeImport.profileWithSite(profileIds, url);
   teardown.push(TEARDOWN_ORDER.browser - 0.5, "the Chrome import notes", () => chromeImport.dispose());
   const iphonePhoto = createIphonePhotoService({ testImage: process.env.OPENBOT_FORK_IPHONE_PHOTO_TEST_IMAGE });
   teardown.push(TEARDOWN_ORDER.browser - 0.5, "the iPhone photo helper", () => iphonePhoto.dispose());

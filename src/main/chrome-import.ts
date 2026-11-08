@@ -117,8 +117,12 @@ export interface ChromeImportDependencies {
   /** Removes a profile that an import made and could not fill. */
   deleteProfile: (profileId: string) => Promise<void>;
   profileExists: (profileId: string) => boolean;
-  /** The open tab, its URL and its named profile, or undefined. */
-  tab: (tabId: string) => { url: string; profileId: string | undefined } | undefined;
+  /** The open tab, its URL, its named profile and its agent, or undefined. */
+  tab: (tabId: string) => { url: string; profileId: string | undefined; agentId: string | null } | undefined;
+  /** The cookie store of an open tab, whatever its session. */
+  tabCookies: (tabId: string) => Cookies | undefined;
+  /** The named profiles an agent may use: its default first, then its extra profiles. */
+  agentProfileIds: (agentId: string) => string[];
   reloadTab: (tabId: string) => Promise<void>;
   /** The "… Safe Storage" password of a browser. Tests replace it. */
   readSafeStoragePassword?: (service: string) => Promise<string>;
@@ -136,8 +140,13 @@ export interface ChromeImportService {
   resync(profileId: string): Promise<ChromeSyncCounts>;
   /** Copies Chrome's cookies of the site of a tab into its profile, then reloads the tab. */
   signInTab(tabId: string): Promise<ChromeSignInResult>;
-  /** The site a tab could take from Chrome, or null when its profile is not linked. */
+  /**
+   * The site a tab could take from Chrome, or null. The tab's profile is linked, or one profile of
+   * its agent is linked and holds an imported sign-in of that site.
+   */
   signInSite(tabId: string): string | null;
+  /** The first of these profiles that is linked and holds imported cookies of the URL's site. */
+  profileWithSite(profileIds: readonly string[], url: string): string | undefined;
   agentChoices(agentId: string): string[];
   setAgentChoices(input: AgentBrowserProfileChoices): AgentBrowserProfileChoices;
   /** Stops following the profiles and writes the pending notes. */
@@ -655,22 +664,82 @@ export function createChromeImportService(deps: ChromeImportDependencies): Chrom
     });
   }
 
-  function signInSite(tabId: string): string | null {
-    const tab = deps.tab(tabId);
-    if (!tab?.profileId || !readLink(tab.profileId)) return null;
+  function siteOfUrl(url: string): string | null {
     try {
-      const host = new URL(tab.url).hostname;
+      const host = new URL(url).hostname;
       return host ? siteOfHost(host) : null;
     } catch {
       return null;
     }
   }
 
+  /** True when an import wrote a cookie of this site into the linked profile. */
+  function linkHasSite(link: LinkFile, site: string): boolean {
+    return Object.keys(link.cookies).some((key) => siteOfHost(key.slice(0, key.indexOf("\t"))) === site);
+  }
+
+  function profileWithSite(profileIds: readonly string[], url: string): string | undefined {
+    const site = siteOfUrl(url);
+    if (!site) return undefined;
+    return profileIds.find((profileId) => {
+      const link = deps.profileExists(profileId) ? readLink(profileId) : undefined;
+      return link !== undefined && linkHasSite(link, site);
+    });
+  }
+
+  /**
+   * The linked profile whose Chrome a tab takes its sign-in from: the tab's own profile, else a profile
+   * of its agent that holds that site (the tab is then in a session that is not linked).
+   */
+  function signInSource(tabId: string): { site: string; profileId: string; own: boolean } | null {
+    const tab = deps.tab(tabId);
+    const site = tab ? siteOfUrl(tab.url) : null;
+    if (!tab || !site) return null;
+    if (tab.profileId && readLink(tab.profileId)) return { site, profileId: tab.profileId, own: true };
+    const profileId = tab.agentId ? profileWithSite(deps.agentProfileIds(tab.agentId), tab.url) : undefined;
+    return profileId ? { site, profileId, own: false } : null;
+  }
+
+  function signInSite(tabId: string): string | null {
+    return signInSource(tabId)?.site ?? null;
+  }
+
+  /** Copies Chrome's cookies of one site into the session of a tab that no Chrome profile links. */
+  async function copySiteToTab(profileId: string, site: string, tabId: string): Promise<ChromeSyncCounts> {
+    const link = readLink(profileId);
+    if (!link) throw new Error(sourceText("error.backend.chromeImportNotLinked"));
+    if (!cookieFile(link.chromeDir)) throw new Error(sourceText("error.backend.chromeImportProfileMissing"));
+    const target = deps.tabCookies(tabId);
+    if (!target) throw new Error(sourceText("error.backend.chromeImportNotLinked"));
+    const chrome = await readChromeCookies(link.chromeDir, (candidate) => candidate === site);
+    const local = new Map<string, string>();
+    for (const cookie of await target.get({})) {
+      if (cookie.domain) local.set(cookieKey(cookie.domain, cookie.name, cookie.path ?? "/"), cookie.value);
+    }
+    const counts = emptyCounts();
+    for (const cookie of chrome) {
+      const mine = local.get(cookie.key);
+      if (mine === cookie.value) {
+        counts.unchanged += 1;
+        continue;
+      }
+      try {
+        await target.set(setDetails(cookie));
+        if (mine === undefined) counts.added += 1;
+        else counts.updated += 1;
+      } catch {
+        counts.skipped += 1;
+      }
+    }
+    await target.flushStore();
+    return counts;
+  }
+
   async function signInTab(tabId: string): Promise<ChromeSignInResult> {
-    const site = signInSite(tabId);
-    const profileId = deps.tab(tabId)?.profileId;
-    if (!site || !profileId) throw new Error(sourceText("error.backend.chromeImportNotLinked"));
-    const counts = await syncProfile(profileId, site);
+    const source = signInSource(tabId);
+    if (!source) throw new Error(sourceText("error.backend.chromeImportNotLinked"));
+    const { site, profileId } = source;
+    const counts = source.own ? await syncProfile(profileId, site) : await copySiteToTab(profileId, site, tabId);
     if (counts.added + counts.updated + counts.unchanged === 0)
       throw new Error(sourceText("error.backend.chromeImportNoSignIn", { site }));
     await deps.reloadTab(tabId);
@@ -707,6 +776,7 @@ export function createChromeImportService(deps: ChromeImportDependencies): Chrom
     resync: (profileId) => syncProfile(profileId, null),
     signInTab,
     signInSite,
+    profileWithSite,
     agentChoices,
     setAgentChoices,
     dispose() {
