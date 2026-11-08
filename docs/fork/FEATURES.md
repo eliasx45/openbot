@@ -499,6 +499,15 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Not done:** the phone code is not on Elias's phone until the next EAS build or update, and was not run in a simulator (checked on the real data only).
 - **Check:** open Editors: at 12:07 AM the Gotham brief is one row "Tapa Lead asked Gotham ▸" with no "You" quote; the chevron opens the brief.
 
+## 51. Search sits in the sidebar's top bar
+
+- **Get:** the search button is a magnifier in the top bar, left of Back and Forward. The full-width "Search" field row under the top bar is gone, so the chat list starts one row higher. ⌘K and the compact sidebar's search icon are unchanged.
+- **Why:** Elias, 8 Nov 2026 (screenshot, the empty space before the arrows boxed): "make the search bar next to the [arrow] icons there instead since that saves some vertical space in the sidebar".
+- **How (portable):** the field was only a button that opens the global search (`onOpenSearch`), so an icon button with the same action and label does the same job. `SidebarTopbar` shows it when the sidebar is expanded; `Sidebar` mounts `SidebarSearch` only in compact mode, where it is the icon under the expand toggle.
+- **Here:** `packages/ui/src/features/sidebar/SidebarTopbar.tsx`, `Sidebar.tsx`.
+- **Tests:** Biome, `bun run typecheck:renderer`; isolated dev instance (sandbox HOME): the icon shows left of Back, a click opens the search dialog, the list starts right under the top bar, compact mode still shows its search icon.
+- **Check:** in the expanded sidebar click the magnifier left of ←: global search opens; no Search field row above the chats.
+
 ---
 
 ## Checked, not needed

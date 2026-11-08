@@ -1,5 +1,5 @@
 /**
- * The server name, Back and Forward, its update, the marketplace or expand toggle, and new agent - plus
+ * The server name, Search, Back and Forward, its update, the marketplace or expand toggle, and new agent - plus
  * the window drag region.
  */
 
@@ -18,7 +18,7 @@ import {
 import { Show } from "solid-js";
 import { useText } from "../../text";
 import { ServerMenu } from "../servers/ServerMenu";
-import { PlusIcon, SidebarToggleIcon } from "./SidebarIcons";
+import { PlusIcon, SearchIcon, SidebarToggleIcon } from "./SidebarIcons";
 import { useSidebarScope } from "./sidebar-scope";
 
 export function SidebarTopbar() {
@@ -50,6 +50,20 @@ export function SidebarTopbar() {
         {(serverMenu) => <ServerMenu {...serverMenu()} serverName={props.serverName} compact={props.compact} />}
       </Show>
       <div class="sidebar-topbar-actions">
+        {/* Fork: Search sits here, not in a row of its own, so the sidebar keeps that height for chats. */}
+        <Show when={!props.compact}>
+          <IconButton
+            variant="ghost"
+            type="button"
+            class="sidebar-icon-button sidebar-topbar-search no-drag"
+            label={t("conversation.globalSearch.title")}
+            aria-haspopup="dialog"
+            data-cuelume-tap="open"
+            onClick={props.onOpenSearch}
+          >
+            <SearchIcon />
+          </IconButton>
+        </Show>
         <Show when={!props.compact && props.chatHistory}>
           {(history) => {
             const backLabel = () => {

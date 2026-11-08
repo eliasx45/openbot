@@ -15,7 +15,10 @@ export function Sidebar(props: SidebarProps) {
       <SidebarFrame compact={props.compact}>
         <SidebarTopbar />
 
-        <SidebarSearch />
+        {/* Fork: the expanded sidebar has Search in its top bar; the compact one keeps its icon here. */}
+        <Show when={props.compact}>
+          <SidebarSearch />
+        </Show>
 
         <Show when={props.onViewChange && !props.compact}>
           <SidebarViewSwitch />
