@@ -29,6 +29,9 @@ export const messages = {
     "Ceci devient une issue GitHub publique, avec la version de l'app et ton système. Ton nom n'apparaît pas.",
   "status.agent.sendIdea": "Ceci devient une issue GitHub publique. Votre nom n'est pas affiché.",
   "status.agent.feedbackSent": "Envoyé à l'équipe OpenBot : {title}",
+  "status.agent.serverInstallCommand":
+    "Créer une commande à usage unique qui installe OpenBot sur un autre ordinateur comme serveur {name} et le connecte à ton compte. L'agent l'exécute là-bas.",
+  "status.agent.serverInstallCard": "Commande d'installation pour le serveur {name}",
   "status.agent.feedbackSending": "Envoi de vos commentaires à l’équipe OpenBot…",
   "status.agent.workflowDelete":
     "Supprimer le workflow {title} avec ses exécutions et ses versions. Ses étapes en cours s'arrêtent.",
@@ -81,5 +84,7 @@ export const messages = {
     "Souvenirs : {saved} enregistrés, {updated} mis à jour, {forgotten} oubliés, {notChanged} non modifiés, car un autre fil les a modifiés avant.",
   "status.agent.nextStepContinues": "L’agent s’est arrêté avant l’étape suivante. Il continue ({current} sur {limit}).",
   "status.agent.planContinues": "Le plan a des étapes en cours. L’agent continue ({current} sur {limit}).",
+  "status.agent.compactionContinues":
+    "La connexion s’est interrompue pendant que l’agent compactait son contexte. L’agent continue.",
   "status.agent.branchTitle": "Chat dérivé",
 } as const satisfies PartialTranslation<typeof source>;

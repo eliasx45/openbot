@@ -32,8 +32,10 @@ import type { ApprovalAutomation } from "../approval-automation-store";
 import type { BusyMessageModePreferenceStore } from "../busy-message-mode-preference-store";
 import type { ExternalLinkOpener, ExternalLinkPreferenceStore } from "../external-link-opener";
 import { feedbackFacts } from "../feedback";
+import { listInstalledFonts } from "../installed-fonts";
 import type { InterfaceSizeService } from "../interface-size-service";
 import type { LanguageService } from "../language-service";
+import { aboveAppsScreenSupport } from "../linux-wayland-output";
 import type { LogoColorService } from "../logo-color-service";
 import { MAC_PERMISSION_URLS } from "../mac-permission-urls";
 import { exportDiagnostics, exportOpenBotData } from "../maintenance-service";
@@ -213,6 +215,7 @@ export function appIpcHandlers({
         // Chromium blocks, such as the llvmpipe driver of a server or a remote desktop.
         const softwareRendering = !app.getGPUFeatureStatus().gpu_compositing.startsWith("enabled");
         const hourCycle = systemHourCycle();
+        const aboveAppsSupport = aboveAppsScreenSupport();
         return {
           name: app.getName(),
           version,
@@ -222,6 +225,7 @@ export function appIpcHandlers({
           ...(analyticsInstallId ? { analyticsInstallId } : {}),
           ...(softwareRendering ? { softwareRendering } : {}),
           ...(hourCycle ? { hourCycle } : {}),
+          ...(aboveAppsSupport ? { aboveAppsSupport } : {}),
         };
       }),
       getSetupState: handler(() => runCauseEffect(readSetupState(setupFile))),
@@ -299,6 +303,8 @@ export function appIpcHandlers({
       setAppAppearancePreference: payloadHandler(parseAppAppearancePreference, (parsed) =>
         runCauseEffect(appearance.set(parsed)),
       ),
+      // Local only: the list is the fonts of this computer, and the font choice is per computer.
+      listInstalledFonts: handler(() => runCauseEffect(listInstalledFonts())),
       getAppInterfaceSizePreference: handler(() => interfaceSize.preference),
       setAppInterfaceSizePreference: payloadHandler(parseAppInterfaceSizePreference, (parsed) =>
         runCauseEffect(interfaceSize.set(parsed)),

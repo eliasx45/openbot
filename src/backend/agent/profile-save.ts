@@ -178,6 +178,8 @@ export function standingProfileChanged(
     previous.workFolder !== agent.workFolder || // Fork: the work folder is the session's cwd.
     agentComputerUseEnabled(previous) !== agentComputerUseEnabled(agent) ||
     agentAutomationAllowed(previous, previousDefaults) !== agentAutomationAllowed(agent, defaults) ||
-    agentQuickAcknowledgementEnabled(previous, previousDefaults) !== agentQuickAcknowledgementEnabled(agent, defaults)
+    agentQuickAcknowledgementEnabled(previous, previousDefaults) !==
+      agentQuickAcknowledgementEnabled(agent, defaults) ||
+    previousDefaults.commitCoAuthor !== defaults.commitCoAuthor
   );
 }

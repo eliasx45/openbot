@@ -25,6 +25,7 @@ import {
   MESSAGING_ALLOWED_ROLES_SCHEMA_SQL,
   MESSAGING_ALLOWED_SENDERS_SCHEMA_SQL,
   MESSAGING_MEMORY_SCHEMA_SQL,
+  MESSAGING_PINGS_SCHEMA_SQL,
   MESSAGING_SCHEMA_SQL,
 } from "./messaging/messaging-schema";
 import { ROUTINE_FLOW_SCHEMA_SQL } from "./routine-flows/routine-flow-schema";
@@ -433,6 +434,16 @@ const V35_ROUTINE_RUN_SOURCE_COLUMN_SQL = `run_source TEXT CHECK(run_source IS N
 // run in their channel and have no such column. ADD COLUMN puts it after the migration 33 column.
 const V57_AGENT_ROUTINE_RUN_IN_COLUMN_SQL = `run_in TEXT NOT NULL DEFAULT 'chat' CHECK(run_in IN ('chat', 'thread'))`;
 
+// Migration 60 ties an agent memory to a site: the host name of the pages it is about, such as
+// `github.com`, or NULL for a memory of no site. Frozen with the migration. No default: every existing
+// memory stays a memory of no site. ADD COLUMN puts it after the last column, before the UNIQUE
+// constraint. The index serves the recall of one site's memories when the agent opens a page of it.
+const V60_AGENT_MEMORY_SITE_COLUMN_SQL = `site TEXT CHECK(site IS NULL OR length(site) BETWEEN 1 AND 253)`;
+const V60_AGENT_MEMORY_SITE_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS agent_memories_site
+    ON projection_agent_memories(agent_id, site) WHERE site IS NOT NULL;
+`;
+
 // Migration 40 stores the shown-order keys of each thread message, so a page reads an index range rather
 // than sorting the whole thread (#2226). Frozen with the migration; `database/thread-message-order.ts`
 // keeps them current, and every write to the table must call it. No default: a key of 0 or '' would look
@@ -510,16 +521,18 @@ const V43_THREAD_EVENT_TYPE_INDEX_SQL = `
     ON orchestration_events(aggregate_id, event_type, sequence) WHERE aggregate_type = 'thread';
 `;
 
-// Migration 59 indexes the child keys that a thread delete follows. A delete of a thread removes its turns and
+// Fork (docs/fork/FEATURES.md #43): indexes the child keys that a thread delete follows. A delete of a thread removes its turns and
 // activities by ON DELETE CASCADE, and each provider session it removes clears its turns by ON DELETE SET NULL.
 // SQLite finds those rows through an index that starts with the child key, or else reads the whole child table
 // once for each parent row. Both tables grow by a row for each turn or message of every thread, so a delete of
 // one side thread read every turn and activity ever stored. A whole-snapshot write also deletes the activities of
 // its thread by thread and sequence, which is the second column. A turn without a session never needs the
 // session index, so it is partial. Restart recovery reads the running turns of every thread, which without an
-// index is a read of every turn; that index holds only running turns, so a finished turn leaves it. Frozen with
-// the migration.
-const V59_THREAD_CHILD_INDEX_SQL = `
+// index is a read of every turn; that index holds only running turns, so a finished turn leaves it.
+// The fork shipped these as migration 59 (6 Nov 2026); upstream then took 59 for the messaging pings table
+// and 60 for the memory site. So they are no numbered migration any more: `applyForkSchema` makes them on
+// every start (IF NOT EXISTS), and upstream's numbers stay free for the next sync.
+const FORK_THREAD_CHILD_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS thread_activities_thread
     ON projection_thread_activities(thread_id, last_event_sequence);
   CREATE INDEX IF NOT EXISTS turns_thread ON projection_turns(thread_id);
@@ -528,6 +541,10 @@ const V59_THREAD_CHILD_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS turns_running ON projection_turns(thread_id, turn_id) WHERE status = 'running';
 `;
 
+const BASELINE_AGENT_MEMORIES_END_SQL = `    last_event_sequence INTEGER NOT NULL,
+    UNIQUE(agent_id, normalized_text)
+  );
+  CREATE INDEX IF NOT EXISTS agent_memories_agent`;
 const BASELINE_AGENT_ROUTINES_END_SQL = `    last_event_sequence INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS agent_routines_agent`;
@@ -603,7 +620,11 @@ const LATEST_SCHEMA_SQL =
     substituteOnce(
       substituteOnce(
         substituteOnce(
-          substituteOnce(BASELINE_V8_SCHEMA_SQL, BASELINE_REACTIONS_TABLE_SQL, V12_REACTIONS_TABLE_SQL),
+          substituteOnce(
+            substituteOnce(BASELINE_V8_SCHEMA_SQL, BASELINE_REACTIONS_TABLE_SQL, V12_REACTIONS_TABLE_SQL),
+            BASELINE_AGENT_MEMORIES_END_SQL,
+            withAgentMemorySite(BASELINE_AGENT_MEMORIES_END_SQL),
+          ),
           BASELINE_THREAD_MESSAGES_END_SQL,
           withThreadMessageOrderColumns(BASELINE_THREAD_MESSAGES_END_SQL),
         ),
@@ -650,7 +671,10 @@ const LATEST_SCHEMA_SQL =
   DELETED_THREAD_MESSAGES_SCHEMA_SQL +
   BROWSER_PROXY_SCHEMA_SQL +
   AGENT_SKILL_LOADS_SCHEMA_SQL +
-  V59_THREAD_CHILD_INDEX_SQL;
+  MESSAGING_PINGS_SCHEMA_SQL +
+  V60_AGENT_MEMORY_SITE_INDEX_SQL +
+  // Fork: not a numbered migration (docs/fork/FEATURES.md #43, `applyForkSchema`).
+  FORK_THREAD_CHILD_INDEX_SQL;
 
 /** The end of the thread message table with the migration 40 columns before its PRIMARY KEY constraint. */
 function withThreadMessageOrderColumns(tableEnd: string): string {
@@ -665,6 +689,14 @@ function withRoutinePolicies(tableEnd: string): string {
   return tableEnd.replace(
     "last_event_sequence INTEGER NOT NULL\n",
     `last_event_sequence INTEGER NOT NULL,\n    ${V27_ROUTINE_LIMIT_POLICY_COLUMN_SQL},\n    ${V33_ROUTINE_MISSED_POLICY_COLUMN_SQL}\n`,
+  );
+}
+
+/** The end of the agent memory table with the migration 60 column before its UNIQUE constraint. */
+function withAgentMemorySite(tableEnd: string): string {
+  return tableEnd.replace(
+    "last_event_sequence INTEGER NOT NULL,\n",
+    `last_event_sequence INTEGER NOT NULL,\n    ${V60_AGENT_MEMORY_SITE_COLUMN_SQL},\n`,
   );
 }
 
@@ -1001,9 +1033,15 @@ const MIGRATIONS: readonly OpenBotMigration[] = [
   },
   {
     version: 59,
-    // Only creates indexes, so no foreign-key pause and no vacuum. The index build reads each of the two
-    // tables once, inside the migration transaction; no row changes.
-    up: (db) => db.exec(V59_THREAD_CHILD_INDEX_SQL),
+    // Only creates a table, so no foreign-key pause and no vacuum. No post was recorded as a ping
+    // before it, so the table starts empty, and every thread routes its replies as before.
+    up: (db) => db.exec(MESSAGING_PINGS_SCHEMA_SQL),
+  },
+  {
+    version: 60,
+    // Adds one nullable column and a partial index: no rebuild, so no foreign-key pause and no vacuum.
+    // Every existing memory gets no site, so the agent recalls it as before.
+    up: addAgentMemorySite,
   },
 ];
 
@@ -1021,6 +1059,7 @@ export function migrateOpenBotDatabase(db: DatabaseSync, options: OpenBotMigrati
   const appliedVersions = readAppliedVersions(db);
   validateAppliedVersions(appliedVersions);
   const currentVersion = latestAppliedVersion(appliedVersions);
+  repairForkVersion59(db, currentVersion);
   const pending = MIGRATIONS.filter((migration) => migration.version > currentVersion);
   // A database can hold broken references from before this upgrade. A migration that does not touch them must not
   // stop on them, and deleting them would lose rows, so each migration is checked only for the ones it adds.
@@ -1051,9 +1090,35 @@ export function migrateOpenBotDatabase(db: DatabaseSync, options: OpenBotMigrati
     }
   }
 
+  applyForkSchema(db);
   // The check reads every page, which takes minutes on a large file. Only a migration, or a stop that
   // did not close the file (a crash, a kill, a disk save while it ran), can leave a damaged page.
   if (pending.length > 0 || !options.closedCleanly) assertQuickCheck(db);
+}
+
+/**
+ * Fork: a database that the fork's own migration 59 (the thread child indexes, 6 Nov 2026) took to version
+ * 59 never ran upstream's migration 59, the messaging pings table. Makes that table, as migration 59 would.
+ */
+function repairForkVersion59(db: DatabaseSync, currentVersion: number): void {
+  if (currentVersion < 59) return;
+  const table = db
+    .prepare("SELECT 1 AS found FROM sqlite_master WHERE type = 'table' AND name = 'projection_messaging_pings'")
+    .get();
+  if (!table) db.exec(MESSAGING_PINGS_SCHEMA_SQL);
+}
+
+/** Fork: the indexes of `FORK_THREAD_CHILD_INDEX_SQL`, which the migration history leaves out. */
+export const FORK_SCHEMA_INDEX_NAMES: ReadonlySet<string> = new Set([
+  "thread_activities_thread",
+  "turns_thread",
+  "turns_provider_session",
+  "turns_running",
+]);
+
+/** Fork: the schema that the fork adds outside the numbered migrations. Each statement is IF NOT EXISTS. */
+function applyForkSchema(db: DatabaseSync): void {
+  db.exec(FORK_THREAD_CHILD_INDEX_SQL);
 }
 
 function migrateToBaselineV8(db: DatabaseSync, appliedAt: string): void {
@@ -1419,6 +1484,15 @@ function addAgentRoutineRunPlace(db: DatabaseSync): void {
   const columns = db.prepare("PRAGMA table_info(projection_agent_routines)").all();
   if (columns.some((existing) => isDynamicRecord(existing) && existing.name === "run_in")) return;
   db.exec(`ALTER TABLE projection_agent_routines ADD COLUMN ${V57_AGENT_ROUTINE_RUN_IN_COLUMN_SQL}`);
+}
+
+// Migration 60 adds the site of an agent memory.
+function addAgentMemorySite(db: DatabaseSync): void {
+  // A development profile that ran this version before it shipped has the column already.
+  const columns = db.prepare("PRAGMA table_info(projection_agent_memories)").all();
+  if (!columns.some((existing) => isDynamicRecord(existing) && existing.name === "site"))
+    db.exec(`ALTER TABLE projection_agent_memories ADD COLUMN ${V60_AGENT_MEMORY_SITE_COLUMN_SQL}`);
+  db.exec(V60_AGENT_MEMORY_SITE_INDEX_SQL);
 }
 
 // Migration 28 removes the provider CHECK. It rebuilds the table with no guard: every shipped table has the

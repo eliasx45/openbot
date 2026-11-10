@@ -15,7 +15,7 @@ import { DatabaseSync } from "node:sqlite";
 import type { DynamicRecord } from "@openbot/contracts/runtime-values";
 import { isDynamicRecord, isNumber, isString } from "@openbot/contracts/runtime-values";
 import { afterEach, describe, expect, it } from "vitest";
-import { migrateOpenBotDatabase } from "./openbot-database-schema";
+import { FORK_SCHEMA_INDEX_NAMES, migrateOpenBotDatabase } from "./openbot-database-schema";
 import recordedSchemaHistory from "./openbot-database-schema-history.json";
 
 const appliedAt = "2026-09-03T10:00:00.000Z";
@@ -106,11 +106,11 @@ async function schemaChangesByVersion(): Promise<Record<string, SchemaChanges>> 
     const applied = readAppliedVersions(database);
     const version = applied.at(-1);
     if (applied.length === appliedBefore || version === undefined) return changes;
+    // Fork: the fork's own indexes are no numbered migration (`applyForkSchema`), so no version records them.
     const after = new Map(
-      readNormalizedDeclarations(database).map((declaration) => [
-        `${declaration.type} ${declaration.name}`,
-        declaration.sql.join(" "),
-      ]),
+      readNormalizedDeclarations(database)
+        .filter((declaration) => !(declaration.type === "index" && FORK_SCHEMA_INDEX_NAMES.has(declaration.name)))
+        .map((declaration) => [`${declaration.type} ${declaration.name}`, declaration.sql.join(" ")]),
     );
     changes[String(version)] = diffDeclarations(before, after);
     before = after;

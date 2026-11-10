@@ -236,6 +236,8 @@ export interface DeliveryContext {
   resumeAfterUsageLimit?: UsageLimitContinuation;
   planContinuation?: PlanContinuationMarker;
   channelId?: string;
+  /** The side thread that an agent sent the message from. */
+  senderTaskId?: string;
 }
 
 const EMPTY_STATE: StoredState = {
@@ -2103,6 +2105,7 @@ export class MailboxStore {
     this: MailboxStore,
     deliveryId: string,
     taskOpen: (taskId: string) => boolean,
+    agentExists: (agentId: string) => boolean,
   ): Effect.fn.Return<string | null, StoredStateFailure> {
     const delivery = this.#state.deliveries.find((candidate) => candidate.id === deliveryId);
     const request = delivery && this.#state.messages.find((message) => message.id === delivery.messageId);
@@ -2112,6 +2115,8 @@ export class MailboxStore {
     const originAgentId = this.chainOriginAgentId(request.id);
     if (
       requesterId === teammateId ||
+      // The user deleted the agent that asked. A note for it would make the agent again (#6106).
+      !agentExists(requesterId) ||
       !originAgentId ||
       originAgentId === teammateId ||
       request.expectsReply === false ||
@@ -2137,15 +2142,37 @@ export class MailboxStore {
     return requesterId;
   }, Effect.uninterruptible).bind(this);
 
-  hasAgentMessageFromTurnTo(agentId: string, turnId: string, recipientAgentId: string): boolean {
+  /**
+   * Whether the turn sent the recipient a message. A reply to one of `turnRequestIds`, the recipient's
+   * requests that the turn read, answers only that request, so it does not count for the others (#5804).
+   */
+  hasAgentMessageFromTurnTo(
+    agentId: string,
+    turnId: string,
+    recipientAgentId: string,
+    turnRequestIds: ReadonlySet<string>,
+  ): boolean {
     const turnIds = this.#sourceTurnIds();
     return this.#state.messages.some((message) => {
       if (message.sender.kind !== "agent" || message.sender.agentId !== agentId) return false;
       if (turnIds.get(message.id) !== turnId) return false;
+      if (message.replyToMessageId !== null && turnRequestIds.has(message.replyToMessageId)) return false;
       return this.#state.deliveries.some(
         (delivery) => delivery.messageId === message.id && delivery.recipientAgentId === recipientAgentId,
       );
     });
+  }
+
+  /** Whether the turn sent another agent a request that waits for a reply. */
+  hasRequestFromTurn(agentId: string, turnId: string): boolean {
+    const turnIds = this.#sourceTurnIds();
+    return this.#state.messages.some(
+      (message) =>
+        message.sender.kind === "agent" &&
+        message.sender.agentId === agentId &&
+        message.expectsReply !== false &&
+        turnIds.get(message.id) === turnId,
+    );
   }
 
   markStarting = Effect.fn("MailboxStore.markStarting")(function* (
@@ -3184,6 +3211,7 @@ export class MailboxStore {
       ...(delivery.resumeAfterUsageLimit ? { resumeAfterUsageLimit: delivery.resumeAfterUsageLimit } : {}),
       ...(delivery.planContinuation ? { planContinuation: delivery.planContinuation } : {}),
       ...(message.channelId ? { channelId: message.channelId } : {}),
+      ...(message.senderTaskId ? { senderTaskId: message.senderTaskId } : {}),
       managedAttachments: message.attachments.map((attachment) => ({
         ...toAttachmentSummary(attachment),
         path: attachment.path,
@@ -3234,6 +3262,11 @@ export class MailboxStore {
           : null,
       editing: Boolean(delivery.editId),
     };
+  }
+
+  /** The queue position of each queued delivery, by delivery id. */
+  queuedPositions(): Map<string, number> {
+    return this.#queuedPositions();
   }
 
   #queuedPositions(): Map<string, number> {

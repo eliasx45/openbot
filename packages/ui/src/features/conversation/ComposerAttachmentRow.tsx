@@ -30,6 +30,7 @@ export interface ComposerUploadFile {
 /**
  * The files of a message box that its text does not name, the pasted images that still import, and
  * the files that still upload. Without `onRetryUpload`, a failed upload can only be removed.
+ * A click on an image opens it in the image viewer, with the other images of the box.
  */
 export function ComposerAttachmentRow(props: {
   attachments: readonly DraftAttachment[];
@@ -39,23 +40,21 @@ export function ComposerAttachmentRow(props: {
   onRemove: (attachment: DraftAttachment) => void;
   onRemoveUpload?: ((uploadId: string) => void) | undefined;
   onRetryUpload?: ((uploadId: string) => void) | undefined;
-  /** The window draws the macOS window controls over the top start corner, so the viewer leaves room. */
+  /** The window draws the macOS window controls over the image viewer's top start corner. */
   macWindowControls?: boolean | undefined;
 }) {
   const { t, format } = useText();
-  // An image not sent yet opens in the same viewer as a sent one, with the other images of the box.
   const [lightbox, setLightbox] = createSignal<ImageLightboxOpening | null>(null);
   let row: HTMLDivElement | undefined;
-  const openImage = (attachment: DraftAttachment, origin: HTMLElement) => {
-    const images = props.attachments.filter(isLightboxImage);
-    const index = images.findIndex((image) => image.id === attachment.id);
-    if (index >= 0) setLightbox({ images, index, origin });
-  };
   const thumbnail = (attachment: DraftAttachment) =>
     row?.querySelector<HTMLElement>(`[data-attachment-id="${CSS.escape(attachment.id)}"]`) ?? undefined;
+  const openImage = (attachment: DraftAttachment, origin: HTMLElement) => {
+    const images = props.attachments.filter(opensInViewer);
+    setLightbox({ images, index: images.findIndex((image) => image.id === attachment.id), origin });
+  };
   return (
     <Show when={props.attachments.length > 0 || (props.pending?.length ?? 0) > 0 || (props.uploads?.length ?? 0) > 0}>
-      <div class="composer-attachments" ref={(element) => (row = element)}>
+      <div ref={row} class="composer-attachments">
         <For each={props.attachments}>
           {(attachment) => {
             // An image with no preview (the web client) shows as a file, with its name.
@@ -63,7 +62,7 @@ export function ComposerAttachmentRow(props: {
             return (
               <div class="composer-attachment ui-removable-image" data-kind={chip()}>
                 <Show
-                  when={chip() === "image" && isLightboxImage(attachment)}
+                  when={opensInViewer(attachment)}
                   fallback={
                     <span
                       class="composer-attachment-preview"
@@ -78,10 +77,10 @@ export function ComposerAttachmentRow(props: {
                   <Button
                     variant="ghost"
                     type="button"
-                    class="composer-attachment-preview composer-attachment-open"
+                    class="composer-attachment-preview"
                     data-attachment-id={attachment.id}
-                    data-cuelume-tap="open"
                     aria-label={t("chat.image.preview", { name: attachment.name })}
+                    data-cuelume-tap="open"
                     onClick={(event) => openImage(attachment, event.currentTarget)}
                   >
                     <img src={attachment.previewUrl ?? ""} alt="" />
@@ -118,6 +117,16 @@ export function ComposerAttachmentRow(props: {
             </div>
           )}
         </For>
+        <Show when={lightbox()}>
+          {(opening) => (
+            <ImageLightbox
+              opening={opening()}
+              thumbnail={thumbnail}
+              macWindowControls={props.macWindowControls}
+              onClose={() => setLightbox(null)}
+            />
+          )}
+        </Show>
       </div>
       <Show when={lightbox()}>
         {(opening) => (
@@ -132,6 +141,11 @@ export function ComposerAttachmentRow(props: {
       </Show>
     </Show>
   );
+}
+
+/** An image chip with a preview. An SVG has an image preview but is a file chip, so it does not open. */
+function opensInViewer(attachment: DraftAttachment): boolean {
+  return attachment.kind === "image" && isLightboxImage(attachment);
 }
 
 /** A file on its way to the server: a ring with the bytes, or the failure with Retry. */

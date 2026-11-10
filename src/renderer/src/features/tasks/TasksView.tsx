@@ -198,7 +198,7 @@ export function TasksView(props: TasksViewProps) {
       Number.POSITIVE_INFINITY,
     ),
   });
-  const { appFocused } = usePlatform();
+  const { appFocused, appInfo } = usePlatform();
   const showAgentSteps = useShowAgentSteps();
   let pending: PendingStart | null = null;
   let generation = 0;
@@ -993,6 +993,7 @@ export function TasksView(props: TasksViewProps) {
       selectedId={state.selectedId}
       waitOf={waitOf}
       sendShortcut={props.sendShortcut}
+      macWindowControls={appInfo()?.platform === "darwin"}
       onSelect={select}
       panel={panel}
       sideWidth={state.sideWidth}

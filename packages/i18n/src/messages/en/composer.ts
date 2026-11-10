@@ -80,7 +80,6 @@ export const messages = defineMessages("composer", {
   "composer.placeholder.messageAgent": "Message agent",
   "composer.placeholder.answer": "Type your answer",
   "composer.add.label": "Add to prompt",
-  "composer.add.image": "Attach image",
   "composer.add.iphonePhoto": "From iPhone",
   "composer.iphonePhoto.waiting": "Take the photo on your iPhone…",
   "composer.iphonePhoto.noDevice":
@@ -128,6 +127,10 @@ export const messages = defineMessages("composer", {
   "composer.error.changeModel": "Could not change model. Try again.",
   "composer.error.changeEffort": "Could not change effort. Try again.",
   "composer.error.changeFastMode": "Could not change fast mode. Try again.",
+  "composer.fastMode.confirmTitle": "Turn on fast mode?",
+  "composer.fastMode.confirmDescription":
+    "Claude answers faster, but each token costs more. With a Claude subscription, fast mode always uses usage credits, also when your plan has usage left.",
+  "composer.fastMode.confirm": "Turn on",
   "composer.context.label": "Context {percent} full",
   "composer.context.labelEstimated": "Context about {percent} full",
   "composer.context.labelCompacting": "Compacting context",

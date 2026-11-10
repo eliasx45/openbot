@@ -3,9 +3,11 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { migrateOpenBotDatabase } from "./openbot-database-schema";
 
-// Failure modes: an upgrade loses or changes a thread, turn, activity or provider session; a partial migration
-// survives a failure; a retry fails on an index that the failed run left; a newer or incomplete history is
-// changed; a thread delete or a session delete stops removing or clearing the rows that point to it.
+// Fork (docs/fork/FEATURES.md #43): the thread child indexes are no numbered migration any more
+// (`applyForkSchema`). Failure modes: an upgrade loses or changes a thread, turn, activity or provider session;
+// a database that the fork's old migration 59 took to version 59 misses upstream's messaging pings table;
+// a newer or incomplete history is changed; a thread delete or a session delete stops removing or clearing
+// the rows that point to it.
 const databases: DatabaseSync[] = [];
 afterEach(() => {
   for (const db of databases.splice(0)) db.close();
@@ -89,13 +91,20 @@ function plan(db: DatabaseSync, sql: string): string {
 }
 
 function expectHealthy(db: DatabaseSync): void {
-  expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 59 });
+  expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 60 });
   expect(db.prepare("PRAGMA foreign_keys").get()).toEqual({ foreign_keys: 1 });
   expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   expect(db.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" });
 }
 
-describe("thread child index migration", () => {
+function hasPingsTable(db: DatabaseSync): boolean {
+  return (
+    db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'projection_messaging_pings'").get() !==
+    undefined
+  );
+}
+
+describe("fork thread child indexes", () => {
   // The three tables keep their columns from the v8 baseline on, so the oldest and the newest released schema bound it.
   it.each([8, 58])("upgrades v%i and keeps every thread, session, turn and activity", (version) => {
     const db = databaseAt(version);
@@ -107,7 +116,39 @@ describe("thread child index migration", () => {
     expectHealthy(db);
   });
 
-  it("serves the lookups of a thread delete, a session delete and restart recovery from the new indexes", () => {
+  it("gives a new install the indexes", () => {
+    const db = new DatabaseSync(":memory:");
+    databases.push(db);
+    migrateOpenBotDatabase(db);
+    expect(indexColumns(db)).toEqual(INDEXES);
+    expectHealthy(db);
+  });
+
+  it("repairs a database that the fork's old migration 59 took to version 59", () => {
+    const db = databaseAt(58);
+    seedThreads(db);
+    const before = contents(db);
+    // What the fork's migration 59 did: the four indexes and the version 59 marker, no pings table.
+    db.exec(`CREATE INDEX thread_activities_thread ON projection_thread_activities(thread_id, last_event_sequence);
+      CREATE INDEX turns_thread ON projection_turns(thread_id);
+      CREATE INDEX turns_provider_session ON projection_turns(provider_session_id) WHERE provider_session_id IS NOT NULL;
+      CREATE INDEX turns_running ON projection_turns(thread_id, turn_id) WHERE status = 'running';
+      INSERT INTO schema_migrations VALUES(59, 'now');`);
+    expect(hasPingsTable(db)).toBe(false);
+    migrateOpenBotDatabase(db);
+    expect(hasPingsTable(db)).toBe(true);
+    expect(
+      db
+        .prepare("PRAGMA table_info(projection_agent_memories)")
+        .all()
+        .map((column) => column.name),
+    ).toContain("site");
+    expect(contents(db)).toEqual(before);
+    expect(indexColumns(db)).toEqual(INDEXES);
+    expectHealthy(db);
+  });
+
+  it("serves the lookups of a thread delete, a session delete and restart recovery from the indexes", () => {
     const db = databaseAt(58);
     seedThreads(db);
     migrateOpenBotDatabase(db);
@@ -147,60 +188,25 @@ describe("thread child index migration", () => {
     expectHealthy(db);
   });
 
-  it("rolls back the indexes and the marker after a failure, then retries", () => {
-    const db = databaseAt(58);
-    seedThreads(db);
-    const before = contents(db);
-    db.exec(`CREATE TEMP TRIGGER fail_marker BEFORE INSERT ON schema_migrations WHEN new.version = 59
-      BEGIN SELECT RAISE(ABORT, 'late failure'); END;`);
-    expect(() => migrateOpenBotDatabase(db)).toThrow("migration to version 59 failed");
-    expect(indexColumns(db)).toEqual(NO_INDEXES);
-    expect(contents(db)).toEqual(before);
-    expect(db.prepare("SELECT version FROM schema_migrations WHERE version = 59").all()).toEqual([]);
-    db.exec("DROP TRIGGER fail_marker");
-    migrateOpenBotDatabase(db);
-    expect(contents(db)).toEqual(before);
-    expect(indexColumns(db)).toEqual(INDEXES);
-    expectHealthy(db);
-  });
-
-  it("rolls back every index when a later index name is taken, then retries", () => {
-    const db = databaseAt(58);
-    seedThreads(db);
-    const before = contents(db);
-    // SQLite refuses an index whose name a table holds, even with IF NOT EXISTS. The first index is made before
-    // this one fails, so the rollback has to remove it too.
-    db.exec("CREATE TABLE turns_provider_session (conflict TEXT)");
-    expect(() => migrateOpenBotDatabase(db)).toThrow("migration to version 59 failed");
-    expect(db.prepare("SELECT version FROM schema_migrations WHERE version = 59").all()).toEqual([]);
-    expect(indexColumns(db)).toEqual(NO_INDEXES);
-    expect(contents(db)).toEqual(before);
-    db.exec("DROP TABLE turns_provider_session");
-    migrateOpenBotDatabase(db);
-    expect(contents(db)).toEqual(before);
-    expect(indexColumns(db)).toEqual(INDEXES);
-    expectHealthy(db);
-  });
-
   it("rejects newer and incomplete migration histories before it adds an index", () => {
     const db = databaseAt(58);
     seedThreads(db);
     const before = contents(db);
-    db.exec("INSERT INTO schema_migrations VALUES(60, 'now')");
+    db.exec("INSERT INTO schema_migrations VALUES(61, 'now')");
     expect(() => migrateOpenBotDatabase(db)).toThrow("newer than this application supports");
-    db.exec("DELETE FROM schema_migrations WHERE version = 60; DELETE FROM schema_migrations WHERE version = 20");
+    db.exec("DELETE FROM schema_migrations WHERE version = 61; DELETE FROM schema_migrations WHERE version = 20");
     expect(() => migrateOpenBotDatabase(db)).toThrow("missing version 20");
     expect(contents(db)).toEqual(before);
     expect(indexColumns(db)).toEqual(NO_INDEXES);
   });
 
-  it("refuses to open a version 59 database in an older application", () => {
+  it("refuses to open a version 60 database in an older application", () => {
     const db = databaseAt(58);
     seedThreads(db);
     migrateOpenBotDatabase(db);
     const after = contents(db);
-    // An application one release older knows versions up to 59 at most: version 60 is newer than it supports.
-    db.exec("INSERT INTO schema_migrations VALUES(60, 'now')");
+    // An application one release older knows versions up to 60 at most: version 61 is newer than it supports.
+    db.exec("INSERT INTO schema_migrations VALUES(61, 'now')");
     expect(() => migrateOpenBotDatabase(db)).toThrow("newer than this application supports");
     expect(contents(db)).toEqual(after);
     expect(indexColumns(db)).toEqual(INDEXES);

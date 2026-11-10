@@ -33,6 +33,8 @@ export interface BootRecoveryHooks {
    * routine, whose record is gone. A Test, script or webhook run cannot.
    */
   quietRoutineDelivery(deliveryId: string): boolean;
+  /** Whether this thread is a routine's side thread, where a turn can end quiet. */
+  isRoutineThread(threadId: string): boolean;
   emitError(code: string, error: unknown, agentId?: string): void;
   /**
    * Fork (docs/fork/FEATURES.md, "Agents continue after a restart"): a thread as the previous run
@@ -399,6 +401,8 @@ export class BootRecovery {
             findDelivery: (deliveryId) => this.#mailbox.deliveryForProviderMessage(agent.id, deliveryId),
             findMessageDelivery: (messageId) => this.#mailbox.deliveryForMessage(messageId, agent.id),
             quietRoutineDelivery: (deliveryId) => this.#hooks.quietRoutineDelivery(deliveryId),
+            quietTeammateThread:
+              !this.#conversation.isExecutionThread(publicThreadId) || this.#hooks.isRoutineThread(publicThreadId),
           }).pipe(toBootRecoveryFailed);
           yield* recoveryStep(() => this.#refreshBackfilledConversation(agent.id, publicThreadId));
         }).pipe(

@@ -19,6 +19,7 @@ import {
   type AgentMemory,
   type AgentMemoryJournalEntry,
   type AgentMemorySelectionState,
+  type AgentProviderId,
   type AgentRuntimeSnapshot,
   type AgentStatus,
   type ClientAgentModelOption,
@@ -147,6 +148,12 @@ export function decodeHostDefaultProviderFromMain(value: unknown): HostDefaultPr
   if (preferredProvider !== null && !isAgentProvider(preferredProvider)) throw new Error("Invalid default provider.");
   if (preferredModel !== null && !isAgentModel(preferredModel)) throw new Error("Invalid default model.");
   return { preferredProvider, preferredModel };
+}
+
+/** The off providers of a joined server's host. Main has already left out the ones this build does not know. */
+export function decodeProviderUseFromMain(value: unknown): AgentProviderId[] {
+  if (!Array.isArray(value) || !value.every(isAgentProvider)) throw new Error("Invalid provider use.");
+  return value;
 }
 
 /** Main has already left out the providers that this build does not know, so each one must be known. */

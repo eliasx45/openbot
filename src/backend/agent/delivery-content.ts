@@ -10,7 +10,7 @@ import type {
   QueueDelivery,
   RoutineRun,
 } from "@openbot/contracts/ipc";
-import { redactText } from "@openbot/logging";
+import { redactSecrets, redactText } from "@openbot/logging";
 import { wokenWaitsPromptText } from "../agent-waits/agent-waits";
 import { FORK_WAIT_ROUTINE_ID } from "../agent-waits/fork-wait-conditions";
 import { agentSkillTagName, expandAgentCommandTags } from "../fork-agent-skills";
@@ -21,6 +21,7 @@ import { FORK_RESTART_RESUME_ROUTINE_ID } from "../fork-restart-resume";
 import { homeSkillRoot, homeSkillTagSlug } from "../home-skills";
 import type { DeliveryContext } from "../mailbox-store";
 import { quietRoutineRun, ROUTINE_NO_UPDATE_TOOL, ROUTINE_REPORT_FAILURE_TOOL } from "./routine-quiet-runs";
+import { pendingSkillSuggestionNote } from "./skill-suggestion";
 
 export function responseAttachmentMessageId(threadId: string, turnId: string, callId: string): string {
   const digest = createHash("sha256").update(`${threadId}\0${turnId}\0${callId}`).digest("hex").slice(0, 32);
@@ -326,6 +327,7 @@ export function deliveryPromptInput(context: DeliveryContext, sources: DeliveryP
         ? [
             NO_ANSWER_LINE,
             "Use it if it changes your work, and continue. Send no reply, acknowledgement or result: OpenBot sends the sender nothing back.",
+            `When nothing in it is for the user, call the ${ROUTINE_NO_UPDATE_TOOL} tool instead of a written answer.`,
           ]
         : [
             `Finish the whole request, then send a concise result to ${senderName} with openbot.send_message: recipientAgentIds ["${senderAgentId}"], replyToMessageId "${delivery.messageId}", expectsReply false.`,
@@ -371,6 +373,7 @@ export function deliveryPromptInput(context: DeliveryContext, sources: DeliveryP
       "The routine already exists, and its schedule is already configured.",
       "Do not create, update, delete, or test routines during this run.",
       "Perform the task below now. Do not answer only that the routine or monitoring is active.",
+      "Nobody answers you during this run. Do all of the task in this turn: do not stop after a step to report progress or to ask whether to continue.",
       "A task can tell you to remind the user or to send the user a message. When it names no other place, write that message as your final answer. OpenBot shows your final answer to the user in this chat. openbot.send_message sends to other agents, not to the user.",
       testRun
         ? "This is a manual Test run. Report the action and result even when a normal scheduled run would suppress a notification because there is no change."
@@ -382,12 +385,18 @@ export function deliveryPromptInput(context: DeliveryContext, sources: DeliveryP
     const waits = wokenWaitsPromptText(sources.wokenWaits ?? []);
     if (waits) text += `\n\n${waits}`;
   }
+  const skillSuggestion = pendingSkillSuggestionNote(
+    delivery,
+    snapshot.messages,
+    agentNames.get(delivery.recipientAgentId) ?? "Agent",
+  );
+  if (skillSuggestion) text = `${skillSuggestion}${CURRENT_MESSAGE_SEPARATOR}${text}`;
   if (managedAttachments.length) {
     text += `${ATTACHED_FILES_HEADER}${managedAttachments.map((item) => `- ${item.name}: ${item.path}`).join("\n")}`;
   }
   if (context.resumeAfterUsageLimit) {
     const continuationState = context.resumeAfterUsageLimit;
-    const progress = redactText(
+    const progress = redactSecrets(
       snapshot.messages
         .filter(
           (message) =>
@@ -443,6 +452,14 @@ export function nextStepContinuationPrompt(count: number, limit: number): string
     "OpenBot note, not a message from the user. Your last turn ended before the next step: you named the step or asked whether to continue, but you did not do it.",
     "Do the next step now, and continue until the request is done. Do not repeat finished work or restate earlier answers. Do not ask whether to continue. This note does not approve a risky action. If the request is already done, say so in one short line and end your turn. If you must wait, need the user's input or approval, or are blocked, say so in one short line and end your turn.",
     `Automatic continuation ${count} of ${limit}.`,
+  ].join("\n");
+}
+
+/** The note for a turn that a failed compaction stopped: the connection failed or stopped during it. */
+export function compactionContinuationPrompt(): string {
+  return [
+    "OpenBot note, not a message from the user. Your last turn stopped because the connection failed while your context was compacted.",
+    "Continue the work now, from where you stopped. Do not repeat finished work or restate earlier answers. Check the result of an action that was interrupted before you do it again. This note does not approve a risky action. If the request is already done, say so in one short line and end your turn. If you must wait, need the user's input or approval, or are blocked, say so in one short line and end your turn.",
   ].join("\n");
 }
 

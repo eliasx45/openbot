@@ -2,6 +2,7 @@ import type { PartialTranslation } from "../../message";
 import type { messages as source } from "../en/uiBlock";
 
 export const messages = {
+  "uiBlock.status.waiting": "Esperándote",
   "uiBlock.confirm.autoActionClock": "{action} · {time}",
   "uiBlock.hint.show": "Pista",
   "uiBlock.hint.next": "Pista {index}/{count}",

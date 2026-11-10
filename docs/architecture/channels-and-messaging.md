@@ -26,6 +26,18 @@ library, so the phone composes its layout with the two widget keys and the App G
 state carry an HMAC signature, which the app checks with the key of the host that the action goes
 to, so one host cannot sign an action for another.
 
+A question, an approval or a browser step can be of a side thread of an agent or of a channel thread.
+The tap link and the button links of such a view name the thread of the request in a `thread`
+parameter (`DynamicIslandCoordinator.requestThreadId`). The runtime work of an agent has the work of
+its side threads too, so a view that shows work names the side thread that runs the turn
+(`DynamicIslandCoordinator.workingTurn`; the host reads the thread from `AgentService.listTasks`, the
+phone from the thread lists that it has read). The parameter only says which conversation
+the app opens, so it is outside the signed action, and an app from before it reads the same links
+and opens the agent's chat. The app opens the thread as it opens the thread of a notification (see
+[Side thread notifications](#side-thread-notifications)). A link that starts the app gives the
+route of the agent's chat, and the thread opens when the app can navigate
+(`live-activity-link.ts`).
+
 ## iPhone notifications
 
 A host sends an iOS notification when an agent finishes a turn, stops with an error, cannot start a
@@ -114,7 +126,35 @@ The Notification Service Extension of the app (`apps/mobile/plugins/with-notific
 `NotificationService.swift`) opens the seal with the keys that the app writes into the App Group
 file `push-notifications.json`, and shows the agent name and the text. It refuses content that names
 another server than the one whose keys open it. A notification that it cannot open keeps the app
-name only. A tap opens the chat of the agent.
+name only. A tap opens the conversation of the thread that the notification names: the channel of a
+channel thread, a side thread of the agent, or else the chat of the agent.
+
+### Side thread notifications
+
+A turn in a side thread sends no `turn-completed` outside `AgentTasks`. When the turn is not quiet,
+`AgentTasks` sends the local `thread-turn-completed` event, with `routine: true` for the thread of a
+routine. `PushNotificationService` sends a routine thread turn to each phone, as it did when a
+routine ran in the agent's chat. It sends the turn of another side thread only to a phone that
+advertises `push-notification-threads-v1`, because an app from before it opens the agent's chat, and
+only while that phone did not turn these notifications off (`POST /v1/push-notifications/threads`
+with `replies`; Settings > Notifications > Thread replies). The host keeps the choice with the
+registration of the session in `openbot-push-notifications-v1.json` (`threadReplies`), also when the
+phone registers again. A request for input, an approval or a browser step of a side thread does not
+read the choice. The level, the mute, the preview and the Live Activity check apply as for the
+agent's chat, but the Live Activity shows the replies and the failed turn of the agent's own chat
+only, so it never replaces the notification of a side thread turn. The desktop notification and the
+completion sound still use routine thread turns only. So for the turn of another side thread, the
+phone stays quiet only while the member uses OpenBot: the window of the host's desktop app has focus,
+or the member sent, answered, or typed from another session in the last 30 seconds. Input in another
+app on a computer does not count for it, because no desktop then tells about that turn. A host does
+not keep such a turn for a phone that does not take it.
+
+The notification data has the thread of the event, not a task id, and the phone does not know the
+thread of an agent's own chat. So the app (`outside-target.ts`, used by `(app)/_layout.tsx`) opens
+the channel whose thread it is, or the side thread when the phone has read the agent's thread list.
+Else it opens the agent's chat at once and reads the thread list from the host
+(`agent-tasks-v1`); when the thread is a side thread, it opens on top of that chat. While the app is
+on screen, a notification of the chat or the side thread that shows is not shown again.
 
 ## Android notifications
 
@@ -168,8 +208,9 @@ for each version under `userData/avatars/channels/<sha256(channel id)>/`, served
 commits the URL, and then removes the old file. Archiving keeps the file; only the permanent
 delete of the channel records removes the folder. An icon or
 color choice removes the image. A name or hue that this version does not know shows the member
-faces or the default color. Only the local host edits the picture. The channels-v1 Team API codec
-keeps only its released fields, so remote clients, the web client, and mobile show member faces.
+faces or the default color. The channels-v1 Team API codec keeps only its released fields, so a
+client without `channel-picture-v1` shows member faces. A client with it reads and edits the picture
+through the host (see below).
 
 Each channel-agent pair has a separate execution thread in `projection_threads`. The normal agent
 thread is never replaced. Provider sessions, turns, questions, approvals, attachments, compaction,
@@ -201,9 +242,9 @@ returns idle gives it to the mentioned members, as a person who is named in a gr
 An existing task that routing selects keeps its instruction, and the new message is its follow-up.
 Each selected owner or existing task adds one channel message from the lead, so the selection is
 visible and the user can correct it. Deterministic selection adds no message, and a lead that selects
-only itself adds none: its reply shows who answers. A routing answer that does not decode pauses the
-task with `channelRoutingUnreadable` and offers Reassign. The log gets the answer length and its
-field names only, not its text.
+only itself adds none: its reply shows who answers. A routing answer that does not decode goes to the
+lead, as an unclear request does. The log gets the answer length and its field names only, not its
+text.
 
 A message that opens with agent mentions ("@A @B what do you think?") goes to each mentioned member
 that can take work, with no routing turn. A quote tag before or between the mentions does not end
@@ -243,7 +284,9 @@ lead routes it. A channel without a lead refuses a request that names nobody
 (`channelLeadRequired`). The command does not go through `parseChannelCommand`, so no client can
 post as an agent. The tool call id gives the operation id, so a retried call posts no second
 message. Inside a channel task, `send_to_channel` is refused; use `channel_assign` or
-`channel_transfer`. On desktop, a person can do the same by hand: "Send to channel" on a message of
+`channel_transfer`. It is also refused in an external chat thread and in a turn that answers a
+teammate request from one (`answersMessagingRequest`): no channel result comes back, so the person
+would get no answer (#6160). The agent asks the members with `send_message`, whose answers come back. On desktop, a person can do the same by hand: "Send to channel" on a message of
 an agent chat opens the channel with the message text in its composer. Attachments stay behind.
 
 A workflow output with the target `chat-channel` posts its result as a note (`ChannelService.postNote`).
@@ -506,6 +549,15 @@ the "Keep memories in this channel" setting. The channels-v1 codec drops the fie
 server or the browser client shows the switch only when the host advertises the capability (#5380).
 A save without the field keeps the stored value, so a phone or an older client does not turn it off.
 
+On a host with `channel-picture-v1`, each channel record carries its picture: `icon` and the
+`openbot-avatar://channel/` `imageUrl`, which names only the image version. A `save` draft can carry
+`icon`; absent keeps the stored icon, and null removes it. `/v1/channels/image?channelId=` reads the
+image bytes by version (`GET`), sets them (`PUT`) and removes them (`DELETE`). The phone keeps the
+images beside the agent photos in its cache and edits the picture in Channel info, as the desktop
+channel settings do. The browser client cannot open the host URL, so it reads the bytes of each
+version into a data URL. A joined desktop changes the URL to `openbot-remote-avatar://<server>/channel/<id>`,
+which reads the same route. Both clients set the icon and the image as the phone does.
+
 On a host with `channel-attention-v1`, each channel summary names the threads of its members. The
 channel then shows the approvals and browser steps of those threads, and the agent's own chat does
 not. An older host gives no threads: the channel shows the approvals of the members that run one of
@@ -645,6 +697,17 @@ transport for its events. `messaging-types.ts` is the seam; the core never reads
   the exception: the router passes them to `MessagingThreads.outboundTool` from any thread, their
   arguments name an enabled connection and a place, and `MessagingService` answers them through
   `MessagingThreads.setOutbound` with the adapter's `places` and `postAnswer`, after `redactText`.
+  A Slack post with live user mentions (`slackPingedUsers`) stores one `projection_messaging_pings`
+  row for each person, with the calling agent and the redacted post, unless a person's mention opened
+  the thread. In a thread with pings, a reply without a mention counts only from a pinged person,
+  also after the link exists: the first one skips the workflows and goes to the orchestrator with the
+  post as its `replyTo`. An answer in such a thread that pings people records them too
+  (`MessagingThreads.recordPings`). Deleting an agent deletes the pings of its threads and its pings of threads
+  that no reply opened. A thread `message` event that mentions OpenBot is
+  left to its `app_mention` event, so the order of the two events does not decide the route.
+- **Quiet answer.** In Slack threads the guidance lets the agent answer only `NO_REPLY` when a
+  message needs no answer. `finalPost` then keeps the reaction and posts nothing, and the adapter's
+  `remove` deletes the status post. An adapter without `remove` edits it to the no-answer text.
 - **Order.** The one-turn-per-agent rule is unchanged, so Slack requests wait behind the agent's own
   work and behind channel work that holds the host. The Slack thread shows a waiting post.
 - **Replies.** `MessagingThreads` reports each turn start and end. `MessagingService` posts a status

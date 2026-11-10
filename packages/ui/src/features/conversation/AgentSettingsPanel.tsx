@@ -154,8 +154,10 @@ export interface AgentSettingsPanelProps {
   quickAcknowledgementEditable?: boolean;
   /** Fast mode, as the model picker of the chat header shows it. */
   fastMode?: boolean | undefined;
-  /** Without it, the model picker shows no Fast switch. The picker shows it only for a model with a fast tier. */
-  onFastModeChange?: ((fastMode: boolean) => void) | undefined;
+  /** With `fastMode`, the Ultrafast tier in place of Fast. */
+  ultrafast?: boolean | undefined;
+  /** Without it, the model picker shows no Speed control. The picker shows it only for a model with a fast tier. */
+  onFastModeChange?: ((fastMode: boolean, ultrafast: boolean) => void) | undefined;
   /** The browser profile of the agent's tabs. Left out when the host cannot change it. */
   browserProfiles?: AgentBrowserProfileOptions | undefined;
   /** The user's own notification level for the agent. Left out when the server cannot keep it. */
@@ -172,6 +174,8 @@ export interface AgentSettingsPanelProps {
   folders?: AgentFolderCalls | undefined;
   /** Whether a usage limit holds this model and account now, for the backup models page. */
   usageLimited?: ((choice: AgentModelChoice) => boolean) | undefined;
+  /** Whether a provider error holds this model and account now, for the backup models page. */
+  providerFailed?: ((choice: AgentModelChoice) => boolean) | undefined;
   /** The app or host default an agent without its own busy-message setting follows. */
   defaultBusyMessageMode?: BusyMessageMode | undefined;
   /** The account defaults an agent without its own value follows. Absent for a remote agent. */
@@ -575,8 +579,10 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
   });
 
   onCleanup(() => {
-    if (lastAgentId) flushDirtyTextFields(lastAgentId);
+    // First, so the saves below do not read `props.agent`: the parent's <Show> that holds it is
+    // already closed and throws on the read, which lost an edit closed with Escape (#6205).
     disposed = true;
+    if (lastAgentId) flushDirtyTextFields(lastAgentId);
   });
 
   async function saveAgentPatch(
@@ -707,7 +713,9 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
     }
   }
 
+  // The blur that a closing panel causes comes after its cleanup, which saved the field already.
   function saveName(): void {
+    if (disposed) return;
     const value = draft.fields.name.trim() || t("agent.setup.nameFallback");
     setDraft((state) => {
       state.fields.name = value;
@@ -716,6 +724,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
   }
 
   function saveTitle(): void {
+    if (disposed) return;
     const value = draft.fields.title.trim();
     setDraft((state) => {
       state.fields.title = value;
@@ -724,6 +733,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
   }
 
   function saveDescription(): void {
+    if (disposed) return;
     cancelInstructionsSaveTimer();
     queueTextSave(textSaveRequest("description", props.agent.id));
   }
@@ -1432,6 +1442,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                     if (effort !== draft.runtime.reasoningEffort) void selectReasoning(effort);
                   }}
                   fastMode={props.fastMode}
+                  ultrafast={props.ultrafast}
                   onFastModeChange={props.onFastModeChange}
                 />
               </SettingsLinkGroup>
@@ -1598,6 +1609,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                   modelOptions: props.modelOptions,
                   providers: props.agentStatus.providers,
                   limited: props.usageLimited,
+                  failed: props.providerFailed,
                 }}
                 onChange={(next) => void saveBackupModels(next)}
               />

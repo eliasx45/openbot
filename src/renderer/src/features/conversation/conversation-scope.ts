@@ -35,10 +35,12 @@ import { actionToast } from "../../action-toast";
 import { createScopeGuard } from "../../scope-lifetime";
 import { appendVoiceTranscript } from "../../voice-recording";
 import { serverSupportsCapability } from "../servers/server-capabilities";
+import { codexLiveAccess } from "../speech/codex-live-access";
 import { createAttachmentImportSounds } from "./attachment-import-sounds";
 import type { ChatSearchMatch } from "./chat-search";
 import { useConversationController } from "./conversation-controller-context";
 import { agentConversationKey, composerDraftKey } from "./conversation-keys";
+import { conversationPort } from "./conversation-port";
 import { conversationRuntime } from "./conversation-runtime";
 import type {
   AgentSettingsRequest,
@@ -353,6 +355,21 @@ export function createConversationViewScope(props: ConversationProps) {
     askSideQuestion,
     deleteSideQuestion,
   } = sideQuestions;
+  /**
+   * Save on a skill question: the host writes the skill in the background, not in a turn of the
+   * agent. False when the host saved nothing or cannot be asked; then the card sends the user's yes.
+   */
+  async function saveSkillSuggestion(messageId: string): Promise<boolean> {
+    const agentId = props.agent?.id;
+    if (!agentId) return false;
+    const input = { agentId, messageId };
+    const save = props.runtime
+      ? props.runtime.saveSkillSuggestion?.(input)
+      : conversationPort().agent.saveSkillSuggestion(input, props.server?.id);
+    // A failed request falls back to the yes, so the lesson is not lost.
+    const result = await save?.catch(() => null);
+    return result?.saved === true;
+  }
   const skills = createSkillsStore({ props, settingsOpen });
   const { installedSkills, installedSkillsLoadFailed } = skills;
   const { mcpServers } = createMcpServersStore({ props });
@@ -849,6 +866,7 @@ export function createConversationViewScope(props: ConversationProps) {
     timelineMessages,
     toggleRoutineRun,
     toggleAgentMessage,
+    updateAnswers,
     timelineIndexById,
     unreadBoundaryMessageId,
     updateScrollFade,
@@ -1243,11 +1261,14 @@ export function createConversationViewScope(props: ConversationProps) {
     boundaryId: string | null | undefined;
     /** The chat opened at the divider and keeps it in view until the reader or a jump moves the chat. */
     holding: boolean;
+    /** The opening frames are done, so a later growth is new content, not the opening layout. */
+    settled: boolean;
   } = {
     identity: undefined,
     pending: false,
     boundaryId: undefined,
     holding: false,
+    settled: false,
   };
   let conversationPanel: HTMLElement | undefined;
   const [browserSurface, setBrowserSurface] = createSignal<HTMLDivElement>();
@@ -1379,32 +1400,70 @@ export function createConversationViewScope(props: ConversationProps) {
     await props.onUpdateAgent(agentId, updates);
     return true;
   }
-  // The switch shows the new value while the save runs. The saved agent then holds it.
-  const [fastModeDraft, setFastModeDraft] = createSignal<{ agentId: string; fastMode: boolean }>();
+  // The Speed select shows the new value while the save runs. The saved agent then holds it.
+  const [fastModeDraft, setFastModeDraft] = createSignal<{ agentId: string; fastMode: boolean; ultrafast: boolean }>();
   const fastMode = () => {
     const draft = fastModeDraft();
     return draft && draft.agentId === props.agent?.id ? draft.fastMode : props.agent?.fastMode === true;
   };
+  const ultrafast = () => {
+    const draft = fastModeDraft();
+    return draft && draft.agentId === props.agent?.id ? draft.ultrafast : props.agent?.ultrafast === true;
+  };
   /**
-   * The Fast switch of the model pickers, in the chat header and in the agent settings. Codex only
-   * for now: on this computer, or on a joined server with `agent-fast-mode-v1`.
+   * The Speed select of the model pickers, in the chat header and in the agent settings: on this
+   * computer, or on a joined server with `agent-fast-mode-v1`. The picker shows it only for a model
+   * that the host lists with a fast tier (Codex, and Claude since its client lists `fast`). A joined
+   * server lists no Ultrafast tier, so its picker offers Standard and Fast.
    */
   const fastModeChange = () =>
-    settingsProvider() === "codex" &&
-    (props.server?.kind === "local" || serverSupportsCapability(props.server, AGENT_FAST_MODE_CAPABILITY))
-      ? (next: boolean) => void changeFastMode(next)
+    props.server?.kind === "local" || serverSupportsCapability(props.server, AGENT_FAST_MODE_CAPABILITY)
+      ? (next: boolean, nextUltrafast: boolean) => requestFastMode(next, nextUltrafast)
       : undefined;
-  async function changeFastMode(next: boolean): Promise<void> {
+  /**
+   * The agent that waits for the user to confirm fast mode. Claude fast mode costs more per token, and
+   * a Claude subscription pays for it from usage credits also when the plan has usage left.
+   */
+  const [fastModeConfirmation, setFastModeConfirmation] = createSignal<string>();
+  function requestFastMode(next: boolean, nextUltrafast: boolean): void {
+    const agentId = props.agent?.id;
+    if (next && agentId && settingsProvider() === "claude") {
+      setFastModeConfirmation(agentId);
+      return;
+    }
+    void changeFastMode(next, nextUltrafast);
+  }
+  // The confirmation belongs to the agent on the screen. It ends when a different agent opens, so it
+  // does not open again when the user comes back to that agent.
+  createEffect(
+    () => props.agent?.id,
+    (agentId) => {
+      if (agentId !== untrack(fastModeConfirmation)) setFastModeConfirmation(undefined);
+    },
+  );
+  const fastModeConfirmationOpen = () => {
+    const agentId = fastModeConfirmation();
+    return agentId !== undefined && agentId === props.agent?.id;
+  };
+  function confirmFastMode(): void {
+    if (!fastModeConfirmationOpen()) return;
+    setFastModeConfirmation(undefined);
+    void changeFastMode(true, false);
+  }
+  function cancelFastModeConfirmation(): void {
+    setFastModeConfirmation(undefined);
+  }
+  async function changeFastMode(next: boolean, nextUltrafast: boolean): Promise<void> {
     const agentId = props.agent?.id;
     if (!agentId) return;
-    const draft = { agentId, fastMode: next };
+    const draft = { agentId, fastMode: next, ultrafast: next && nextUltrafast };
     setFastModeDraft(draft);
     setScopedComposerError(null);
     const { t, errorMessage } = currentText();
     let saved = false;
     let failure = t("composer.error.changeFastMode");
     try {
-      saved = await saveAgentPatch({ fastMode: next }, agentId);
+      saved = await saveAgentPatch({ fastMode: next, ...(draft.ultrafast ? { ultrafast: true } : {}) }, agentId);
     } catch (error) {
       failure = errorMessage(error, failure);
     }
@@ -1597,13 +1656,22 @@ export function createConversationViewScope(props: ConversationProps) {
       const viewportGrowth = scrollElement ? scrollElement.clientHeight - viewportHeight : 0;
       viewportHeight = scrollElement?.clientHeight ?? 0;
       if (scrollElement && stickToLatest && viewportGrowth < 0) scrollElement.scrollTop -= viewportGrowth;
+      const contentGrew =
+        scrollElement !== undefined && scrollElement.scrollHeight - scrollElement.clientHeight > lastMaxScrollTop;
       const readerAbove = scrollElement !== undefined && readerAboveShrinkingContent(scrollElement);
       if (scrollElement && stickToLatest) {
         if (!readerAbove) glideConversationBottom(scrollElement);
       }
       // An image or a preview that lays out after the opening grows a row above the divider. The chat
       // has no browser scroll anchoring, so without this the divider moves down out of view.
-      else if (scrollElement && unreadOpening.holding) scrollToUnreadDivider(scrollElement);
+      else if (scrollElement && unreadOpening.holding) {
+        // A reply that the agent still writes grows below the view. The reader did not move the chat
+        // since it opened, so the chat follows the reply, and the divider can go above the view.
+        if (unreadOpening.settled && contentGrew && props.activeTurnId) {
+          setStickToLatest(true);
+          glideConversationBottom(scrollElement);
+        } else scrollToUnreadDivider(scrollElement);
+      }
       updateScrollFade();
       updateUnreadDividerVisibility();
     });
@@ -1867,7 +1935,7 @@ export function createConversationViewScope(props: ConversationProps) {
     },
     ({ identity, loaded, boundaryId, boundaryIndex }) => {
       if (identity !== unreadOpening.identity) {
-        unreadOpening = { identity, pending: true, boundaryId: undefined, holding: false };
+        unreadOpening = { identity, pending: true, boundaryId: undefined, holding: false, settled: false };
       }
       // A later boundary, such as a message that arrived while the reader was away, is not where they opened.
       if (boundaryId !== unreadOpening.boundaryId) unreadOpening.holding = false;
@@ -1897,7 +1965,8 @@ export function createConversationViewScope(props: ConversationProps) {
           scrollToUnreadDivider(scrollElement);
           updateScrollFade(scrollElement);
           updateUnreadDividerVisibility();
-          if (!settle) openAtDivider(true);
+          if (settle) opening.settled = true;
+          else openAtDivider(true);
         });
       openAtDivider(false);
     },
@@ -2378,10 +2447,15 @@ export function createConversationViewScope(props: ConversationProps) {
     attachmentPicker = element;
   };
   /**
-   * A voice conversation hears and speaks on this computer, so it needs its speech models. A remote
-   * server gets the text only.
+   * A transcribed voice conversation hears and speaks on this computer with its speech models, so a
+   * browser cannot run it, and dictation stays on this computer for the same reason. Codex live voice
+   * runs in the Codex of the host and sends the audio from this page to OpenAI, so a browser has it
+   * when the host serves it, the user turned it on, and the host's Codex has a ChatGPT sign-in.
    */
-  const voiceConversationAvailable = () => !channel && !props.runtime;
+  const voiceConversationAvailable = () =>
+    !channel &&
+    (!props.runtime ||
+      (props.runtime.liveVoice !== undefined && codexLiveAccess(props.agentStatus.providers) !== "signIn"));
   // A transcribed conversation sends its turns through this view, so it ends with the view.
   onCleanup(() => controller.voiceSessions.end("transcribed"));
   /** Starts a voice conversation with an agent. It ends with the owner that calls this. */
@@ -2541,6 +2615,7 @@ export function createConversationViewScope(props: ConversationProps) {
     timelineMessages,
     toggleRoutineRun,
     toggleAgentMessage,
+    updateAnswers,
     timelineIndexById,
     unreadBoundaryMessageId,
     moveChatSearch,
@@ -2610,6 +2685,7 @@ export function createConversationViewScope(props: ConversationProps) {
     removeSelectionNote,
     editSelectionNote,
     sendCardMessage,
+    saveSkillSuggestion,
     quoteRequest,
     quoteSelection,
     openQuote,
@@ -2624,7 +2700,11 @@ export function createConversationViewScope(props: ConversationProps) {
     setComposerError: setScopedComposerError,
     changeFastMode,
     fastMode,
+    ultrafast,
     fastModeChange,
+    fastModeConfirmationOpen,
+    confirmFastMode,
+    cancelFastModeConfirmation,
     setComposerFocusRequest,
     setDropActive,
     setExpandedEmojiMessageId,

@@ -34,6 +34,9 @@ export const messages = {
     "Dit wordt een openbare GitHub-issue, met de appversie en je systeem. Je naam is niet zichtbaar.",
   "status.agent.sendIdea": "Dit wordt een openbaar GitHub-issue. Je naam wordt niet getoond.",
   "status.agent.feedbackSent": "Naar het OpenBot-team gestuurd: {title}",
+  "status.agent.serverInstallCommand":
+    "Een eenmalige opdracht maken die OpenBot op een andere computer installeert als de server {name} en die aanmeldt bij je account. De agent voert hem daar uit.",
+  "status.agent.serverInstallCard": "Installatieopdracht voor de server {name}",
   "status.agent.feedbackSending": "Je feedback wordt naar het OpenBot-team gestuurd…",
   "status.agent.workflowDelete": "Verwijder de workflow {title} met zijn runs en versies. Zijn open stappen stoppen.",
   "status.agent.vaultCardFillFrames": "De kaartvelden staan in frames van {origins}.",
@@ -119,5 +122,7 @@ export const messages = {
   "status.agent.vaultField.email": "E-mailadres",
   "status.agent.nextStepContinues": "De agent stopte vóór de volgende stap en gaat verder ({current} van {limit}).",
   "status.agent.planContinues": "Het plan heeft open stappen. De agent gaat verder ({current} van {limit}).",
+  "status.agent.compactionContinues":
+    "De verbinding viel weg terwijl de agent zijn context comprimeerde. De agent gaat verder.",
   "status.agent.branchTitle": "Afgetakte chat",
 } as const satisfies PartialTranslation<typeof source>;

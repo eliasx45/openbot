@@ -13,6 +13,8 @@ import {
   parseHostedServerCatalog,
   parseHostedServerList,
   parseHostedServerSummary,
+  parseServerClaim,
+  type ServerClaim,
 } from "@openbot/contracts/hosted-servers";
 import { parseHostedSiteList, parseHostedSiteSummary } from "@openbot/contracts/hosted-sites";
 import {
@@ -23,6 +25,7 @@ import {
   type AnalyticsPreference,
   type AppAppearancePreference,
   type AppBehaviorPreference,
+  type AppFontFamily,
   type AppInfo,
   type AppInterfaceSizePreference,
   type AppLanguagePreference,
@@ -65,6 +68,7 @@ import {
   isAgentModel,
   isAgentProvider,
   isAppAppearance,
+  isAppFontFamily,
   isAppInterfaceSize,
   isAppLanguage,
   isAppLogoColor,
@@ -166,7 +170,8 @@ import {
 
 export function decodeAppInfo(value: unknown): AppInfo {
   const info = decodeRecord(value, "app info");
-  const { platform, variant, analyticsCaptureUrl, analyticsInstallId, softwareRendering, hourCycle } = info;
+  const { platform, variant, analyticsCaptureUrl, analyticsInstallId, softwareRendering, hourCycle, aboveAppsSupport } =
+    info;
   if (!isOneOf(["darwin", "win32", "linux"] as const, platform)) throw new Error("Invalid platform.");
   if (!isOneOf(["production", "dev", "preview"] as const, variant)) throw new Error("Invalid variant.");
   if (analyticsCaptureUrl !== undefined && !isString(analyticsCaptureUrl))
@@ -176,6 +181,8 @@ export function decodeAppInfo(value: unknown): AppInfo {
   if (softwareRendering !== undefined && !isBoolean(softwareRendering))
     throw new Error("Invalid software rendering flag.");
   if (hourCycle !== undefined && !isOneOf(["h12", "h23"] as const, hourCycle)) throw new Error("Invalid hour cycle.");
+  if (aboveAppsSupport !== undefined && !isOneOf(["restart", "unsupported"] as const, aboveAppsSupport))
+    throw new Error("Invalid agent dock screen support.");
   return {
     name: requiredString(info, "name"),
     version: requiredString(info, "version"),
@@ -185,6 +192,7 @@ export function decodeAppInfo(value: unknown): AppInfo {
     ...(analyticsInstallId === undefined ? {} : { analyticsInstallId }),
     ...(softwareRendering === undefined ? {} : { softwareRendering }),
     ...(hourCycle === undefined ? {} : { hourCycle }),
+    ...(aboveAppsSupport === undefined ? {} : { aboveAppsSupport }),
   };
 }
 
@@ -226,6 +234,7 @@ export function decodeAgentDefaults(value: unknown): AgentDefaults {
   decoded.planStartAfterMs = defaults.planStartAfterMs;
   if (!isAutomationRunsPerHour(defaults.automationRunsPerHour)) throw new Error("Invalid local script limit.");
   decoded.automationRunsPerHour = defaults.automationRunsPerHour;
+  decoded.commitCoAuthor = requiredBoolean(defaults, "commitCoAuthor");
   return decoded;
 }
 
@@ -259,6 +268,17 @@ function decodeChatBackground(value: unknown): ChatBackgroundColor | null {
   return value;
 }
 
+/** A font name becomes part of a CSS font list in the page, so only a name that can go there passes. */
+function decodeFontFamily(value: unknown): AppFontFamily | null {
+  if (value !== null && !isAppFontFamily(value)) throw new Error("Invalid font.");
+  return value;
+}
+
+export function decodeInstalledFonts(value: unknown): AppFontFamily[] {
+  if (!Array.isArray(value) || !value.every(isAppFontFamily)) throw new Error("Invalid installed fonts.");
+  return [...value];
+}
+
 export function decodeAppAppearancePreference(value: unknown): AppAppearancePreference {
   const preference = decodeRecord(value, "appearance preference");
   if (!isAppAppearance(preference.appearance)) throw new Error("Invalid appearance.");
@@ -273,6 +293,8 @@ export function decodeAppAppearancePreference(value: unknown): AppAppearancePref
     palettes,
     chatBackgroundLight: decodeChatBackground(preference.chatBackgroundLight),
     chatBackgroundDark: decodeChatBackground(preference.chatBackgroundDark),
+    interfaceFont: decodeFontFamily(preference.interfaceFont),
+    codeFont: decodeFontFamily(preference.codeFont),
   };
 }
 
@@ -737,6 +759,12 @@ export function decodeHostedServer(value: unknown): HostedServerSummary {
   const server = parseHostedServerSummary(value);
   if (!server) throw new Error("Invalid hosted server response.");
   return server;
+}
+
+export function decodeServerClaim(value: unknown): ServerClaim {
+  const claim = parseServerClaim(value);
+  if (!claim) throw new Error("Invalid server claim response.");
+  return claim;
 }
 
 export function decodeHostedServerCatalog(value: unknown): HostedServerCatalog {

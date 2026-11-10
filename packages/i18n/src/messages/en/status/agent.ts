@@ -30,6 +30,9 @@ export const messages = defineMessages("status.agent", {
     "This becomes a public GitHub issue, with the app version and your system. Your name is not shown.",
   "status.agent.sendIdea": "This becomes a public GitHub issue. Your name is not shown.",
   "status.agent.feedbackSent": "Sent to the OpenBot team: {title}",
+  "status.agent.serverInstallCommand":
+    "Make a one-time command that installs OpenBot on another computer as the server {name} and signs it in to your account. The agent runs it there.",
+  "status.agent.serverInstallCard": "Install command for the server {name}",
   "status.agent.feedbackSending": "Sending your feedback to the OpenBot team…",
   "status.agent.workflowDelete": "Delete the workflow {title} with its runs and versions. Its open steps stop.",
   "status.agent.vaultCardFillFrames": "The card fields are in frames from {origins}.",
@@ -116,6 +119,8 @@ export const messages = defineMessages("status.agent", {
   "status.agent.vaultField.email": "Email address",
   "status.agent.nextStepContinues": "The agent stopped before its next step. It continues ({current} of {limit}).",
   "status.agent.planContinues": "The plan has open steps. The agent continues ({current} of {limit}).",
+  "status.agent.compactionContinues":
+    "The connection stopped while the agent compacted its context. The agent continues.",
   "status.agent.branchTitle": "Branched chat",
   // Fork: goal mode (docs/fork/FEATURES.md, "/goal").
   "status.agent.goalTurn": "🎯 Goal turn {current} of {limit}: {next}",
@@ -149,4 +154,5 @@ export const messages = defineMessages("status.agent", {
     "⏹ Background subagent “{title}” stopped when its Claude process ended. It was not continued: {provider} did not start again in time. Write “continue the subagent” to continue it.",
   "status.agent.subagentResumeOff":
     "⏹ Background subagent “{title}” stopped when its Claude process ended. It was not continued, because /autoresume is off.",
+  "status.agent.importedChatTitle": "Imported chat",
 });

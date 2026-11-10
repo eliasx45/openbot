@@ -1,6 +1,11 @@
 import { fileQuoteId } from "@openbot/contracts/chat-tag-references";
 import { chatVisualReply } from "@openbot/contracts/chat-visual";
-import { type AgentApproval, type ConversationMessageSender, currentPlanStep, type MessageReaction } from "@openbot/contracts/ipc";
+import {
+  type AgentApproval,
+  type ConversationMessageSender,
+  currentPlanStep,
+  type MessageReaction,
+} from "@openbot/contracts/ipc";
 import type { ConversationUiBlock } from "@openbot/contracts/ui-blocks";
 import { Button } from "@openbot/ui";
 import type { AgentMessage, ChatActionMarkerModel, MessageKind } from "@openbot/ui/data";
@@ -24,8 +29,8 @@ import { ChatSearch } from "@openbot/ui/features/conversation/ChatSearch";
 import { ChatVisual } from "@openbot/ui/features/conversation/ChatVisual";
 import { ContextCompactionMarker, type ContextCompactionView } from "@openbot/ui/features/conversation/ContextUsage";
 import { dayMarkerLabel } from "@openbot/ui/features/conversation/chat-day-markers";
-import { LiveWorkDock } from "@openbot/ui/features/conversation/LiveWork";
 import { feedbackApproval } from "@openbot/ui/features/conversation/feedback-approval";
+import { LiveWorkDock } from "@openbot/ui/features/conversation/LiveWork";
 import { markdownPlainText } from "@openbot/ui/features/conversation/MarkdownMessageText";
 import { ReplyReturnButton, ScrollToLatestButton } from "@openbot/ui/features/conversation/MessageNavigation";
 import {
@@ -49,7 +54,7 @@ import { useShowAgentSteps } from "../../agent-steps-preference";
 import { planItems, planTitle } from "../../app-message-projection";
 import { useCompactMessageActions } from "../../compact-message-actions-preference";
 import { currentDevicePlatform, deviceQuoteShortcut } from "../../send-shortcut-preference";
-import { remoteRoutineRecovery } from "../servers/server-capabilities";
+import { remoteRoutineRecovery, serverCanAdminister } from "../servers/server-capabilities";
 import { speechModelReady } from "../speech/speech-model";
 import { recordingGone, speechReading, spokenReply } from "../speech/speech-playback";
 import {
@@ -81,6 +86,8 @@ import { createMessagePdfPages } from "./message-pdf-pages";
 import { RoutineChatCard } from "./RoutineChatCard";
 import { createChatWebhookRoutines, RoutineWebhookChatCard } from "./RoutineWebhookChatCard";
 import { desktopChatEventRoutinesApi } from "./routine-webhooks-api";
+import { ServerInstallChatCard } from "./ServerInstallChatCard";
+import { SkillSuggestionChatCard, skillSuggestionOutcome } from "./SkillSuggestionChatCard";
 import { PENDING_SEND_ID_PREFIX, pendingSendRetrySafe } from "./stores/pending-send-store";
 import { createSubagentDock } from "./subagent-dock";
 import { createTurnSteps, SUBAGENT_SPAN_PREFIX } from "./turn-steps";
@@ -176,6 +183,7 @@ export function ConversationTimeline() {
     timelineMessages,
     toggleRoutineRun,
     toggleAgentMessage,
+    updateAnswers,
     timelineIndexById,
     unreadBoundaryMessageId,
     moveChatSearch,
@@ -195,6 +203,7 @@ export function ConversationTimeline() {
     props,
     mcpServers,
     sendCardMessage,
+    saveSkillSuggestion,
     reactToMessage,
     renderedAgentActivity,
     activeStepActivity,
@@ -360,10 +369,25 @@ export function ConversationTimeline() {
   // client keep their chips as before.
   const pdfPages = props.runtime ? undefined : createMessagePdfPages(runtime.agent);
   const showsPdfPeek = () => props.server?.kind === "local" && checkFileChip !== undefined;
-  const instructionsCalls = agentInstructionsCalls();
-  /** View and Undo on an instructions change line: the file is in the workspace on this computer. */
-  const localInstructionsCalls = () =>
-    props.server?.kind === "local" && !props.runtime ? instructionsCalls : undefined;
+  const localInstructions = agentInstructionsCalls();
+  /**
+   * The server whose instruction file View and Undo read on a change line: a joined server only for an
+   * owner or admin, through `agent-instructions-v1`. The calls follow the server id, so a new summary
+   * of the same server keeps an open view. The web client gets the calls from its runtime, which gives
+   * them only for such a host and user.
+   */
+  const webInstructionsApi = createMemo(() => props.runtime?.agentInstructions);
+  const instructionsServerId = createMemo(() => {
+    if (props.runtime) return webInstructionsApi() ? props.server?.id : undefined;
+    return props.server?.kind === "remote" && serverCanAdminister(props.server, "agent-instructions-v1")
+      ? props.server.id
+      : undefined;
+  });
+  const instructionsCalls = createMemo(() => {
+    if (!props.runtime && props.server?.kind === "local") return localInstructions;
+    const serverId = instructionsServerId();
+    return serverId === undefined ? undefined : agentInstructionsCalls(serverId, webInstructionsApi());
+  });
   /** The agent that asks in a card: in a channel, the working agent whose card shows. */
   const interactionAgentName = () => (channel ? channel.interactionAgentName() : props.agent?.name);
 
@@ -439,10 +463,12 @@ export function ConversationTimeline() {
   };
   /*
    * The text of an agent message opens under its marker as the sender's message, with a quote of the
-   * request it answers. Its attachments stay under the marker, so the row draws none.
+   * request it answers. Its attachments stay under the marker, so the row draws none. The quiet
+   * answers of a teammate update follow it, as the agent's own messages.
    */
   const agentMessageText = (messageId: string) => {
     const message = () => agentMessagesByExchangeId().get(messageId);
+    const quietAnswers = () => updateAnswers().get(messageId) ?? [];
     const request = () => exchangeRequest(message()?.exchange?.replyToMessageId);
     const quoted = (): AgentMessage | undefined => {
       const current = request();
@@ -455,68 +481,94 @@ export function ConversationTimeline() {
       return current && requestAuthorName(current);
     };
     return (
-      <Show when={message()}>
-        {(current) => (
-          <ChatMessageRow
-            message={{
-              id: current().id,
-              author: "agent",
-              body: current().body,
-              time: current().time,
-              ...(current().createdAt === undefined ? {} : { createdAt: current().createdAt }),
-              kind: "text",
-            }}
-            author={exchangeAuthor(current())}
-            showAuthor
-            showTime
-            agents={props.agents}
-            referencedMessage={quoted()}
-            referencedAuthorName={quotedAuthorName()}
-            // The sender's name opens the side thread that sent the message, or else the sender's own chat.
-            // Another agent, such as a mention in the text, opens as before.
-            onSelectAgent={(agentId) =>
-              agentId === current().exchange?.senderAgentId
-                ? props.onSelectAgent(agentId, current().exchange?.senderTaskId ?? MAIN_THREAD_ID)
-                : props.onSelectAgent(agentId)
-            }
-            onOpenLink={(url) => void openExternalMessageUrl(url)}
-            onPreview={(attachment) => void previewAttachment(attachment)}
-            onAttachmentAction={attachmentAction}
-            onOpenSharedFile={(path) => openSharedFile(path)}
-            // A workspace path is in the workspace of the agent that wrote it, as in a channel.
-            onOpenWorkspaceFile={(path) => openWorkspaceFile(path, undefined, current().exchange?.senderAgentId)}
-            checkFileChip={
-              checkFileChip &&
-              ((file) =>
-                checkFileChip(file, {
-                  serverId: props.server?.id ?? "local",
-                  messageId: current().id,
-                  agentId: current().exchange?.senderAgentId,
-                }))
-            }
-            previewFileChip={
-              pdfPages && showsPdfPeek()
-                ? (file, page, signal) =>
-                    pdfPages(
-                      file,
-                      page,
-                      {
-                        serverId: props.server?.id ?? "local",
-                        messageId: current().id,
-                        agentId: current().exchange?.senderAgentId,
-                      },
-                      signal,
-                    )
-                : undefined
-            }
-            onOpenQuote={openQuote}
-            onOpenTag={openTaggedReference}
-            macWindowControls={props.platform === "darwin"}
-          />
-        )}
-      </Show>
+      <>
+        <Show when={message()}>
+          {(current) => (
+            <ChatMessageRow
+              message={{
+                id: current().id,
+                author: "agent",
+                body: current().body,
+                time: current().time,
+                ...(current().createdAt === undefined ? {} : { createdAt: current().createdAt }),
+                kind: "text",
+              }}
+              author={exchangeAuthor(current())}
+              showAuthor
+              showTime
+              agents={props.agents}
+              referencedMessage={quoted()}
+              referencedAuthorName={quotedAuthorName()}
+              // The sender's name opens the side thread that sent the message, or else the sender's own chat.
+              // Another agent, such as a mention in the text, opens as before.
+              onSelectAgent={(agentId) =>
+                agentId === current().exchange?.senderAgentId
+                  ? props.onSelectAgent(agentId, current().exchange?.senderTaskId ?? MAIN_THREAD_ID)
+                  : props.onSelectAgent(agentId)
+              }
+              onOpenLink={(url) => void openExternalMessageUrl(url)}
+              onPreview={(attachment) => void previewAttachment(attachment)}
+              onAttachmentAction={attachmentAction}
+              onOpenSharedFile={(path) => openSharedFile(path)}
+              // A workspace path is in the workspace of the agent that wrote it, as in a channel.
+              onOpenWorkspaceFile={(path) => openWorkspaceFile(path, undefined, current().exchange?.senderAgentId)}
+              checkFileChip={
+                checkFileChip &&
+                ((file) =>
+                  checkFileChip(file, {
+                    serverId: props.server?.id ?? "local",
+                    messageId: current().id,
+                    agentId: current().exchange?.senderAgentId,
+                  }))
+              }
+              previewFileChip={
+                pdfPages && showsPdfPeek()
+                  ? (file, page, signal) =>
+                      pdfPages(
+                        file,
+                        page,
+                        {
+                          serverId: props.server?.id ?? "local",
+                          messageId: current().id,
+                          agentId: current().exchange?.senderAgentId,
+                        },
+                        signal,
+                      )
+                  : undefined
+              }
+              onOpenQuote={openQuote}
+              onOpenTag={openTaggedReference}
+              macWindowControls={props.platform === "darwin"}
+            />
+          )}
+        </Show>
+        <For each={quietAnswers()}>
+          {(answer) => (
+            <ChatMessageRow
+              message={answer}
+              author={ownAgentAuthor()}
+              showTime
+              agents={props.agents}
+              onSelectAgent={props.onSelectAgent}
+              onOpenLink={(url) => void openExternalMessageUrl(url)}
+              onPreview={(attachment) => void previewAttachment(attachment)}
+              onAttachmentAction={attachmentAction}
+              onOpenWorkspaceFile={(path) => openWorkspaceFile(path, undefined, props.agent?.id)}
+              onOpenQuote={openQuote}
+              onOpenTag={openTaggedReference}
+              macWindowControls={props.platform === "darwin"}
+            />
+          )}
+        </For>
+      </>
     );
   };
+  /* The agent of this chat as the author of its own message. */
+  const ownAgentAuthor = (): ChatMessageAuthor => ({
+    kind: "agent",
+    name: props.agent?.name ?? t("chat.message.agentFallback"),
+    agent: props.agent,
+  });
   // A run of one sender breaks where another person starts to write, and in a channel where another
   // agent starts to write.
   const senderRunRow = (message: AgentMessage) => {
@@ -617,11 +669,20 @@ export function ConversationTimeline() {
   /** A suggestion this client can draw is a card. One for an app it does not know keeps the marker. */
   const suggestionMarker = (marker: ChatActionMarkerModel) =>
     marker.kind === "marketplace-suggestion" && marketplaceSuggestionKnown(marker.appId) ? marker : undefined;
+  /** A memory review's skill suggestion with its name is a card; one from an older host keeps its text. */
+  const skillSuggestionMarker = (marker: ChatActionMarkerModel) =>
+    marker.kind === "skill-suggestion" ? marker : undefined;
+  const skillOpener = () => (agentSkillsMode(props.server, props.runtime) === "hidden" ? undefined : openSkillSettings);
   /** The saved http row a sign-in card names. A row this client cannot read keeps the marker. */
   const mcpSignInConfig = (marker: ChatActionMarkerModel) =>
     marker.kind === "mcp-sign-in"
       ? mcpServers().find((config) => config.id === marker.mcpServerId && config.transport === "http")
       : undefined;
+  /** An install command card, where this client can watch its server list. Elsewhere it keeps the marker. */
+  const serverInstallCard = (marker: ChatActionMarkerModel) => {
+    const watch = props.serverInstall;
+    return marker.kind === "server-install" && watch ? { marker, watch } : undefined;
+  };
   const virtualMessageRows = createMemo(() => messageVirtualizer.getVirtualItems());
   let timelineScrollElement: HTMLDivElement | undefined;
   const subagentDock = createSubagentDock({
@@ -1079,82 +1140,117 @@ export function ConversationTimeline() {
                                 when={routineCard(message() ?? initialMessage, marker())}
                                 fallback={
                                   <Show
-                                    when={suggestionMarker(marker())}
+                                    when={skillSuggestionMarker(marker())}
                                     fallback={
                                       <Show
-                                        when={mcpSignInConfig(marker())}
+                                        when={suggestionMarker(marker())}
                                         fallback={
                                           <Show
-                                            when={webhookRoutineCard(message() ?? initialMessage, marker())}
+                                            when={mcpSignInConfig(marker())}
                                             fallback={
-                                              <ChatActionMarker
-                                                onOpenSkill={
-                                                  agentSkillsMode(props.server, props.runtime) === "hidden"
-                                                    ? undefined
-                                                    : openSkillSettings
+                                              <Show
+                                                when={webhookRoutineCard(message() ?? initialMessage, marker())}
+                                                fallback={
+                                                  <Show
+                                                    when={serverInstallCard(marker())}
+                                                    fallback={
+                                                      <ChatActionMarker
+                                                        onOpenSkill={
+                                                          agentSkillsMode(props.server, props.runtime) === "hidden"
+                                                            ? undefined
+                                                            : openSkillSettings
+                                                        }
+                                                        marker={marker()}
+                                                        agents={props.agents}
+                                                        announce={arrives}
+                                                        routineAvailable={routineMarkerAvailable(
+                                                          marker(),
+                                                          availableRoutineIds(),
+                                                        )}
+                                                        onSelectAgent={props.onSelectAgent}
+                                                        onOpenRoutine={openRoutineSettings}
+                                                        openRoutineThread={openRoutineThread}
+                                                        onOpenHostedSite={(url) => void openExternalMessageUrl(url)}
+                                                        onOpenLink={(url) => void openExternalMessageUrl(url)}
+                                                        onToggleRoutineRun={toggleRoutineRun}
+                                                        onToggleAgentMessage={toggleAgentMessage}
+                                                        agentMessageText={agentMessageText}
+                                                        instructions={instructionsCalls()}
+                                                        onOpenInstructions={
+                                                          channel || !instructionsCalls()
+                                                            ? undefined
+                                                            : openInstructionsSettings
+                                                        }
+                                                      />
+                                                    }
+                                                  >
+                                                    {(card) => (
+                                                      <ServerInstallChatCard
+                                                        messageId={message()?.id ?? initialMessage.id}
+                                                        name={card().marker.name}
+                                                        expiresAt={card().marker.expiresAt}
+                                                        watch={card().watch}
+                                                      />
+                                                    )}
+                                                  </Show>
                                                 }
-                                                marker={marker()}
-                                                agents={props.agents}
-                                                announce={arrives}
-                                                routineAvailable={routineMarkerAvailable(
-                                                  marker(),
-                                                  availableRoutineIds(),
+                                              >
+                                                {(card) => (
+                                                  <RoutineWebhookChatCard
+                                                    api={card().api}
+                                                    action={card().action}
+                                                    routine={card().routine}
+                                                    connected={webhookRoutines.state.connected}
+                                                    secret={webhookRoutines.state.secrets[card().routine.id] ?? null}
+                                                    onSecret={(secret) =>
+                                                      webhookRoutines.setSecret(card().routine.id, secret)
+                                                    }
+                                                    onOpenRoutine={openRoutineSettings}
+                                                  />
                                                 )}
-                                                onSelectAgent={props.onSelectAgent}
-                                                onOpenRoutine={openRoutineSettings}
-                                                openRoutineThread={openRoutineThread}
-                                                onOpenHostedSite={(url) => void openExternalMessageUrl(url)}
-                                                onOpenLink={(url) => void openExternalMessageUrl(url)}
-                                                onToggleRoutineRun={toggleRoutineRun}
-                                                onToggleAgentMessage={toggleAgentMessage}
-                                                agentMessageText={agentMessageText}
-                                                instructions={localInstructionsCalls()}
-                                                onOpenInstructions={
-                                                  channel || !localInstructionsCalls()
-                                                    ? undefined
-                                                    : openInstructionsSettings
-                                                }
-                                              />
+                                              </Show>
                                             }
                                           >
-                                            {(card) => (
-                                              <RoutineWebhookChatCard
-                                                api={card().api}
-                                                action={card().action}
-                                                routine={card().routine}
-                                                connected={webhookRoutines.state.connected}
-                                                secret={webhookRoutines.state.secrets[card().routine.id] ?? null}
-                                                onSecret={(secret) =>
-                                                  webhookRoutines.setSecret(card().routine.id, secret)
+                                            {(config) => (
+                                              <McpSignInChatCard
+                                                config={config()}
+                                                signedIn={props.mcpSignedIn?.(config().id) ?? false}
+                                                onSignIn={
+                                                  props.onOpenMcpSignIn
+                                                    ? (trigger) => props.onOpenMcpSignIn?.(config().id, trigger)
+                                                    : undefined
                                                 }
-                                                onOpenRoutine={openRoutineSettings}
+                                                onContinue={sendCardMessage}
                                               />
                                             )}
                                           </Show>
                                         }
                                       >
-                                        {(config) => (
-                                          <McpSignInChatCard
-                                            config={config()}
-                                            signedIn={props.mcpSignedIn?.(config().id) ?? false}
-                                            onSignIn={
-                                              props.onOpenMcpSignIn
-                                                ? (trigger) => props.onOpenMcpSignIn?.(config().id, trigger)
-                                                : undefined
-                                            }
-                                            onContinue={sendCardMessage}
+                                        {(suggestion) => (
+                                          <MarketplaceSuggestionChatCard
+                                            messageId={message()?.id ?? initialMessage.id}
+                                            appId={suggestion().appId}
+                                            connectors={props.connectors}
+                                            mcpServers={mcpServers()}
+                                            onOpenMarketplaceApp={props.onOpenMarketplaceApp}
                                           />
                                         )}
                                       </Show>
                                     }
                                   >
                                     {(suggestion) => (
-                                      <MarketplaceSuggestionChatCard
+                                      <SkillSuggestionChatCard
                                         messageId={message()?.id ?? initialMessage.id}
-                                        appId={suggestion().appId}
-                                        connectors={props.connectors}
-                                        mcpServers={mcpServers()}
-                                        onOpenMarketplaceApp={props.onOpenMarketplaceApp}
+                                        suggestion={suggestion()}
+                                        outcome={skillSuggestionOutcome(
+                                          timelineMessages(),
+                                          message()?.id ?? initialMessage.id,
+                                          suggestion(),
+                                          Boolean(props.activeTurnId),
+                                        )}
+                                        onSave={sendCardMessage}
+                                        onSaveSkill={() => saveSkillSuggestion(message()?.id ?? initialMessage.id)}
+                                        onOpenSkill={skillOpener()}
                                       />
                                     )}
                                   </Show>
@@ -1629,6 +1725,7 @@ export function ConversationTimeline() {
                                     state={pendingState()}
                                     updateRequired={Boolean(providerUpdateRequired())}
                                     error={pendingSend()?.error ?? null}
+                                    errorReference={pendingSend()?.errorReference ?? null}
                                     retrySafe={pendingRetrySafe()}
                                     canEdit={!composerHasContent() && !editingDeliveryId()}
                                     onRetry={() => {
@@ -1773,6 +1870,8 @@ export function ConversationTimeline() {
               {(ask) => (
                 <UsageLimitAskCard
                   provider={ask().provider}
+                  model={ask().model}
+                  agentName={ask().agentName}
                   resetsAt={ask().resetsAt}
                   options={ask().options}
                   onSend={ask().onSend}

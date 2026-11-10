@@ -21,7 +21,7 @@ import type { AgentClient, AgentProvider } from "../agent-client";
 import type { AgentStore } from "../agent-store";
 import type { ProviderSession } from "../database/provider-sessions";
 import { causeHelpers } from "../effect-boundary";
-import { type HomeSkill, listHomeSkills, skillFolderNames } from "../home-skills";
+import { type HomeSkill, listHomeSkills, skillFolderNames, userSkillFolderNames } from "../home-skills";
 import type { MailboxStore } from "../mailbox-store";
 import type { McpOperationError } from "../mcp-effects";
 import {
@@ -46,7 +46,7 @@ import {
   toMcpShapeFailed,
   usableMcpServers,
 } from "../mcp-provider-shapes";
-import { decodeRecordResponse, decodeThreadResponse, getString, type ResponseDecoder } from "../protocol";
+import { decodeRecordResponse, decodeThreadResponse, getRecord, getString, type ResponseDecoder } from "../protocol";
 import { TimeoutError, withTimeout } from "../with-timeout";
 import type { AgentMemories } from "./agent-memories";
 import { readCodexMcpConfig } from "./codex-mcp-config";
@@ -121,6 +121,8 @@ const RUNTIME_RELOADED_ON_RESUME: ReadonlySet<AgentProvider> = new Set(["claude"
 
 /** Per server key, the `tools` table Codex saved for it: each tool's approval. */
 type CodexToolApprovals = Array<[string, DynamicRecord]>;
+/** The start of the title that `#nameSession` gives a session in the provider's own thread list. */
+const SESSION_NAME_PREFIX = "OpenBot · ";
 
 /** The instruction file that the developer instructions name, and its text when they carry it. */
 interface InstructionsFileInPrompt {
@@ -203,14 +205,22 @@ export interface ThreadLifecycleOptions {
   vaultItems?: () => VaultContents;
   /** OpenBot runs on a server. The prompt then names the sign-in on the user's computer. */
   serverHost?: boolean;
+  /** The plan storage in GB of a hosted server, read at each start and resume of a session. */
+  hostedStorageGb?: () => number | null;
   /** How the agents talk while they work, read at each start and resume of a session. */
   responseStyle?: () => ResponseStyle;
+  /** The background memory review runs, read at each start and resume of a session. Omitted, it does not. */
+  memoryReview?: () => boolean;
+  /** Skill learning is automatic, read at each start and resume of a session. Omitted, it is not. */
+  skillRevision?: () => boolean;
   /** The other agents in an agent's sidebar section, read at each start and resume of a session. */
   sectionTeammates?: (agentId: string) => SectionTeammates | null;
   /** Whether a public thread is a channel member's thread. */
   channelThread?: (threadId: string) => boolean;
   /** Whether a side thread is a branch: a copy of another conversation, which its first session must receive. */
   branchThread?: (threadId: string) => boolean;
+  /** Whether a transfer from another computer wrote the thread's history, which its first session must receive. */
+  importedHistory?: (threadId: string) => boolean;
   /** Whether a side thread takes the runs of a routine. */
   routineThread?: (threadId: string) => boolean;
 }
@@ -243,10 +253,14 @@ export class ThreadLifecycle {
   readonly #passwordVaultConnected: () => boolean;
   readonly #vaultItems: () => VaultContents;
   readonly #serverHost: boolean;
+  readonly #hostedStorageGb: () => number | null;
   readonly #responseStyle: () => ResponseStyle;
+  readonly #memoryReview: () => boolean;
+  readonly #skillRevision: () => boolean;
   readonly #sectionTeammates: (agentId: string) => SectionTeammates | null;
   readonly #channelThread: (threadId: string) => boolean;
   readonly #branchThread: (threadId: string) => boolean;
+  readonly #importedHistory: (threadId: string) => boolean;
   readonly #routineThread: (threadId: string) => boolean;
   readonly #pendingHandoffs = new Map<string, string>();
   /**
@@ -293,10 +307,14 @@ export class ThreadLifecycle {
     this.#passwordVaultConnected = options.passwordVaultConnected ?? (() => false);
     this.#vaultItems = options.vaultItems ?? (() => ({ available: false, cards: false, contacts: false }));
     this.#serverHost = options.serverHost ?? false;
+    this.#hostedStorageGb = options.hostedStorageGb ?? (() => null);
     this.#responseStyle = options.responseStyle ?? (() => DEFAULT_RESPONSE_STYLE);
+    this.#memoryReview = options.memoryReview ?? (() => false);
+    this.#skillRevision = options.skillRevision ?? (() => false);
     this.#sectionTeammates = options.sectionTeammates ?? (() => null);
     this.#channelThread = options.channelThread ?? (() => false);
     this.#branchThread = options.branchThread ?? (() => false);
+    this.#importedHistory = options.importedHistory ?? (() => false);
     this.#routineThread = options.routineThread ?? (() => false);
   }
 
@@ -403,6 +421,9 @@ export class ThreadLifecycle {
                   Effect.sync(() => this.#hooks.logReleaseFailure(client.provider, failure.cause)),
                 ),
               );
+          // Codex unloads an unsubscribed thread only 60 s later, with the processes that it started in
+          // the workspace. An archive ends the thread before it answers (#6266).
+          yield* this.#archiveSession(client, externalThreadId);
           this.#conversation.unloadThread(externalThreadId);
         }),
       { concurrency: "unbounded", discard: true },
@@ -515,9 +536,10 @@ export class ThreadLifecycle {
         });
         return replacement;
       }
+      const turnContext = yield* this.#turnContextKey(currentAgent, client);
       if (
         this.#conversation.loadedClientFor(session.externalSessionId) !== client ||
-        this.#turnContextChanged(currentAgent, client, session.externalSessionId)
+        this.#turnContextChanged(client, session.externalSessionId, turnContext)
       ) {
         const resumed = yield* Effect.result(this.resumeThread(currentAgent, client, session.externalSessionId));
         if (Result.isFailure(resumed)) {
@@ -773,6 +795,7 @@ export class ThreadLifecycle {
         this.#runsBesideOwnChat(owner, publicThreadId),
         mcpServers,
         instructionsFile,
+        yield* this.#workspaceSkills(agent, client),
       ),
       serviceName: "openbot",
       dynamicTools: visibleDynamicTools(client.provider),
@@ -788,7 +811,7 @@ export class ThreadLifecycle {
     reason?: "configuration-change" | "missing-session",
   ) {
     // Read before the params: a change that lands after it then resumes the session at the next turn.
-    const givenContext = this.#turnContextKey(owner);
+    const givenContext = yield* this.#turnContextKey(owner, client);
     const { agent, mcpServers, toolRuntimes, own, environment, proxy, instructionsFile, params } =
       yield* this.#startParams(owner, client, publicThreadId);
     const response = yield* client
@@ -865,18 +888,20 @@ export class ThreadLifecycle {
     this.#conversation.bindThread(externalThreadId, agent.id, publicThreadId);
     this.#conversation.markThreadLoaded(externalThreadId, client);
     this.#conversation.ensureSnapshot(agent.id, publicThreadId);
-    if (replaced) yield* this.#archiveReplacedSession(client, replaced.externalSessionId);
+    yield* this.#nameSession(client, externalThreadId, agent, null);
+    if (replaced) yield* this.#archiveSession(client, replaced.externalSessionId);
     return externalThreadId;
   });
 
   /**
-   * Hides the session that a new one replaced from the provider's own thread list, after the new
-   * session is bound. Each replacement starts a new provider thread with the handoff as its first
-   * message, so without this the user's Codex history fills with rows that start with
-   * `HANDOFF_START`. The history stays readable for the import. A failure is logged, and the new
-   * session goes on: the old thread then only stays in the list.
+   * Hides a session from the provider's own thread list: the session that a new one replaced, after
+   * the new session is bound, and each session of a deleted agent. Each replacement starts a new
+   * provider thread with the handoff as its first message, so without this the user's Codex history
+   * fills with rows that start with `HANDOFF_START`. The history stays readable for the import, and a
+   * resume unarchives it. A failure is logged, and the caller goes on: the thread then only stays in
+   * the list.
    */
-  readonly #archiveReplacedSession = Effect.fn("ThreadLifecycle.archiveReplacedSession")(function* (
+  readonly #archiveSession = Effect.fn("ThreadLifecycle.archiveSession")(function* (
     this: ThreadLifecycle,
     client: AgentClient,
     externalThreadId: string,
@@ -886,6 +911,33 @@ export class ThreadLifecycle {
       .archiveThread(externalThreadId)
       .pipe(
         Effect.catch((failure) => Effect.sync(() => this.#hooks.logReleaseFailure(client.provider, failure.cause))),
+      );
+  }, Effect.uninterruptible);
+
+  /**
+   * Gives the session a title in the provider's own thread list, such as the Codex app. Without it
+   * the row shows the first turn's OpenBot context block. A resume gives the title again when the
+   * agent's name changed, but keeps a title that the user wrote in the other app. A failure is
+   * logged, and the session goes on with its old title.
+   */
+  readonly #nameSession = Effect.fn("ThreadLifecycle.nameSession")(function* (
+    this: ThreadLifecycle,
+    client: AgentClient,
+    externalThreadId: string,
+    agent: AgentSummary,
+    currentName: string | null,
+  ) {
+    const name = `${SESSION_NAME_PREFIX}${agent.name}`;
+    if (!client.nameThread || currentName === name) return;
+    if (currentName !== null && !currentName.startsWith(SESSION_NAME_PREFIX)) return;
+    yield* client
+      .nameThread(externalThreadId, name)
+      .pipe(
+        Effect.catch((failure) =>
+          Effect.sync(() =>
+            logger.warn("Could not name a provider session.", { provider: client.provider, error: failure.cause }),
+          ),
+        ),
       );
   }, Effect.uninterruptible);
 
@@ -1161,19 +1213,33 @@ export class ThreadLifecycle {
 
   /**
    * What the turn context gets apart from the memories: the section-mates (names, titles and order
-   * count) and whether saved logins are shared.
+   * count), whether saved logins are shared, and the instruction file text when it goes with the turns.
    */
-  #turnContextKey(agent: AgentSummary): string {
-    return JSON.stringify([this.#sectionTeammates(agent.id), this.#passwordVaultConnected()]);
+  readonly #turnContextKey = Effect.fn("ThreadLifecycle.turnContextKey")(function* (
+    this: ThreadLifecycle,
+    agent: AgentSummary,
+    client: AgentClient,
+  ) {
+    const file = this.#instructionsFileInTurns(client) ? (yield* this.#instructionsFile(agent, client)).file : null;
+    return JSON.stringify([
+      this.#sectionTeammates(agent.id),
+      this.#passwordVaultConnected(),
+      file && [file.fileName, file.text, file.truncated],
+    ]);
+  }).bind(this);
+
+  /** Only Claude: the other clients keep the text in their instructions, as their restarts need. */
+  #instructionsFileInTurns(client: AgentClient): boolean {
+    return client.provider === "claude" && client.turnContext === true;
   }
 
   #rememberTurnContext(client: AgentClient, externalThreadId: string, key: string): void {
     if (client.turnContext === true) this.#givenTurnContext.set(externalThreadId, key);
   }
 
-  #turnContextChanged(agent: AgentSummary, client: AgentClient, externalThreadId: string): boolean {
+  #turnContextChanged(client: AgentClient, externalThreadId: string, current: string): boolean {
     const given = this.#givenTurnContext.get(externalThreadId);
-    return client.turnContext === true && given !== undefined && given !== this.#turnContextKey(agent);
+    return client.turnContext === true && given !== undefined && given !== current;
   }
 
   #computerUseInOwnChat(agent: AgentSummary, publicThreadId: string): boolean {
@@ -1293,7 +1359,8 @@ export class ThreadLifecycle {
 
   /**
    * The developer instructions of a session start or resume, with what is connected now. A client
-   * with `turnContext` gets the memories and the section-mates apart, and sends them with the turns:
+   * with `turnContext` gets the memories and the section-mates (Claude: also the instruction file text)
+   * apart, and sends them with the turns:
    * see `memoriesInTurns`. A change in the system prompt writes the full conversation to the cache again.
    */
   #instructions(
@@ -1305,6 +1372,7 @@ export class ThreadLifecycle {
     sideThread = false,
     mcpServers: readonly McpServerConfig[],
     instructionsFile: InstructionsFileInPrompt,
+    workspaceSkills: readonly string[] = [],
   ): DynamicRecord {
     const memories = this.#memories.essentialFor(agent.id);
     const options = {
@@ -1313,14 +1381,19 @@ export class ThreadLifecycle {
       passwordVault: this.#passwordVaultConnected(),
       vaultItems: this.#vaultItems(),
       serverHost: this.#serverHost,
+      hostedStorageGb: this.#hostedStorageGb(),
       responseStyle: this.#responseStyle(),
+      memoryReview: this.#memoryReview(),
+      skillRevision: this.#skillRevision(),
       memoryLimit: this.#memories.limit(),
       storedMemoryCount: this.#memories.listFor(agent.id).length,
       memoriesInTurns: client.turnContext === true,
       teammatesInTurns: client.turnContext === true,
       savedLoginsInTurns: client.turnContext === true,
+      instructionsFileInTurns: this.#instructionsFileInTurns(client),
       sectionTeammates: section,
       homeSkills,
+      workspaceSkills,
       httpMcpServers: mcpServers.some((config) => config.transport === "http"),
       deferredMcpServers:
         client.provider === "codex" ? codexDeferredMcpServers(mcpServers).map((config) => config.name) : [],
@@ -1341,6 +1414,7 @@ export class ThreadLifecycle {
           memoryContext: memoryContext(memories, options),
           sectionTeammates: section,
           savedLogins: options.passwordVault,
+          ...(options.instructionsFileInTurns ? { instructionsFile: options.instructionsFile } : {}),
           // Measured for Claude only: deep in a long thread, it skipped the natural style's first line.
           ...(options.responseStyle === "natural" && client.provider === "claude" ? { turnStyleReminder: true } : {}),
         }
@@ -1358,6 +1432,18 @@ export class ThreadLifecycle {
     for (const folder of descriptor.skillFolders)
       for (const name of yield* skillFolderNames(join(agent.workspacePath, folder))) read.add(name);
     return (yield* listHomeSkills()).filter((skill) => !read.has(skill.slug));
+  });
+
+  /**
+   * The user's skills in a Codex agent's workspace, which Codex lists by short root names (#5810).
+   * The skills that OpenBot writes into each workspace are left out, so a new agent gets no new text.
+   */
+  readonly #workspaceSkills = Effect.fn("ThreadLifecycle.workspaceSkills")(function* (
+    agent: AgentSummary,
+    client: AgentClient,
+  ) {
+    if (client.provider !== "codex") return [];
+    return yield* userSkillFolderNames(join(agent.workspacePath, ".agents", "skills"));
   });
 
   /**
@@ -1419,6 +1505,7 @@ export class ThreadLifecycle {
         this.#runsBesideOwnChat(agent, publicThreadId),
         configs,
         yield* this.#instructionsFile(agent, client),
+        yield* this.#workspaceSkills(agent, client),
       ),
       ...(client.provider === "codex" ? {} : { dynamicTools: visibleDynamicTools(client.provider) }),
       ...(yield* this.codexConfigEffect(
@@ -1441,20 +1528,22 @@ export class ThreadLifecycle {
     const releasing = this.#idleReleases.get(externalThreadId);
     if (releasing) yield* Deferred.await(releasing);
     this.#conversation.bindThread(externalThreadId, agent.id);
-    const givenContext = this.#turnContextKey(agent);
+    const givenContext = yield* this.#turnContextKey(agent, client);
     const params = yield* this.threadParams(agent, client, externalThreadId);
     const resumed = yield* Effect.result(
       client.request("thread/resume", params, decodeRecordResponse).pipe(toThreadOperationFailed),
     );
+    let response: DynamicRecord;
     if (Result.isFailure(resumed)) {
       if (client.provider !== "codex" || !isArchivedThreadError(resumed.failure.cause)) return yield* resumed.failure;
       yield* client
         .request("thread/unarchive", { threadId: externalThreadId }, decodeRecordResponse)
         .pipe(toThreadOperationFailed);
-      yield* client.request("thread/resume", params, decodeRecordResponse).pipe(toThreadOperationFailed);
-    }
+      response = yield* client.request("thread/resume", params, decodeRecordResponse).pipe(toThreadOperationFailed);
+    } else response = resumed.success;
     this.#rememberTurnContext(client, externalThreadId, givenContext);
     this.#conversation.markThreadLoaded(externalThreadId, client);
+    yield* this.#nameSession(client, externalThreadId, agent, getString(getRecord(response, "thread"), "name"));
   }).bind(this);
 
   /**
@@ -1805,7 +1894,8 @@ export class ThreadLifecycle {
     const sessions = this.#store.database.listProviderSessions(threadId);
     // A branch starts with a copied conversation and no session, so its first session gets the copy.
     const branch = this.#conversation.isTaskThread(threadId) && this.#branchThread(threadId);
-    if (sessions.length < 1 && !branch) return null;
+    // An imported chat has no session here either, so its first session gets the imported history.
+    if (sessions.length < 1 && !branch && !this.#importedHistory(threadId)) return null;
     const agentNames = agentNamesById(this.#store.list());
     const history = readHandoffHistory(this.#store.database, agentId, threadId, agentNames);
     const captures = new Map<string, Map<string, string> | null>();

@@ -29,6 +29,9 @@ export const messages = {
     "Bu, uygulama sürümü ve sisteminizle birlikte herkese açık bir GitHub issue'su olur. Adınız görünmez.",
   "status.agent.sendIdea": "Bu, herkese açık bir GitHub issue'su olur. Adın gösterilmez.",
   "status.agent.feedbackSent": "OpenBot ekibine gönderildi: {title}",
+  "status.agent.serverInstallCommand":
+    "OpenBot'u başka bir bilgisayara {name} sunucusu olarak kuran ve hesabınızda oturum açan tek kullanımlık bir komut oluştur. Ajan onu orada çalıştırır.",
+  "status.agent.serverInstallCard": "{name} sunucusu için kurulum komutu",
   "status.agent.feedbackSending": "Geri bildiriminiz OpenBot ekibine gönderiliyor…",
   "status.agent.workflowDelete":
     "{title} iş akışını çalıştırmaları ve sürümleriyle birlikte silin. Açık adımları durur.",
@@ -81,5 +84,6 @@ export const messages = {
     "Bellek: {saved} kaydedildi, {updated} güncellendi, {forgotten} unutuldu, {notChanged} değiştirilmedi çünkü önce başka bir mesaj dizisi değiştirdi.",
   "status.agent.nextStepContinues": "Ajan bir sonraki adımdan önce durdu. Devam ediyor ({current}/{limit}).",
   "status.agent.planContinues": "Planda açık adımlar var. Ajan devam ediyor ({current}/{limit}).",
+  "status.agent.compactionContinues": "Ajan bağlamını sıkıştırırken bağlantı kesildi. Ajan devam ediyor.",
   "status.agent.branchTitle": "Dallandırılmış sohbet",
 } as const satisfies PartialTranslation<typeof source>;

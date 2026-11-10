@@ -1243,17 +1243,11 @@
   object-fit: cover;
 }
 
-/* An image not sent yet opens in the image viewer, like a sent one. */
-.composer-attachment-open {
-  padding: 0;
+/* An image that opens in the image viewer. */
+.composer-attachment-preview.ui-button {
   border: 0;
+  padding: 0;
   cursor: zoom-in;
-  font: inherit;
-}
-
-.composer-attachment-open:focus-visible {
-  outline: 2px solid var(--openbot-text-secondary);
-  outline-offset: 2px;
 }
 
 /* A pasted image that is still importing: its local preview, dimmed, under a spinner. */

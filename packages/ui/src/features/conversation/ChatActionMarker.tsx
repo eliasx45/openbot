@@ -61,7 +61,7 @@ interface ChatActionMarkerProps {
   onToggleAgentMessage?: ((messageId: string) => void) | undefined;
   /** Draws the text of an open agent message under its marker, by its `messageId`. */
   agentMessageText?: ((messageId: string) => JSX.Element) | undefined;
-  /** The instruction file of a local agent, for View and Undo on its change line. */
+  /** The instruction file of the agent, for View and Undo on its change line. */
   instructions?: AgentInstructionsFileCalls | undefined;
   /** Opens the Instructions page of the agent. Absent where the chat has no settings page for it. */
   onOpenInstructions?: ((agentId: string) => void) | undefined;
@@ -1051,7 +1051,9 @@ function markerLabel(
     return sourceText(marker.text);
   if (marker.kind === "context-reset") return t("chat.marker.contextReset");
   if (marker.kind === "marketplace-suggestion") return t("chat.marker.marketplaceSuggestion");
+  if (marker.kind === "skill-suggestion") return t("chat.marker.skillSuggestion");
   if (marker.kind === "mcp-sign-in") return t("chat.marker.mcpSignIn");
+  if (marker.kind === "server-install") return t("chat.marker.serverInstall");
   if (marker.kind === "skill-lifecycle") return t(SKILL_ACTION_LABELS[marker.action]);
   if (marker.kind === "agent-message") {
     if (marker.channelHandoff)
@@ -1132,6 +1134,7 @@ function markerAccessibleLabel(
     marker.kind === "context-reset" ||
     marker.kind === "marketplace-suggestion" ||
     marker.kind === "mcp-sign-in" ||
+    marker.kind === "server-install" ||
     marker.kind === "model-switch" ||
     marker.kind === "channel-change" ||
     marker.kind === "vault-change" ||
@@ -1139,7 +1142,8 @@ function markerAccessibleLabel(
     marker.kind === "instructions-change"
   )
     return label;
-  if (marker.kind === "skill-lifecycle") return t("chat.marker.accessible.named", { label, name: marker.skillName });
+  if (marker.kind === "skill-lifecycle" || marker.kind === "skill-suggestion")
+    return t("chat.marker.accessible.named", { label, name: marker.skillName });
   const unavailable = t("chat.marker.unavailableAgent");
   if (marker.kind === "agent-message") {
     const agent = counterpartName(marker, agents, t);
