@@ -2083,7 +2083,9 @@ export async function createApplicationServices({
         );
       },
     }),
-    feedbackFacts: feedbackFacts(),
+    feedbackFacts: feedbackFacts(
+      hostedServer ? "Hosted server" : serverModeEnvironment || localServerChild ? "Server" : "Desktop app",
+    ),
     feedback: feedbackSender(centralAuth),
     serverClaims: {
       signedIn: () => centralAuth.getState().status === "signed_in",
@@ -2117,6 +2119,7 @@ export async function createApplicationServices({
         }),
     hostMemory,
     hostedStorageGb: () => hostedStorageGb,
+    agentCursorDrawn: drawsComputerUseHighlight,
     requestTimeoutMs: 30_000,
     offProviders: providerUse.off(),
     providerAccounts,
