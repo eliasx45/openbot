@@ -280,8 +280,6 @@ import type {
   DeleteChannelMessageInput,
   SetChannelImageInput,
 } from "./ipc-chat-channels";
-import type { ClaudeCompactWindowSetting } from "./ipc-claude-compact-window";
-import type { ClaudeUserSetupSetting } from "./ipc-claude-user-setup";
 import type {
   AgentBrowserProfileChoices,
   ChromeImportResult,
@@ -292,6 +290,8 @@ import type {
   ChromeSyncCounts,
   ImportChromeProfilesInput,
 } from "./ipc-chrome-import";
+import type { ClaudeCompactWindowSetting } from "./ipc-claude-compact-window";
+import type { ClaudeUserSetupSetting } from "./ipc-claude-user-setup";
 import type {
   CancelMessageLinkInput,
   ConversationFileSearchPage,

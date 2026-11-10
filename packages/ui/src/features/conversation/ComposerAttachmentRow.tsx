@@ -122,23 +122,13 @@ export function ComposerAttachmentRow(props: {
             <ImageLightbox
               opening={opening()}
               thumbnail={thumbnail}
+              canDownload={() => false}
               macWindowControls={props.macWindowControls}
               onClose={() => setLightbox(null)}
             />
           )}
         </Show>
       </div>
-      <Show when={lightbox()}>
-        {(opening) => (
-          <ImageLightbox
-            opening={opening()}
-            thumbnail={thumbnail}
-            canDownload={() => false}
-            macWindowControls={props.macWindowControls}
-            onClose={() => setLightbox(null)}
-          />
-        )}
-      </Show>
     </Show>
   );
 }

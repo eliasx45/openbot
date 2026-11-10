@@ -35,93 +35,13 @@
   transform: translateY(-50%);
 }
 
-.chat-scroll-rail-nav:hover,
-.chat-scroll-rail-nav:has(:focus-visible) {
-  pointer-events: auto;
-}
-
-/* A scrim in the transcript colour that blurs the messages under the titles, with no edge of its own.
-   It darkens and blurs only where the titles are, so they stay legible over a wide message. Both
-   masks fade it out: at the top and bottom, and at the start before the titles. The blur is set
-   only while the rail is open, so a scroll does not filter the transcript under a hidden scrim. */
-.chat-scroll-rail-surface {
-  position: absolute;
-  inset-block: calc(-1 * var(--openbot-space-8));
-  inset-inline: calc(-2 * var(--openbot-space-8)) 0;
-  background: color-mix(in srgb, var(--openbot-bg-canvas) 80%, transparent);
-  mask-image:
-    linear-gradient(
-      to bottom,
-      transparent,
-      var(--openbot-text-primary) var(--openbot-space-8),
-      var(--openbot-text-primary) calc(100% - var(--openbot-space-8)),
-      transparent
-    ),
-    linear-gradient(to right, transparent, var(--openbot-text-primary) calc(2 * var(--openbot-space-8)));
-  mask-composite: intersect;
-  opacity: 0;
-  transition: opacity var(--openbot-duration-slow) ease;
-}
-
-/* In RTL the rail is on the left edge: the scrim fades out on the right, and the titles come in from
-   the left. */
-:dir(rtl) .chat-scroll-rail-surface {
-  mask-image:
-    linear-gradient(
-      to bottom,
-      transparent,
-      var(--openbot-text-primary) var(--openbot-space-8),
-      var(--openbot-text-primary) calc(100% - var(--openbot-space-8)),
-      transparent
-    ),
-    linear-gradient(to left, transparent, var(--openbot-text-primary) calc(2 * var(--openbot-space-8)));
-}
-
-.chat-scroll-rail-eyebrow {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  margin: 0 0 var(--openbot-space-3);
-  padding: 0 var(--openbot-space-4) 0 var(--openbot-space-4);
-  color: var(--openbot-text-dim);
-  font-family: var(--openbot-font-mono);
-  font-size: var(--openbot-text-sm);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  opacity: 0;
-  transition: opacity var(--openbot-duration-slow) ease;
-}
-
-/* The digits of the current section lift in and sharpen, as in the task list. */
-.chat-scroll-rail-count {
-  --digit-dur: var(--openbot-duration-overlay);
-  --digit-distance: var(--openbot-space-1);
-  --digit-blur: var(--openbot-space-0-5);
-  --digit-ease: var(--openbot-ease-out);
-
-  color: var(--chat-scroll-rail-accent);
-  font-variant-numeric: tabular-nums;
-  /* "03 / 12" keeps the position first in a right-to-left page. */
-  direction: ltr;
-  unicode-bidi: isolate;
-}
-
-/* Each section keeps room for its title. A chat with more sections than the rail holds scrolls the
-   track inside the rail, so every section stays in reach; the track keeps the current one in view.
-   The reading head scrolls with the list.
-   A scrolling track clips what it holds, and the head and the active bar glow past the ends of the
-   list: at the top of the first section and the bottom of the last. The track reaches out by the
-   glow's width into the space around it and pads it back, so the glow fits inside the clip and the
-   list stays where it was. */
+/* A chat with more sections than the rail holds scrolls the ticks inside the rail, so every section
+   stays in reach; the track keeps the current one in view. */
 .chat-scroll-rail-track {
-  --chat-scroll-rail-bleed: var(--openbot-space-6);
-
   position: relative;
   transition: opacity var(--chat-scroll-rail-quick) ease;
   flex: 1;
   min-height: 0;
-  margin-block: calc(-1 * var(--chat-scroll-rail-bleed));
-  padding-block: var(--chat-scroll-rail-bleed);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;

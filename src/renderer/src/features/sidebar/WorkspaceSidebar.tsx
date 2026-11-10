@@ -20,6 +20,7 @@ import { useAgentTasks } from "../agent-tasks/agent-tasks-context";
 import { useAgentThreads } from "../agent-threads/agent-threads-context";
 import { useAgentActions } from "../agents/agent-actions";
 import { createAgentActivity } from "../agents/agent-activity";
+import { agentWaitThreadId } from "../agents/agent-thread-attention";
 import { useAgents } from "../agents/agents-context";
 import { useChannels } from "../channels/channels-context";
 import { useConversation } from "../conversation/conversation-context";
@@ -196,7 +197,50 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
     },
   );
 
-  const { agentStates: sidebarAgentStates, agentMoods } = createAgentActivity();
+  /* Fork (docs/fork/FEATURES.md, "A question in a side thread marks its agent"): a side thread that
+   * waits for the user, such as a routine thread that asked a question, marks its agent as waiting
+   * rather than working, and selecting the row opens that thread. */
+  const sidebarAttentionInput = () => ({
+    agents: agentList(),
+    pendingPrompts: pendingPrompts(),
+    approvals: approvals(),
+    sideThreads: (agentId: string) => sidebarSideThreads(agentId),
+  });
+  function sidebarSideThreads(agentId: string): string[] {
+    // A task list loads only once its agent opened, so any thread of the agent that no channel
+    // owns is a side thread here. A closed task asks nothing.
+    const closed = new Set(
+      (agentTasks.snapshot(agentId)?.tasks ?? []).flatMap((task) => (task.state === "closed" ? [task.threadId] : [])),
+    );
+    const channelThreads = new Set(
+      sidebarChannels().flatMap((channel) =>
+        (channel.threads ?? []).flatMap((thread) => (thread.agentId === agentId ? [thread.threadId] : [])),
+      ),
+    );
+    const waits = [
+      ...Object.values(pendingPrompts()).flatMap((event) =>
+        event?.type === "prompt" && event.agentId === agentId
+          ? [event.threadId]
+          : event?.type === "browser-takeover-requested" && event.request.agentId === agentId
+            ? [event.request.threadId]
+            : [],
+      ),
+      ...approvals().flatMap((approval) => (approval.agentId === agentId ? [approval.threadId] : [])),
+    ];
+    return waits.filter(
+      (threadId): threadId is string =>
+        threadId !== undefined && !channelThreads.has(threadId) && !closed.has(threadId),
+    );
+  }
+  const selectSidebarAgent = (agentId: string): boolean => {
+    const own = agentList().find((agent) => agent.id === agentId)?.threadId;
+    const waitThread = agentWaitThreadId(sidebarAttentionInput(), agentId);
+    const selected = selectAgent(agentId);
+    if (selected && waitThread && waitThread !== own) void agentThreads.openConversation(agentId, waitThread);
+    return selected;
+  };
+
+  const { agentStates: sidebarAgentStates, agentMoods } = createAgentActivity({ sideThreads: sidebarSideThreads });
 
   /* A wait in a channel thread goes to the channel instead. Selecting the channel opens the view
    * that answers it. */
@@ -295,7 +339,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
         onUnpin={unpinSidebarItem}
         onReorderPinned={reorderPinnedSidebarItems}
         onReorderPeople={reorderSidebarPeople}
-        onSelectAgent={selectAgent}
+        onSelectAgent={selectSidebarAgent}
         onDropFiles={platform.chatWindow ? undefined : dropFilesOnChat}
         onSelectPerson={(memberId) => void selectDirectMember(memberId)}
         onPreloadDirectConversation={props.peopleEnabled ? () => void DirectConversation.preload() : undefined}

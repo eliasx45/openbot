@@ -24,7 +24,7 @@ it("opens an unsent image in the image viewer", async () => {
   }
   render(() => <ComposerAttachmentRow attachments={[image("a"), image("b")]} onRemove={vi.fn()} />);
   expect(screen.queryByRole("dialog")).toBeNull();
-  const thumbnails = document.querySelectorAll<HTMLButtonElement>(".composer-attachment-open");
+  const thumbnails = document.querySelectorAll<HTMLButtonElement>(".composer-attachment-preview");
   expect(thumbnails).toHaveLength(2);
   const second = thumbnails[1];
   if (!second) throw new Error("no thumbnail");

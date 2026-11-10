@@ -807,6 +807,7 @@ function publicHold(reason: string | null): AgentTaskHold | null {
     case "task-limit":
       return "task-limit";
     case "agent-client-changing":
+    case "runtime-change":
       return "agent-restarting";
     case "usage-limit":
       return "usage-limit";

@@ -1939,7 +1939,13 @@ export class AttentionRegistry {
     for (const [requestId, pending] of this.#prompts) {
       if (pending.agentId !== agentId || pending.publicThreadId !== publicThreadId || pending.turnId !== turnId)
         continue;
-      if (pending.saving || pending.responseKind === "mcp-elicitation" || pending.uiBlock?.apiKey || pending.uiBlock?.vault) continue;
+      if (
+        pending.saving ||
+        pending.responseKind === "mcp-elicitation" ||
+        pending.uiBlock?.apiKey ||
+        pending.uiBlock?.vault
+      )
+        continue;
       this.#routines.markRunningForTurn(turnId);
       // The card shows as the user's own skip does.
       this.#closePrompt(

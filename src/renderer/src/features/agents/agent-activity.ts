@@ -12,7 +12,15 @@ import { useAgents } from "./agents-context";
  * What each agent of the active server does now: its working turn, the badge state that the sidebar
  * and the agent dock show, and the face of its avatar. Both surfaces read it, so they always agree.
  */
-export function createAgentActivity() {
+export function createAgentActivity(
+  options: {
+    /**
+     * Fork (docs/fork/FEATURES.md #66, "A question in a side thread marks its agent"): the side threads
+     * whose waits mark the agent as waiting. Omitted, only the agent's own thread counts.
+     */
+    sideThreads?: (agentId: string) => readonly string[];
+  } = {},
+) {
   const { agentList } = useAgents();
   const { activeTurns, subagentTurns, queues, failedTurns, usageLimits, pendingPrompts, pendingApprovals, approvals } =
     useTurns();
@@ -43,7 +51,12 @@ export function createAgentActivity() {
       unreadReplies: unreadReplies(),
       unreadThreadReplies: agentTasks.unreadTotals(),
       recentReplies: recentReplies(),
-      ...agentThreadAttention({ agents: agentList(), pendingPrompts: pendingPrompts(), approvals: approvals() }),
+      ...agentThreadAttention({
+        agents: agentList(),
+        pendingPrompts: pendingPrompts(),
+        approvals: approvals(),
+        ...(options.sideThreads ? { sideThreads: options.sideThreads } : {}),
+      }),
       failedTurns: failedTurns(),
       usageLimits: usageLimits(),
     }),

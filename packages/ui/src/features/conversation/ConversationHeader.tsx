@@ -37,6 +37,11 @@ export interface ConversationHeaderPendingModel {
   running: string;
   /** The same for the next turn. */
   next: string;
+  /**
+   * Fork: the side thread whose turn holds a queued change, when the agent's own chat runs none. The
+   * badge names it and opens it, where the user answers or stops the turn.
+   */
+  waitsFor?: { title: string; onOpen: () => void } | undefined;
 }
 
 export interface ConversationHeaderRemoteControl {
@@ -86,11 +91,37 @@ export function ConversationHeader(props: ConversationHeaderProps) {
           {(change) => {
             const detail = () => t("conversation.header.modelNextTurnDetail", change());
             return (
-              <Badge variant="info-light" class="conversation-model-pending" role="status" title={detail()}>
-                <Clock3 aria-hidden="true" />
-                {t("conversation.header.modelNextTurn")}
-                <span class="sr-only">{detail()}</span>
-              </Badge>
+              <Show
+                when={change().waitsFor}
+                fallback={
+                  <Badge variant="info-light" class="conversation-model-pending" role="status" title={detail()}>
+                    <Clock3 aria-hidden="true" />
+                    {t("conversation.header.modelNextTurn")}
+                    <span class="sr-only">{detail()}</span>
+                  </Badge>
+                }
+              >
+                {(waiting) => {
+                  const waitDetail = () =>
+                    t("conversation.header.modelWaitsForThreadDetail", { ...change(), thread: waiting().title });
+                  return (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      class="conversation-model-pending"
+                      title={waitDetail()}
+                      aria-label={waitDetail()}
+                      onClick={() => waiting().onOpen()}
+                    >
+                      <Clock3 aria-hidden="true" />
+                      <span dir="auto">
+                        {t("conversation.header.modelWaitsForThread", { thread: waiting().title })}
+                      </span>
+                    </Button>
+                  );
+                }}
+              </Show>
             );
           }}
         </Show>

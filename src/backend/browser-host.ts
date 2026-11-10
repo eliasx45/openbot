@@ -2309,7 +2309,15 @@ export class BrowserHost {
   readonly #toolHandlers: BrowserToolHandlers = {
     open: ({ args }, params) =>
       Effect.gen({ self: this }, function* () {
-        const tab = yield* this.#open(args.url, params.threadId, params.ownerAgentId ?? null, false, true, undefined, args.profile);
+        const tab = yield* this.#open(
+          args.url,
+          params.threadId,
+          params.ownerAgentId ?? null,
+          false,
+          true,
+          undefined,
+          args.profile,
+        );
         this.#controls.updateTab(params, tab.id);
         // The agent reads a page that it opens, so the first snapshot comes with the tab and saves a call.
         const read = yield* Effect.result(this.#finalStepsSnapshot(params, tab.id));
