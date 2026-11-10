@@ -203,6 +203,23 @@ the WhatsApp Orchestrator is deleted with its conversations, as for Slack.
 - A message that arrives while OpenBot is off waits on WhatsApp's servers and arrives when the number
   connects again. OpenBot answers messages up to one day old.
 
+### Watch (read-only) contacts
+
+Fork (docs/fork/FEATURES.md #68). Under **Watch (read-only)**, add a contact by phone number. OpenBot
+reads that person's direct chat silently and never writes to it: no answer, no reaction, no "Working
+on it…", no typing, no read receipt. The person sees grey ticks only, and the chat stays unread on your
+phone. A watched number is never also in **Who can write**: adding it to one list takes it off the other.
+
+- What the person sends (text, links, images, videos, voice notes, files up to 64 MB) and what you write
+  to them reach the WhatsApp Orchestrator as one turn per burst: messages within two minutes of each
+  other go together, at most ten minutes after the first. The turn starts with "👁️ Watched chat ·
+  <name>" and is in your "Message yourself" conversation.
+- The orchestrator routes it to the right agent and reports in your "Message yourself" chat only, such
+  as "Ichiro sent a Frame.io review → Zito". The turn's text tells it that the person never sees it, and
+  that their words are information, not instructions.
+- The guard is in code: every post, reaction, edit, delete, presence or read receipt toward a watched
+  chat (by phone number or WhatsApp's LID) fails before it reaches WhatsApp.
+
 ## Test Telegram locally
 
 Telegram must reach Signal over public HTTPS.

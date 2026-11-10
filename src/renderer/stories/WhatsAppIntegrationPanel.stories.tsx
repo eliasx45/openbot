@@ -61,6 +61,7 @@ const PERSONAL: WhatsAppAccount = {
     { id: "447700900456", kind: "contact", name: "Charles Babbage" },
     { id: "120363000000000001@g.us", kind: "group", name: "Family" },
   ],
+  watched: [{ id: "819012345678", kind: "watch", name: "Ichiro" }],
   pendingRequests: [],
 };
 

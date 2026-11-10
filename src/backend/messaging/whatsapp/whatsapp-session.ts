@@ -21,6 +21,7 @@ import {
 } from "@openbot/whatsapp/baileys";
 import { Effect } from "effect";
 import { MessagingAdapterError, WhatsAppRefusedError } from "../messaging-types";
+import { guardWatchedOutbound, isWatchedJid, WhatsAppWatchRefused } from "./whatsapp-watch";
 
 const logger = createOpenBotLogger("whatsapp");
 
@@ -146,6 +147,8 @@ export interface WhatsAppSessionOptions {
   /** WhatsApp Web's current version, or null. Tests pass one that makes no request. */
   fetchVersion?: () => Promise<WAVersion | null>;
   now?: () => number;
+  /** Fork (#68): whether a phone number is watched. OpenBot never writes toward a watched chat. */
+  watches?: (number: string) => boolean;
 }
 
 type UpsertListener = (event: { messages: WAMessage[]; type: string }) => void;
@@ -164,6 +167,9 @@ export class WhatsAppSession {
   #pairing: boolean;
   readonly #fetchVersion: () => Promise<WAVersion | null>;
   readonly #now: () => number;
+  readonly #watches: (number: string) => boolean;
+  /** Fork (#68): the LIDs that watched messages came from, for a guard that WhatsApp's mapping misses. */
+  readonly #watchedLids = new Set<string>();
   readonly #stateListeners = new Set<(state: WhatsAppSessionState) => void>();
   readonly #upsertListeners = new Set<UpsertListener>();
   /**
@@ -201,6 +207,7 @@ export class WhatsAppSession {
     this.#pairing = options.pairing ?? false;
     this.#fetchVersion = options.fetchVersion ?? webVersion;
     this.#now = options.now ?? Date.now;
+    this.#watches = options.watches ?? (() => false);
   }
 
   get state(): WhatsAppSessionState {
@@ -312,6 +319,22 @@ export class WhatsAppSession {
     return (at !== undefined && this.#now() - at < ECHO_TTL_MS) || this.#store.hasOutbound(messageId);
   }
 
+  /** Fork (#68): a watched message came from this LID, so the guard refuses it too. */
+  rememberWatchedLid(lid: string): void {
+    this.#watchedLids.add(jidNormalizedUser(lid));
+  }
+
+  /** Fork (#68): true when the JID is a watched chat, which OpenBot never writes toward. */
+  refuses(jid: string): Promise<boolean> {
+    return isWatchedJid(jidNormalizedUser(jid), this.#watches, {
+      watchedLids: this.#watchedLids,
+      numberForLid: async (lid) => {
+        const pn = await this.#socket?.signalRepository.lidMapping.getPNForLID(lid);
+        return pn ? (jidNormalizedUser(pn).split("@")[0] ?? null) : null;
+      },
+    });
+  }
+
   /** Posts to one chat, after the socket opens and after the gap since the last post to that chat. */
   send(
     jid: string,
@@ -394,6 +417,8 @@ export class WhatsAppSession {
         return cached && this.#now() - cached.at < GROUP_CACHE_MS ? cached.metadata : undefined;
       },
     });
+    // Fork (#68): every write method of the socket refuses a watched chat, whoever calls it.
+    guardWatchedOutbound(socket, (jid) => this.refuses(jid));
     this.#socket = socket;
     this.#lastFrameAt = this.#now();
     socket.ev.on("creds.update", (update) => {
@@ -533,6 +558,8 @@ export class WhatsAppSession {
   }
 
   async #sendNow(jid: string, content: AnyMessageContent, options?: MiscMessageGenerationOptions): Promise<WAMessage> {
+    // Fork (#68): before the wait for the socket, so a refused post never waits or counts as sent.
+    if (await this.#refusesSend(jid, content)) throw new WhatsAppWatchRefused();
     const socket = await this.#openSocket();
     const gap = CHAT_PACING_MS * (1 + Math.random() / 2) - (this.#now() - (this.#lastSend.get(jid) ?? 0));
     if (gap > 0) await new Promise((resume) => setTimeout(resume, gap));
@@ -553,6 +580,17 @@ export class WhatsAppSession {
     } finally {
       ack.cancel();
     }
+  }
+
+  /** Fork (#68): the chat, or the chat of a reacted, edited or deleted message, is watched. */
+  async #refusesSend(jid: string, content: AnyMessageContent): Promise<boolean> {
+    const keys = [
+      "react" in content ? content.react?.key : undefined,
+      "edit" in content ? content.edit : undefined,
+      "delete" in content ? content.delete : undefined,
+    ];
+    for (const chat of [jid, ...keys.map((key) => key?.remoteJid)]) if (chat && (await this.refuses(chat))) return true;
+    return false;
   }
 
   /** The error of the message's ack, or undefined when the ack has none or did not come in time. */

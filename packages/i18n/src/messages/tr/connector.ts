@@ -487,6 +487,15 @@ export const messages = {
   "connector.whatsapp.sendersTitle": "{number} için kimler yazabilir",
   "connector.whatsapp.sendersDescription": "Bu kişiler ve gruplar ajanlarınıza iş verebilir.",
   "connector.whatsapp.sendersEmpty": "Yalnızca siz yazabilirsiniz. Bir kişi veya grup ekleyin.",
+  "connector.whatsapp.watchTitle": "İzle (salt okunur): {number}",
+  "connector.whatsapp.watchDescription":
+    "OpenBot bu sohbetleri sessizce okur ve asla yazmaz. Telefonunuzda okunmamış kalırlar.",
+  "connector.whatsapp.addWatch": "Kişiyi izle",
+  "connector.whatsapp.watchEmpty": "Kimse izlenmiyor.",
+  "connector.whatsapp.watchDialogTitle": "Bir kişiyi izle",
+  "connector.whatsapp.watchDialogDescription":
+    "Mesajları WhatsApp Orchestrator’a bilgi olarak ulaşır. Yalnızca “Kendine mesaj” sohbetinizde rapor verir ve o kişiye asla yazmaz.",
+  "connector.whatsapp.stopWatching": "İzlemeyi bırak",
   "connector.whatsapp.sendersLimit": "Bir numara en fazla {count} kişiye ve gruba izin verebilir.",
   "connector.whatsapp.senderGroup": "Grup",
   "connector.whatsapp.removeSender": "Kaldır",

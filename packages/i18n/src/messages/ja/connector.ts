@@ -446,6 +446,15 @@ export const messages = {
   "connector.whatsapp.sendersTitle": "{number} に書き込める人",
   "connector.whatsapp.sendersDescription": "これらの連絡先とグループは、エージェントに作業を依頼できます。",
   "connector.whatsapp.sendersEmpty": "書き込めるのはあなただけです。連絡先かグループを追加してください。",
+  "connector.whatsapp.watchTitle": "見守り（読み取り専用）: {number}",
+  "connector.whatsapp.watchDescription":
+    "OpenBot はこれらのチャットを黙って読み、書き込むことはありません。スマホでは未読のままです。",
+  "connector.whatsapp.addWatch": "連絡先を見守る",
+  "connector.whatsapp.watchEmpty": "見守っている連絡先はありません。",
+  "connector.whatsapp.watchDialogTitle": "連絡先を見守る",
+  "connector.whatsapp.watchDialogDescription":
+    "メッセージは情報として WhatsApp Orchestrator に届きます。報告は「自分にメッセージ」チャットだけで行い、相手には書きません。",
+  "connector.whatsapp.stopWatching": "見守りをやめる",
   "connector.whatsapp.sendersLimit": "1 つの番号で許可できる連絡先とグループは最大 {count} 件です。",
   "connector.whatsapp.senderGroup": "グループ",
   "connector.whatsapp.removeSender": "削除",

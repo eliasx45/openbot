@@ -459,6 +459,15 @@ export const messages = {
   "connector.whatsapp.sendersTitle": "Wer an {number} schreiben kann",
   "connector.whatsapp.sendersDescription": "Diese Kontakte und Gruppen können deinen Agenten Aufgaben geben.",
   "connector.whatsapp.sendersEmpty": "Nur du kannst schreiben. Füge einen Kontakt oder eine Gruppe hinzu.",
+  "connector.whatsapp.watchTitle": "Beobachten (nur lesen) auf {number}",
+  "connector.whatsapp.watchDescription":
+    "OpenBot liest diese Chats still mit und schreibt nie hinein. Auf deinem Handy bleiben sie ungelesen.",
+  "connector.whatsapp.addWatch": "Kontakt beobachten",
+  "connector.whatsapp.watchEmpty": "Niemand wird beobachtet.",
+  "connector.whatsapp.watchDialogTitle": "Kontakt beobachten",
+  "connector.whatsapp.watchDialogDescription":
+    "Seine Nachrichten erreichen den WhatsApp Orchestrator als Information. Er berichtet nur in deinem Chat „Nachricht an dich“ und schreibt der Person nie.",
+  "connector.whatsapp.stopWatching": "Nicht mehr beobachten",
   "connector.whatsapp.sendersLimit": "Eine Nummer kann bis zu {count} Kontakte und Gruppen zulassen.",
   "connector.whatsapp.senderGroup": "Gruppe",
   "connector.whatsapp.removeSender": "Entfernen",

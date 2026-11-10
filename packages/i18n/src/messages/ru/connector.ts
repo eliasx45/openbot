@@ -475,6 +475,15 @@ export const messages = {
   "connector.whatsapp.sendersTitle": "Кто может писать на {number}",
   "connector.whatsapp.sendersDescription": "Эти контакты и группы могут поручать работу вашим агентам.",
   "connector.whatsapp.sendersEmpty": "Писать можете только вы. Добавьте контакт или группу.",
+  "connector.whatsapp.watchTitle": "Наблюдение (только чтение) на {number}",
+  "connector.whatsapp.watchDescription":
+    "OpenBot молча читает эти чаты и никогда в них не пишет. На телефоне они остаются непрочитанными.",
+  "connector.whatsapp.addWatch": "Наблюдать за контактом",
+  "connector.whatsapp.watchEmpty": "Вы ни за кем не наблюдаете.",
+  "connector.whatsapp.watchDialogTitle": "Наблюдать за контактом",
+  "connector.whatsapp.watchDialogDescription":
+    "Его сообщения приходят WhatsApp Orchestrator как информация. Он отчитывается только в вашем чате «Сообщение себе» и никогда не пишет этому человеку.",
+  "connector.whatsapp.stopWatching": "Перестать наблюдать",
   "connector.whatsapp.sendersLimit": "Номер может разрешить не более {count} контактов и групп.",
   "connector.whatsapp.senderGroup": "Группа",
   "connector.whatsapp.removeSender": "Удалить",

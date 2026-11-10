@@ -18,6 +18,7 @@ import {
   AlertTitle,
   Button,
   CopyButton,
+  Eye,
   Field,
   Input,
   Item,
@@ -229,6 +230,8 @@ export function WhatsAppIntegrationPanel(props: WhatsAppIntegrationPanelProps) {
   const [disconnecting, setDisconnecting] = createSignal<MessagingConnection | null>(null);
   /** The number that the contact or group dialog adds to; each dialog is open while it is set. */
   const [addingContact, setAddingContact] = createSignal<string | null>(null);
+  /** Fork (#68): the number whose Watch list gets a contact; the dialog is open while it is set. */
+  const [addingWatch, setAddingWatch] = createSignal<string | null>(null);
   const [addingGroup, setAddingGroup] = createSignal<string | null>(null);
   const orchestrator = () => whatsappOrchestrator(props.connections, props.agents);
   const account = (workspaceId: string) => props.accounts.find((entry) => entry.workspaceId === workspaceId);
@@ -375,6 +378,16 @@ export function WhatsAppIntegrationPanel(props: WhatsAppIntegrationPanelProps) {
                   onAddGroup={() => setAddingGroup(entry.connection.workspaceId)}
                   onRemove={(senderId) => props.onRemoveSender(entry.connection.workspaceId, senderId)}
                 />
+                {/* Fork (#68): a personal number watches contacts; a dedicated one shows the list only when it has some. */}
+                <Show when={entry.account.ownNumber || (entry.account.watched?.length ?? 0) > 0}>
+                  <WatchSection
+                    connection={entry.connection}
+                    account={entry.account}
+                    busy={props.busy}
+                    onAdd={() => setAddingWatch(entry.connection.workspaceId)}
+                    onRemove={(senderId) => props.onRemoveSender(entry.connection.workspaceId, senderId)}
+                  />
+                </Show>
                 {/* A personal number answers no stranger, so it shows requests only when some still wait. */}
                 <Show when={!entry.account.ownNumber || entry.account.pendingRequests.length > 0}>
                   <RequestsSection
@@ -411,6 +424,16 @@ export function WhatsAppIntegrationPanel(props: WhatsAppIntegrationPanelProps) {
           props.onAddSender(workspaceId, sender);
         }}
         onClose={() => setAddingContact(null)}
+      />
+      <ContactDialog
+        kind="watch"
+        workspaceId={addingWatch()}
+        busy={props.busy}
+        onAdd={(workspaceId, sender) => {
+          setAddingWatch(null);
+          props.onAddSender(workspaceId, sender);
+        }}
+        onClose={() => setAddingWatch(null)}
       />
       <GroupDialog
         workspaceId={addingGroup()}
@@ -529,6 +552,76 @@ function SendersSection(props: {
   );
 }
 
+/**
+ * Fork (#68): the contacts that OpenBot reads silently through one number. It never writes to them; the
+ * WhatsApp Orchestrator reports what they send in the owner's "Message yourself" chat.
+ */
+function WatchSection(props: {
+  connection: MessagingConnection;
+  account: WhatsAppAccount;
+  busy: boolean;
+  onAdd: () => void;
+  onRemove: (senderId: string) => void;
+}) {
+  const { t } = useText();
+  const watched = () => props.account.watched ?? [];
+  const atCap = () => watched().length >= MESSAGING_LIMITS.allowedSenders;
+  return (
+    <SettingsSection
+      title={t("connector.whatsapp.watchTitle", { number: numberName(props.connection) })}
+      description={t("connector.whatsapp.watchDescription")}
+      actions={
+        <Button type="button" size="sm" variant="outline" disabled={props.busy || atCap()} onClick={props.onAdd}>
+          {t("connector.whatsapp.addWatch")}
+        </Button>
+      }
+    >
+      <ItemGroup class="settings-modal-card">
+        <For each={watched()}>
+          {(sender) => (
+            <Item class="settings-modal-row">
+              <ItemMedia>
+                <LogoTile>
+                  <Eye aria-hidden="true" />
+                </LogoTile>
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>{sender.name}</ItemTitle>
+                <ItemDescription>{phoneNumber(sender.id)}</ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive-ghost"
+                  disabled={props.busy}
+                  aria-label={t("connector.whatsapp.rowAction", {
+                    action: t("connector.whatsapp.stopWatching"),
+                    name: sender.name,
+                  })}
+                  onClick={() => props.onRemove(sender.id)}
+                >
+                  {t("connector.whatsapp.stopWatching")}
+                </Button>
+              </ItemActions>
+            </Item>
+          )}
+        </For>
+        <Show when={watched().length === 0}>
+          <Text class="integration-card-note" variant="caption" tone="muted">
+            {t("connector.whatsapp.watchEmpty")}
+          </Text>
+        </Show>
+        <Show when={atCap()}>
+          <Text class="integration-card-note" variant="caption" tone="muted">
+            {t("connector.whatsapp.sendersLimit", { count: MESSAGING_LIMITS.allowedSenders })}
+          </Text>
+        </Show>
+      </ItemGroup>
+    </SettingsSection>
+  );
+}
+
 /** The people who wrote to a number only for OpenBot and wait for the owner. */
 function RequestsSection(props: {
   connection: MessagingConnection;
@@ -601,6 +694,8 @@ function RequestsSection(props: {
 
 /** Adds a contact by phone number. Main keeps the number in digits; the name is optional. */
 function ContactDialog(props: {
+  /** Fork (#68): `watch` adds the contact to the Watch list instead. */
+  kind?: "contact" | "watch";
   /** The number that the contact can write to; the dialog is open while it is set. */
   workspaceId: string | null;
   busy: boolean;
@@ -629,7 +724,7 @@ function ContactDialog(props: {
       });
       return;
     }
-    props.onAdd(workspaceId, { kind: "contact", id: form.phone.trim(), name: form.name.trim() });
+    props.onAdd(workspaceId, { kind: props.kind ?? "contact", id: form.phone.trim(), name: form.name.trim() });
   };
   return (
     <WizardDialog
@@ -638,8 +733,10 @@ function ContactDialog(props: {
       onClose={props.onClose}
       logo={<WhatsAppTile />}
       link="connected"
-      title={t("connector.whatsapp.contactTitle")}
-      description={t("connector.whatsapp.contactDescription")}
+      title={t(props.kind === "watch" ? "connector.whatsapp.watchDialogTitle" : "connector.whatsapp.contactTitle")}
+      description={t(
+        props.kind === "watch" ? "connector.whatsapp.watchDialogDescription" : "connector.whatsapp.contactDescription",
+      )}
       onSubmit={submit}
       footer={
         <>

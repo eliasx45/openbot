@@ -7,6 +7,7 @@ import type {
   WhatsAppSender,
 } from "@openbot/contracts/ipc";
 import { MESSAGING_LIMITS } from "@openbot/contracts/ipc";
+import { isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { newStoreKey } from "@openbot/whatsapp/auth-store";
 import { Effect, Schema } from "effect";
@@ -152,6 +153,8 @@ export class WhatsAppConnect implements WhatsAppPolicy {
       ownNumber: this.#ownNumber(record.connectionId),
       contacts: new Set(senders.filter((sender) => sender.kind === "contact").map((sender) => sender.id)),
       groups: new Set(senders.filter((sender) => sender.kind === "group").map((sender) => sender.id)),
+      // Fork (#68).
+      watched: new Map(this.#watched(record.connectionId).map((sender) => [sender.id, sender.name])),
     };
   }
 
@@ -170,6 +173,7 @@ export class WhatsAppConnect implements WhatsAppPolicy {
         workspaceId: record.workspaceId,
         ownNumber: this.#ownNumber(record.connectionId),
         allowedSenders: this.#store.allowedSenders(record.connectionId).slice(0, MESSAGING_LIMITS.allowedSenders),
+        watched: this.#watched(record.connectionId).map((sender) => ({ ...sender, kind: "watch" as const })),
         pendingRequests: this.#requests.list(record.workspaceId),
       }));
   }
@@ -180,10 +184,28 @@ export class WhatsAppConnect implements WhatsAppPolicy {
     sender: WhatsAppSender,
   ) {
     const connectionId = yield* this.#connectionId(workspaceId);
-    const id = sender.kind === "contact" ? yield* this.#registeredNumber(connectionId, sender.id) : sender.id;
+    const id = sender.kind === "group" ? sender.id : yield* this.#registeredNumber(connectionId, sender.id);
+    // Fork (#68): a watched contact is read silently and never written to, so it is never also allowed.
+    if (sender.kind === "watch") {
+      const others = this.#watched(connectionId).filter((watched) => watched.id !== id);
+      if (others.length >= MESSAGING_LIMITS.allowedSenders)
+        return yield* failure("error.messaging.whatsappTooManySenders");
+      yield* this.#setWatched(connectionId, [...others, { id, name: sender.name }]);
+      for (const form of whatsAppNumberForms(id)) this.#store.removeAllowedSender(connectionId, form);
+      return;
+    }
     if (this.#store.allowedSenders(connectionId).length >= MESSAGING_LIMITS.allowedSenders)
       return yield* failure("error.messaging.whatsappTooManySenders");
-    this.#store.addAllowedSender(connectionId, { ...sender, id });
+    if (sender.kind === "contact") {
+      const forms = whatsAppNumberForms(id);
+      const watched = this.#watched(connectionId);
+      if (watched.some((entry) => forms.includes(entry.id)))
+        yield* this.#setWatched(
+          connectionId,
+          watched.filter((entry) => !forms.includes(entry.id)),
+        );
+    }
+    this.#store.addAllowedSender(connectionId, { ...sender, id, kind: sender.kind });
   });
 
   /**
@@ -209,6 +231,12 @@ export class WhatsAppConnect implements WhatsAppPolicy {
   ) {
     const connectionId = yield* this.#connectionId(workspaceId);
     this.#store.removeAllowedSender(connectionId, senderId);
+    const watched = this.#watched(connectionId);
+    if (watched.some((entry) => entry.id === senderId))
+      yield* this.#setWatched(
+        connectionId,
+        watched.filter((entry) => entry.id !== senderId),
+      );
   });
 
   /** Approves a person, who then gets one line in WhatsApp, or ends the request without an answer. */
@@ -282,11 +310,14 @@ export class WhatsAppConnect implements WhatsAppPolicy {
     yield* Effect.gen({ self: this }, function* () {
       const connectionId = yield* this.#hooks.prepare(identity.number, workspaceName);
       const previous = this.#credentials.get(connectionId)?.storeId;
+      // Fork (#68): a number linked again keeps its Watch list, as it keeps its allowed senders.
+      const watched = this.#credentials.get(connectionId)?.watched;
       this.#runtime.promote(link.storeId);
       yield* this.#hooks.finish(connectionId, {
         whatsappStoreKey: Buffer.from(key).toString("base64"),
         storeId: link.storeId,
         ownNumber: ownNumber ? "1" : "0",
+        ...(watched ? { watched } : {}),
       });
       // The number's earlier device was replaced by this link, so its keys go, but only once the new
       // link is saved: a failed save keeps the device that worked before.
@@ -348,6 +379,26 @@ export class WhatsAppConnect implements WhatsAppPolicy {
     return storeId ? this.#runtime.get(storeId) : null;
   }
 
+  /**
+   * Fork (#68): the watched contacts, kept in the connection's encrypted values beside `ownNumber`, as
+   * JSON. Not a table: the allowed-senders table only takes contacts and groups, and a new table would
+   * need a numbered migration, which upstream owns.
+   */
+  #watched(connectionId: string): Array<{ id: string; name: string }> {
+    return parseWatched(this.#credentials.get(connectionId)?.watched);
+  }
+
+  #setWatched(
+    connectionId: string,
+    watched: ReadonlyArray<{ id: string; name: string }>,
+  ): Effect.Effect<void, WhatsAppConnectFailed | MessagingOperationFailed> {
+    return Effect.gen({ self: this }, function* () {
+      const values = this.#credentials.get(connectionId);
+      if (!values) return yield* failure("error.messaging.whatsappNotConnected");
+      yield* this.#credentials.set(connectionId, { ...values, watched: JSON.stringify(watched) });
+    });
+  }
+
   #ownNumber(connectionId: string): boolean {
     const values = this.#credentials.get(connectionId);
     return values ? whatsAppCredentials(values).ownNumber : true;
@@ -359,6 +410,25 @@ export class WhatsAppConnect implements WhatsAppPolicy {
       ? Effect.succeed(record.connectionId)
       : failure("error.messaging.whatsappNotConnected");
   }
+}
+
+/** Fork (#68): the stored Watch list; anything that does not parse is no list. */
+function parseWatched(text: string | undefined): Array<{ id: string; name: string }> {
+  if (!text) return [];
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(value)) return [];
+  return value
+    .flatMap((entry) =>
+      isDynamicRecord(entry) && isString(entry.id) && /^[0-9]{5,20}$/u.test(entry.id) && isString(entry.name)
+        ? [{ id: entry.id, name: entry.name.slice(0, MESSAGING_LIMITS.name) || entry.id }]
+        : [],
+    )
+    .slice(0, MESSAGING_LIMITS.allowedSenders);
 }
 
 type WhatsAppErrorKey =

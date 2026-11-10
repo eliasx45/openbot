@@ -478,6 +478,15 @@ export const messages = {
   "connector.whatsapp.sendersTitle": "מי יכול לכתוב אל {number}",
   "connector.whatsapp.sendersDescription": "אנשי הקשר והקבוצות האלה יכולים לתת עבודה לסוכנים שלך.",
   "connector.whatsapp.sendersEmpty": "רק בעל החשבון יכול לכתוב. אפשר להוסיף איש קשר או קבוצה.",
+  "connector.whatsapp.watchTitle": "מעקב (קריאה בלבד) ב-{number}",
+  "connector.whatsapp.watchDescription":
+    "OpenBot קורא את הצ׳אטים האלה בשקט ואף פעם לא כותב בהם. בטלפון הם נשארים לא נקראים.",
+  "connector.whatsapp.addWatch": "מעקב אחרי איש קשר",
+  "connector.whatsapp.watchEmpty": "אין מעקב אחרי אף אחד.",
+  "connector.whatsapp.watchDialogTitle": "מעקב אחרי איש קשר",
+  "connector.whatsapp.watchDialogDescription":
+    "ההודעות שלהם מגיעות ל-WhatsApp Orchestrator כמידע. הוא מדווח רק בצ׳אט „הודעה לעצמי” ואף פעם לא כותב להם.",
+  "connector.whatsapp.stopWatching": "הפסקת מעקב",
   "connector.whatsapp.sendersLimit": "מספר אחד יכול לאשר עד {count} אנשי קשר וקבוצות.",
   "connector.whatsapp.senderGroup": "קבוצה",
   "connector.whatsapp.removeSender": "הסרה",

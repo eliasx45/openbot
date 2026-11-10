@@ -394,6 +394,15 @@ export const messages = {
   "connector.whatsapp.sendersTitle": "{number}에 메시지를 보낼 수 있는 사람",
   "connector.whatsapp.sendersDescription": "이 연락처와 그룹은 내 에이전트에게 작업을 맡길 수 있어요.",
   "connector.whatsapp.sendersEmpty": "나만 메시지를 보낼 수 있어요. 연락처나 그룹을 추가하세요.",
+  "connector.whatsapp.watchTitle": "지켜보기(읽기 전용): {number}",
+  "connector.whatsapp.watchDescription":
+    "OpenBot은 이 채팅을 조용히 읽고 절대 쓰지 않아요. 휴대폰에서는 읽지 않은 상태로 남아요.",
+  "connector.whatsapp.addWatch": "연락처 지켜보기",
+  "connector.whatsapp.watchEmpty": "지켜보는 사람이 없어요.",
+  "connector.whatsapp.watchDialogTitle": "연락처 지켜보기",
+  "connector.whatsapp.watchDialogDescription":
+    "메시지는 정보로 WhatsApp Orchestrator에 전달돼요. 보고는 ‘나에게 메시지’ 채팅에서만 하고, 그 사람에게는 절대 쓰지 않아요.",
+  "connector.whatsapp.stopWatching": "지켜보기 중지",
   "connector.whatsapp.sendersLimit": "번호 하나에 연락처와 그룹을 최대 {count}개까지 허용할 수 있어요.",
   "connector.whatsapp.senderGroup": "그룹",
   "connector.whatsapp.removeSender": "제거",

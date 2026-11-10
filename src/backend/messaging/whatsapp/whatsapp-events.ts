@@ -14,6 +14,7 @@ import {
 import type { InboundAction, InboundFile, InboundMessage, MessageTarget } from "../messaging-types";
 import type { WhatsAppChatState } from "./whatsapp-chats";
 import { type SenderDecision, senderDecision, type WhatsAppSenderRules } from "./whatsapp-senders";
+import type { WatchedLine } from "./whatsapp-watch";
 
 /** The conversation of a direct chat: the whole chat. */
 export const WHATSAPP_DIRECT_THREAD = "dm";
@@ -50,7 +51,25 @@ export type WhatsAppEvent =
   | { type: "message"; message: InboundMessage; chatJid: string; isGroup: boolean }
   | { type: "action"; action: InboundAction }
   /** An unknown person wrote to a dedicated number. */
-  | { type: "pairing"; chatJid: string; senderId: string; name: string };
+  | { type: "pairing"; chatJid: string; senderId: string; name: string }
+  /** Fork (#68): a message of a watched chat, from the contact or from the owner. */
+  | WhatsAppWatchEvent;
+
+/** Fork (#68): one message of a watched chat. The transport joins a burst of them into one turn. */
+export interface WhatsAppWatchEvent {
+  type: "watch";
+  /** The watched number, in the form the owner added. */
+  number: string;
+  /** The name the owner gave the contact, or the one WhatsApp shows. */
+  name: string;
+  /** The watched chat, by phone number. */
+  chatJid: string;
+  /** The chat's LID, when WhatsApp gave the chat in that form, so the guard knows it too. */
+  lid: string | null;
+  messageId: string;
+  line: WatchedLine;
+  files: InboundFile[];
+}
 
 /** True for an upsert that can carry a new message: live ones, and recent `append` ones. */
 export function freshUpsert(type: string, message: WAMessage, openedAt: number): boolean {
@@ -100,14 +119,19 @@ export async function whatsAppInbound(
       : authorNumber && !key.fromMe
         ? userJid(authorNumber)
         : rawChatJid;
+  // Fork (#68): the other person of a direct chat, also when the owner wrote the message.
+  const chatNumber =
+    isGroup || isSelfChat ? null : key.fromMe ? await numberOf([key.remoteJidAlt, rawChatJid], context) : authorNumber;
   const decision: SenderDecision = senderDecision(context.rules, {
     isGroup,
     chatJid,
     authorNumber,
     isSelfChat,
     fromMe: Boolean(key.fromMe),
+    chatNumber,
   });
   if (decision.type === "ignore") return null;
+  if (decision.type === "watch") return watchEvent(message, content, decision.number, rawChatJid, context);
   const name = message.pushName?.trim() || authorNumber || "WhatsApp";
   if (decision.type === "pair") return authorNumber ? { type: "pairing", chatJid, senderId: authorNumber, name } : null;
 
@@ -186,6 +210,49 @@ export async function whatsAppInbound(
     ...(files.length ? { files } : {}),
   });
   return { type: "message", message: inbound, chatJid, isGroup };
+}
+
+/**
+ * Fork (#68): a message of a watched chat. Nothing here answers it, approves a menu, or marks it seen:
+ * it only becomes a line of the owner's next watched turn, with its file.
+ */
+function watchEvent(
+  message: WAMessage,
+  content: proto.IMessage,
+  number: string,
+  rawChatJid: string,
+  context: WhatsAppInboundContext,
+): WhatsAppWatchEvent {
+  const id = message.key.id ?? "";
+  const chatJid = userJid(number);
+  const name =
+    context.rules.watched?.get(number)?.trim() ||
+    (message.key.fromMe ? null : message.pushName?.trim()) ||
+    context.chats.name(number) ||
+    `+${number}`;
+  if (!message.key.fromMe) context.chats.rememberName(number, message.pushName);
+  const files = filesOf(content, chatJid, id);
+  if (files[0]) context.chats.rememberMedia(files[0].id, message);
+  const contextInfo = contextOf(content);
+  const quoted = contextInfo?.quotedMessage ? normalizeMessageContent(contextInfo.quotedMessage) : null;
+  const quotedText = quoted ? textOf(quoted).slice(0, 300) : "";
+  const text = [
+    textOf(content),
+    files.map((file) => `(${file.mimeType.split("/")[0] ?? "file"}: ${file.name})`).join(" "),
+    quotedText ? `(replying to: "${quotedText}")` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return {
+    type: "watch",
+    number,
+    name,
+    chatJid,
+    lid: isLidUser(rawChatJid) ? rawChatJid : null,
+    messageId: id,
+    line: { author: message.key.fromMe ? "You (the OpenBot user)" : name, text, sentAt: isoTime(message) },
+    files,
+  };
 }
 
 /** The conversation of a post's target: the part before `:`, or the direct chat. */

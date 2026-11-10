@@ -6,13 +6,17 @@ import { Effect } from "effect";
 import type { InboundMessage, MessagingTransport, TransportSink } from "../messaging-types";
 import {
   freshUpsert,
+  userJid,
+  WHATSAPP_DIRECT_THREAD,
   type WhatsAppEvent,
   type WhatsAppIdentity,
+  type WhatsAppWatchEvent,
   whatsAppDedupKey,
   whatsAppInbound,
 } from "./whatsapp-events";
 import type { WhatsAppConnectionHandle, WhatsAppRuntime } from "./whatsapp-runtime";
 import type { WhatsAppSessionState } from "./whatsapp-session";
+import { WATCH_MESSAGE_PREFIX, WATCH_TIMING, type WatchedLine, watchedTurnText } from "./whatsapp-watch";
 
 const logger = createOpenBotLogger("whatsapp");
 
@@ -45,6 +49,21 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>;
 }
 
+/** Fork (#68): the messages of one watched chat that wait to go as one turn. */
+interface WatchBatch {
+  number: string;
+  name: string;
+  chatJid: string;
+  headId: string;
+  /** The journal key of the first message, which the turn keeps. */
+  head: string;
+  followers: string[];
+  lines: WatchedLine[];
+  files: InboundMessage["files"];
+  firstAt: number;
+  timer: ReturnType<typeof setTimeout> | null;
+}
+
 export interface WhatsAppTransportOptions {
   runtime: WhatsAppRuntime;
   handle: WhatsAppConnectionHandle;
@@ -64,6 +83,8 @@ export class WhatsAppTransport implements MessagingTransport {
   readonly #workspaceId: string;
   readonly #seen = new Set<string>();
   readonly #pending = new Map<string, Pending>();
+  /** Fork (#68): the watched chats' bursts, by watched number. */
+  readonly #watching = new Map<string, WatchBatch>();
   /** The journal keys of messages handed to the service and not yet marked handled, with their timers. */
   readonly #handed = new Map<string, ReturnType<typeof setTimeout>>();
   #sink: TransportSink | null = null;
@@ -112,6 +133,9 @@ export class WhatsAppTransport implements MessagingTransport {
     for (const unsubscribe of this.#unsubscribe.splice(0)) unsubscribe();
     for (const pending of this.#pending.values()) clearTimeout(pending.timer);
     this.#pending.clear();
+    // A watched burst that has not gone stays unhandled in the journal, so the next start replays it.
+    for (const batch of this.#watching.values()) if (batch.timer) clearTimeout(batch.timer);
+    this.#watching.clear();
     // The service finishes the messages it has (its work is uninterruptible), so after a normal stop
     // only a crash replays them.
     for (const [dedupKey, timer] of this.#handed) {
@@ -167,6 +191,11 @@ export class WhatsAppTransport implements MessagingTransport {
       return;
     }
     if (live) store.journal({ dedupKey, payload: encodeJournal(message), receivedAt: Date.now() });
+    if (event.type === "watch") {
+      if (event.lid) session.rememberWatchedLid(event.lid);
+      this.#watch(event, dedupKey, live);
+      return;
+    }
     // The message continues its conversation: a reply to it names the same conversation.
     if (event.isGroup)
       store.putPost(event.message.platformMessageId, { chatJid: event.chatJid, threadKey: event.message.threadKey });
@@ -233,6 +262,69 @@ export class WhatsAppTransport implements MessagingTransport {
     }, HANDLED_AFTER_MS);
     timer.unref?.();
     this.#handed.set(dedupKey, timer);
+  }
+
+  /**
+   * Fork (#68): joins the messages of one watched chat that arrive within two minutes of each other,
+   * so a screenshot, a link and the words about them reach the orchestrator as one turn. A replayed
+   * message goes alone, as other replays do.
+   */
+  #watch(event: WhatsAppWatchEvent, dedupKey: string, live: boolean): void {
+    const batch = this.#watching.get(event.number);
+    if (batch) {
+      if (batch.timer) clearTimeout(batch.timer);
+      batch.followers.push(dedupKey);
+      batch.lines.push(event.line);
+      batch.files.push(...event.files);
+      batch.name = event.name;
+    }
+    const current: WatchBatch = batch ?? {
+      number: event.number,
+      name: event.name,
+      chatJid: event.chatJid,
+      headId: event.messageId,
+      head: dedupKey,
+      followers: [],
+      lines: [event.line],
+      files: [...event.files],
+      firstAt: Date.now(),
+      timer: null,
+    };
+    this.#watching.set(event.number, current);
+    if (!live) {
+      this.#flushWatch(current);
+      return;
+    }
+    const wait = Math.max(0, Math.min(WATCH_TIMING.debounceMs, current.firstAt + WATCH_TIMING.maxWaitMs - Date.now()));
+    current.timer = setTimeout(() => this.#flushWatch(current), wait);
+    current.timer.unref?.();
+  }
+
+  /** The burst as one message of the owner's own chat, where the orchestrator answers. Nothing goes to the watched chat. */
+  #flushWatch(batch: WatchBatch): void {
+    if (this.#watching.get(batch.number) !== batch) return;
+    this.#watching.delete(batch.number);
+    if (batch.timer) clearTimeout(batch.timer);
+    if (!this.#sink) return;
+    const selfChat = userJid(this.#identity.number);
+    this.#hand(
+      {
+        dedupKey: `${batch.chatJid}:${batch.headId}`,
+        platformChannelId: selfChat,
+        threadKey: WHATSAPP_DIRECT_THREAD,
+        target: { platformChannelId: selfChat, replyThreadId: null },
+        platformMessageId: `${WATCH_MESSAGE_PREFIX}${batch.headId}`,
+        isDirect: true,
+        requiresLink: false,
+        // The contact, so its turns have their own queue limit, apart from the owner's.
+        authorId: batch.number,
+        text: watchedTurnText(batch.name, batch.number, batch.lines),
+        mentionedUserIds: [],
+        files: batch.files,
+      },
+      batch.head,
+    );
+    for (const follower of batch.followers) this.#handle.store.markHandled(follower);
   }
 
   /** A dedicated number answers an unknown person once, with the code the owner sees in OpenBot. */

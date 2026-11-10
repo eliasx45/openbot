@@ -296,14 +296,25 @@ export function createMockMessaging(orchestrator: () => string): MessagingDeskto
     addWhatsAppSender: async ({ workspaceId, sender }) => {
       const current = account(workspaceId);
       // Main keeps a contact's number in digits, and a sender with no name under its number.
-      const id = sender.kind === "contact" ? parseWhatsAppPhoneNumber(sender.id) : sender.id;
+      const id = sender.kind === "group" ? sender.id : parseWhatsAppPhoneNumber(sender.id);
       if (!id) throw new Error("A messaging request is invalid.");
       const others = current.allowedSenders.filter((allowed) => allowed.id !== id);
+      const watched = (current.watched ?? []).filter((entry) => entry.id !== id);
+      // Fork (#68): watch and allow are exclusive, as in main.
+      if (sender.kind === "watch") {
+        accounts.set(workspaceId, {
+          ...current,
+          allowedSenders: others,
+          watched: [...watched, { id, kind: "watch", name: sender.name.trim() || id }],
+        });
+        return;
+      }
       if (others.length >= MESSAGING_LIMITS.allowedSenders)
         throw new Error(sourceText("error.messaging.whatsappTooManySenders"));
       accounts.set(workspaceId, {
         ...current,
         allowedSenders: [...others, { id, kind: sender.kind, name: sender.name.trim() || id }],
+        watched,
       });
     },
     removeWhatsAppSender: async ({ workspaceId, senderId }) => {
@@ -311,6 +322,7 @@ export function createMockMessaging(orchestrator: () => string): MessagingDeskto
       accounts.set(workspaceId, {
         ...current,
         allowedSenders: current.allowedSenders.filter((sender) => sender.id !== senderId),
+        watched: (current.watched ?? []).filter((sender) => sender.id !== senderId),
       });
     },
     answerWhatsAppRequest: async ({ workspaceId, code, approve }) => {

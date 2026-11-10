@@ -14,6 +14,11 @@ export interface WhatsAppSenderRules {
   contacts: ReadonlySet<string>;
   /** Group JIDs. */
   groups: ReadonlySet<string>;
+  /**
+   * Fork (#68): the watched contacts, phone number in digits to the name the owner gave. OpenBot reads
+   * their direct chat silently and never writes to it. A number here never counts as an allowed contact.
+   */
+  watched?: ReadonlyMap<string, string>;
 }
 
 /** What one inbound message may do, before anything shows that it was seen. */
@@ -21,6 +26,8 @@ export type SenderDecision =
   | { type: "allow" }
   /** A dedicated number answers an unknown person once, with a code for the owner. */
   | { type: "pair" }
+  /** Fork (#68): a watched contact's direct chat: read as information for the owner, never answered. */
+  | { type: "watch"; number: string }
   | { type: "ignore" };
 
 export interface SenderFacts {
@@ -32,6 +39,11 @@ export interface SenderFacts {
   isSelfChat: boolean;
   /** The owner wrote it from this number, in any chat. */
   fromMe: boolean;
+  /**
+   * Fork (#68): the phone number of the other person of a direct chat, also for the owner's own
+   * messages in it. Null in a group, in the owner's own chat, or when it is not known.
+   */
+  chatNumber?: string | null;
 }
 
 /**
@@ -42,6 +54,9 @@ export interface SenderFacts {
  */
 export function senderDecision(rules: WhatsAppSenderRules, facts: SenderFacts): SenderDecision {
   if (facts.isSelfChat) return { type: "allow" };
+  // Fork (#68): before the owner's own messages, which in a watched chat are context too.
+  const watched = !facts.isGroup && facts.chatNumber ? watchedNumber(rules, facts.chatNumber) : null;
+  if (watched) return { type: "watch", number: watched };
   // The owner's own messages in other chats are their personal conversations.
   if (facts.fromMe) return { type: "ignore" };
   if (facts.isGroup) return rules.groups.has(facts.chatJid) ? { type: "allow" } : { type: "ignore" };
@@ -62,9 +77,17 @@ export function whatsAppNumberForms(number: string): string[] {
   return [number, nine ? `55${area}${local}` : `55${area}9${local}`];
 }
 
-/** True when the number is an allowed contact, in any of its forms. */
+/** True when the number is an allowed contact, in any of its forms. A watched number never is. */
 export function allowsContact(rules: WhatsAppSenderRules, number: string): boolean {
+  if (watchedNumber(rules, number)) return false;
   return whatsAppNumberForms(number).some((form) => rules.contacts.has(form));
+}
+
+/** Fork (#68): the watched number, in the form the owner added, that this number is, or null. */
+export function watchedNumber(rules: WhatsAppSenderRules, number: string): string | null {
+  const watched = rules.watched;
+  if (!watched?.size) return null;
+  return whatsAppNumberForms(number).find((form) => watched.has(form)) ?? null;
 }
 
 /**

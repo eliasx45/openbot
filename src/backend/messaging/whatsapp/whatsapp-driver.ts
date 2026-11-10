@@ -39,6 +39,7 @@ import { whatsAppChunks, whatsAppText } from "./whatsapp-render";
 import type { WhatsAppConnectionHandle, WhatsAppRuntime } from "./whatsapp-runtime";
 import { allowsContact } from "./whatsapp-senders";
 import { WhatsAppTransport } from "./whatsapp-transport";
+import { WATCH_MESSAGE_PREFIX } from "./whatsapp-watch";
 
 /** WhatsApp takes larger files, but a phone on mobile data should not have to. */
 const WHATSAPP_FILE_BYTES_LIMIT = 64 * 1024 * 1024;
@@ -198,6 +199,8 @@ class WhatsAppAdapter implements MessagingAdapter {
     reaction: StatusReaction,
     on: boolean,
   ) {
+    // Fork (#68): a watched turn's message is in the watched chat, which shows nothing.
+    if (messageId.startsWith(WATCH_MESSAGE_PREFIX)) return;
     const facts = this.#handle.chats.keyOf(messageId);
     const key: WAMessageKey = {
       remoteJid: target.platformChannelId,

@@ -1,9 +1,9 @@
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { WhatsAppAuthStore } from "@openbot/whatsapp/auth-store";
-import type { SocketConfig, WAVersion } from "@openbot/whatsapp/baileys";
+import { jidDecode, type SocketConfig, type WAVersion } from "@openbot/whatsapp/baileys";
 import { WhatsAppChatState } from "./whatsapp-chats";
-import type { WhatsAppSenderRules } from "./whatsapp-senders";
+import { type WhatsAppSenderRules, watchedNumber } from "./whatsapp-senders";
 import { WhatsAppSession, type WhatsAppSocketFactory } from "./whatsapp-session";
 
 /** Who may give work through a linked number, and the pairing codes of a dedicated number. */
@@ -95,6 +95,11 @@ export class WhatsAppRuntime {
       createSocket: this.#options.createSocket,
       makeSignalRepository: this.#options.makeSignalRepository,
       pairing,
+      // Fork (#68): the rules of the linked number, read for each write, so a new watch counts at once.
+      watches: (number) => {
+        const me = jidDecode(store.creds.me?.id ?? "")?.user;
+        return me ? watchedNumber(this.#policy.rules(me), number) !== null : false;
+      },
       ...(this.#options.fetchVersion ? { fetchVersion: this.#options.fetchVersion } : {}),
       ...(this.#options.now ? { now: this.#options.now } : {}),
     });

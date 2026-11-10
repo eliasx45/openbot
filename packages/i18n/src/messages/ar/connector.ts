@@ -491,6 +491,15 @@ export const messages = {
   "connector.whatsapp.sendersTitle": "من يستطيع الكتابة إلى {number}",
   "connector.whatsapp.sendersDescription": "يمكن لجهات الاتصال والمجموعات هذه إسناد أعمال إلى وكلائك.",
   "connector.whatsapp.sendersEmpty": "أنت فقط تستطيع الكتابة. أضف جهة اتصال أو مجموعة.",
+  "connector.whatsapp.watchTitle": "المتابعة (قراءة فقط) على {number}",
+  "connector.whatsapp.watchDescription":
+    "يقرأ OpenBot هذه المحادثات بصمت ولا يكتب فيها أبدًا. تبقى غير مقروءة على هاتفك.",
+  "connector.whatsapp.addWatch": "متابعة جهة اتصال",
+  "connector.whatsapp.watchEmpty": "لا تتابع أحدًا.",
+  "connector.whatsapp.watchDialogTitle": "متابعة جهة اتصال",
+  "connector.whatsapp.watchDialogDescription":
+    "تصل رسائلهم إلى WhatsApp Orchestrator كمعلومات. يرفع تقاريره فقط في محادثة «مراسلة نفسك» ولا يكتب لهم أبدًا.",
+  "connector.whatsapp.stopWatching": "إيقاف المتابعة",
   "connector.whatsapp.sendersLimit": "يمكن لرقم واحد أن يسمح بما يصل إلى {count} من جهات الاتصال والمجموعات.",
   "connector.whatsapp.senderGroup": "مجموعة",
   "connector.whatsapp.removeSender": "إزالة",

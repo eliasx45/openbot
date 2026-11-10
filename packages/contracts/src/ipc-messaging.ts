@@ -307,10 +307,14 @@ export function parseDiscordAllowedRoles(value: unknown): MessagingRole[] | null
   return ids.size === value.length ? value.map((role) => ({ id: role.id, name: role.name })) : null;
 }
 
-/** A WhatsApp contact (its phone number in digits) or group (its JID) that can give work. */
+/**
+ * A WhatsApp contact (its phone number in digits) or group (its JID) that can give work. Fork: a
+ * `watch` contact gives no work: OpenBot reads its direct chat silently and never writes to it
+ * (docs/fork/FEATURES.md #68).
+ */
 export interface WhatsAppSender {
   id: string;
-  kind: "contact" | "group";
+  kind: "contact" | "group" | "watch";
   name: string;
 }
 
@@ -335,6 +339,11 @@ export interface WhatsAppAccount {
    */
   ownNumber: boolean;
   allowedSenders: WhatsAppSender[];
+  /**
+   * Fork: the watched contacts (kind `watch`), read silently and never written to. Optional, so an
+   * overview from a host without the feature still parses.
+   */
+  watched?: WhatsAppSender[];
   pendingRequests: WhatsAppPairingRequest[];
 }
 
@@ -406,7 +415,7 @@ export function isWhatsAppSender(value: unknown): value is WhatsAppSender {
   return (
     isDynamicRecord(value) &&
     typeof value.id === "string" &&
-    (value.kind === "contact"
+    (value.kind === "contact" || value.kind === "watch"
       ? WHATSAPP_NUMBER.test(value.id)
       : value.kind === "group" && WHATSAPP_GROUP.test(value.id)) &&
     isBoundedString(value.name, MESSAGING_LIMITS.name)
@@ -433,6 +442,10 @@ function isWhatsAppAccount(value: unknown): value is WhatsAppAccount {
     Array.isArray(value.allowedSenders) &&
     value.allowedSenders.length <= MESSAGING_LIMITS.allowedSenders &&
     value.allowedSenders.every(isWhatsAppSender) &&
+    (value.watched === undefined ||
+      (Array.isArray(value.watched) &&
+        value.watched.length <= MESSAGING_LIMITS.allowedSenders &&
+        value.watched.every((sender) => isWhatsAppSender(sender) && sender.kind === "watch"))) &&
     Array.isArray(value.pendingRequests) &&
     value.pendingRequests.length <= MESSAGING_LIMITS.pendingRequests &&
     value.pendingRequests.every(isWhatsAppPairingRequest)

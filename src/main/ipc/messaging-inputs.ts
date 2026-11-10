@@ -127,7 +127,7 @@ export function parseWhatsAppSenderInput(value: unknown): WhatsAppSenderInput {
   if (!isObject(value)) throw new Error("A messaging request is invalid.");
   // A contact can be typed with spaces, a plus or brackets; it is stored in digits.
   const sender =
-    isObject(value.sender) && value.sender.kind === "contact"
+    isObject(value.sender) && (value.sender.kind === "contact" || value.sender.kind === "watch")
       ? { ...value.sender, id: parseWhatsAppPhoneNumber(value.sender.id) ?? "" }
       : value.sender;
   if (!isWhatsAppSender(sender)) throw new Error("A messaging request is invalid.");

@@ -477,6 +477,15 @@ export const messages = defineMessages("connector", {
   "connector.whatsapp.sendersTitle": "Who can write to {number}",
   "connector.whatsapp.sendersDescription": "These contacts and groups can give work to your agents.",
   "connector.whatsapp.sendersEmpty": "Only you can write. Add a contact or a group.",
+  "connector.whatsapp.watchTitle": "Watch (read-only) on {number}",
+  "connector.whatsapp.watchDescription":
+    "OpenBot reads these chats silently and never writes to them. They stay unread on your phone.",
+  "connector.whatsapp.addWatch": "Watch contact",
+  "connector.whatsapp.watchEmpty": "No one is watched.",
+  "connector.whatsapp.watchDialogTitle": "Watch a contact",
+  "connector.whatsapp.watchDialogDescription":
+    "Their messages reach the WhatsApp Orchestrator as information. It reports only in your “Message yourself” chat and never writes to them.",
+  "connector.whatsapp.stopWatching": "Stop watching",
   "connector.whatsapp.sendersLimit": "A number can allow up to {count} contacts and groups.",
   "connector.whatsapp.senderGroup": "Group",
   "connector.whatsapp.removeSender": "Remove",

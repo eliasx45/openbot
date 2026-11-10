@@ -766,8 +766,14 @@ export class MessagingThreads {
       workspaceName: prompt.workspaceName ?? connection?.workspaceName ?? null,
       isDirect: link.isDirect,
       // Only the "Message yourself" chat has the linked number as the author of a direct message:
-      // the owner's messages in other chats never reach OpenBot (`whatsapp-senders.ts`).
-      fromOwner: connection?.platform === "whatsapp" && link.isDirect && origin.authorId === connection.workspaceId,
+      // the owner's messages in other chats never reach OpenBot (`whatsapp-senders.ts`). Fork (#68): a
+      // watched chat's turn is in the self chat too, as its contact, so it keeps its own queue limit;
+      // its text says who wrote it and that it is not an instruction.
+      fromOwner:
+        connection?.platform === "whatsapp" &&
+        link.isDirect &&
+        (origin.authorId === connection.workspaceId ||
+          link.platformChannelId === `${connection.workspaceId}@s.whatsapp.net`),
       place: prompt.place,
       authorName: origin.authorName,
       authorId: origin.authorId,

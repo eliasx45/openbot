@@ -444,6 +444,15 @@ export const messages = {
   "connector.whatsapp.sendersTitle": "Wie naar {number} kan schrijven",
   "connector.whatsapp.sendersDescription": "Deze contacten en groepen kunnen werk geven aan je agents.",
   "connector.whatsapp.sendersEmpty": "Alleen jij kunt schrijven. Voeg een contact of een groep toe.",
+  "connector.whatsapp.watchTitle": "Meelezen (alleen lezen) op {number}",
+  "connector.whatsapp.watchDescription":
+    "OpenBot leest deze chats stil mee en schrijft er nooit in. Op je telefoon blijven ze ongelezen.",
+  "connector.whatsapp.addWatch": "Contact meelezen",
+  "connector.whatsapp.watchEmpty": "Je leest bij niemand mee.",
+  "connector.whatsapp.watchDialogTitle": "Een contact meelezen",
+  "connector.whatsapp.watchDialogDescription":
+    "Hun berichten komen als informatie bij de WhatsApp Orchestrator. Die meldt alleen in je chat ‘Bericht aan jezelf’ en schrijft hun nooit.",
+  "connector.whatsapp.stopWatching": "Stoppen met meelezen",
   "connector.whatsapp.sendersLimit": "Een nummer kan maximaal {count} contacten en groepen toestaan.",
   "connector.whatsapp.senderGroup": "Groep",
   "connector.whatsapp.removeSender": "Verwijderen",
