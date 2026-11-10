@@ -3083,5 +3083,35 @@
     "zh"
   ],
   "error.backend.chromeImportCancelled": ["ar", "de", "es", "fr", "it", "ja", "ko", "nl", "pl", "pt", "ru", "tr", "zh"],
-  "error.backend.chromeImportConfirm": ["ar", "de", "es", "fr", "it", "ja", "ko", "nl", "pl", "pt", "ru", "tr", "zh"]
+  "error.backend.chromeImportConfirm": ["ar", "de", "es", "fr", "it", "ja", "ko", "nl", "pl", "pt", "ru", "tr", "zh"],
+  "conversation.header.modelWaitsForThread": [
+    "ar",
+    "de",
+    "es",
+    "fr",
+    "it",
+    "ja",
+    "ko",
+    "nl",
+    "pl",
+    "pt",
+    "ru",
+    "tr",
+    "zh"
+  ],
+  "conversation.header.modelWaitsForThreadDetail": [
+    "ar",
+    "de",
+    "es",
+    "fr",
+    "it",
+    "ja",
+    "ko",
+    "nl",
+    "pl",
+    "pt",
+    "ru",
+    "tr",
+    "zh"
+  ]
 }

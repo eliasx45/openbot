@@ -50,6 +50,9 @@ export const messages = defineMessages("conversation", {
   "conversation.header.modelsUnavailable": "Models are available after an agent CLI connects.",
   "conversation.header.modelNextTurn": "After this turn",
   "conversation.header.modelNextTurnDetail": "{running} finishes this turn. {next} starts with the next one.",
+  "conversation.header.modelWaitsForThread": "Waits for {thread}",
+  "conversation.header.modelWaitsForThreadDetail":
+    "The change to {next} waits for the turn in “{thread}”. No new turn starts until then. Open it to answer or stop that turn.",
   "conversation.sidePanel.label": "Side panel",
   "conversation.sidePanel.open": "Open side panel",
   "conversation.sidePanel.close": "Close side panel",

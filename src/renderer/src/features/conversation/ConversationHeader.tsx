@@ -11,7 +11,7 @@ import { reasoningLabel } from "@openbot/ui/components/ProviderModelPicker";
 import { findModelOption, providerAccountName } from "@openbot/ui/components/provider-accounts";
 import { ConversationHeader as SharedConversationHeader } from "@openbot/ui/features/conversation/ConversationHeader";
 import { ThreadHeader } from "@openbot/ui/features/conversation/threads/ThreadHeader";
-import { MAIN_THREAD_ID } from "@openbot/ui/features/conversation/threads/thread-types";
+import { MAIN_THREAD_ID, threadBusy } from "@openbot/ui/features/conversation/threads/thread-types";
 import { Show } from "solid-js";
 import { useConversationViewScope } from "./conversation-scope";
 
@@ -97,7 +97,18 @@ export function ConversationHeader() {
       accountId(running) === accountId(next)
     )
       return undefined;
-    return { running: runtimeLabel(running, next), next: runtimeLabel(next, running) };
+    return { running: runtimeLabel(running, next), next: runtimeLabel(next, running), waitsFor: waitsFor() };
+  };
+  /**
+   * Fork: the side thread whose turn holds a queued change while the agent's own chat runs none. A
+   * thread that waits for the user comes first: only the user can end its turn.
+   */
+  const waitsFor = () => {
+    const header = props.threads?.header;
+    if (!props.agent?.pendingRuntime || working() || !header) return undefined;
+    const busy = header.threads.filter((thread) => threadBusy(thread.status));
+    const thread = busy.find((candidate) => candidate.status.kind === "waiting") ?? busy[0];
+    return thread ? { title: thread.title, onOpen: () => header.onOpen(thread.id) } : undefined;
   };
   return (
     <SharedConversationHeader

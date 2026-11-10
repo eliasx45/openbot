@@ -334,6 +334,16 @@ export class DrainScheduler {
       this.#lanesOf(agentId).some((other) => other.taskId !== taskId && this.#laneRunning(other))
     )
       return "agent-client-changing";
+    // Fork (docs/fork/FEATURES.md, "A queued account switch holds new turns"): a queued provider,
+    // account or custom-agent change applies once no turn of the agent runs, before the next turn. A
+    // turn of another lane holds it, so this lane waits too: a turn started now would run on the
+    // runtime the user left (10 Nov 2026: a chat ran on an unpaid account while a task of the same
+    // agent waited a day for an answer, and the change never applied).
+    if (
+      agent?.pendingRuntime &&
+      this.#lanesOf(agentId).some((other) => other.taskId !== taskId && this.#laneRunning(other))
+    )
+      return "runtime-change";
     // A hidden agent finishes the turn that runs. Its queued messages wait until the user restores it.
     if (agent?.hiddenAt !== undefined) return "hidden";
     // No turn starts on a provider that waits for a sign-in, so its messages wait for the sign-in
