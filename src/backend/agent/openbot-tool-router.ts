@@ -836,34 +836,87 @@ export class OpenBotToolRouter {
       );
       return;
     }
-    // Fork (docs/fork/FEATURES.md, "Review cards"): the clip files go in the chat as the agent's
-    // attachments, and each clip plays from its attachment.
-    if (spec.type === "form" && spec.fields.some((field) => field.clip)) {
+    // Fork (docs/fork/FEATURES.md, "Review cards", "Card media"): the clip and media files go in the chat
+    // as the agent's attachments, and each plays from its attachment.
+    const clipPaths = [
+      ...new Set(spec.type === "form" ? spec.fields.flatMap((field) => (field.clip ? [field.clip.path] : [])) : []),
+    ];
+    const mediaPaths = [...new Set((spec.media ?? []).map((item) => item.path))].filter(
+      (path) => !clipPaths.includes(path),
+    );
+    if (clipPaths.length > 0 || mediaPaths.length > 0) {
       const agentId = this.#conversation.agentForThread(params.threadId);
-      const paths = [...new Set(spec.fields.flatMap((field) => (field.clip ? [field.clip.path] : [])))];
-      const attached = agentId
-        ? yield* this.#attachments
-            .attachFiles(
-              agentId,
-              params,
-              paths,
-              responseAttachmentMessageId(params.threadId, params.turnId, params.callId),
-            )
-            .pipe(Effect.result)
-        : null;
-      const ids = attached && Result.isSuccess(attached) ? attachedIds(attached.success) : null;
+      // A media file the agent cannot attach does not stop the block: the card names it instead.
+      const shownMedia = agentId ? yield* this.#attachableFiles(agentId, mediaPaths) : [];
+      const attach = (paths: string[]) =>
+        agentId && paths.length > 0
+          ? this.#attachments
+              .attachFiles(
+                agentId,
+                params,
+                paths,
+                responseAttachmentMessageId(params.threadId, params.turnId, params.callId),
+              )
+              .pipe(
+                Effect.result,
+                Effect.map((attached) => (Result.isSuccess(attached) ? attachedIds(attached.success) : null)),
+              )
+          : Effect.succeed(paths.length === 0 ? [] : null);
+      let paths = [...clipPaths, ...shownMedia];
+      let ids = yield* attach(paths);
+      if ((!ids || ids.length !== paths.length) && shownMedia.length > 0) {
+        paths = clipPaths;
+        ids = yield* attach(paths);
+      }
       if (!ids || ids.length !== paths.length) {
         refuse(
-          `OpenBot could not attach the clip files (${paths.join(", ")}). Check that each path is a video file in your workspace or shared folders, and retry.`,
+          `OpenBot could not attach the clip files (${clipPaths.join(", ")}). Check that each path is a video file in your workspace or shared folders, and retry.`,
         );
         return;
       }
-      for (const field of spec.fields) {
-        if (!field.clip) continue;
-        field.clip.src = `openbot-attachment://file/${ids[paths.indexOf(field.clip.path)]}`;
+      const srcOf = (path: string) => {
+        const index = paths.indexOf(path);
+        return index < 0 ? undefined : `openbot-attachment://file/${ids[index]}`;
+      };
+      if (spec.type === "form") {
+        for (const field of spec.fields) {
+          const src = field.clip && srcOf(field.clip.path);
+          if (field.clip && src) field.clip.src = src;
+        }
+      }
+      for (const item of spec.media ?? []) {
+        const src = srcOf(item.path);
+        if (src) item.src = src;
       }
     }
     this.#attention.surfaceUiBlock(client, request, { blockId, spec });
+  });
+
+  /**
+   * Fork ("Card media"). The paths that pass the attachment rules: in the agent's workspace, its
+   * folders or the shared folder, a readable file within the attachment size. Each path on its own.
+   */
+  readonly #attachableFiles = Effect.fn("OpenBotToolRouter.attachableFiles")(function* (
+    this: OpenBotToolRouter,
+    agentId: string,
+    paths: readonly string[],
+  ) {
+    const kept: string[] = [];
+    for (const path of paths) {
+      const fits = yield* Effect.acquireUseRelease(
+        this.#attachments.openSources(agentId, [path], { allowAnyReadablePath: false }),
+        (sources) =>
+          Effect.forEach(sources, (source) => attachmentCall(() => source.handle.stat())).pipe(
+            Effect.map((stats) => stats.every((stat) => stat.isFile() && stat.size <= ATTACHMENT_LIMITS.fileBytes)),
+          ),
+        (sources) => Effect.promise(() => Promise.allSettled(sources.map((source) => source.handle.close()))),
+      ).pipe(
+        Effect.catch(() => Effect.succeed(false)),
+        Effect.catchDefect(() => Effect.succeed(false)),
+      );
+      if (fits) kept.push(path);
+    }
+    return kept;
   });
 
   /**

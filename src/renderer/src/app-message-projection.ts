@@ -184,6 +184,34 @@ export function planTitle(plan: AgentMessagePlan): string {
 }
 
 /**
+ * Fork (docs/fork/FEATURES.md, "Card media"). The attachment ids that ask_ui cards play or show: the
+ * `src` of each media item and form clip. Only a local block has them; the remote wire leaves them out.
+ */
+function cardShownAttachmentIds(messages: readonly ConversationMessage[]): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const message of messages) {
+    const spec = message.uiBlock?.spec;
+    if (!spec) continue;
+    const sources = [
+      ...(spec.media ?? []).map((item) => item.src),
+      ...(spec.type === "form" ? spec.fields.map((field) => field.clip?.src) : []),
+    ];
+    for (const src of sources) {
+      const id = src?.split("/").at(-1);
+      if (id) ids.add(id);
+    }
+  }
+  return ids;
+}
+
+/** An agent attachment message whose every file a card in the same list already shows. */
+function shownOnCard(message: ConversationMessage, onCards: ReadonlySet<string>): boolean {
+  if (onCards.size === 0 || message.itemType !== "agent_attachment" || message.text.trim()) return false;
+  const attachments = message.attachments ?? [];
+  return attachments.length > 0 && attachments.every((attachment) => onCards.has(attachment.id));
+}
+
+/**
  * The chat rows of stored messages. `convert` gives the row of the message at an index; a caller
  * that keeps the rows of unchanged messages passes it.
  */
@@ -195,7 +223,10 @@ export function toAgentMessages(
 ): AgentMessage[] {
   const result: AgentMessage[] = [];
   const thinkingByTurn = new Map<string, AgentMessage>();
+  const onCards = cardShownAttachmentIds(messages);
   for (const [index, message] of messages.entries()) {
+    // Fork ("Card media"): the files an ask_ui card shows itself are not shown again above it.
+    if (shownOnCard(message, onCards)) continue;
     if ((message.delivery?.status === "queued" || message.delivery?.status === "cancelled") && !message.routine) {
       continue;
     }

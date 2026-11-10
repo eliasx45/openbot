@@ -151,6 +151,7 @@ export function UiChoiceBlock(props: UiBlockProps<UiChoiceSpec | UiQuickRepliesS
       actions={actions()}
       elementRef={props.elementRef}
       hints={props.spec.hints}
+      media={props.spec.media}
       renderMarkdown={props.renderMarkdown}
     >
       <fieldset class="ui-block-options" aria-label={label()} aria-describedby={frozen() ? undefined : hintId}>

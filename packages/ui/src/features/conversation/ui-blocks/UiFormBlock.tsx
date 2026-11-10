@@ -266,6 +266,7 @@ export function UiFormBlock(props: UiFormBlockProps) {
       }
       elementRef={props.elementRef}
       hints={props.spec.hints}
+      media={props.spec.media}
       renderMarkdown={props.renderMarkdown}
     >
       <Show when={!summarized()} fallback={<FormAnswerRows rows={answerRows()} />}>

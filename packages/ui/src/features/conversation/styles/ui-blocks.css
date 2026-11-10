@@ -812,3 +812,80 @@
 .ui-block-clip-add {
   align-self: flex-start;
 }
+
+/* Fork (docs/fork/FEATURES.md, "Card media"): the videos and images a block is about, under its title.
+   One item takes the card width; more go two to a row. */
+.ui-block-media {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--openbot-space-2);
+}
+
+.ui-block-media:not([data-count="1"]) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ui-block-media-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--openbot-space-1);
+  margin: 0;
+}
+
+.ui-block-media-video,
+.ui-block-media-image img {
+  display: block;
+  width: 100%;
+  max-height: 22rem;
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-surface-raised);
+  object-fit: contain;
+}
+
+/* A ghost button that is only its image. */
+.ui-block-media .ui-button.ui-block-media-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--openbot-radius-lg);
+  background: none;
+  cursor: zoom-in;
+}
+
+.ui-block-media-image:focus-visible {
+  outline: 2px solid var(--openbot-focus-ring);
+  outline-offset: 2px;
+}
+
+.ui-block-media-caption {
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+  line-height: var(--openbot-leading-sm);
+  overflow-wrap: anywhere;
+}
+
+.ui-block-media-unavailable {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--openbot-space-1);
+  margin: 0;
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+  line-height: var(--openbot-leading-sm);
+}
+
+.ui-block-media-unavailable svg {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.ui-block-media-unavailable span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

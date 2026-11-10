@@ -353,8 +353,18 @@ export type UiBlockPromptOutcome =
       response: UiBlockResponse;
       /** Fork: the pause notes on the clips of a form, with their frames. */
       notes?: ReadonlyArray<{ field: string; time: number; text: string; frame?: string }>;
+      /** Fork ("Card media"): the media paths the card could not show. */
+      mediaNotShown?: readonly string[];
+      /** Fork ("Card media"): the block's words point at something visual, and it showed none. */
+      visualWithoutMedia?: boolean;
     }
-  | { status: "skipped" | "expired"; blockId: string; reason?: string };
+  | {
+      status: "skipped" | "expired";
+      blockId: string;
+      reason?: string;
+      mediaNotShown?: readonly string[];
+      visualWithoutMedia?: boolean;
+    };
 
 /**
  * The `ask_ui` result. Only the model reads it: the ids it gave, the values, and the user's words when
@@ -375,6 +385,8 @@ export function uiBlockPromptResult(outcome: UiBlockPromptOutcome): DynamicToolR
               }
             : {}),
           ...(outcome.notes?.length ? { notes: outcome.notes } : {}),
+          ...mediaNotShownValue(outcome.mediaNotShown),
+          ...visualNudgeValue(outcome.visualWithoutMedia),
         }
       : outcome.status === "expired"
         ? {
@@ -382,8 +394,33 @@ export function uiBlockPromptResult(outcome: UiBlockPromptOutcome): DynamicToolR
             blockId: outcome.blockId,
             next: "The block closed before the user answered. Ask again only if you still need the answer.",
           }
-        : { status: outcome.status, blockId: outcome.blockId, ...(outcome.reason ? { reason: outcome.reason } : {}) };
+        : {
+            status: outcome.status,
+            blockId: outcome.blockId,
+            ...(outcome.reason ? { reason: outcome.reason } : {}),
+            ...mediaNotShownValue(outcome.mediaNotShown),
+            ...visualNudgeValue(outcome.visualWithoutMedia),
+          };
   return { success: outcome.status !== "expired", contentItems: [{ type: "inputText", text: JSON.stringify(value) }] };
+}
+
+/** Fork ("Card media"): the text the agent gets when its card talked about something visual and showed none. */
+export const VISUAL_WITHOUT_MEDIA_NUDGE =
+  "This card refers to something visual but has no media. Next time attach a short clip or image with `media`.";
+
+function visualNudgeValue(visual: boolean | undefined) {
+  return visual ? { mediaNudge: VISUAL_WITHOUT_MEDIA_NUDGE } : {};
+}
+
+/** Fork ("Card media"): the files the user did not see, so the agent does not take the answer as about them. */
+function mediaNotShownValue(paths: readonly string[] | undefined) {
+  return paths?.length
+    ? {
+        mediaNotShown: paths,
+        mediaNote:
+          "The card could not show these files (missing, not a file, too large, or outside your workspace and shared folders); the user saw only their names.",
+      }
+    : {};
 }
 
 /** The id of the one secret field in the form of `request_api_key`. */

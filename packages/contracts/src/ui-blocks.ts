@@ -55,6 +55,8 @@ export const UI_BLOCK_LIMITS = {
   timestamp: 160,
   /** Fork: the pause notes on one clip of a form field. */
   clipNotes: 20,
+  /** Fork: the videos and images a block shows under its title (`UiBlockMedia`). */
+  media: 4,
 } as const;
 
 /** Letters, digits, `_ . : -`; 1 to 64 characters. See `isUiBlockId` for the reserved ids. */
@@ -80,6 +82,9 @@ export const UI_CHOICE_QUESTION_ID = "choice";
 // Keys the legacy message read renames (`legacy-conversation-message.ts`). An id that becomes a record
 // key in a response must not be one of them.
 const LEGACY_KEY_IDS: ReadonlySet<string> = new Set(["botId", "recipientBotId", "recipientBotIds", "senderBotId"]);
+
+/** The `src` the host gives a clip or a media item: one of the chat's attachments. */
+const ATTACHMENT_SRC_PATTERN = /^openbot-attachment:\/\/file\/[A-Za-z0-9_-]+$/u;
 
 // ---------------------------------------------------------------------------------------------------
 // Types
@@ -131,6 +136,8 @@ export interface UiConfirmBlock {
   /** A preview of what will happen, such as the body of a letter. Safe Markdown. */
   preview?: string;
   actions: UiAction[];
+  /** Fork: what the block is about, shown under the title. See `UiBlockMedia`. */
+  media?: UiBlockMedia[];
 }
 
 export interface UiOption {
@@ -145,6 +152,8 @@ export interface UiQuickRepliesBlock {
   options: UiOption[];
   /** Shows a text box beside the chips. A typed reply is valid either way (`UI_BLOCK_TEXT_ACTION_ID`). */
   allowText?: boolean;
+  /** Fork: what the block is about, shown under the title. See `UiBlockMedia`. */
+  media?: UiBlockMedia[];
   /**
    * Up to `UI_BLOCK_LIMITS.hints` hints, safe Markdown with math. The app hides them until the person
    * asks, and shows one more each time: a nudge first, then the method, then the first step.
@@ -165,6 +174,8 @@ export interface UiChoiceBlock {
   title: string;
   multiple?: boolean;
   options: UiChoiceOption[];
+  /** Fork: what the block is about, shown under the title. See `UiBlockMedia`. */
+  media?: UiBlockMedia[];
   /** The submit button label. */
   submit?: string;
   /**
@@ -188,6 +199,113 @@ export interface UiFormClip {
   end?: number;
   /** `openbot-attachment://file/<id>`. The host sets it when it shows the block; the agent does not. */
   src?: string;
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md, "Card media"). A video or an image on this computer that the whole block
+ * is about, such as the animation a question asks about. The app shows it under the title, a video with
+ * its sound and controls. The kind comes from the extension (`uiBlockMediaKind`).
+ */
+export interface UiBlockMedia {
+  /** The absolute path of the file, as the agent gave it. */
+  path: string;
+  /** A short line under it, such as "6:41, the heartbeat line". */
+  caption?: string;
+  /** Only a video: seconds in the file. The app starts there and plays to `end` in a loop. */
+  start?: number;
+  /** Only a video: seconds in the file, after `start`. */
+  end?: number;
+  /**
+   * `openbot-attachment://file/<id>`. The host sets it when it shows the block; the agent does not. A
+   * block whose file could not be attached has none: the app names the file instead.
+   */
+  src?: string;
+}
+
+export type UiBlockMediaKind = "video" | "image";
+
+/** The extensions of each kind, lower case. Another file is not media. */
+export const UI_BLOCK_MEDIA_EXTENSIONS = {
+  video: ["mp4", "mov", "m4v", "webm"],
+  image: ["png", "jpg", "jpeg", "webp", "gif"],
+} as const satisfies Record<UiBlockMediaKind, readonly string[]>;
+
+/** The kind of a media path by its extension, or null for any other file. */
+export function uiBlockMediaKind(path: string): UiBlockMediaKind | null {
+  const extension = /\.([A-Za-z0-9]+)$/u.exec(path)?.[1]?.toLowerCase();
+  if (!extension) return null;
+  if (UI_BLOCK_MEDIA_EXTENSIONS.video.some((known) => known === extension)) return "video";
+  if (UI_BLOCK_MEDIA_EXTENSIONS.image.some((known) => known === extension)) return "image";
+  return null;
+}
+
+/** The file name of a media path. */
+export function uiBlockMediaName(path: string): string {
+  return path.split(/[\\/]/u).filter(Boolean).at(-1) ?? path;
+}
+
+/** `m:ss` or `m:ss.s`, the way a person reads a time in a video. */
+function mediaTime(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const rest = Math.round((seconds - minutes * 60) * 10) / 10;
+  const text = Number.isInteger(rest) ? String(rest) : rest.toFixed(1);
+  return `${minutes}:${text.padStart(Number.isInteger(rest) ? 2 : 4, "0")}`;
+}
+
+/**
+ * One line per media item in words that need no translation: an emoji, the file name, the range and the
+ * caption, such as `🎬 heartbeat.mp4 0:02–0:05 · The gold line`. The fallback questions and a client
+ * that cannot show the file use it.
+ */
+export function uiBlockMediaLines(media: readonly UiBlockMedia[]): string[] {
+  return media.map((item) => {
+    const kind = uiBlockMediaKind(item.path);
+    const range =
+      item.start === undefined && item.end === undefined
+        ? ""
+        : ` ${mediaTime(item.start ?? 0)}–${item.end === undefined ? "" : mediaTime(item.end)}`;
+    const caption = item.caption ? ` · ${item.caption}` : "";
+    return `${kind === "image" ? "🖼️" : "🎬"} ${uiBlockMediaName(item.path)}${range}${caption}`;
+  });
+}
+
+// A timecode such as 6:41 or 00:12.5 (not a clock time such as 9:30 pm), or "frame 1280".
+const TIMECODE_PATTERN = /(?<![\d:])\d{1,2}:\d{2}(?:[.:]\d{1,3})?(?![\d:])(?!\s*[ap]\.?m\b)|\bframes?\s+\d+/iu;
+const VISUAL_WORD_PATTERN =
+  /\b(?:animations?|animated?|animating|frames?|scenes?|clips?|shots?|renders?|rendered|rendering|comps?|how (?:it|they|this|that) (?:looks?|moves?))\b/iu;
+
+function uiBlockTexts(spec: UiBlockSpec): string[] {
+  const texts = [spec.title ?? ""];
+  switch (spec.type) {
+    case "confirm":
+      texts.push(spec.preview ?? "", ...spec.actions.map((action) => action.label));
+      for (const field of spec.fields ?? [])
+        texts.push(field.label, ...("select" in field ? field.options : [field.value]));
+      break;
+    case "quick_replies":
+    case "choice":
+      for (const option of spec.options) texts.push(option.label, "meta" in option ? (option.meta ?? "") : "");
+      break;
+    case "form":
+      for (const field of spec.fields) {
+        texts.push(field.label ?? "");
+        if (field.kind === "select" || field.kind === "segmented") texts.push(...field.options);
+        if (field.kind === "text" || field.kind === "textarea") texts.push(field.placeholder ?? "");
+      }
+  }
+  return texts;
+}
+
+/**
+ * Fork ("Card media"). True when a block's words point at something to see (a timecode, "frame 1280",
+ * an animation, a scene, a render…) and it shows nothing: no `media`, and no form field `clip`. The host
+ * then reminds the agent to attach a clip or an image next time. A plain regex; the card goes either way.
+ */
+export function uiBlockLooksVisualWithoutMedia(spec: UiBlockSpec): boolean {
+  if (spec.media?.length) return false;
+  if (spec.type === "form" && spec.fields.some((field) => field.clip)) return false;
+  const text = uiBlockTexts(spec).join("\n");
+  return TIMECODE_PATTERN.test(text) || VISUAL_WORD_PATTERN.test(text);
 }
 
 /** Fork: the response key of the pause notes on the clip of form field `fieldId`. */
@@ -262,6 +380,8 @@ export interface UiFormBlock {
   type: "form";
   title: string;
   fields: UiFormField[];
+  /** Fork: what the block is about, shown under the title. See `UiBlockMedia`. */
+  media?: UiBlockMedia[];
   /** The submit button label. */
   submit?: string;
   /**
@@ -633,7 +753,7 @@ function readClip(value: unknown): UiFormClip {
   }
   const src = readOptionalString(record.src, 200);
   if (src !== undefined) {
-    check(/^openbot-attachment:\/\/file\/[A-Za-z0-9_-]+$/u.test(src));
+    check(ATTACHMENT_SRC_PATTERN.test(src));
     clipValue.src = src;
   }
   return clipValue;
@@ -695,10 +815,48 @@ function readForm(record: DynamicRecord): UiFormBlock {
   return block;
 }
 
+function readMediaItem(value: unknown): UiBlockMedia {
+  const record = readRecord(value);
+  const path = readString(record.path, INPUT_LIMITS.path);
+  check(path.startsWith("/"));
+  const kind = uiBlockMediaKind(path);
+  check(kind !== null);
+  const item: UiBlockMedia = { path };
+  const caption = readOptionalString(record.caption, UI_BLOCK_LIMITS.title);
+  if (caption !== undefined) item.caption = caption;
+  const start = readOptionalNumber(record.start, 0, 86_400);
+  const end = readOptionalNumber(record.end, 0, 86_400);
+  if (end !== undefined) check(end > (start ?? 0));
+  // A range means nothing for an image; it is left out, not refused.
+  if (kind === "video") {
+    if (start !== undefined) item.start = start;
+    if (end !== undefined) item.end = end;
+  }
+  const src = readOptionalString(record.src, 200);
+  if (src !== undefined) {
+    check(ATTACHMENT_SRC_PATTERN.test(src));
+    item.src = src;
+  }
+  return item;
+}
+
+/** Fork ("Card media"): the media of any block type. */
+function readMedia(record: DynamicRecord): UiBlockMedia[] | undefined {
+  if (record.media === undefined) return undefined;
+  return readArray(record.media, UI_BLOCK_LIMITS.media, 1).map(readMediaItem);
+}
+
 function readSpec(value: unknown): UiBlockSpec {
   check(jsonLength(value) <= UI_BLOCK_LIMITS.specJson);
   const record = readRecord(value);
   const type = readOneOf(UI_BLOCK_TYPES, record.type);
+  const spec = readSpecOfType(type, record);
+  const media = readMedia(record);
+  if (media !== undefined) spec.media = media;
+  return spec;
+}
+
+function readSpecOfType(type: UiBlockType, record: DynamicRecord): UiBlockSpec {
   switch (type) {
     case "confirm":
       return readConfirm(record);
@@ -748,6 +906,16 @@ export function uiBlockFitsV1Wire(block: ConversationUiBlock): boolean {
       (answer === undefined || answer === "" || (typeof answer === "string" && field.options.includes(answer)))
     );
   });
+}
+
+/**
+ * Fork ("Card media"). The spec with its media but without their `src`: an attachment id names a file of
+ * this host, which a remote client cannot open. Such a client names the files instead, and finds them
+ * among the agent's attachments in the chat.
+ */
+export function uiBlockSpecWithoutMediaSources(spec: UiBlockSpec): UiBlockSpec {
+  if (!spec.media?.some((item) => item.src !== undefined)) return spec;
+  return { ...spec, media: spec.media.map(({ src: _src, ...item }) => item) };
 }
 
 export function isUiBlockSpec(value: unknown): value is UiBlockSpec {
@@ -1051,9 +1219,23 @@ function confirmFieldLine(field: UiConfirmField): string {
  *   line or comma-separated.
  * - `form`: one question per field, id = field id. A secret field is a secret question.
  *
- * The hints are left out: they help, but the questions do not need them.
+ * The hints are left out: they help, but the questions do not need them. Fork ("Card media"): the
+ * first question names the block's media (`uiBlockMediaLines`), so a client that cannot show them
+ * still says which files the block is about.
  */
 export function uiBlockFallbackQuestions(spec: UiBlockSpec): AgentPromptQuestion[] {
+  const questions = fallbackQuestionsOfType(spec);
+  const first = questions[0];
+  if (first && spec.media?.length) {
+    first.question = clip(
+      `${first.question}\n\n${uiBlockMediaLines(spec.media).join("\n")}`,
+      INPUT_LIMITS.promptQuestion,
+    );
+  }
+  return questions;
+}
+
+function fallbackQuestionsOfType(spec: UiBlockSpec): AgentPromptQuestion[] {
   switch (spec.type) {
     case "confirm": {
       const details = (spec.fields ?? []).map(confirmFieldLine);

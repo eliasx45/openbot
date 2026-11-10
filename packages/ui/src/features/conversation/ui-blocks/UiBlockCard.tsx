@@ -1,4 +1,4 @@
-import type { UiBlockStatus } from "@openbot/contracts/ui-blocks";
+import type { UiBlockMedia, UiBlockStatus } from "@openbot/contracts/ui-blocks";
 import {
   Badge,
   Bubble,
@@ -16,6 +16,7 @@ import { children, createUniqueId, Match, Show, Switch, untrack } from "solid-js
 import { useText } from "../../../text";
 import { cx } from "../../../utils";
 import { UiBlockHints } from "./UiBlockHints";
+import { UiBlockMediaStrip } from "./UiBlockMedia";
 import { UiMathText } from "./UiMathText";
 
 export interface UiBlockCardProps {
@@ -66,6 +67,8 @@ export interface UiBlockCardProps {
   hints?: readonly string[] | undefined;
   /** Draws a hint as safe Markdown. */
   renderMarkdown?: ((markdown: string) => JSX.Element) | undefined;
+  /** Fork ("Card media"): the videos and images the block is about, under the header. */
+  media?: readonly UiBlockMedia[] | undefined;
 }
 
 function outcomeText(status: UiBlockStatus, outcome: string | undefined, t: ReturnType<typeof useText>["t"]) {
@@ -182,6 +185,7 @@ export function UiBlockCard(props: UiBlockCardProps) {
             </Show>
           </header>
         </Show>
+        <UiBlockMediaStrip media={props.media} />
         <div class="ui-block-body">{props.children}</div>
         <UiBlockHints hints={props.hints} pending={pending()} renderMarkdown={props.renderMarkdown} />
         <Show when={pending() && props.error}>

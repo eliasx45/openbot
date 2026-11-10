@@ -13,4 +13,6 @@ export const messages = {
   "uiBlock.clip.notePlaceholder": "O que deve mudar neste quadro?",
   "uiBlock.clip.addNote": "Adicionar nota",
   "uiBlock.clip.removeNote": "Remover nota",
+  "uiBlock.media.unavailable": "Não é possível mostrar {name} aqui",
+  "uiBlock.media.enlarge": "Ampliar {name}",
 } as const satisfies PartialTranslation<typeof source>;

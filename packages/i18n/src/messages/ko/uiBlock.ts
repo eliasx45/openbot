@@ -35,4 +35,6 @@ export const messages = {
   "uiBlock.clip.notePlaceholder": "이 프레임에서 무엇을 바꿔야 하나요?",
   "uiBlock.clip.addNote": "메모 추가",
   "uiBlock.clip.removeNote": "메모 삭제",
+  "uiBlock.media.unavailable": "{name}을(를) 여기에 표시할 수 없습니다",
+  "uiBlock.media.enlarge": "{name} 확대",
 } as const satisfies PartialTranslation<typeof source>;

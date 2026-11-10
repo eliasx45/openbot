@@ -7,6 +7,7 @@ import { readUiFormClipNote, type UiFormClip as UiFormClipSpec } from "@openbot/
 import { Button, Input, Pin, X } from "@openbot/ui";
 import { createSignal, For, Show } from "solid-js";
 import { useText } from "../../../text";
+import { keepVideoInRange } from "./UiBlockMedia";
 
 /** `m:ss.cc`, as an editor reads a time. */
 function clipTime(seconds: number): string {
@@ -32,13 +33,7 @@ export function UiFormClip(props: UiFormClipProps) {
   const start = () => props.clip.start ?? 0;
 
   function keepInRange(): void {
-    if (!video) return;
-    const end = props.clip.end;
-    if (video.currentTime < start() - 0.05 || (end !== undefined && video.currentTime >= end)) {
-      const playing = !video.paused;
-      video.currentTime = start();
-      if (playing) void video.play().catch(() => undefined);
-    }
+    if (video) keepVideoInRange(video, start(), props.clip.end);
   }
 
   function openNote(): void {

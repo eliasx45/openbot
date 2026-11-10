@@ -245,6 +245,7 @@ export function UiConfirmBlock(props: UiConfirmBlockProps) {
       onSkip={props.disabled || autoAnswer() || confirming() ? undefined : props.onSkip}
       actions={actionButtonsOrNone()}
       elementRef={props.elementRef}
+      media={props.spec.media}
     >
       <Show when={(props.spec.fields?.length ?? 0) > 0}>
         <dl class="ui-block-fields">

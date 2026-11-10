@@ -34,6 +34,7 @@ import {
   uiBlockAnswersFromResponse,
   uiBlockFallbackQuestions,
   uiBlockHasPrivilegedAction,
+  uiBlockLooksVisualWithoutMedia,
   uiBlockOutcomeText,
   uiBlockResponseFromAnswers,
   validateUiBlockResponse,
@@ -663,8 +664,15 @@ export class AttentionRegistry {
                       blockId: pending.uiBlock.blockId,
                       response: uiBlockResponse,
                       notes: notes.map(({ file: _file, ...note }) => note),
+                      mediaNotShown: mediaNotShown(pending.uiBlock.spec),
+                      visualWithoutMedia: uiBlockLooksVisualWithoutMedia(pending.uiBlock.spec),
                     }
-                  : { status: "skipped", blockId: pending.uiBlock.blockId },
+                  : {
+                      status: "skipped",
+                      blockId: pending.uiBlock.blockId,
+                      mediaNotShown: mediaNotShown(pending.uiBlock.spec),
+                      visualWithoutMedia: uiBlockLooksVisualWithoutMedia(pending.uiBlock.spec),
+                    },
               )
             : pending.responseKind === "dynamic-tool"
               ? dynamicPromptResult(input.answers)
@@ -2322,6 +2330,11 @@ function uiBlockAnswer(
     throw new ForbiddenAttentionAnswer(sourceText("error.backend.uiBlockActionNotAllowed"));
   }
   return response;
+}
+
+/** Fork ("Card media"): the media of a block that the host could not attach, so the card only names them. */
+function mediaNotShown(spec: UiBlockSpec): string[] {
+  return [...new Set((spec.media ?? []).flatMap((item) => (item.src ? [] : [item.path])))];
 }
 
 function answeredUiBlockState(

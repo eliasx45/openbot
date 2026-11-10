@@ -4,6 +4,7 @@ import {
   type UiBlockState,
   uiBlockFitsV1Wire,
   uiBlockSpecWithoutHints,
+  uiBlockSpecWithoutMediaSources,
 } from "../ui-blocks";
 import type { TeamProtocolV7BaseJsonObject, TeamProtocolV7BaseJsonValue } from "./v7-base";
 
@@ -59,11 +60,12 @@ export function withConversationUiBlocks(
     // Fork: a review card (clip, Other) stays off this wire; the client shows its questions.
     if (!uiBlockFitsV1Wire(normalized)) continue;
     // `vault`, `apiKey` and the spec's `hints` came later, so they stay off this wire: a remote client
-    // shows the form of the block, without hints.
+    // shows the form of the block, without hints. Fork ("Card media"): a released reader drops `media`;
+    // a fork reader gets it without the host's attachment ids and names the files.
     const { vault: _vault, apiKey: _apiKey, ...v1Block } = normalized;
     const json = JSON.stringify({
       ...v1Block,
-      spec: uiBlockSpecWithoutHints(v1Block.spec),
+      spec: uiBlockSpecWithoutMediaSources(uiBlockSpecWithoutHints(v1Block.spec)),
       state: v1State(v1Block.state),
     });
     if (isString(message.id)) candidates.push({ id: message.id, block: JSON.parse(json), size: json.length });

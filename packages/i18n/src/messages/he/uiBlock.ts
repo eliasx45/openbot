@@ -26,4 +26,6 @@ export const messages = {
   "uiBlock.form.hiddenValue": "מוסתר",
   "uiBlock.skip": "דילוג",
   "uiBlock.error.answerFailed": "לא ניתן לשלוח את התשובה. אפשר לנסות שוב.",
+  "uiBlock.media.unavailable": "לא ניתן להציג את {name} כאן",
+  "uiBlock.media.enlarge": "הגדלת {name}",
 } as const satisfies PartialTranslation<typeof source>;

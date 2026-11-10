@@ -34,4 +34,6 @@ export const messages = defineMessages("uiBlock", {
   "uiBlock.clip.notePlaceholder": "What should change at this frame?",
   "uiBlock.clip.addNote": "Add note",
   "uiBlock.clip.removeNote": "Remove note",
+  "uiBlock.media.unavailable": "{name} can't be shown here",
+  "uiBlock.media.enlarge": "Enlarge {name}",
 });

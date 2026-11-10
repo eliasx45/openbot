@@ -13,4 +13,6 @@ export const messages = {
   "uiBlock.clip.notePlaceholder": "このフレームで何を変えますか？",
   "uiBlock.clip.addNote": "メモを追加",
   "uiBlock.clip.removeNote": "メモを削除",
+  "uiBlock.media.unavailable": "{name} はここでは表示できません",
+  "uiBlock.media.enlarge": "{name} を拡大",
 } as const satisfies PartialTranslation<typeof source>;

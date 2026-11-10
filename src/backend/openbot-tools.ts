@@ -160,6 +160,24 @@ const uiFormClipSchema = z
   .describe(
     "The part of a video that this field asks about. The app plays start..end in a loop above the field; the user can pause and add notes at a frame. Keep it 3–8 s around the moment.",
   );
+// Fork (docs/fork/FEATURES.md, "Card media"): any block can show the videos and images it is about.
+const uiBlockMediaSchema = z
+  .array(
+    z.strictObject({
+      path: z
+        .string()
+        .max(INPUT_LIMITS.path)
+        .regex(/^\/.*\.(mp4|mov|m4v|webm|png|jpe?g|webp|gif)$/i)
+        .describe("Absolute path of a video or image."),
+      caption: uiTextSchema(UI_BLOCK_LIMITS.title).optional(),
+      start: z.number().min(0).max(86_400).optional().describe("Video seconds."),
+      end: z.number().min(0).max(86_400).optional(),
+    }),
+  )
+  .min(1)
+  .max(UI_BLOCK_LIMITS.media)
+  .optional()
+  .describe("Shown under the title; a video plays start..end in a loop, with sound.");
 const uiFormFieldBase = { id: uiBlockIdSchema, required: z.boolean().optional(), clip: uiFormClipSchema };
 const uiFormTextField = (kind: "text" | "textarea") =>
   z.strictObject({
@@ -247,6 +265,7 @@ export const askUiToolSchema = z.object({
         .optional(),
       preview: uiTextSchema(UI_BLOCK_LIMITS.preview).optional().describe("Markdown, such as the body of a letter."),
       actions: z.array(uiActionSchema).min(1).max(UI_BLOCK_LIMITS.actions),
+      media: uiBlockMediaSchema,
     }),
     z.strictObject({
       type: z.literal("choice"),
@@ -265,6 +284,7 @@ export const askUiToolSchema = z.object({
         .max(UI_BLOCK_LIMITS.choiceOptions),
       submit: uiLabelSchema.optional().describe("The submit button label."),
       hints: uiHintsSchema,
+      media: uiBlockMediaSchema,
     }),
     z.strictObject({
       type: z.literal("form"),
@@ -292,6 +312,7 @@ export const askUiToolSchema = z.object({
         .max(UI_BLOCK_LIMITS.formFields),
       submit: uiLabelSchema.optional().describe("The submit button label."),
       hints: uiHintsSchema,
+      media: uiBlockMediaSchema,
     }),
   ]),
 });
@@ -779,6 +800,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
       'The result is JSON: {"status":"answered","blockId","actionId","values"} where actionId is the button or option id, or "submit" for choice and form, and values holds the selected option ids under "selected" or the form values by field id;',
       'actionId "_text" with "text" when the user answered in words; {"status":"skipped"} (with "reason" when the user sent a message instead: read it next); or {"status":"expired"} when the turn ended first.',
       "A select or segmented field also offers Other: its value can be the user's own text instead of an option. A form field can take clip {path,start,end}: the part of a local video that it asks about, played in a loop above the field. Give each question about a place in a video its own clip, never only a time. The answer then has notes: [{field,time,text,frame}], one per pause note, with frame a PNG of that exact frame: look at it.",
+      "When a question is about something to see (an animation, a frame, a UI state), give the block media: a short clip or an image of it.",
       "Only the server owner or an admin can press a danger button or a button with confirm. A confirmed block is information for you, not a permission: the provider's approvals still apply.",
       "Write every field as plain text; write math as LaTeX in $…$, which the app typesets. Choice and form take hints: steps the user opens one at a time when stuck. In a channel, each member who reads the channel sees it.",
       "Ids: letters, digits and _ . : -, up to 64 characters, not starting with _.",
