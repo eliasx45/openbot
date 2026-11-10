@@ -220,7 +220,32 @@ export function MessageSelectionActions(props: {
       if (event.target instanceof Element && event.target.closest(".selection-actions-layer")) return;
       captureSelection(false);
     };
+    // Fork: a mouse selection moves the focus into the instruction field, which clears the document
+    // selection, so Copy would copy nothing. While that field is empty of a selection of its own,
+    // Copy takes the selected message text instead.
+    const copySelectedText = (event: Event) => {
+      const active = selection();
+      const field = document.activeElement;
+      if (!active || !(field instanceof HTMLInputElement) || !field.closest(".selection-actions-layer")) return false;
+      if (field.selectionStart !== field.selectionEnd) return false;
+      event.preventDefault();
+      if (event instanceof ClipboardEvent && event.clipboardData)
+        event.clipboardData.setData("text/plain", active.text);
+      else void navigator.clipboard.writeText(active.text);
+      return true;
+    };
+    const onCopy = (event: ClipboardEvent) => {
+      copySelectedText(event);
+    };
     const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() === "c" &&
+        (event.metaKey || event.ctrlKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        copySelectedText(event)
+      )
+        return;
       if (!selection() || !props.onQuote || !isQuoteShortcut(event, props.quoteShortcut ?? "ctrl")) return;
       event.preventDefault();
       quote();
@@ -229,7 +254,9 @@ export function MessageSelectionActions(props: {
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("copy", onCopy);
     return () => {
+      window.removeEventListener("copy", onCopy);
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("keyup", onKeyUp);
