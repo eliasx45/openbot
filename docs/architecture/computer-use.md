@@ -74,8 +74,9 @@ changing provider sessions.
 ### Agent display on a server
 
 A self-hosted server and the container start two Xvfb displays, and name the agent display in
-`OPENBOT_AGENT_DISPLAY`. A boat hosted server names its desktop `:0`, and OpenBot runs on an Xvfb
-display. Electron keeps its own `DISPLAY`: the built-in browser draws its tabs in
+`OPENBOT_AGENT_DISPLAY`. The agent display has a white root (Xvfb `-wr`), because remote desktop
+shows a black root as if no video came. A boat hosted server names its desktop `:0`, and OpenBot
+runs on an Xvfb display. Electron keeps its own `DISPLAY`: the built-in browser draws its tabs in
 the OpenBot window, and under Xvfb a hidden view gives no capture and no clicks, so OpenBot cannot
 only hide its window. On Linux, `agent-display.ts` sets `DISPLAY` to the agent display for the
 driver daemon, for Sunshine, and in `agentEnvironment` for every agent process. The driver and
@@ -89,8 +90,11 @@ available, and agents take screenshots with the driver.
 `openbot.service` holds the Xvfb displays too, and a stop signals each process of the unit at the
 same time. An Xvfb that stops first ends OpenBot before it closes its database. So the unit's
 `ExecStop` runs `openbot-hosted-server --stop`: it sends `SIGTERM` to OpenBot only, whose PID the
-script writes to `$XDG_RUNTIME_DIR/openbot.pid`, and waits for it. The container does not need this:
-tini signals only OpenBot.
+script writes to `$XDG_RUNTIME_DIR/openbot.pid`, and waits for it. Then it waits at most 10 s for
+the main process of the unit, so that `xvfb-run` completes its `xauth remove`. An `xauth` that the
+stop signal ended left the `~/.Xauthority-c` lock, and each later start failed after 20 to 40 s.
+The start also removes these lock files when no `xauth` of the user runs. The container does not
+need this: tini signals only OpenBot.
 
 Because the driver draws no cursor, its motion styles do not apply. The renderer plays the driver's
 `adaptive` style itself (`agent-cursor-motion.ts`, a port of the driver's `trajectory.rs`): a Fitts

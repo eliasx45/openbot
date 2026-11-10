@@ -3,6 +3,7 @@ import type {
   AcpRegistryEntry,
   AgentProviderRef,
   AgentSessionSettings,
+  CreateAgentInput,
   HiddenAgentsSnapshot,
   McpSignInApp,
   McpSignInAppState,
@@ -13,6 +14,7 @@ import {
   AGENT_DEFAULT_KEYS,
   AGENT_FOLDER_LIMIT,
   AGENT_INSTRUCTIONS_CHANGE_ITEM_TYPE,
+  AGENT_WELCOME_ITEM_TYPE,
   type AgentAccessChange,
   type AgentBrowserProfile,
   type AgentDefaults,
@@ -60,6 +62,7 @@ import {
   browserProxyAddressText,
   type CentralAuthState,
   type CheckFileChipsInput,
+  type ClaudeUserSetupSetting,
   type ClientAgentModelOption,
   type ClientAgentSummary,
   CONTEXT_RESET_ITEM_TYPE,
@@ -81,6 +84,7 @@ import {
   DEFAULT_APP_LOGO_COLOR,
   DEFAULT_APPROVAL_AUTOMATION_PREFERENCE,
   DEFAULT_BUSY_MESSAGE_MODE,
+  DEFAULT_CLAUDE_USER_SETUP,
   DEFAULT_CUSTOM_PROVIDER_HARNESS,
   DEFAULT_DYNAMIC_ISLAND_PREFERENCE,
   DEFAULT_EXTERNAL_LINK_PREFERENCE,
@@ -207,6 +211,7 @@ import { createMockBrowser, type MockBrowserOptions } from "./mock-browser";
 import { createMockChannels, type MockChannelSeed } from "./mock-channels";
 import { createMockEvents } from "./mock-events";
 import { createMockGitHubConnector } from "./mock-github-connector";
+import { createMockHostPersonality } from "./mock-host-personality";
 import { createMockHostTimezone } from "./mock-host-timezone";
 import { createMockHostUpdate, type MockHostUpdateOptions } from "./mock-host-update";
 import { createMockHostedServers } from "./mock-hosted-servers";
@@ -289,7 +294,8 @@ export interface MockSentMessage {
 
 /**
  * The trace of a finished mock turn that ends at `endedAt`, as a host records it: a thought, three
- * tool steps with the progress text that `turn-progress` sent (the web search failed), and the answer.
+ * tool steps with the progress text that `turn-progress` sent (the web search failed, with its error), and the
+ * answer.
  */
 function mockTurnTrace(turnId: string, endedAt: Date): ConversationTurnTrace {
   const end = endedAt.getTime();
@@ -313,6 +319,7 @@ function mockTurnTrace(turnId: string, endedAt: Date): ConversationTurnTrace {
         startedAt: at(2_340),
         endedAt: at(3_910),
         failed: true,
+        error: "fetch failed: getaddrinfo ENOTFOUND search.example.com",
       },
       {
         id: `${turnId}:edit`,
@@ -470,6 +477,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
   // The disk level is below the preview disk use (82%), so Storage shows a passed level.
   let machineAlerts: MachineAlertSettings = { ...DEFAULT_MACHINE_ALERT_SETTINGS, diskPercent: 80 };
   let promptCacheTtl: PromptCacheTtlSetting = { ...DEFAULT_PROMPT_CACHE_TTL };
+  let claudeUserSetup: ClaudeUserSetupSetting = { ...DEFAULT_CLAUDE_USER_SETUP };
   /** The models each provider's picker shows, after the user changed the list. Unchanged providers show all. */
   const shownModels = new Map<string, readonly string[]>();
   let agentAccess: AgentAccessChange = { revision: 0, everyone: {}, roles: [] };
@@ -484,6 +492,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
     keepRunningInBackground: false,
     keepAwake: false,
     keepAwakeOnBattery: false,
+    quitGuard: "working",
   };
   let languagePreference = clone<AppLanguagePreference>(options.languagePreference ?? { language: "system" });
   const languageListeners = new Set<(preference: AppLanguagePreference) => void>();
@@ -494,6 +503,8 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
     transparentWindow: DEFAULT_TRANSPARENT_WINDOW,
     palette: null,
     palettes: [],
+    chatBackgroundLight: null,
+    chatBackgroundDark: null,
   };
   const appearanceListeners = new Set<(preference: AppAppearancePreference) => void>();
   let interfaceSizePreference: AppInterfaceSizePreference = { percent: DEFAULT_APP_INTERFACE_SIZE };
@@ -1170,6 +1181,40 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
   );
   const billingPlans = previewBillingServers();
 
+  async function createMockAgent(input: CreateAgentInput, welcome: boolean): Promise<ClientAgentSummary> {
+    const agent = createAgentSummary({
+      name: input.name,
+      title: "",
+      description: input.description,
+      avatarSeed: input.avatarSeed,
+      avatarHue: input.avatarHue,
+      ...(input.provider === undefined ? {} : { provider: input.provider }),
+      ...(input.model === undefined ? {} : { model: input.model }),
+      ...(input.reasoningEffort === undefined ? {} : { reasoningEffort: input.reasoningEffort }),
+    });
+    if (input.provider && input.model && input.providerAccountId) agent.providerAccountId = input.providerAccountId;
+    agents = [...agents, agent];
+    queues.set(agent.id, emptyQueue(agent.id));
+    emitAgentEvent({ type: "agents-changed", agents });
+    try {
+      await api.agent.sendMessage({ agentId: agent.id, text: input.initialMessage, attachmentDraftIds: [] });
+      // As on a host: the renderer sends a setup message, which the chat does not show.
+      if (welcome)
+        updateSnapshot(agent.id, (snapshot) => {
+          snapshot.messages = snapshot.messages.map((message) =>
+            message.author === "user" ? { ...message, itemType: AGENT_WELCOME_ITEM_TYPE } : message,
+          );
+        });
+      return clone(agent);
+    } catch (error) {
+      agents = agents.filter((candidate) => candidate.id !== agent.id);
+      queues.delete(agent.id);
+      delete snapshots[agent.id];
+      emitAgentEvent({ type: "agents-changed", agents });
+      throw error;
+    }
+  }
+
   const api: OpenBotDesktopApi = {
     getAppInfo: async () => clone(appInfo),
     getSetupState: async () => clone(setupState),
@@ -1295,6 +1340,18 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       onAction: () => () => undefined,
       setFrame: async () => undefined,
       onShown: () => () => undefined,
+    },
+    agentDock: {
+      publishPresentation: async () => undefined,
+      getPresentation: async () => null,
+      onPresentation: () => () => undefined,
+      performAction: async () => undefined,
+      onAction: () => () => undefined,
+      setInteractive: async () => undefined,
+      onCloseChat: () => () => undefined,
+      listDisplays: async () => [{ id: 1, label: "Built-in Retina Display", primary: true, internal: true }],
+      drag: async () => undefined,
+      onMoved: () => () => undefined,
     },
     dynamicIsland: {
       getPreference: async () => clone(dynamicIslandPreference),
@@ -1495,6 +1552,12 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       provider,
       status: providerApiKeys.has(provider) ? "saved" : "missing",
     }),
+    getClaudeUserSetup: async () => clone(claudeUserSetup),
+    setClaudeUserSetup: async (enabled) => {
+      if (typeof enabled !== "boolean") throw new Error("Invalid Claude setup setting.");
+      claudeUserSetup = { enabled };
+      return clone(claudeUserSetup);
+    },
     providerRuntimes: mockProviderRuntimes.providerRuntimes,
     openUrl: async () => undefined,
     voice: mockVoice.voice,
@@ -2435,7 +2498,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       saveProfile: async (input) => {
         const agent = input.agentId
           ? await api.agent.updateAgent({ agentId: input.agentId, ...input.draft })
-          : await api.agent.createAgent({ ...input.draft, initialMessage: input.initialMessage ?? "Hello" });
+          : await createMockAgent({ ...input.draft, initialMessage: input.initialMessage ?? "Hello" }, false);
         const updated = await api.agent.updateAgent({ agentId: agent.id, ...input.draft });
         await api.agent.setAvatar({ agentId: agent.id, image: null });
         const layout = await api.agent.mutateSidebarLayout({
@@ -2447,32 +2510,8 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         if (!isAgentSummary(updated)) throw new Error("Mock profile agent has an unknown provider.");
         return { agent: { ...updated, avatarUrl: null }, layout };
       },
-      createAgent: async (input) => {
-        const agent = createAgentSummary({
-          name: input.name,
-          title: "",
-          description: input.description,
-          avatarSeed: input.avatarSeed,
-          avatarHue: input.avatarHue,
-          ...(input.provider === undefined ? {} : { provider: input.provider }),
-          ...(input.model === undefined ? {} : { model: input.model }),
-          ...(input.reasoningEffort === undefined ? {} : { reasoningEffort: input.reasoningEffort }),
-        });
-        if (input.provider && input.model && input.providerAccountId) agent.providerAccountId = input.providerAccountId;
-        agents = [...agents, agent];
-        queues.set(agent.id, emptyQueue(agent.id));
-        emitAgentEvent({ type: "agents-changed", agents });
-        try {
-          await api.agent.sendMessage({ agentId: agent.id, text: input.initialMessage, attachmentDraftIds: [] });
-          return clone(agent);
-        } catch (error) {
-          agents = agents.filter((candidate) => candidate.id !== agent.id);
-          queues.delete(agent.id);
-          delete snapshots[agent.id];
-          emitAgentEvent({ type: "agents-changed", agents });
-          throw error;
-        }
-      },
+      // The renderer's create sends a setup message; a saved profile sends a visible first message.
+      createAgent: (input) => createMockAgent(input, true),
       duplicateAgent: async (agentId) => {
         const source = agents.find((agent) => agent.id === agentId);
         if (!source) throw new Error("Agent not found");
@@ -2485,6 +2524,10 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
             preview: "",
             updatedAt: null,
           }),
+          // Only a named profile carries over, as in the agent store.
+          ...(source.browserProfileId === undefined
+            ? {}
+            : { ownBrowserSession: true, browserProfileId: source.browserProfileId }),
           threadId: null,
         };
         agents = [...agents, agent];
@@ -2967,6 +3010,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
           threadId: getSnapshot(input.agentId).threadId ?? `thread-${input.agentId}`,
           turnId,
           detail: "Reviewing your request…",
+          activity: "reading",
         });
         emitAgentEvent({
           type: "turn-progress",
@@ -3315,6 +3359,11 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
           });
         });
       },
+      deleteHistory: async (agentId: string) => {
+        updateSnapshot(agentId, (snapshot) => {
+          snapshot.messages = [];
+        });
+      },
       compactContext: async () => undefined,
       compactTaskContext: async () => undefined,
       respondToPrompt: async (input: RespondToPromptInput) => {
@@ -3435,6 +3484,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       },
       ...createMockHostUpdate(options),
       ...createMockHostTimezone(),
+      ...createMockHostPersonality(),
       // Preview has one host, so every server shares one limit. Main tells the window, as here.
       getAgentMemoryLimit: async () => hostAgentMemoryLimit(agentMemoryLimit),
       setAgentMemoryLimit: async (limit) => {

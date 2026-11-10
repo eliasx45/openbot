@@ -46,7 +46,13 @@ import { ComposerReplyPreview } from "@openbot/ui/features/conversation/Composer
 import { ComposerSendControl } from "@openbot/ui/features/conversation/ComposerSendControl";
 import { ContextUsageMeter, type ContextUsageView } from "@openbot/ui/features/conversation/ContextUsage";
 import { ApprovalCard } from "@openbot/ui/features/conversation/ConversationPrompts";
-import { DeleteMessageDialog, MessageActions, MessageMenu } from "@openbot/ui/features/conversation/MessageRendering";
+import {
+  DeleteMessageDialog,
+  MessageActions,
+  MessageMenu,
+  MessageMenuItems,
+  type MessageMenuItemsProps,
+} from "@openbot/ui/features/conversation/MessageRendering";
 import { QueuePanel } from "@openbot/ui/features/conversation/QueuePanel";
 import {
   MessageSelectionActions,
@@ -233,12 +239,19 @@ export interface AgentThreadViewProps {
   stepsOpenByDefault?: boolean | undefined;
   /** Receives the message list, where the app searches the thread. */
   scrollRef?: ((element: HTMLElement) => void) | undefined;
+  /** Whether a long message draws in full, with no fold: the app searches the drawn text of the thread. */
+  showFullMessage?: ((message: AgentMessage) => boolean) | undefined;
   /** The user's send shortcut. Enter when absent. */
   sendShortcut?: SendShortcut | undefined;
   /** Copies a message. Without it, the messages have no action row and no right-click menu. */
   onCopyMessage?: ((message: AgentMessage) => void) | undefined;
-  /** The message that the copy action copied a moment ago. */
+  /** The message that the copy action copied a moment ago. The full action row shows it. */
   copiedMessageId?: string | null | undefined;
+  /**
+   * True (the default) shows Reply and a More button in the action row. False shows Reply, Copy and
+   * Branch in the row, as before.
+   */
+  compactMessageActions?: boolean | undefined;
   /**
    * Copies the thread through an answer into a new thread. Only the last answer of each finished turn
    * offers it. Missing where the host cannot branch.
@@ -465,45 +478,67 @@ export function AgentThreadView(props: AgentThreadViewProps) {
       avatarSeed: senderId,
     };
   };
-  /** The action row of a message: Reply, Copy, and Branch on the last answer of a finished turn. */
+  /** The items of a message's menu: Reply, Copy, Branch on the last answer of a finished turn, and Delete. */
+  function menuItems(message: AgentMessage, onCopy: (message: AgentMessage) => void): MessageMenuItemsProps {
+    return {
+      message,
+      reactions: false,
+      onReact: () => undefined,
+      onReply: replyAction(message),
+      onCopy: () => onCopy(message),
+      onBranch: branchAction(message),
+      branchDisabled: branchBusy(),
+      onDelete: deleteAction(message),
+    };
+  }
+  /**
+   * The action row of a message. The compact row has Reply, and More with the items of the right-click
+   * menu. The full row has Reply, Copy, and Branch on the last answer of a finished turn.
+   */
   function messageActions(message: AgentMessage): JSX.Element | undefined {
     const onCopy = props.onCopyMessage;
     if (!onCopy || message.streaming) return undefined;
     return (
-      <MessageActions
-        message={message}
-        authorName={author(message).name}
-        reactions={false}
-        pickerOpen={false}
-        expandedEmoji={false}
-        copied={props.copiedMessageId === message.id}
-        onTogglePicker={() => undefined}
-        onExpandEmoji={() => undefined}
-        onReact={() => undefined}
-        onReply={replyAction(message)}
-        onCopy={() => onCopy(message)}
-        onBranch={branchAction(message)}
-        branchDisabled={branchBusy()}
-      />
+      <Show
+        when={props.compactMessageActions !== false}
+        fallback={
+          <MessageActions
+            message={message}
+            authorName={author(message).name}
+            reactions={false}
+            pickerOpen={false}
+            expandedEmoji={false}
+            copied={props.copiedMessageId === message.id}
+            onTogglePicker={() => undefined}
+            onExpandEmoji={() => undefined}
+            onReact={() => undefined}
+            onReply={replyAction(message)}
+            onCopy={() => onCopy(message)}
+            onBranch={branchAction(message)}
+            branchDisabled={branchBusy()}
+          />
+        }
+      >
+        <MessageActions
+          message={message}
+          authorName={author(message).name}
+          reactions={false}
+          pickerOpen={false}
+          expandedEmoji={false}
+          onTogglePicker={() => undefined}
+          onExpandEmoji={() => undefined}
+          onReact={() => undefined}
+          onReply={replyAction(message)}
+          menu={() => <MessageMenuItems {...menuItems(message, onCopy)} />}
+        />
+      </Show>
     );
   }
-  /** The right-click menu of a message, with the actions of its action row. */
+  /** The right-click menu of a message, with the items of its More button. */
   function messageMenu(message: AgentMessage): (() => JSX.Element) | undefined {
     const onCopy = props.onCopyMessage;
     if (!onCopy || message.streaming) return undefined;
-    return () => (
-      <MessageMenu
-        message={message}
-        authorName={author(message).name}
-        reactions={false}
-        onReact={() => undefined}
-        onReply={replyAction(message)}
-        onCopy={() => onCopy(message)}
-        onBranch={branchAction(message)}
-        branchDisabled={branchBusy()}
-        onDelete={deleteAction(message)}
-      />
-    );
+    return () => <MessageMenu {...menuItems(message, onCopy)} authorName={author(message).name} />;
   }
   /** A finished turn with no answer shows its steps on its thinking row, with no message under them. */
   const shownRow = (message: AgentMessage) =>
@@ -535,8 +570,9 @@ export function AgentThreadView(props: AgentThreadViewProps) {
   const sendLabel = () =>
     t(recording() ? "composer.send.voice" : editingQueued() ? "composer.send.saveQueued" : "composer.send.message");
   /*
-   * The rows that the queue panel shows. The last row leaves with its animation before the panel
-   * closes, as in the agent's own chat. Another thread does not get the rows of the one before.
+   * The rows that the queue panel shows. When the last message goes, the slot closes at once and keeps
+   * these rows, so the whole panel goes down behind the input in one move, as in the agent's own chat.
+   * Another thread does not get the rows of the one before.
    */
   const [queueRows, setQueueRows] = createSignal<{ taskId: string | undefined; deliveries: QueueDelivery[] }>({
     taskId: undefined,
@@ -546,10 +582,10 @@ export function AgentThreadView(props: AgentThreadViewProps) {
   createEffect(
     () => ({ taskId: props.task?.id, deliveries: props.queue?.deliveries ?? [] }),
     (next) => {
-      if (queueExitTimer !== undefined) window.clearTimeout(queueExitTimer);
-      queueExitTimer = undefined;
       const shown = untrack(queueRows);
       if (next.deliveries.length > 0 || next.taskId !== shown.taskId) {
+        if (queueExitTimer !== undefined) window.clearTimeout(queueExitTimer);
+        queueExitTimer = undefined;
         // Each change of the thread sends its queue again. A row that did not change keeps its object,
         // so the panel does not draw it again and the pointer and the focus stay on it.
         const previous = new Map(shown.deliveries.map((delivery) => [delivery.id, delivery]));
@@ -560,7 +596,9 @@ export function AgentThreadView(props: AgentThreadViewProps) {
         setQueueRows({ taskId: next.taskId, deliveries });
         return;
       }
-      if (shown.deliveries.length === 0) return;
+      // Each change of the thread sends the empty queue again. The panel closes at the end of its
+      // first exit, not after the thread is quiet.
+      if (shown.deliveries.length === 0 || queueExitTimer !== undefined) return;
       queueExitTimer = window.setTimeout(() => {
         queueExitTimer = undefined;
         setQueueRows(next);
@@ -571,6 +609,7 @@ export function AgentThreadView(props: AgentThreadViewProps) {
     if (queueExitTimer !== undefined) window.clearTimeout(queueExitTimer);
   });
   const queuePanelOwner = () => (queueRows().deliveries.length > 0 ? queueRows().taskId : undefined);
+  const queueOpen = () => (props.queue?.deliveries.length ?? 0) > 0 && queueRows().taskId === props.task?.id;
   const hasRow = () =>
     Boolean(props.onRemoveAttachment) &&
     ((props.rowAttachments?.length ?? 0) > 0 || (props.pendingImages?.length ?? 0) > 0);
@@ -655,6 +694,7 @@ export function AgentThreadView(props: AgentThreadViewProps) {
                         <ChatMessageRow
                           message={message()}
                           author={author(message())}
+                          showFull={props.showFullMessage?.(message())}
                           agents={props.agents}
                           skills={props.skills}
                           onSelectAgent={() => undefined}
@@ -759,9 +799,9 @@ export function AgentThreadView(props: AgentThreadViewProps) {
             <div class="composer-stack">
               <div
                 class="agent-queue-slot"
-                data-open={queuePanelOwner() ? "true" : "false"}
-                aria-hidden={queuePanelOwner() ? undefined : "true"}
-                inert={queuePanelOwner() ? undefined : true}
+                data-open={queueOpen() ? "true" : "false"}
+                aria-hidden={queueOpen() ? undefined : "true"}
+                inert={queueOpen() ? undefined : true}
               >
                 <div class="agent-queue-slot-inner">
                   {/* Each thread gets its own panel, so its rows do not animate in from the thread before. */}

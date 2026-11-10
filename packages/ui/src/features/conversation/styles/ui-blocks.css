@@ -512,7 +512,13 @@
 .ui-block-segment {
   flex: 1 1 0;
   min-width: 0;
+  min-height: var(--openbot-control-md);
+  height: auto;
+  padding-block: var(--openbot-space-2);
   color: var(--openbot-text-muted);
+  line-height: var(--openbot-leading-sm);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .ui-block-segment[aria-pressed="true"] {

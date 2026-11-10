@@ -120,6 +120,7 @@ type ForwardedApiOptions = ConstructorParameters<typeof TeamApiServer>[0];
 interface HostServiceOptions {
   channels?: ChannelService;
   mcpServers?: ForwardedApiOptions["mcpServers"];
+  mcpServerOwners?: ForwardedApiOptions["mcpServerOwners"];
   mcpSignIns?: ForwardedApiOptions["mcpSignIns"];
   signInRelay?: ForwardedApiOptions["signInRelay"];
   connectors?: ForwardedApiOptions["connectors"];
@@ -134,6 +135,7 @@ interface HostServiceOptions {
   mcpToolRuntimePreparation?: ForwardedApiOptions["mcpToolRuntimePreparation"];
   storage?: ForwardedApiOptions["storage"];
   machine?: ForwardedApiOptions["machine"];
+  liveVoice?: ForwardedApiOptions["liveVoice"];
   hostedSites?: ForwardedApiOptions["hostedSites"];
   events?: ForwardedApiOptions["events"];
   agentImport?: ForwardedApiOptions["agentImport"];
@@ -141,6 +143,7 @@ interface HostServiceOptions {
   routineFlows?: ForwardedApiOptions["routineFlows"];
   workflows?: ForwardedApiOptions["workflows"];
   hiddenAgents?: ForwardedApiOptions["hiddenAgents"];
+  routineRunPlaces?: ForwardedApiOptions["routineRunPlaces"];
   /** The level that each person chose for each agent (`agent-notification-levels-v1`). */
   agentNotificationLevels?: AgentNotificationLevelStore;
   /** The chats that each person pinned (`sidebar-pins-v1`). */
@@ -481,6 +484,7 @@ export class HostService extends EventEmitter<HostEvents> {
       agentsReady: options.agentsReady,
       ...(options.channels === undefined ? {} : { channels: options.channels }),
       ...(options.mcpServers === undefined ? {} : { mcpServers: options.mcpServers }),
+      ...(options.mcpServerOwners === undefined ? {} : { mcpServerOwners: options.mcpServerOwners }),
       ...(options.mcpSignIns === undefined ? {} : { mcpSignIns: options.mcpSignIns }),
       ...(options.signInRelay === undefined ? {} : { signInRelay: options.signInRelay }),
       ...(options.connectors === undefined ? {} : { connectors: options.connectors }),
@@ -497,6 +501,7 @@ export class HostService extends EventEmitter<HostEvents> {
         : { mcpToolRuntimePreparation: options.mcpToolRuntimePreparation }),
       ...(options.storage === undefined ? {} : { storage: options.storage }),
       ...(options.machine === undefined ? {} : { machine: options.machine }),
+      ...(options.liveVoice === undefined ? {} : { liveVoice: options.liveVoice }),
       ...(options.hostedSites === undefined ? {} : { hostedSites: options.hostedSites }),
       ...(options.events === undefined ? {} : { events: options.events }),
       ...(options.agentImport === undefined ? {} : { agentImport: options.agentImport }),
@@ -504,6 +509,7 @@ export class HostService extends EventEmitter<HostEvents> {
       ...(options.routineFlows === undefined ? {} : { routineFlows: options.routineFlows }),
       ...(options.workflows === undefined ? {} : { workflows: options.workflows }),
       ...(options.hiddenAgents === undefined ? {} : { hiddenAgents: options.hiddenAgents }),
+      ...(options.routineRunPlaces === undefined ? {} : { routineRunPlaces: options.routineRunPlaces }),
       ...(options.agentNotificationLevels === undefined
         ? {}
         : { agentNotificationLevels: this.#agentNotificationLevels(options.agentNotificationLevels) }),
@@ -574,6 +580,14 @@ export class HostService extends EventEmitter<HostEvents> {
               apiOnline: false,
               message: error.message,
             });
+          },
+          // Only the text changes: a restart would drop the devices that are connected now.
+          onSignalLost: (lost) => {
+            if (this.#status.phase !== "online") return;
+            const lostMessage = sourceText("status.host.signalLost");
+            if (lost) this.#setStatus({ message: lostMessage });
+            else if (this.#status.message === lostMessage)
+              this.#setStatus({ message: sourceText("status.host.ready") });
           },
           closeSession: (sessionId) =>
             Effect.gen({ self: this }, function* () {
@@ -1120,26 +1134,35 @@ export class HostService extends EventEmitter<HostEvents> {
       if (!gateway || !optionalRegisterRemoteHost || !optionalIssueRemoteHostTicket) {
         return yield* new RemoteWorkflowError({ cause: new Error(sourceText("error.host.webRtcNotConfigured")) });
       }
+      // The bridge window loads while the account server answers, and `gateway.start` uses that load.
+      // A failed load does not stop the start: `gateway.start` loads the window again.
+      yield* Effect.forkChild(gateway.prepare().pipe(Effect.ignore));
       yield* this.#registerRemoteHost(
         optionalRegisterRemoteHost,
         yield* remoteDecode(() => this.#requiredOwnerMemberId()),
         automatic,
       );
       if (yield* this.#cancelSupersededStartEffect(generation)) return this.getStatus();
-      if (this.#usesAccountDirectory() && optionalListRemoteMembers) {
-        yield* this.#memberWrites.withPermit(
-          Effect.flatMap(optionalListRemoteMembers(identity.serverId), (members) =>
-            this.#syncRemoteDirectory(identity.serverId, members),
-          ),
-        );
-        if (yield* this.#cancelSupersededStartEffect(generation)) return this.getStatus();
-      }
+      const syncMembers =
+        this.#usesAccountDirectory() && optionalListRemoteMembers
+          ? this.#memberWrites.withPermit(
+              Effect.flatMap(optionalListRemoteMembers(identity.serverId), (members) =>
+                // A failed ticket request must not stop the sync between the member write and the
+                // session close.
+                this.#syncRemoteDirectory(identity.serverId, members).pipe(Effect.uninterruptible),
+              ),
+            )
+          : Effect.void;
       // The host peer meets its devices on its home Signal machine. Chat apps and webhooks stay on
-      // the entry Signal through their own tickets.
+      // the entry Signal through their own tickets. The ticket does not need the member list, so
+      // both requests go at the same time.
       const failedSignalUrl = this.#unreachedSignalUrl;
-      const bootstrap = yield* optionalIssueRemoteHostTicket(
-        identity.serverId,
-        failedSignalUrl === null ? {} : { failedSignalUrl },
+      const [, bootstrap] = yield* Effect.all(
+        [
+          syncMembers,
+          optionalIssueRemoteHostTicket(identity.serverId, failedSignalUrl === null ? {} : { failedSignalUrl }),
+        ],
+        { concurrency: 2 },
       );
       if (yield* this.#cancelSupersededStartEffect(generation)) return this.getStatus();
       yield* gateway

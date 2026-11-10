@@ -1,3 +1,4 @@
+import { providerSteersTurns } from "@openbot/contracts/agent-providers";
 import { rasterImageMimeType } from "@openbot/contracts/attachment-files";
 import {
   attachmentReferenceIds,
@@ -172,7 +173,8 @@ export interface ComposerActionsDeps {
   clearConversationError: (target: ConversationTarget) => void;
   clearSubmittedDraft: (target: ConversationTarget, submitted: ComposerDraft) => void;
   setConversationError: (target: ConversationTarget, message: string) => void;
-  setStickToLatest: (value: boolean) => void;
+  /** The chat follows the latest message again and goes to the sent message at once. */
+  followSentMessage: () => void;
   pendingSends: PendingSendStore;
   attachmentPicker: () => HTMLInputElement | undefined;
   /** False in a chat window (#2964): the stored queue edit is one slot, and the main window owns it. */
@@ -863,15 +865,15 @@ export function createComposerActions(deps: ComposerActionsDeps) {
       const activeTarget = deps.currentTarget();
       return activeTarget?.agentId === target.agentId && activeTarget.serverId === target.serverId;
     };
-    if (onScreen()) deps.setStickToLatest(true);
+    if (onScreen()) deps.followSentMessage();
     // Fork (FEATURES.md, "Long turns stay visible"): a message that goes into the running turn (Steer,
     // or an agent that steers each message) shows in the chat at once. It does not pass through the
     // queue panel first. If the host queues it after all, the panel shows it after the start grace.
-    const agentSteers =
+    const agentSteersForTarget =
       (deps.props.agent?.id === target.agentId
         ? (deps.props.agent.busyMessageMode ?? deps.props.defaultBusyMessageMode)
         : deps.props.defaultBusyMessageMode) === "steer";
-    const steered = !queue && (steer || agentSteers);
+    const steered = !queue && (steer || agentSteersForTarget);
     // A message to a working agent waits behind its turn or its queue. A channel has no such queue.
     // An earlier send that has not failed is about to start a turn, so this one waits behind it.
     const queued =
@@ -883,7 +885,8 @@ export function createComposerActions(deps: ComposerActionsDeps) {
         deps.pendingSends.list(target).some((send) => send.state !== "failed"));
     // Read the send functions now: the send outlives this view when the user switches server.
     const send = deps.props.onSendMessage;
-    const steerQueued = deps.props.onSteerQueuedMessage;
+    // An agent whose provider cannot steer takes the message as its next turn: Send now.
+    const steerQueued = agentSteers() ? deps.props.onSteerQueuedMessage : deps.props.onSendQueuedMessageNow;
     const server = deps.props.server;
     // A deferred voice send can name a server that is no longer on screen. Its capabilities are not
     // known here, so only the local host, which always drops a repeat, is safe to retry then.
@@ -911,7 +914,7 @@ export function createComposerActions(deps: ComposerActionsDeps) {
       } else {
         dictatedSent?.(result.messageId);
         // The id is the delivery's. Steer acts on the chat on screen, so not after a switch.
-        if (steer && onScreen()) steerQueued(result.messageId);
+        if (steer && onScreen()) steerQueued?.(result.messageId);
       }
       return result;
     });
@@ -995,13 +998,20 @@ export function createComposerActions(deps: ComposerActionsDeps) {
     void submitMessage();
   }
 
+  /** An ACP provider has no steer request, so its queued messages wait for the turn to end (#3689). */
+  function agentSteers(): boolean {
+    return !deps.props.agent || providerSteersTurns(deps.props.agent.provider);
+  }
+
   /**
    * Sends the draft into the running turn: Send, then Steer on its queue row, in one key. An agent
    * that steers each message sent while it works does that itself, so a second steer is not asked.
+   * An agent whose provider cannot steer keeps the message queued, so Send now always follows.
    */
   function steerComposer(): void {
     if (deps.attachmentBusy() || deps.uploadFailed() || deps.voicePhase() !== "idle" || !deps.agentReady()) return;
-    const hostSteers = (deps.props.agent?.busyMessageMode ?? deps.props.defaultBusyMessageMode) === "steer";
+    const hostSteers =
+      agentSteers() && (deps.props.agent?.busyMessageMode ?? deps.props.defaultBusyMessageMode) === "steer";
     void submitMessage(undefined, undefined, undefined, undefined, !hostSteers);
   }
 
