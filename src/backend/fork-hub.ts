@@ -12,6 +12,19 @@ import type { ForkMemory } from "./fork-memory";
 import type { ForkRestartResume } from "./fork-restart-resume";
 import type { ForkVoiceNotes } from "./fork-voice-notes";
 
+/** Fork (docs/fork/FEATURES.md, "Agents ride out a network drop"): what a turn end of an agent's own chat tells it. */
+export interface ForkNetworkResume {
+  turnFailed(input: {
+    agentId: string;
+    turnId: string;
+    provider: string;
+    error: string;
+    requestMessageId: string | null;
+    requestText: string | null;
+  }): void;
+  turnCompleted(agentId: string): void;
+}
+
 export const forkHub: {
   goals: ForkGoals | null;
   memory: ForkMemory | null;
@@ -19,4 +32,13 @@ export const forkHub: {
   cacheCompact: ForkCacheCompact | null;
   restartResume: ForkRestartResume | null;
   voiceNotes: ForkVoiceNotes | null;
-} = { goals: null, memory: null, composio: null, cacheCompact: null, restartResume: null, voiceNotes: null };
+  networkResume: ForkNetworkResume | null;
+} = {
+  goals: null,
+  memory: null,
+  composio: null,
+  cacheCompact: null,
+  restartResume: null,
+  voiceNotes: null,
+  networkResume: null,
+};

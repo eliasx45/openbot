@@ -267,7 +267,7 @@ import { type AgentThreadRecord, AgentThreadStore } from "./agent-threads/agent-
 import { AgentWaitStore } from "./agent-waits/agent-wait-store";
 import { AgentWaits } from "./agent-waits/agent-waits";
 // Fork: agent commands for the `$` list, and watched waits.
-import { FORK_WAIT_ROUTINE_ID, ForkWaitConditions } from "./agent-waits/fork-wait-conditions";
+import { FORK_WAIT_ROUTINE_ID, ForkWaitConditions, forkNetworkProbeUrl } from "./agent-waits/fork-wait-conditions";
 import { automationRunCommand } from "./automation-command";
 import { toChannelOperationError } from "./channel-effects";
 import { type ChannelImageFile, ChannelImages } from "./channel-images";
@@ -933,6 +933,21 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       },
     });
     this.#waits.useConditions(this.#waitConditions);
+    // Fork (docs/fork/FEATURES.md, "Agents ride out a network drop").
+    forkHub.networkResume = {
+      turnFailed: ({ agentId, turnId, provider, error, requestMessageId, requestText }) => {
+        const waitId = this.#waitConditions.openNetworkResume({
+          agentId,
+          turnId,
+          error: this.#mcp.redact(error),
+          requestMessageId,
+          requestText,
+          probeUrl: forkNetworkProbeUrl(provider),
+        });
+        logger.warn("A turn failed on a network error.", { agentId, provider, resumes: waitId !== null });
+      },
+      turnCompleted: (agentId) => this.#waitConditions.closeNetworkResumes(agentId),
+    };
     // Fork: goal mode, and the memory recall, journal and nightly tidy (docs/fork/FEATURES.md).
     forkHub.goals = new ForkGoals({
       databasePath: store.database.path,
@@ -5214,6 +5229,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     forkHub.restartResume?.dispose();
     forkHub.restartResume = null;
     forkHub.voiceNotes = null;
+    forkHub.networkResume = null;
     forkHub.goals = null;
     forkHub.composio = null;
     this.#browser.clearControls();

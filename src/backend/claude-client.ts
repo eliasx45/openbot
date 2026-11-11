@@ -282,6 +282,8 @@ const LABELLED_TOOLS: ReadonlySet<string> = new Set(["Bash", "Task", "Agent"]);
  * have Artifacts. They publish pages to the user's claude.ai account, outside OpenBot, and their
  * schemas cost about 13k tokens in each request. `CLAUDE_CODE_ARTIFACT=0` keeps them off.
  */
+/** Fork: the CLI clamps `CLAUDE_CODE_MAX_RETRIES` to 15 unless its retry watchdog is on. */
+export const FORK_CLAUDE_MAX_RETRIES = "15";
 const OPENBOT_CLAUDE_CLIENT = {
   CLAUDE_AGENT_SDK_CLIENT_APP: "openbot/0.1.0",
   CLAUDE_CODE_ARTIFACT: "0",
@@ -1467,6 +1469,11 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
             // kept a second store under `~/.claude/projects` that the app cannot see, and its rules
             // took about 0.7k tokens in each request. The files stay on disk.
             CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
+            // Fork (docs/fork/FEATURES.md, "Agents ride out a network drop"): the CLI retries a failed
+            // request 10 times, about 3 minutes, then ends the turn and each background subagent.
+            // 15 is the most it allows without its internal retry watchdog, about 6 minutes. A longer
+            // drop ends the turn, and OpenBot resumes it when the network is back.
+            CLAUDE_CODE_MAX_RETRIES: process.env.CLAUDE_CODE_MAX_RETRIES ?? FORK_CLAUDE_MAX_RETRIES,
           },
         },
       }),

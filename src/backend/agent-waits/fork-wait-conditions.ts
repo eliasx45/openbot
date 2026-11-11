@@ -69,7 +69,7 @@ type Condition =
   | { kind: "file"; path: string; settleSeconds: number; baseline: string | null; last: string | null; since: number }
   | { kind: "process"; pid: number }
   | { kind: "agent"; agentId: string; sawWorking: boolean }
-  | { kind: "url"; url: string; checkedAt: number };
+  | { kind: "url"; url: string; checkedAt: number; notBefore?: number };
 
 interface Watched {
   waitId: string;
@@ -79,6 +79,45 @@ interface Watched {
   watching: string;
   deadline: number;
   condition: Condition;
+  /**
+   * Fork (docs/fork/FEATURES.md, "Agents ride out a network drop"): OpenBot opened this wait itself,
+   * because a turn failed on a network error. The wake text says so.
+   */
+  network?: { failedAt: number; error: string };
+}
+
+/** How long a turn that failed on the network waits for it, at most. */
+const NETWORK_RESUME_MINUTES = 12 * 60;
+/** The probe waits this long after the failure, so a connection that flaps is not tried at once. */
+const NETWORK_RESUME_SETTLE_MS = 30_000;
+/** At most this many network resumes per agent in `NETWORK_RESUME_WINDOW_MS`, so a network that fails each turn does not loop. */
+const NETWORK_RESUME_LIMIT = 3;
+const NETWORK_RESUME_WINDOW_MS = 60 * 60_000;
+
+/** A URL of the provider that answers below 500 once it can be reached. Any answer shows the network is back. */
+export function forkNetworkProbeUrl(provider: string): string {
+  // A gateway or proxy that the CLI is sent to is what must answer again.
+  if (provider === "claude") return claudeBaseUrl(process.env.ANTHROPIC_BASE_URL);
+  if (provider === "codex") return "https://api.openai.com/v1/models";
+  return "https://www.gstatic.com/generate_204";
+}
+
+function claudeBaseUrl(value: string | undefined): string {
+  try {
+    if (value && /^https?:\/\//u.test(value)) return new URL(value).toString();
+  } catch {}
+  return "https://api.anthropic.com/";
+}
+
+export interface NetworkResumeInput {
+  agentId: string;
+  /** The delivery the failed turn answered, or null for a turn the provider started itself. */
+  requestMessageId: string | null;
+  requestText: string | null;
+  turnId: string;
+  error: string;
+  /** Answers below 500 once the provider can be reached again. */
+  probeUrl: string;
 }
 
 export interface ForkWaitConditionsHooks {
@@ -100,6 +139,8 @@ export class ForkWaitConditions {
   readonly #hooks: ForkWaitConditionsHooks;
   readonly #file: string;
   readonly #watched = new Map<string, Watched>();
+  /** When each agent's recent network resumes were opened, for `NETWORK_RESUME_LIMIT`. */
+  readonly #networkResumes = new Map<string, number[]>();
   readonly #timer: ReturnType<typeof setInterval>;
   #ticking = false;
 
@@ -216,6 +257,69 @@ export class ForkWaitConditions {
     });
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md, "Agents ride out a network drop"): a turn of the agent's own chat
+   * failed on a network error. This opens a wait that probes the provider and, once it answers, starts
+   * a turn that continues the work, relaunching background subagents the drop ended. Returns the
+   * wait id, or null when the agent already waits for the network or hit the limit.
+   */
+  openNetworkResume(input: NetworkResumeInput, now = Date.now()): string | null {
+    for (const watched of this.#watched.values()) if (watched.agentId === input.agentId && watched.network) return null;
+    const recent = (this.#networkResumes.get(input.agentId) ?? []).filter((at) => now - at < NETWORK_RESUME_WINDOW_MS);
+    if (recent.length >= NETWORK_RESUME_LIMIT) {
+      this.#networkResumes.set(input.agentId, recent);
+      return null;
+    }
+    const requestText =
+      input.requestText?.trim() ||
+      "(No message: the provider started this turn itself, as it does when a background subagent or command ends.)";
+    let wait: AgentWait;
+    try {
+      wait = this.#store.open({
+        agentId: input.agentId,
+        requestMessageId: input.requestMessageId ?? `network-drop:${input.turnId}`,
+        requestText,
+        note: `🔌 Network dropped · resumes when ${new URL(input.probeUrl).host} answers`.slice(
+          0,
+          INPUT_LIMITS.agentWaitNote,
+        ),
+        routineId: null,
+      });
+    } catch (error) {
+      if (error instanceof AgentWaitError) return null;
+      throw error;
+    }
+    recent.push(now);
+    this.#networkResumes.set(input.agentId, recent);
+    this.#watched.set(wait.id, {
+      waitId: wait.id,
+      agentId: input.agentId,
+      note: "network dropped; continue when it is back",
+      requestText,
+      watching: `${input.probeUrl} answers`,
+      deadline: now + NETWORK_RESUME_MINUTES * 60_000,
+      condition: { kind: "url", url: input.probeUrl, checkedAt: 0, notBefore: now + NETWORK_RESUME_SETTLE_MS },
+      network: { failedAt: now, error: input.error.slice(0, 500) },
+    });
+    this.#save();
+    this.#changed(input.agentId);
+    return wait.id;
+  }
+
+  /** A turn of the agent completed, so its network works: a network resume it still waits for is not needed. */
+  closeNetworkResumes(agentId: string): void {
+    let closed = false;
+    for (const watched of [...this.#watched.values()]) {
+      if (watched.agentId !== agentId || !watched.network) continue;
+      this.#watched.delete(watched.waitId);
+      this.#store.delete(agentId, watched.waitId);
+      closed = true;
+    }
+    if (!closed) return;
+    this.#save();
+    this.#changed(agentId);
+  }
+
   async #tick(): Promise<void> {
     if (this.#ticking || this.#watched.size === 0 || !this.#hooks.isRunning()) return;
     this.#ticking = true;
@@ -285,7 +389,8 @@ export class ForkWaitConditions {
         };
       }
       case "url": {
-        if (now - condition.checkedAt < URL_EVERY_MS) return { done: null, changed: false };
+        if (now - condition.checkedAt < URL_EVERY_MS || now < (condition.notBefore ?? 0))
+          return { done: null, changed: false };
         condition.checkedAt = now;
         try {
           const response = await fetch(condition.url, { method: "GET", signal: AbortSignal.timeout(5_000) });
@@ -305,6 +410,10 @@ export class ForkWaitConditions {
     this.#store.delete(watched.agentId, watched.waitId);
     this.#changed(watched.agentId);
     // The message's routine name must fit the contract (80 characters), or the wake fails to decode.
+    if (watched.network) {
+      this.#fireNetwork(watched, watched.network, detail, timedOut);
+      return;
+    }
     const title = shortName(`${timedOut ? "⌛ Wait timed out" : "⏳ Wait over"}: ${watched.note}`);
     const text = [
       `[OpenBot: ${timedOut ? "⌛ wait timed out" : "⏳ wait over"}] The wait you opened with openbot.${WAIT_UNTIL_TOOL} has ended. This is not a message from the user.`,
@@ -324,6 +433,33 @@ export class ForkWaitConditions {
     this.#hooks.notify(
       `${this.#hooks.agentName(watched.agentId)}: ${timedOut ? "wait timed out" : "wait over"}`,
       `${watched.note} — ${detail}`,
+    );
+  }
+
+  #fireNetwork(watched: Watched, network: { failedAt: number; error: string }, detail: string, timedOut: boolean) {
+    const failedAt = new Date(network.failedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const title = shortName(timedOut ? "🔌 Network still down" : "🔌 Network back: continue");
+    const text = [
+      `[OpenBot: 🔌 ${timedOut ? "network still down" : "network back"}] Your turn at ${failedAt} failed on a network error. This is not a message from the user.`,
+      `Error: ${network.error}`,
+      `Result: ${detail}`,
+      "The request that turn worked on:",
+      watched.requestText,
+      "",
+      timedOut
+        ? "The provider still could not be reached after 12 hours. Tell the user in one line what stopped and what to relaunch."
+        : [
+            "Continue that work now; this is the same chat and session.",
+            "Background subagents and commands that ended with an API or network error (see their task notifications above) did not finish: continue each one with SendMessage to its agent id, which keeps its context, or launch it again with the same brief. Check their output files first and skip work that is done.",
+            "Then tell the user in one line what the drop interrupted and what you restarted.",
+          ].join(" "),
+    ].join("\n");
+    try {
+      this.#hooks.wake({ agentId: watched.agentId, waitId: watched.waitId, title, text });
+    } catch {}
+    this.#hooks.notify(
+      `${this.#hooks.agentName(watched.agentId)}: ${timedOut ? "network still down" : "network back, resuming"}`,
+      detail,
     );
   }
 
@@ -371,6 +507,10 @@ function isWatchedEntry(value: unknown): value is Watched {
     typeof value.requestText === "string" &&
     typeof value.watching === "string" &&
     typeof value.deadline === "number" &&
+    (value.network === undefined ||
+      (isDynamicRecord(value.network) &&
+        typeof value.network.failedAt === "number" &&
+        typeof value.network.error === "string")) &&
     (kind === "file" || kind === "process" || kind === "agent" || kind === "url")
   );
 }

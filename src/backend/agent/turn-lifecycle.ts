@@ -121,6 +121,19 @@ const FAILOVER_CAUSES: ReadonlySet<CauseCode> = new Set([
  * a connection that failed or stopped answering (#5822). A server error keeps the provider's text.
  */
 const COMPACTION_RETRY_CAUSES: ReadonlySet<CauseCode> = new Set(["network", "timeout"]);
+/** Fork (docs/fork/FEATURES.md, "Agents ride out a network drop"): the turn failures that wait for the network. */
+const NETWORK_DROP_CAUSES: ReadonlySet<CauseCode> = new Set(["network", "timeout"]);
+
+/** Fork: the provider error of a failed turn when a network drop ended it, else null. */
+export function forkNetworkDrop(
+  outcome: string,
+  reportedError: string | undefined,
+  failoverMessage: string | undefined,
+): string | null {
+  if (outcome !== "failed") return null;
+  const error = reportedError ?? failoverMessage;
+  return error !== undefined && NETWORK_DROP_CAUSES.has(classifyFailure(error)) ? error : null;
+}
 
 /** A provider error held until the end of its turn, which runs the turn again on a backup model or shows it. */
 interface HeldProviderError {
@@ -1662,6 +1675,23 @@ export class TurnLifecycle {
         yield* this.#hooks.routineAnswered(agentId, routineDelivery, latestAssistant.text);
       // Fork (docs/fork/FEATURES.md, "Compact before the cache goes cold"): the own chat's cache was written now.
       if (!channelTurn && !routineSession && !taskTurn) forkHub.cacheCompact?.turnEnded(agentId);
+      // Fork (docs/fork/FEATURES.md, "Agents ride out a network drop"): a turn of the own chat that a
+      // network error ended continues once the provider answers again; a completed turn clears that wait.
+      if (!channelTurn && !routineSession && !taskTurn && running !== undefined) {
+        const dropError = forkNetworkDrop(outcome, reportedError, failover?.message);
+        if (dropError !== null) {
+          const request =
+            deliveries.findLast(({ delivery }) => delivery.sender.kind === "user") ?? deliveries.at(0) ?? null;
+          forkHub.networkResume?.turnFailed({
+            agentId,
+            turnId,
+            provider: running.client.provider,
+            error: dropError,
+            requestMessageId: request?.delivery.id ?? null,
+            requestText: request?.delivery.text ?? null,
+          });
+        } else if (outcome === "completed") forkHub.networkResume?.turnCompleted(agentId);
+      }
       // Fork (docs/fork/FEATURES.md, "/goal"): a running goal continues the turn in the same session. A turn
       // that upstream's compaction continuation (#5822) runs again is not a goal turn end: the goal sees its end.
       const goalTurn =
