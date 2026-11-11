@@ -26,6 +26,7 @@ import { AGENT_THREADS_CAPABILITY, AGENT_THREADS_ROUTES } from "@openbot/contrac
 import { sourceText } from "@openbot/i18n/source";
 import { Effect, Result } from "effect";
 import { runCauseEffect } from "../../backend/effect-boundary";
+import { phoneVideoMessages } from "../fork-phone-video";
 import type { TeamApiAgentTasks } from "./dependencies";
 import { HttpError } from "./http-error";
 import type { RouteOutcome, TeamApiRequestContext } from "./request-context";
@@ -248,7 +249,9 @@ export async function routeAgentThreadPages(
   const input = { agentId, taskId: stringField(body, "taskId"), beforeMessageId: stringField(body, "beforeMessageId") };
   for (let limit = typeof body.limit === "number" ? body.limit : 50; ; limit = Math.floor(limit / 2)) {
     const page = tasks.readTaskPage({ ...input, limit }, markerExclusionsForCapabilities(capabilities));
-    const answer = { ...page, conversation: conversationSnapshotForCapabilities(page.conversation, capabilities) };
+    // Fork ("Videos play on the phone"): large videos as their phone copies.
+    const conversation = { ...page.conversation, messages: await phoneVideoMessages(page.conversation.messages) };
+    const answer = { ...page, conversation: conversationSnapshotForCapabilities(conversation, capabilities) };
     if (Buffer.byteLength(JSON.stringify(answer)) <= WEBRTC_FRAME_BODY_BUDGET) return json(200, answer);
     if (limit <= 1) throw new HttpError(413, sourceText("error.team.conversationPageTooLarge"));
   }

@@ -4,6 +4,7 @@ import { type DynamicRecord, isString } from "@openbot/contracts/runtime-values"
 import { AGENT_TASKS_CAPABILITY, AGENT_TASKS_ROUTES } from "@openbot/contracts/team-protocol/agent-tasks-v1";
 import { sourceText } from "@openbot/i18n/source";
 import { runCauseEffect } from "../../backend/effect-boundary";
+import { phoneVideoMessages } from "../fork-phone-video";
 import type { TeamApiAgentTasks } from "./dependencies";
 import { HttpError } from "./http-error";
 import type { RouteOutcome, TeamApiRequestContext } from "./request-context";
@@ -39,8 +40,12 @@ export async function routeAgentTasks(
   if (url.pathname === AGENT_TASKS_ROUTES.start) return json(200, await startTask(tasks, agentId, body, member));
   const taskId = stringField(body, "taskId");
   switch (url.pathname) {
-    case AGENT_TASKS_ROUTES.read:
-      return json(200, conversationSnapshotForCapabilities(tasks.readTask(agentId, taskId), capabilities));
+    case AGENT_TASKS_ROUTES.read: {
+      // Fork ("Videos play on the phone"): large videos as their phone copies.
+      const task = tasks.readTask(agentId, taskId);
+      const swapped = { ...task, messages: await phoneVideoMessages(task.messages) };
+      return json(200, conversationSnapshotForCapabilities(swapped, capabilities));
+    }
     case AGENT_TASKS_ROUTES.send:
       return json(
         202,

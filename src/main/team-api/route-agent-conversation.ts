@@ -11,6 +11,7 @@ import { isString } from "@openbot/contracts/runtime-values";
 import { TEAM_PROTOCOL_V3 } from "@openbot/contracts/team-protocol/v3";
 import { sourceText } from "@openbot/i18n/source";
 import { runCauseEffect } from "../../backend/effect-boundary";
+import { phoneVideoMessages, phoneVideoPage } from "../fork-phone-video";
 import type { TeamApiAgents } from "./dependencies";
 import { HttpError } from "./http-error";
 import type { AgentRouteTarget, RouteOutcome, TeamApiRequestContext } from "./request-context";
@@ -51,7 +52,9 @@ export async function routeAgentConversation(
 
   if (method === "GET" && action === "conversation") {
     requireListedAgent(agents, agentId);
-    const conversation = await runCauseEffect(agents.readConversationFor(agentId, member.id));
+    const read = await runCauseEffect(agents.readConversationFor(agentId, member.id));
+    // Fork ("Videos play on the phone"): large videos as their phone copies.
+    const conversation = { ...read, messages: await phoneVideoMessages(read.messages) };
     return json(200, conversationForCapabilities(conversation, capabilities));
   }
   if (method === "GET" && action === "conversation-page") {
@@ -61,7 +64,9 @@ export async function routeAgentConversation(
     // Long messages make a page of fewer messages, so it fits one WebRTC frame. The client reads the
     // rest as older pages. A page larger than the frame cannot reach a remote client.
     for (let limit = pageLimit(url); ; limit = Math.floor(limit / 2)) {
-      const page = await runCauseEffect(agents.readConversationPageFor(agentId, member.id, anchor, limit, exclusions));
+      const read = await runCauseEffect(agents.readConversationPageFor(agentId, member.id, anchor, limit, exclusions));
+      // Fork ("Videos play on the phone"): large videos as their phone copies, also in the quoted messages.
+      const page = await phoneVideoPage(read);
       const bytes = Buffer.byteLength(JSON.stringify(page));
       if (bytes <= WEBRTC_FRAME_BODY_BUDGET) return json(200, page);
       if (limit === 1) {

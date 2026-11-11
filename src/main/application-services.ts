@@ -246,6 +246,7 @@ import {
   type ExternalLinkPreferenceStore,
 } from "./external-link-opener";
 import { updatesAllowed as forkUpdatesAllowed } from "./fork";
+import { ForkPhoneVideo, forkPhoneVideo } from "./fork-phone-video";
 import { githubAppConfig } from "./github-connector-config";
 import { GitHubConnectorService } from "./github-connector-service";
 import { GitHubConnectorStore } from "./github-connector-store";
@@ -1308,6 +1309,12 @@ export async function createApplicationServices({
   await runCauseEffect(sidebarLayout.initialize());
   const mailbox = new MailboxStore(app.getPath("userData"), store.sharedRoot, store.database);
   await runCauseEffect(mailbox.initialize());
+  // Fork (docs/fork/FEATURES.md, "Videos play on the phone"): phone copies of large bot videos.
+  forkPhoneVideo.current = new ForkPhoneVideo({
+    root: join(app.getPath("userData"), "fork-phone-video"),
+    resolve: (attachmentId) => runCauseEffect(mailbox.resolveAttachment(attachmentId)),
+    warn: (message, detail) => logger.warn(message, detail),
+  });
   configureApplicationProtocol();
   const developmentUrl = process.env.ELECTRON_RENDERER_URL;
   const teamWebRtcBridge = new TeamWebRtcBridge({

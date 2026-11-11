@@ -26,6 +26,7 @@ import { TEAM_API_ROUTES } from "@openbot/contracts/team-api-routes";
 import { sourceText } from "@openbot/i18n/source";
 import { Deferred, Effect } from "effect";
 import { runCauseEffect } from "../../backend/effect-boundary";
+import { forkPhoneVideo } from "../fork-phone-video";
 import { remoteCall } from "../remote-service-effects";
 import type { TeamApiAgents, TeamApiMailbox } from "./dependencies";
 import { HttpError } from "./http-error";
@@ -125,7 +126,10 @@ export async function routeFiles(
       return empty(204);
     }
     if (method === "GET") {
-      const attachment = await runCauseEffect(mailbox.resolveAttachment(attachmentId));
+      // Fork ("Videos play on the phone"): a phone copy's id names the copy, not a mailbox file.
+      const attachment =
+        forkPhoneVideo.current?.resolveCopy(attachmentId) ??
+        (await runCauseEffect(mailbox.resolveAttachment(attachmentId)));
       if (!attachment) throw new HttpError(404, sourceText("error.team.attachmentNotFound"));
       return sendFile(response, attachment.path, null, (size) => ({
         "Content-Type": attachment.mimeType || "application/octet-stream",
