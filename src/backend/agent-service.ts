@@ -610,6 +610,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
   readonly #codexIdleSessions: CodexIdleSessions;
   readonly #memoryHold: MemoryHold;
   readonly #usageLimits: UsageLimitGate;
+  /** Fork: turns that `#forkSwitchNow` stopped, so a later drain does not stop them or note them twice. */
+  readonly #forkSwitchStops = new Set<string>();
   readonly #drain: DrainScheduler;
   readonly #sessionSettings: SessionSettings;
   readonly #liveVoice: LiveVoice;
@@ -1303,7 +1305,12 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       },
       messagingThread: (threadId) => this.messaging.store.linkForThread(threadId) !== null,
       messagingRequestTurn: (agentId, turnId) => this.#mailbox.answersMessagingRequest(agentId, turnId),
-      emit: (event) => this.#emit(event),
+      emit: (event) => {
+        this.#emit(event);
+        // Fork ("A switch applies now when the turn that holds it only waits for you"): a turn that
+        // starts to wait for the user can be the last one that holds a queued switch.
+        if (event.type === "prompt") this.#forkSwitchNow(event.agentId);
+      },
       emitError: (code, error, agentId) => this.#emitError(code, error, agentId),
       emitRuntimeSnapshot: () => this.#emitRuntimeSnapshot(),
       ...(options.passwordVault === undefined ? {} : { passwordVault: options.passwordVault }),
@@ -1795,6 +1802,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           if (this.#requestedNewChats.delete(agentId))
             logger.info(`Agent ${agentId} dropped its new chat request: a turn in its chat started first.`);
         },
+        runtimeChangeHeld: (agentId) => this.#forkSwitchNow(agentId),
         followUsageLimit: (agentId) => {
           if (this.#pendingRuntimeDue(agentId)) {
             Effect.runFork(
@@ -3572,6 +3580,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           Effect.sync(() => {
             this.#emit({ type: "agents-changed", agents: this.listAgents() });
             this.#drain.scheduleDrain(input.agentId);
+            this.#forkSwitchNow(input.agentId);
           }),
         ),
       );
@@ -3933,6 +3942,92 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           }),
         ),
       );
+  });
+
+  /**
+   * Fork (docs/fork/FEATURES.md, "A switch applies now when the turn that holds it only waits for you").
+   * A queued account or provider change waits for every running turn of the agent (one process per
+   * agent). Elias, 11 Nov 2026: Adrian's switch waited 18 h behind a task turn that only waited for his
+   * card, while the chat hit the old account's limit. When each running turn only waits for the user
+   * (an open question, no background subagent), or the old account is spent, those turns stop now, the
+   * change applies, and each stopped thread gets a note: ask the question again, or continue the work.
+   * A turn that works on an account that is not spent keeps the change waiting, as before.
+   */
+  #forkSwitchNow(agentId: string): void {
+    const agent = this.#store.list().find((candidate) => candidate.id === agentId);
+    if (!agent?.pendingRuntime || this.#removal.deleting().has(agentId)) return;
+    const spent = !this.#usageLimits.mayDrain(agentId);
+    const stops: Array<{ taskId: string | null; threadId: string; turnId: string; questions: string[] | null }> = [];
+    for (const taskId of this.#drain.runningTaskLanes(agentId)) {
+      const threadId = taskId === null ? agent.threadId : this.#tasks.threadId(taskId);
+      const turnId =
+        taskId === null
+          ? this.#conversation.workingSnapshot(agentId)?.activeTurnId
+          : threadId
+            ? this.#conversation.loadedExecutionSnapshot(threadId)?.activeTurnId
+            : undefined;
+      // A turn that is still starting, or one this switch already stops, cannot be judged: wait.
+      if (!threadId || !turnId) return;
+      if (this.#forkSwitchStops.has(turnId)) continue;
+      const questions = this.#attention.forkWaitingQuestions(agentId, turnId);
+      const onlyWaits = questions !== null && !this.#turn.subagentsRunning(agentId, turnId);
+      if (!onlyWaits && !spent) return;
+      stops.push({ taskId, threadId, turnId, questions: onlyWaits ? questions : null });
+    }
+    if (stops.length === 0) return;
+    for (const stop of stops) this.#forkSwitchStops.add(stop.turnId);
+    logger.info("A queued runtime change stops the turns that hold it.", {
+      agentId,
+      spent,
+      turns: stops.map((stop) => ({ taskId: stop.taskId, turnId: stop.turnId, waits: stop.questions !== null })),
+    });
+    const target = agent.pendingRuntime;
+    const note = (stop: (typeof stops)[number]) =>
+      [
+        `[OpenBot: 🔁 account switched] The user moved you to another account or model (${target.provider} ${target.model}). Your turn here was stopped so the switch could apply${spent ? ": the old account had reached its usage limit" : ""}. This is not a message from the user.`,
+        stop.questions
+          ? `You were waiting for the user's answer to this question. Ask it again now, the same way (the same card), and wait for the answer:\n${stop.questions.map((line) => `- ${line}`).join("\n")}`
+          : "Continue the work of that turn now; this is the same thread. Background subagents or commands that ended with the stop did not finish: check their output files, then continue or relaunch each one. Then tell the user in one line what the switch interrupted and what you restarted.",
+      ].join("\n");
+    Effect.runFork(
+      Effect.forEach(
+        stops,
+        (stop) =>
+          this.#interruptTurn(agentId, stop.turnId, stop.taskId === null ? undefined : stop.threadId).pipe(
+            Effect.andThen(this.#forkSwitchNote(agentId, stop.taskId, stop.turnId, note(stop))),
+            Effect.catch((failure) => Effect.sync(() => this.#emitError("fork_switch_now_failed", failure, agentId))),
+          ),
+        { discard: true },
+      ).pipe(
+        Effect.andThen(Effect.sync(() => this.#drain.scheduleDrain(agentId))),
+        Effect.forkIn(this.#scope, { startImmediately: true }),
+      ),
+    );
+  }
+
+  /** Fork: the note after `#forkSwitchNow` stopped a turn, in the thread of that turn. */
+  readonly #forkSwitchNote = Effect.fn("AgentService.forkSwitchNote")(function* (
+    this: AgentService,
+    agentId: string,
+    taskId: string | null,
+    turnId: string,
+    text: string,
+  ) {
+    if (taskId !== null) {
+      yield* this.sendMessage({ agentId, taskId, text, queue: true });
+      return;
+    }
+    yield* this.#routines.enqueueHandoff({
+      run: {
+        id: `switch-${turnId}`,
+        routineId: FORK_WAIT_ROUTINE_ID,
+        routineName: "🔁 Account switched: go on",
+        scheduledFor: new Date().toISOString(),
+      },
+      agentId,
+      text,
+      idempotencyKey: `fork-switch-now:${turnId}`,
+    });
   });
 
   /** Makes the move of `#usageLimitMove`, if one is due. True when the agent moved. */

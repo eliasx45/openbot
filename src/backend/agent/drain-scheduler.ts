@@ -112,6 +112,12 @@ export interface DrainHooks {
   startRequestedNewChat(agentId: string): Effect.Effect<void>;
   /** Drops that request: a turn in the agent's own chat starts first, so the agent's notes do not cover it. */
   dropRequestedNewChat(agentId: string): void;
+  /**
+   * Fork (docs/fork/FEATURES.md, "A switch applies now when the turn that holds it only waits for you").
+   * A lane waits with `runtime-change`: a queued account or provider change waits for a turn of another
+   * lane. The service stops that turn when it only waits for the user or the old account is spent.
+   */
+  runtimeChangeHeld?(agentId: string): void;
 }
 
 /** The tasks of the agents, as the drain reads them. */
@@ -292,6 +298,16 @@ export class DrainScheduler {
         return this.#mailbox.nextQueued(lane.agentId, lane.taskId)?.delivery ?? null;
       },
     });
+  }
+
+  /**
+   * Fork: the lanes of this agent that run or start a turn, as task ids (null is the agent's own
+   * chat). Channel lanes are left out: a channel owns its turn.
+   */
+  runningTaskLanes(agentId: string): Array<string | null> {
+    return this.#lanesOf(agentId)
+      .filter((lane) => (lane.taskId === null || laneChannelId(lane.taskId) === null) && this.#laneRunning(lane))
+      .map((lane) => lane.taskId);
   }
 
   /** The clauses of this agent's own state. `#heldByMachine` adds the memory and the turn slots. */
@@ -502,6 +518,7 @@ export class DrainScheduler {
       this.#heldBy(lane) ||
       (this.#heldByMachine(lane) && "machine");
     if (hold) this.#reportHold(lane, hold);
+    if (hold === "runtime-change") this.#hooks.runtimeChangeHeld?.(lane.agentId);
     if (followUsageLimit && (!hold || hold === "usage-limit") && this.#hooks.followUsageLimit(lane.agentId))
       return true;
     if (hold) return false;

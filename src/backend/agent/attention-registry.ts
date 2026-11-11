@@ -1893,6 +1893,23 @@ export class AttentionRegistry {
   }
 
   /**
+   * Fork (docs/fork/FEATURES.md, "A switch applies now when the turn that holds it only waits for you").
+   * The questions that turn `turnId` of the agent waits on, one line each, so the turn can ask them
+   * again after it stops. Null when the turn waits on no question.
+   */
+  forkWaitingQuestions(agentId: string, turnId: string): string[] | null {
+    const lines: string[] = [];
+    for (const pending of this.#prompts.values()) {
+      if (pending.agentId !== agentId || pending.turnId !== turnId) continue;
+      for (const question of pending.questions) {
+        const options = question.options?.map((option) => option.label).join(" / ");
+        lines.push([question.header, question.question].filter(Boolean).join(": ") + (options ? ` (${options})` : ""));
+      }
+    }
+    return lines.length > 0 ? lines : null;
+  }
+
+  /**
    * Fork (docs/fork/FEATURES.md, "A message closes the open card"). The user wrote into turn `turnId`
    * of the agent instead of answering its `ask_ui` card. A provider reads a steered message only after
    * the tool call returns, and `ask_ui` waits for the card, so the message waited unread (Elias, 8 Nov
