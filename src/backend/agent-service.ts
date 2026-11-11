@@ -1018,6 +1018,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       hostedSites,
       emitError: (code, error, agentId) => this.#emitError(code, error, agentId),
       isStopping: () => this.#stopping,
+      redact: (text) => this.#mcp.redact(text),
     });
     this.#providers = new ProviderRuntime({
       offProviders: options.offProviders ?? [],
@@ -2078,7 +2079,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           lastEventAt: this.#turn.lastEventAt(agentId),
         }),
         requestNoUpdate: (agentId, threadId, turnId) => this.#turn.requestNoUpdate(agentId, threadId, turnId),
-        reportRoutineFailure: (agentId, turnId, reason) => this.#turn.reportRoutineFailure(agentId, turnId, reason),
+        reportRoutineFailure: (agentId, turnId, reason, channelRun) =>
+          this.#turn.reportRoutineFailure(agentId, turnId, reason, channelRun),
         requestNewChat: (agentId) => {
           this.#requestedNewChats.add(agentId);
         },

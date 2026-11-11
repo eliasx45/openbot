@@ -150,6 +150,7 @@ import {
   type BrowserFillFieldsResult,
   BrowserSiteMemories,
   BrowserToolHold,
+  BrowserToolQueueWait,
   BrowserUserControlHeld,
   boundEngineOperation,
   type DialogTabResult,
@@ -256,6 +257,12 @@ const VIEW_CONTEXT_MENU_MS = 1_500;
  * in the tab queue for the action, under the action's own deadline.
  */
 const DIALOG_ACTION_WAIT_MS = 10_000;
+/**
+ * How long an agent tool waits for the earlier operations of its tab. One operation takes at most about
+ * a minute: a 30 s action, its read, and the bot check waits. A longer wait means that an operation
+ * cannot finish, such as a command that a page dialog holds.
+ */
+const TOOL_QUEUE_WAIT_MS = 120_000;
 /** The `keyCode` of `sendInputEvent` for a key whose `Input.key` name is different. */
 const FORWARDED_KEY_CODES: Partial<Record<string, string>> = { ArrowLeft: "Left", ArrowRight: "Right" };
 const MAX_ACTIVE_DOWNLOADS = BROWSER_DOWNLOAD_MAX_ACTIVE;
@@ -416,8 +423,18 @@ const BROWSER_WEB_PREFERENCES = {
   backgroundThrottling: false,
 };
 
-/** macOS and Windows draw no page of a minimized or hidden window, so they use `#backgroundWindow`. */
-const USES_BACKGROUND_WINDOW = process.platform === "darwin" || process.platform === "win32";
+/**
+ * macOS, Windows and Linux draw no page of a minimized or hidden window, so they use `#backgroundWindow`.
+ * On Linux this includes the main window of a local server, which is never shown (#6524).
+ */
+const USES_BACKGROUND_WINDOW =
+  process.platform === "darwin" || process.platform === "win32" || process.platform === "linux";
+
+/**
+ * Linux also draws no page of a hidden view, also in a shown window, and it does not apply `setOpacity`.
+ * There the background window is one pixel, and its views stay shown: the window clips them, and they still draw.
+ */
+const SHOWS_VIEWS_IN_BACKGROUND = process.platform === "linux";
 
 /** The window of `BrowserHost.#backgroundWindow`. It has no page of its own. */
 function createBackgroundWindow(): BaseWindow {
@@ -632,14 +649,16 @@ export class BrowserHost {
   #target: BrowserViewTarget = "main";
   readonly #mountedViews = new Map<WebContentsView, BrowserWindow>();
   /**
-   * macOS and Windows draw no page of a hidden or minimized window. A page that loads there gives
-   * no image, so a snapshot or screenshot waits until its deadline or is empty (#5580, #5991).
-   * While the main window is hidden or minimized, the views of its tabs are in this window: shown,
-   * but transparent, click-through and never focused. `#mountedViews` still names the main window
-   * for them.
+   * macOS, Windows and Linux draw no page of a hidden or minimized window. A page that loads there
+   * gives no image, so a snapshot or screenshot waits until its deadline or is empty (#5580, #5991),
+   * and a live view gets no frame (#6524). While the main window is hidden or minimized, the views of
+   * its tabs are in this window: shown, but transparent (one pixel on Linux), click-through and never
+   * focused. `#mountedViews` still names the main window for them.
    */
   #backgroundWindow: BaseWindow | null = null;
   #mainViewsInBackground = false;
+  /** True while `#syncAttachedView` shows `#attachedView`. On Linux the views in the background window are all shown. */
+  #attachedViewShown = false;
   readonly #takeoverTabIds = new Set<string>();
   /** The tabs that a person controls, with who took each one, so a closed session releases its own. */
   readonly #userControlTabIds = new Map<string, BrowserUserControlHolder>();
@@ -822,11 +841,13 @@ export class BrowserHost {
     if (!pending) return;
     tab.pendingRestore = undefined;
     tab.sleeping = undefined;
-    // An agent tool can wake a tab that a person holds. The restore is the host's work, so the hold does not stop it.
+    // An agent tool can wake a tab that a person holds. The restore is the host's work, so the hold does
+    // not stop it, and it waits for its turn with no tool limit.
     yield* Effect.forkIn(
       enqueueTabOperation(tab, pending, true).pipe(
         Effect.ignore,
         Effect.provideService(BrowserToolHold, () => false),
+        Effect.provideService(BrowserToolQueueWait, undefined),
       ),
       tab.scope,
       { startImmediately: true },
@@ -907,7 +928,7 @@ export class BrowserHost {
             yield* this.#closeRenderer(tab);
           }),
         true,
-      ).pipe(Effect.ignore),
+      ).pipe(Effect.ignore, Effect.provideService(BrowserToolQueueWait, undefined)),
       tab.scope,
       { startImmediately: true },
     );
@@ -2175,7 +2196,7 @@ export class BrowserHost {
               if (showsCurrentPage(tab, page)) tab.preview = { ...page, frame };
               return frame;
             }),
-          ),
+          ).pipe(Effect.provideService(BrowserToolQueueWait, undefined)),
         );
         if (tab.previewCapture === capture) tab.previewCapture = undefined;
         yield* Deferred.done(frame, result);
@@ -2697,6 +2718,7 @@ export class BrowserHost {
     })
       .pipe(
         Effect.provideService(BrowserToolHold, (tabId: string) => this.#heldByUser(tabId)),
+        Effect.provideService(BrowserToolQueueWait, TOOL_QUEUE_WAIT_MS),
         Effect.provideService(BrowserDialogTurn, { threadId: params.threadId, turnId: params.turnId }),
         Effect.provideService(BrowserSiteMemories, this.#siteRecall(params)),
         Effect.catch((operationFailure) =>
@@ -2857,7 +2879,7 @@ export class BrowserHost {
       undefined,
       (tab, deadline) =>
         Effect.gen({ self: this }, function* () {
-          const operationTimeout = remainingTime(deadline, "Browser navigate timed out.");
+          const operationTimeout = yield* browserSync(() => remainingTime(deadline, "Browser navigate timed out."));
           if (url) {
             const normalizedUrl = yield* browserSync(() => normalizeBrowserUrl(url));
             tab.requestedUrl = normalizedUrl;
@@ -2910,7 +2932,7 @@ export class BrowserHost {
         const deadline = Date.now() + timeoutMs;
         // The engine checks this deadline between commands, which a frame that answers none of
         // them never reaches.
-        const waitTimeout = remainingTime(deadline, timeoutMessage);
+        const waitTimeout = yield* browserSync(() => remainingTime(deadline, timeoutMessage));
         yield* boundEngineOperation(
           tab,
           tab.engine.waitFor(condition, waitTimeout),
@@ -2918,7 +2940,8 @@ export class BrowserHost {
           timeoutMessage,
           keepQueueBlocked,
         );
-        return yield* readResult(tab, keepQueueBlocked, remainingTime(deadline, timeoutMessage), timeoutMessage);
+        const readTimeout = yield* browserSync(() => remainingTime(deadline, timeoutMessage));
+        return yield* readResult(tab, keepQueueBlocked, readTimeout, timeoutMessage);
       }),
     );
   });
@@ -3004,17 +3027,23 @@ export class BrowserHost {
         }
       }
     });
+    const outcome = (cause: unknown): BrowserStepOutcome =>
+      cause instanceof BrowserUserControlHeld
+        ? { status: "user_control" }
+        : {
+            status: "error",
+            // run_script raises the message as a script Error, which adds its own "Error: " prefix.
+            error: redactText(cause instanceof Error ? cause.message : String(cause)),
+          };
     return yield* run.pipe(
-      Effect.catch((failure) =>
-        Effect.succeed<BrowserStepOutcome>(
-          failure.cause instanceof BrowserUserControlHeld
-            ? { status: "user_control" }
-            : {
-                status: "error",
-                // run_script raises the message as a script Error, which adds its own "Error: " prefix.
-                error: redactText(failure.cause instanceof Error ? failure.cause.message : String(failure.cause)),
-              },
-        ),
+      Effect.catch((failure) => Effect.succeed(outcome(failure.cause))),
+      // A plain throw in a step is a defect. As a failed tool request, Codex showed only "dynamic tool request
+      // failed", and the agent lost the steps that had run and could repeat them (#6712).
+      Effect.catchDefect((defect) =>
+        Effect.sync(() => {
+          logger.warn("A browser script step failed unexpectedly.", { action: step.action, error: toLogValue(defect) });
+          return outcome(defect);
+        }),
       ),
     );
   });
@@ -3067,7 +3096,10 @@ export class BrowserHost {
         "Browser upload target resolution timed out.",
         keepQueueBlocked,
       ),
-    ).pipe(Effect.provideService(BrowserToolHold, (heldTabId: string) => this.#heldByUser(heldTabId)));
+    ).pipe(
+      Effect.provideService(BrowserToolHold, (heldTabId: string) => this.#heldByUser(heldTabId)),
+      Effect.provideService(BrowserToolQueueWait, TOOL_QUEUE_WAIT_MS),
+    );
   }).bind(this);
 
   readonly destroy = Effect.fn("BrowserHost.destroy")(function* (this: BrowserHost) {
@@ -4067,13 +4099,13 @@ export class BrowserHost {
       !targetWindow ||
       targetWindow.isDestroyed()
     ) {
-      this.#attachedView?.setVisible(false);
+      this.#hideAttachedView();
       this.#mainPageListener?.(null);
       return;
     }
 
     if (this.#attachedView !== tab.view) {
-      this.#attachedView?.setVisible(false);
+      this.#hideAttachedView();
       this.#mountView(tab.view, targetWindow);
       this.#attachedView = tab.view;
     } else {
@@ -4093,6 +4125,7 @@ export class BrowserHost {
     });
     tab.view.setBounds(bounds);
     tab.view.setVisible(true);
+    this.#attachedViewShown = true;
     tab.contents.invalidate();
     this.#raisePictureInPictureOverlay();
     this.#mainPageListener?.(this.#target === "main" ? { tabId: tab.id, bounds, zoomFactor } : null);
@@ -4100,6 +4133,21 @@ export class BrowserHost {
       tab.focusOnVisible = false;
       tab.contents.focus();
     }
+  }
+
+  #hideAttachedView(): void {
+    this.#attachedViewShown = false;
+    if (this.#attachedView) this.#hideView(this.#attachedView);
+  }
+
+  /** Hides a view that the panel does not show. On Linux a view in the background window stays shown, or it would not draw. */
+  #hideView(view: WebContentsView): void {
+    view.setVisible(SHOWS_VIEWS_IN_BACKGROUND && this.#inBackgroundWindow(view));
+  }
+
+  /** True when the panel shows the view. On Linux a view in the background window is shown only to draw. */
+  #viewShown(view: WebContentsView): boolean {
+    return SHOWS_VIEWS_IN_BACKGROUND ? view === this.#attachedView && this.#attachedViewShown : view.getVisible();
   }
 
   #raisePictureInPictureOverlay(): void {
@@ -4114,7 +4162,7 @@ export class BrowserHost {
     if (
       this.#tabs.get(tab.id) !== tab ||
       this.#activeTabId !== tab.id ||
-      !tab.view.getVisible() ||
+      !this.#viewShown(tab.view) ||
       tab.contents.isDestroyed()
     ) {
       return;
@@ -4138,11 +4186,11 @@ export class BrowserHost {
     const currentParent = currentWindow && this.#nativeParent(currentWindow);
     if (currentParent && !currentParent.isDestroyed()) currentParent.contentView.removeChildView(view);
     parent.contentView.addChildView(view);
+    this.#mountedViews.set(view, window);
     // Initialize the native viewport before hiding a tab that has never been shown.
     view.setVisible(true);
     view.setBounds(this.#hiddenViewBounds(window));
-    view.setVisible(false);
-    this.#mountedViews.set(view, window);
+    this.#hideView(view);
   }
 
   /**
@@ -4209,6 +4257,8 @@ export class BrowserHost {
       if (owner !== window) continue;
       if (!from.isDestroyed()) from.contentView.removeChildView(view);
       to.contentView.addChildView(view);
+      if (SHOWS_VIEWS_IN_BACKGROUND)
+        view.setVisible(background || (view === this.#attachedView && this.#attachedViewShown));
     }
     if (!background) this.#backgroundWindow?.hide();
     return true;
@@ -4217,9 +4267,13 @@ export class BrowserHost {
   /**
    * The views keep their bounds, so the background window has the size of the main window's content.
    * A minimized Windows window reports a tiny content size off screen, so there the background window
-   * takes the restored place and covers each view.
+   * takes the restored place and covers each view. On Linux it is one pixel, which clips the shown views.
    */
   #backgroundBounds(window: BrowserWindow): Rectangle {
+    if (SHOWS_VIEWS_IN_BACKGROUND) {
+      const { x, y } = window.getContentBounds();
+      return { x, y, width: 1, height: 1 };
+    }
     if (process.platform !== "win32" || !window.isMinimized()) return window.getContentBounds();
     const { x, y, width, height } = window.getNormalBounds();
     let right = width;
@@ -4248,7 +4302,10 @@ export class BrowserHost {
     const parent = window && this.#nativeParent(window);
     if (parent && !parent.isDestroyed()) parent.contentView.removeChildView(view);
     this.#mountedViews.delete(view);
-    if (this.#attachedView === view) this.#attachedView = null;
+    if (this.#attachedView === view) {
+      this.#attachedView = null;
+      this.#attachedViewShown = false;
+    }
   }
 
   /** Succeeds when the renderer of the tab's page crashes. */

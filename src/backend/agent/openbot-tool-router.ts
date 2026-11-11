@@ -43,6 +43,7 @@ import {
   agentComputerUseEnabled,
   agentNewChatAllowed,
   agentQuickAcknowledgementEnabled,
+  COMPUTER_USE_MCP_SERVER_ID,
   isMessageReaction,
   marketplaceSuggestionItemType,
   mcpSignInItemType,
@@ -177,6 +178,7 @@ import {
 } from "./tool-catalog";
 import { ToolOperationFailed, toolStep, toToolOperationFailed } from "./tool-operation";
 import type { AgentBrowserHost } from "./turn-lifecycle";
+import { unknownAgentMessage } from "./unknown-agent";
 import { handleUpdateAgentsTool } from "./update-agents-tool";
 import { READ_VIDEO_DEFAULT_FRAMES, readVideoToolSchema, type VideoReaderHost } from "./video-reader";
 import { checkAgentFolders, workspaceWritableRoots } from "./workspace-sandbox";
@@ -319,8 +321,11 @@ export interface OpenBotToolRouterHooks {
   turnActivity(agentId: string, turnId: string | null): { startedAt: number | null; lastEventAt: number | null };
   /** Records a no-update tool call for the turn; null when no routine run started the turn. */
   requestNoUpdate(agentId: string, threadId: string, turnId: string): "quiet" | "shown" | null;
-  /** Records the reason a routine run failed for the turn; false when no routine run started the turn. */
-  reportRoutineFailure(agentId: string, turnId: string, reason: string): boolean;
+  /**
+   * Records the reason a routine run failed for the turn; false when no routine run started the turn.
+   * `channelRun` is a turn that owns a main task of a channel routine's request.
+   */
+  reportRoutineFailure(agentId: string, turnId: string, reason: string, channelRun: boolean): boolean;
   /** Starts a new chat with the agent when its turn ends and its queue is empty. */
   requestNewChat(agentId: string): void;
   /**
@@ -1216,7 +1221,7 @@ export class OpenBotToolRouter {
     // A routine, a channel task, an external chat or another agent must not wait on the owner's card.
     if (!this.#requestedByPerson(senderAgentId, params.turnId, params.threadId))
       return openBotToolFailure(
-        "Only a person's message, in your OpenBot chat or a thread they opened, can send feedback. Describe the problem in your reply instead.",
+        "Only a person's message, in your OpenBot chat or a thread they opened, can send feedback. Describe the problem in your reply instead. Do not open an OpenBot issue with GitHub tools, gh, or a browser: the repository closes issues that do not use its forms. A person can report it at https://github.com/nightly-labs/openbot/issues/new/choose.",
       );
     // The card offers a send, so a user who is not signed in gets the form link at once.
     if (!sender.signedIn()) return form(FEEDBACK_SIGNED_OUT_NEXT);
@@ -1465,6 +1470,7 @@ export class OpenBotToolRouter {
   readonly #readAgent = Effect.fn("OpenBotToolRouter.readAgent")(function* (this: OpenBotToolRouter, agentId: string) {
     const agent = yield* toolStep(() => this.#requireAgent(agentId));
     const computerUse = agentComputerUseEnabled(agent);
+    const mcpServers = agentMcpServers(this.#hooks.enabledMcpServers(), computerUse);
     let skills: unknown[] | undefined;
     let skillsError: string | undefined;
     const loaded = yield* Effect.result(
@@ -1505,6 +1511,10 @@ export class OpenBotToolRouter {
       ...agentAccountSetup(agent),
       access: workspaceAccessEnforced(agent) ? "workspace" : "full",
       computerUse,
+      // The setting can be on while the driver is not ready, and then the agent has no driver tools (#6612).
+      ...(computerUse
+        ? { computerUseReady: mcpServers.some((server) => server.id === COMPUTER_USE_MCP_SERVER_ID) }
+        : {}),
       notifications: agent.notifications,
       autoApprove: this.#approvalAutomation.autoApproves(agent.id),
       ...(skills ? { skills } : { skillsError }),
@@ -1515,7 +1525,7 @@ export class OpenBotToolRouter {
         schedule: routine.trigger.schedule,
         nextRunAt: routine.trigger.nextRunAt,
       })),
-      mcpServers: agentMcpServers(this.#hooks.enabledMcpServers(), computerUse).map((server) => ({
+      mcpServers: mcpServers.map((server) => ({
         name: server.name,
         transport: server.transport,
       })),
@@ -1843,7 +1853,19 @@ export class OpenBotToolRouter {
 
     if (params.tool === ROUTINE_REPORT_FAILURE_TOOL) {
       const { reason } = routineReportFailureToolSchema.parse(params.arguments ?? {});
-      if (!this.#hooks.reportRoutineFailure(senderAgentId, params.turnId, reason))
+      // A channel routine runs as a request in the channel. The owner of its main task ends the run;
+      // a member that works on a part of it reports to that owner (#6667).
+      const channelRun = channelId
+        ? // A turn with no active assignment, such as one that the provider started itself, has no run.
+          yield* this.#channels
+            .routineRunPart(channelId, senderAgentId, params.turnId)
+            .pipe(Effect.catch(() => Effect.succeed(null)))
+        : null;
+      if (channelRun === "member")
+        return openBotToolFailure(
+          "In a channel routine run, only the owner of the request can end the run as failed. Say in your result that the task could not be done, and why.",
+        );
+      if (!this.#hooks.reportRoutineFailure(senderAgentId, params.turnId, reason, channelRun === "owner"))
         return openBotToolFailure("Use this tool only in a routine run.");
       return openBotToolResult({ status: "failed", note: "This run ends as failed. Give your answer as usual." });
     }
@@ -2536,8 +2558,8 @@ export class OpenBotToolRouter {
       // An effort alone applies to the model the new agent starts on, known only once it exists.
       const lateEffort = requested === null ? args.reasoningEffort : undefined;
       const sectionId = this.#sidebarLayout?.getSnapshot().agentAssignments[senderAgentId] ?? null;
-      // A new agent starts with Full access and Computer Use. A caller without them passes its limits
-      // on, so it cannot get around them through an agent it creates.
+      // A new agent starts with Full access, Computer Use and the auto-approve grant. A caller without
+      // them passes its limits on, so it cannot get around them through an agent it creates (#6769).
       const limits: Pick<UpdateAgentInput, "access" | "computerUse"> = {
         ...(workspaceAccessEnforced(caller) ? { access: "workspace" } : {}),
         ...(agentComputerUseEnabled(caller) ? {} : { computerUse: false }),
@@ -2561,6 +2583,11 @@ export class OpenBotToolRouter {
           (agent) =>
             Effect.gen({ self: this }, function* () {
               if (assign) yield* assign(agent.id).pipe(toToolOperationFailed);
+              // Saved before the first message starts a turn. A failed write removes the new agent.
+              if (!this.#approvalAutomation.autoApproves(caller.id) && this.#approvalAutomation.autoApproves(agent.id))
+                yield* this.#approvalAutomation
+                  .set({ agentId: agent.id, autoApprove: false })
+                  .pipe(toToolOperationFailed);
               if (lateEffort !== undefined) {
                 const models = this.#hooks.listModels();
                 const model = models.find(
@@ -2779,10 +2806,18 @@ export class OpenBotToolRouter {
         throw new Error("Duplicate recipients are not allowed.");
       }
       if (recipientValues.includes(senderAgentId)) throw new Error("An agent cannot message itself.");
-      const known = new Map(this.#hooks.listAgents().map((agent) => [agent.id, agent]));
+      const agents = this.#hooks.listAgents();
+      const known = new Map(agents.map((agent) => [agent.id, agent]));
       for (const recipient of recipientValues) {
         const agent = known.get(recipient);
-        if (!agent) throw new Error(`Unknown OpenBot agent: ${recipient}`);
+        // Suggest only an agent that this tool takes: not the sender, and not a hidden agent.
+        if (!agent)
+          throw new Error(
+            unknownAgentMessage(
+              recipient,
+              agents.filter((candidate) => candidate.hiddenAt === undefined && candidate.id !== senderAgentId),
+            ),
+          );
         // A hidden agent receives no new messages until the user restores it.
         if (agent.hiddenAt !== undefined)
           throw new Error(`${recipient}: ${sourceText("error.backend.recipientHidden")}`);

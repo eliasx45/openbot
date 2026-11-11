@@ -213,6 +213,8 @@ export const messages = {
     "OpenCode не смог подключиться к провайдеру моделей. Проверьте сетевое подключение компьютера, где работает OpenBot, и повторите попытку.\n{detail}",
   "error.provider.codexStateBusy":
     "ChatGPT ещё готовит локальную историю после предыдущего запуска. Подождите несколько минут и повторите попытку.",
+  "error.provider.codexThreadInUse":
+    "Этот чат открыт в другом приложении Codex, например в приложении Codex для компьютера, Codex CLI или расширении IDE. Писать в чат Codex может только одно приложение одновременно. Закройте чат в том приложении, затем отправьте сообщение ещё раз.",
   "error.provider.realtimeLimitZero":
     "Linux остановил провайдера, потому что у OpenBot ограничение процессорного времени реального времени равно 0. Это ограничение задаёт ваша система. Установите и запустите rtkit (`rtkit-daemon`), выполните `systemctl --user restart xdg-desktop-portal`, затем перезапустите OpenBot. Один перезапуск xdg-desktop-portal не поможет, пока rtkit не установлен.",
   "error.provider.opencodeDatabaseNewer":
@@ -284,6 +286,8 @@ export const messages = {
   "error.provider.hermesSignIn":
     "Войдите через Nous Portal или выполните `hermes setup` в терминале, чтобы использовать Hermes.",
   "error.provider.usageLimitReached": "Аккаунт достиг лимита использования.",
+  "error.provider.claudeContextFull":
+    "Этот чат стал слишком длинным для Claude. OpenBot начал новую сессию Claude Code с историей чата. Повторите попытку.",
   "error.provider.claudeApiKeyNoCredit":
     "На API-ключе Anthropic нет кредитов API. Тариф Claude не оплачивает запросы с API-ключом. Пополните кредиты в Anthropic Console или войдите в Claude в настройках и выберите аккаунт Claude в меню моделей агента.",
   "error.provider.foreignReasoning":
@@ -292,6 +296,8 @@ export const messages = {
     "Модель не приняла изображение в этом чате, потому что изображение слишком маленькое. OpenBot начал новый сеанс {provider} с историей чата. Попробуйте снова.",
   "error.provider.imageTooLarge":
     "Модель не приняла изображение в этом чате, потому что изображение слишком большое. OpenBot начал новый сеанс {provider} с историей чата. Попробуйте снова.",
+  "error.provider.imageCountLimit":
+    "Модель не приняла этот чат, потому что в нем слишком много изображений. OpenBot начал новый сеанс {provider} с историей чата. Попробуйте снова.",
   "error.provider.opencodeSessionRejected":
     "OpenCode отклонил запрос и не указал причину. Это может произойти в длинном чате или после смены модели. OpenBot начал новый сеанс OpenCode с историей чата. Повторите попытку. Если ошибка не исчезнет, выберите другую модель или меньший уровень усилий.",
   "error.provider.museMcpStartupFault":
@@ -320,6 +326,10 @@ export const messages = {
     "{provider} отклонил сохранённый ключ API. Замените или удалите ключ в настройках, затем повторите попытку.",
   "error.provider.keyProviderNoBalance":
     "На аккаунте {provider} для сохранённого ключа API нет средств. Пополните баланс аккаунта, затем повторите попытку.",
+  "error.provider.modelServiceRefused":
+    "Сервис модели отклонил запрос. Выберите другую модель или проверьте свой доступ к этой модели в сервисе.",
+  "error.provider.modelServiceRefusedReason":
+    "Сервис модели отклонил запрос: {reason}. Выберите другую модель или проверьте свой доступ к этой модели в сервисе.",
   "error.provider.messageTooLarge": "OpenBot остановил {provider}, потому что он отправил сообщение больше {limit} МБ.",
   "error.provider.customAgentIdInvalid":
     "ID агента должен состоять из строчных букв, цифр или `-` и не может совпадать с ID встроенного провайдера.",
