@@ -49,6 +49,7 @@ import {
   foldClaudeSubagentCall,
   foldClaudeSubagentMessage,
   foldClaudeSubagentResult,
+  foldClaudeSubagentResume,
   foldClaudeTaskMessage,
   newSubagentState,
   runningBackgroundSubagents,
@@ -2131,6 +2132,19 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
             runtime,
             foldClaudeSubagentResult(
               runtime.subagents,
+              toolCallId,
+              message.tool_use_result,
+              isError,
+              text,
+              new Date().toISOString(),
+            ),
+          );
+          // Fork: a `SendMessage` that resumed a finished subagent runs it again.
+          this.#emitSubagents(
+            runtime,
+            foldClaudeSubagentResume(
+              runtime.subagents,
+              turn.id,
               toolCallId,
               message.tool_use_result,
               isError,

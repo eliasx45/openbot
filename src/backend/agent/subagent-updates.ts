@@ -113,6 +113,8 @@ export interface SubagentState {
   streams: Map<string, Map<string, string>>;
   /** Fork: the task list each subagent keeps with its own tools, under the subagent's id. */
   plans?: Map<string, ClaudePlanState>;
+  /** Fork: the main agent's `SendMessage` calls that wait for their result, under the call's id. */
+  sends?: Map<string, { to: string; summary: string; message: string }>;
 }
 
 export function newSubagentState(): SubagentState {
@@ -181,6 +183,12 @@ export function foldClaudeSubagentCall(
   call: { id: string; name: string; input: unknown },
   now: string,
 ): SubagentChange | null {
+  if (call.name === "SendMessage" && isRecord(call.input)) {
+    const field = (key: string) => (isRecord(call.input) && isString(call.input[key]) ? call.input[key] : "");
+    state.sends ??= new Map();
+    state.sends.set(call.id, { to: field("to"), summary: field("summary"), message: field("message") });
+    return null;
+  }
   if (!CLAUDE_SUBAGENT_TOOLS.has(call.name) || state.turnOf.has(call.id)) return null;
   const input = isRecord(call.input) ? call.input : {};
   const agentType = isString(input.subagent_type) ? input.subagent_type : null;
@@ -301,6 +309,60 @@ export function foldClaudeSubagentResult(
   return subagentChange(state, state.turnOf.get(toolUseId));
 }
 
+/**
+ * Fork: the result of the main agent's `SendMessage` call. When it resumed a subagent that had
+ * finished (`resumedAgentId`, "Resuming agent …"), the CLI runs that subagent again as a background
+ * task under the `SendMessage` call's id, and the `task_notification` of that run names this id. So
+ * the resume starts a subagent in this turn as a background `Agent` call does, and the agent counts
+ * as at work until that notification, the session's end or a restart ends it. A message queued for a
+ * subagent that still runs, a failed call, or an unknown id starts nothing. Tatiana, 12 Nov 2026: a
+ * subagent resumed at 17:29 showed as done, and the turn's end sent a "plan has open steps" note.
+ */
+export function foldClaudeSubagentResume(
+  state: SubagentState,
+  turnId: string,
+  toolUseId: string,
+  result: unknown,
+  isError: boolean,
+  text: string,
+  now: string,
+): SubagentChange | null {
+  const send = state.sends?.get(toolUseId);
+  if (!send) return null;
+  state.sends?.delete(toolUseId);
+  if (isError || state.turnOf.has(toolUseId)) return null;
+  const fields = isRecord(result) ? result : parsedRecord(text);
+  const resumedId = isString(fields?.resumedAgentId) ? fields.resumedAgentId.trim() : "";
+  if (!resumedId || fields?.success === false) return null;
+  // The earlier run, when the state still knows it, gives the title. Its turn can be forgotten.
+  let earlier: ConversationSubagent | undefined;
+  for (const turn of state.turns.values())
+    for (const subagent of turn.subagents) if (subagent.providerAgentId === resumedId) earlier = subagent;
+  state.aliases.set(resumedId, toolUseId);
+  return startSubagent(state, turnId, {
+    id: toolUseId,
+    title: earlier?.title || send.summary || resumedId,
+    agentType: earlier?.agentType ?? null,
+    prompt: send.message || null,
+    status: "running",
+    startedAt: now,
+    endedAt: null,
+    steps: [],
+    error: null,
+    background: true,
+    providerAgentId: resumedId,
+  });
+}
+
+function parsedRecord(text: string): DynamicRecord | null {
+  try {
+    const value = JSON.parse(text);
+    return isRecord(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The final report in the structured result. The text form is wrapped in a frame for the model. */
 function claudeResultText(result: unknown): string {
   if (!isRecord(result) || !Array.isArray(result.content)) return "";
@@ -349,6 +411,8 @@ export function foldClaudeTaskMessage(state: SubagentState, message: unknown, no
  * person stopped the turn. A background subagent works on.
  */
 export function endSubagentTurn(state: SubagentState, turnId: string, now: string): SubagentChange | null {
+  // A `SendMessage` result comes within its turn, so a call left here got none.
+  state.sends?.clear();
   const turn = state.turns.get(turnId);
   if (!turn) return null;
   turn.ended = true;
@@ -378,6 +442,7 @@ export function runningBackgroundSubagents(
  * turns of one session, which closed: the agent then reports nothing more of its subagents.
  */
 export function stopSubagents(state: SubagentState, now: string, turnIds?: ReadonlySet<string>): SubagentChange[] {
+  if (!turnIds) state.sends?.clear();
   return [...state.turns].flatMap(([turnId, turn]) => {
     if (turnIds && !turnIds.has(turnId)) return [];
     turn.ended = true;
