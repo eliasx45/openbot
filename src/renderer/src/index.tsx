@@ -1,3 +1,4 @@
+import { installHiddenVideoPause } from "@openbot/ui/hidden-video-pause";
 import { installPointerFocusGuard } from "@openbot/ui/pointer-focus";
 import { render } from "@solidjs/web";
 // Copying a selection with a formula in it gives its LaTeX source, not the typeset glyphs twice.
@@ -22,6 +23,7 @@ if (!root) {
 // A startup mark for `dev:bench`, after the bundle is parsed.
 performance.mark("openbot:renderer-start");
 installPointerFocusGuard();
+installHiddenVideoPause();
 syncAppearance({ windowGlass: true });
 syncGlassContrast();
 syncLogoColor();

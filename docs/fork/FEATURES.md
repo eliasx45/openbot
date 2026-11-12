@@ -807,3 +807,13 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Tests:** `src/backend/fork-card-media.test.ts` (zod schema with media), full vitest, `bun scripts/ui-blocks-e2e.ts`, `bun run check:agent-context`.
 - **Guard:** `fork-card-media.test.ts` fails when `askUiToolSchema` loses `media` on a choice or form.
 - **Check:** ask an agent "ask me with ask_ui a choice card with two options and a hint". A choice card shows, not the question prompt.
+
+## 75. A playing video pauses when you leave its chat
+
+- **Get:** a video that plays in a chat (a card clip, a card's media, a sent video) pauses as soon as none of it is on screen: you open another chat, close it, collapse its card or scroll it away. Picture in picture and full screen keep playing.
+- **Why:** Elias, 12 Nov 2026: "when we go outside the chat, a video that's playing needs to stop". Vegapunk's B2 card clip (3–9 s, loops with sound, #67) went on playing after he left that chat, and he could not find where the sound came from.
+- **How (portable):** one capturing `play` listener on the document watches each playing `<video>` with an `IntersectionObserver`; `pause`/`ended` stop watching. A hidden chat (display none), a removed or scrolled-away video reports no intersection, and the guard pauses it. Card clips loop through `keepVideoInRange`, so nothing else ever ended them.
+- **Here:** `packages/ui/src/hidden-video-pause.ts` (`installHiddenVideoPause`), installed in `src/renderer/src/index.tsx` (main and chat windows).
+- **Tests:** `src/renderer/src/fork-hidden-video-pause.dom.test.ts` (pauses when hidden, keeps playing while visible or in picture in picture, stops watching after the end).
+- **Not covered:** not run in the packaged app (Tests not run there). Audio files are not paused.
+- **Check:** open a card with a video, press play, open another chat. The sound stops. Back in the first chat, the video is paused where it was.

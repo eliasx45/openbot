@@ -29,6 +29,7 @@
     "./alert": "./src/alert.tsx",
     "./switch": "./src/switch.tsx",
     "./pointer-focus": "./src/pointer-focus.ts",
+    "./hidden-video-pause": "./src/hidden-video-pause.ts",
     "./document-color-scheme": "./src/document-color-scheme.ts",
     "./document-rendering": "./src/document-rendering.ts",
     "./menu-motion": "./src/menu-motion.tsx",
