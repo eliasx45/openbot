@@ -153,30 +153,8 @@ function modelVariant(id: string): string {
     .join("-");
 }
 
-/**
- * The product name of a Claude model, from its id, or `null` for an id that does not read as one.
- *
- * Claude Code lists a model by the part it plays in that CLI - "Default (recommended)", "Opus" -
- * so its display name says which pick it is there, not which model an agent runs here. The picker
- * puts all three providers side by side, and the other two name a model in full, so the same
- * sentence has to be true of this one: the id carries it, with a release stamp the picker has no
- * use for. `claude-haiku-4-5-20251001` is Claude Haiku 4.5, and `claude-fable-5-1[1m]` is the 1M
- * context window of Claude Fable 5.1.
- */
-export function claudeModelName(id: string): string | null {
-  const parsed = /^([a-z0-9-]+?)(?:\[([a-z0-9]+)\])?$/u.exec(id.trim().toLowerCase());
-  if (!parsed) return null;
-  const [, base = "", variant] = parsed;
-  const parts = base.split("-");
-  if (parts.shift() !== "claude") return null;
-  const family = parts.shift();
-  if (!family || !/^[a-z]+$/u.test(family)) return null;
-  // Eight digits are the build date, which names a release of the model rather than the model.
-  const version = parts.filter((part) => !/^\d{8}$/u.test(part));
-  if (!version.length || version.some((part) => !/^\d+$/u.test(part))) return null;
-  const name = `Claude ${family[0]?.toUpperCase()}${family.slice(1)} ${version.join(".")}`;
-  return variant ? `${name} (${variant.toUpperCase()} context)` : name;
-}
+// Fork: moved to contracts, so the screen names a subagent's model the same way (FEATURES.md #78).
+export { claudeModelName } from "@openbot/contracts/agent-providers";
 
 /**
  * Known free OpenCode ids are a discovery safety net, not a claim that an unauthenticated provider

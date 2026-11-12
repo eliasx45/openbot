@@ -441,6 +441,8 @@ export class TurnLifecycle {
    * Codex sends the items of these threads too, and OpenBot knows no agent for them.
    */
   readonly #codexChildren = new Map<string, { agentId: string; threadId: string; turnId: string }>();
+  /** Fork (FEATURES.md #78): models that Codex resolved for subagent threads no `spawnAgent` named yet. */
+  readonly #codexSubagentModels = new Map<string, { model: string | null; effort: string | null }>();
   /**
    * The turns of each agent whose subagents still run. A background subagent keeps its turn here after
    * the turn ended. Boot recovery stops every subagent, so nothing here outlives the process.
@@ -1010,7 +1012,9 @@ export class TurnLifecycle {
               source,
             ).pipe(Effect.forkIn(this.#scope, { startImmediately: true }));
         }
-        if (item.type === "collabAgentToolCall") this.#applyCodexSubagents(agentId, threadId, turnId, item);
+        // Fork (FEATURES.md #78): `subAgentActivity` names the model Codex resolved for a subagent.
+        if (item.type === "collabAgentToolCall" || item.type === "subAgentActivity")
+          this.#applyCodexSubagents(agentId, threadId, turnId, item);
         const threadItem = toThreadItem(item);
         if (!threadItem) return;
         yield* this.#applyItem(agentId, threadId, turnId, threadItem, notification.method === "item/completed");
@@ -2569,7 +2573,11 @@ export class TurnLifecycle {
   #applyCodexSubagents(agentId: string, threadId: string, turnId: string, item: DynamicRecord): void {
     const snapshot = this.#conversation.ensureSnapshot(agentId, threadId);
     const current = snapshot.messages.find((candidate) => candidate.id === `${turnId}:subagents`)?.subagents ?? [];
-    const subagents = foldCodexSubagentItem(current, item, new Date().toISOString());
+    const agent = this.#store.list().find((entry) => entry.id === agentId);
+    const subagents = foldCodexSubagentItem(current, item, new Date().toISOString(), {
+      parent: agent ? { model: agent.model, effort: agent.reasoningEffort } : undefined,
+      resolved: this.#codexSubagentModels,
+    });
     const clamped = subagents && clampConversationSubagents(subagents);
     if (!clamped) return;
     for (const subagent of clamped)

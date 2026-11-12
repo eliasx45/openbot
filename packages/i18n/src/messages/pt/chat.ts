@@ -64,6 +64,7 @@ export const messages = {
   "chat.subagents.hideBrief": "Ocultar instruções",
   "chat.subagents.taskFrom": "Tarefa de {name}",
   "chat.subagents.steps": "Etapas de “{title}”",
+  "chat.subagents.model": "Executa com {model}",
   "chat.subagents.stepCount": { one: "{count} etapa", other: "{count} etapas" },
   "chat.subagents.seconds": "{seconds} s",
   "chat.subagents.minutes": "{minutes} min {seconds} s",

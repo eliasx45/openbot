@@ -64,6 +64,7 @@ export const messages = {
   "chat.subagents.hideBrief": "Nascondi incarico",
   "chat.subagents.taskFrom": "Attività da {name}",
   "chat.subagents.steps": "Passaggi di «{title}»",
+  "chat.subagents.model": "Usa {model}",
   "chat.subagents.stepCount": { one: "{count} passaggio", other: "{count} passaggi" },
   "chat.subagents.seconds": "{seconds} s",
   "chat.subagents.minutes": "{minutes} min {seconds} s",

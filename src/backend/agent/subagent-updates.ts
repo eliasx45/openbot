@@ -115,6 +115,31 @@ export interface SubagentState {
   plans?: Map<string, ClaudePlanState>;
   /** Fork: the main agent's `SendMessage` calls that wait for their result, under the call's id. */
   sends?: Map<string, { to: string; summary: string; message: string }>;
+  /**
+   * Fork (FEATURES.md #78): the subagents whose model is still the guess made at the call, not one
+   * the provider reported, with whether their effort was the parent's too.
+   */
+  guessedModels?: Map<string, { inheritedEffort: boolean }>;
+}
+
+/** Fork (FEATURES.md #78): the model and effort a subagent runs on, as far as they are known. */
+export interface SubagentModelPick {
+  model?: string | null | undefined;
+  effort?: string | null | undefined;
+}
+
+/**
+ * Fork: `{ model, effort }` for a subagent: what the call asked for, else what the parent runs on.
+ * A blank value is left out.
+ */
+export function subagentModelFields(
+  requested: SubagentModelPick,
+  parent: SubagentModelPick | undefined,
+): Pick<ConversationSubagent, "model" | "effort"> {
+  const pick = (value: string | null | undefined) => (value?.trim() ? value.trim() : undefined);
+  const model = pick(requested.model) ?? pick(parent?.model);
+  const effort = pick(requested.effort) ?? pick(parent?.effort);
+  return { ...(model ? { model } : {}), ...(effort ? { effort } : {}) };
 }
 
 export function newSubagentState(): SubagentState {
@@ -139,6 +164,7 @@ export function subagentChange(state: SubagentState, turnId: string | undefined)
     for (const subagent of turn.subagents) {
       state.turnOf.delete(subagent.id);
       state.streams.delete(subagent.id);
+      state.guessedModels?.delete(subagent.id);
     }
     for (const [alias, id] of state.aliases) if (!state.turnOf.has(id)) state.aliases.delete(alias);
   }
@@ -176,12 +202,19 @@ export function dropSubagent(state: SubagentState, id: string): SubagentChange |
   return subagentChange(state, turnId);
 }
 
-/** Starts a subagent for an `Agent` call of the main agent. Returns null for every other tool. */
+/**
+ * Starts a subagent for an `Agent` call of the main agent. Returns null for every other tool.
+ * Fork (FEATURES.md #78): `parent` is the model and effort of the main agent, which a subagent
+ * runs on when the call names none; `resolveModel` turns a model alias of the call (`opus`) into
+ * the model id. The first message of the subagent then reports the model it really runs on.
+ */
 export function foldClaudeSubagentCall(
   state: SubagentState,
   turnId: string,
   call: { id: string; name: string; input: unknown },
   now: string,
+  parent?: SubagentModelPick,
+  resolveModel?: (alias: string) => string | undefined,
 ): SubagentChange | null {
   if (call.name === "SendMessage" && isRecord(call.input)) {
     const field = (key: string) => (isRecord(call.input) && isString(call.input[key]) ? call.input[key] : "");
@@ -192,6 +225,11 @@ export function foldClaudeSubagentCall(
   if (!CLAUDE_SUBAGENT_TOOLS.has(call.name) || state.turnOf.has(call.id)) return null;
   const input = isRecord(call.input) ? call.input : {};
   const agentType = isString(input.subagent_type) ? input.subagent_type : null;
+  // Fork: the Agent tool's `model` is an alias (`sonnet`, `opus`, `haiku`, `inherit`).
+  const alias = isString(input.model) && input.model.trim() !== "inherit" ? input.model.trim() : "";
+  const effort = isString(input.effort) ? input.effort.trim() : "";
+  state.guessedModels ??= new Map();
+  state.guessedModels.set(call.id, { inheritedEffort: !effort });
   return startSubagent(state, turnId, {
     id: call.id,
     title: isString(input.description) ? input.description : (agentType ?? ""),
@@ -203,7 +241,32 @@ export function foldClaudeSubagentCall(
     steps: [],
     error: null,
     ...(input.run_in_background === true ? { background: true as const } : {}),
+    ...subagentModelFields({ model: alias ? (resolveModel?.(alias) ?? alias) : null, effort }, parent),
   });
+}
+
+/**
+ * Fork (FEATURES.md #78): the model that a subagent's message names (`message.model`) is the one it
+ * runs on, which can differ from the guess: an agent type such as Explore names its own model. When
+ * it differs and the effort was only the parent's, the effort is not known any more. Only the first
+ * message counts.
+ */
+function noteReportedModel(state: SubagentState, subagent: ConversationSubagent, message: DynamicRecord): boolean {
+  const guess = state.guessedModels?.get(subagent.id);
+  const reported = isString(message.model) ? message.model.trim() : "";
+  if (!guess || !reported || reported.startsWith("<")) return false;
+  state.guessedModels?.delete(subagent.id);
+  // The guess can name a context variant (`[1m]`) that the message does not: it then stays.
+  if (subagent.model !== undefined && sameModelId(subagent.model, reported)) return false;
+  subagent.model = reported;
+  if (guess.inheritedEffort) delete subagent.effort;
+  return true;
+}
+
+/** The same model, apart from a context variant such as `[1m]`. */
+function sameModelId(left: string, right: string): boolean {
+  const base = (id: string) => id.replace(/\[[^\]]*\]$/u, "").toLowerCase();
+  return base(left) === base(right);
 }
 
 /**
@@ -218,7 +281,7 @@ export function foldClaudeSubagentMessage(
 ): SubagentChange | null {
   const subagent = subagentFor(state, parentToolUseId);
   if (!subagent || !isRecord(message) || !Array.isArray(message.content)) return null;
-  let changed = false;
+  let changed = noteReportedModel(state, subagent, message);
   message.content.forEach((block, index) => {
     if (!isRecord(block)) return;
     const id = `${messageId}:${index}`;
@@ -351,6 +414,8 @@ export function foldClaudeSubagentResume(
     error: null,
     background: true,
     providerAgentId: resumedId,
+    ...(earlier?.model ? { model: earlier.model } : {}),
+    ...(earlier?.effort ? { effort: earlier.effort } : {}),
   });
 }
 
@@ -477,24 +542,37 @@ export function foldCodexSubagentItem(
   current: readonly ConversationSubagent[],
   item: DynamicRecord,
   now: string,
+  models?: CodexSubagentModels,
 ): ConversationSubagent[] | null {
   const subagents = current.map((subagent) => ({ ...subagent, steps: [...subagent.steps] }));
+  if (item.type === "subAgentActivity") return foldCodexSubagentActivity(subagents, item, models);
   let changed = false;
   const receivers = Array.isArray(item.receiverThreadIds) ? item.receiverThreadIds.filter(isString) : [];
   if (item.tool === "spawnAgent") {
     const prompt = isString(item.prompt) ? item.prompt : null;
     for (const receiver of receivers) {
       if (subagents.some((subagent) => subagent.id === receiver)) continue;
+      // Fork (FEATURES.md #78): the model Codex resolved for the thread, else the one the call asked
+      // for, else the parent's. `model` used to show as the agent type.
+      const resolved = models?.resolved.get(receiver);
+      models?.resolved.delete(receiver);
       subagents.push({
         id: receiver,
         title: prompt?.trim().split("\n", 1)[0] ?? "",
-        agentType: isString(item.model) ? item.model : null,
+        agentType: null,
         prompt,
         status: "running",
         startedAt: now,
         endedAt: null,
         steps: [],
         error: null,
+        ...subagentModelFields(
+          {
+            model: resolved?.model ?? (isString(item.model) ? item.model : null),
+            effort: resolved?.effort ?? (isString(item.reasoningEffort) ? item.reasoningEffort : null),
+          },
+          models?.parent,
+        ),
       });
       changed = true;
     }
@@ -512,6 +590,54 @@ export function foldCodexSubagentItem(
       pushSubagentReport(subagent, message);
       changed = endSubagent(subagent, status, now) || changed;
     } else if (status) changed = endSubagent(subagent, status, now, message || null) || changed;
+  }
+  return changed ? subagents : null;
+}
+
+/**
+ * Fork (FEATURES.md #78): what a Codex turn knows of its subagents' models. `parent` is the model
+ * and effort of the agent itself. `resolved` holds the model that a `subAgentActivity` item named for
+ * a thread that no `spawnAgent` named yet, under the thread's id; the caller keeps it between items.
+ */
+export interface CodexSubagentModels {
+  parent?: SubagentModelPick;
+  resolved: Map<string, { model: string | null; effort: string | null }>;
+}
+
+const CODEX_RESOLVED_LIMIT = 48;
+
+/**
+ * Fork: a `subAgentActivity` item carries the model and effort that Codex resolved when it created
+ * the subagent, which wins over the requested one.
+ */
+function foldCodexSubagentActivity(
+  subagents: ConversationSubagent[],
+  item: DynamicRecord,
+  models: CodexSubagentModels | undefined,
+): ConversationSubagent[] | null {
+  const threadId = isString(item.agentThreadId) ? item.agentThreadId : "";
+  const model = isString(item.model) && item.model.trim() ? item.model.trim() : null;
+  const effort = isString(item.reasoningEffort) && item.reasoningEffort.trim() ? item.reasoningEffort.trim() : null;
+  if (!threadId || (!model && !effort)) return null;
+  const subagent = subagents.find((candidate) => candidate.id === threadId);
+  if (!subagent) {
+    if (models) {
+      models.resolved.set(threadId, { model, effort });
+      for (const id of models.resolved.keys()) {
+        if (models.resolved.size <= CODEX_RESOLVED_LIMIT) break;
+        models.resolved.delete(id);
+      }
+    }
+    return null;
+  }
+  let changed = false;
+  if (model && subagent.model !== model) {
+    subagent.model = model;
+    changed = true;
+  }
+  if (effort && subagent.effort !== effort) {
+    subagent.effort = effort;
+    changed = true;
   }
   return changed ? subagents : null;
 }

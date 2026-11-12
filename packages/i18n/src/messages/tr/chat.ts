@@ -64,6 +64,7 @@ export const messages = {
   "chat.subagents.hideBrief": "Görevi gizle",
   "chat.subagents.taskFrom": "{name} tarafından görev",
   "chat.subagents.steps": "“{title}” adımları",
+  "chat.subagents.model": "{model} ile çalışır",
   "chat.subagents.stepCount": { one: "{count} adım", other: "{count} adım" },
   "chat.subagents.seconds": "{seconds} sn",
   "chat.subagents.minutes": "{minutes} dk {seconds} sn",

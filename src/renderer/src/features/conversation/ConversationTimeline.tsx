@@ -42,7 +42,7 @@ import {
 } from "@openbot/ui/features/conversation/MessageRendering";
 import { countableTimelineMessage } from "@openbot/ui/features/conversation/new-message-tally";
 import { PendingSendStatus } from "@openbot/ui/features/conversation/PendingSendStatus";
-import { SubagentGroup } from "@openbot/ui/features/conversation/Subagents";
+import { SubagentGroup, subagentModelNames, subagentModelText } from "@openbot/ui/features/conversation/Subagents";
 import { TaskList } from "@openbot/ui/features/conversation/TaskList";
 import { MAIN_THREAD_ID } from "@openbot/ui/features/conversation/threads/thread-types";
 import { UnreadMessagesBanner, UnreadMessagesDivider } from "@openbot/ui/features/conversation/UnreadMessages";
@@ -241,6 +241,8 @@ export function ConversationTimeline() {
     messagePins,
   } = useConversationViewScope();
   const { t, format, sourceText } = useText();
+  // Fork (docs/fork/FEATURES.md #78): each subagent names its model as the model picker does.
+  const subagentModels = createMemo(() => subagentModelNames(props.modelOptions));
   // A named function, not a ternary in the prop: the compiler wraps a ternary prop in a memo, and
   // the avatar reads it in a tracked effect, where a new memo halts the reactive system.
   const waitingProviderName = () => {
@@ -767,6 +769,7 @@ export function ConversationTimeline() {
         message: (agents) => t("chat.trace.step.message", { agents }),
         subagent: (title) => t("chat.trace.step.subagent", { title }),
         reply: t("chat.trace.step.reply"),
+        subagentModel: (subagent) => subagentModelText(subagent, t, subagentModels(), true),
         agentNames: (ids) =>
           format.list(
             ids.map(
@@ -887,6 +890,7 @@ export function ConversationTimeline() {
         }
         onOpenSubagent={toggleSubagentPanel}
         onReveal={(cardId) => void revealCard(cardId)}
+        modelNames={subagentModels()}
       />
 
       <div
@@ -1397,6 +1401,7 @@ export function ConversationTimeline() {
                                 subagents={current()}
                                 selectedId={shownSubagentId()}
                                 onOpen={toggleSubagentPanel}
+                                modelNames={subagentModels()}
                               />
                             )}
                           </Show>

@@ -64,6 +64,7 @@ export const messages = {
   "chat.subagents.hideBrief": "Opdracht verbergen",
   "chat.subagents.taskFrom": "Taak van {name}",
   "chat.subagents.steps": "Stappen van “{title}”",
+  "chat.subagents.model": "Draait op {model}",
   "chat.subagents.stepCount": { one: "{count} stap", other: "{count} stappen" },
   "chat.subagents.seconds": "{seconds} s",
   "chat.subagents.minutes": "{minutes} min {seconds} s",

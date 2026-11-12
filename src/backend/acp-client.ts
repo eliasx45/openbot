@@ -34,6 +34,7 @@ import { Deferred, Effect, Exit, Fiber, Result, Scope, Semaphore } from "effect"
 import {
   AcpConfiguration,
   type AcpModel,
+  currentEffortFromConfig,
   currentModelFromSessionSetup,
   sessionSettingsSnapshot,
 } from "./acp-configuration";
@@ -3309,7 +3310,16 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     const subagentTools = this.#flavor.subagentTools;
     if (subagentTools) {
       this.#subagentThreads.set(turn.id, thread.id);
-      this.#emitSubagents(foldAcpSubagentTool(this.#subagents, turn.id, subagentTools, call, new Date().toISOString()));
+      this.#emitSubagents(
+        foldAcpSubagentTool(
+          this.#subagents,
+          turn.id,
+          subagentTools,
+          call,
+          new Date().toISOString(),
+          this.#subagentParentModel(thread),
+        ),
+      );
     }
     if (this.#flavor.childSessionUpdates) {
       noteOpenCodeLaunch(this.#openCodeLaunches, call);
@@ -3338,8 +3348,14 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
         turn?.id ?? null,
         params,
         new Date().toISOString(),
+        thread ? this.#subagentParentModel(thread) : undefined,
       ),
     );
+  }
+
+  /** Fork (FEATURES.md #78): the model and effort of a session, which its subagents show as theirs. */
+  #subagentParentModel(thread: AcpThread): { model: string | null; effort: string | null } {
+    return { model: thread.currentModelId, effort: currentEffortFromConfig(thread.configOptions) };
   }
 
   /** Sends a turn's subagents. Not tied to the active turn: a background subagent reports after its turn ended. */

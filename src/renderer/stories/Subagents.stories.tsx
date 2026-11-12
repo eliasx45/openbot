@@ -1,5 +1,6 @@
 import type { ConversationSubagent, ConversationSubagentStep } from "@openbot/contracts/ipc";
-import { SubagentGroup, SubagentPanel } from "@openbot/ui/features/conversation/Subagents";
+import { focusLiveWork, LiveWorkDock, type LiveWorkItem } from "@openbot/ui/features/conversation/LiveWork";
+import { SubagentGroup, SubagentPanel, subagentModelNames } from "@openbot/ui/features/conversation/Subagents";
 import { createSignal, onSettled, untrack } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 
@@ -207,3 +208,81 @@ export const Live: Story = {
     );
   },
 };
+
+/*
+ * Fork (docs/fork/FEATURES.md #78): each subagent names the model and effort it runs on, for every
+ * provider: Claude, Codex, and an ACP agent that reports no effort.
+ */
+const MODEL_NAMES = subagentModelNames([
+  { id: "claude-opus-5-5", name: "Claude Opus 5.5" },
+  { id: "gpt-5.5", name: "GPT-5.5" },
+]);
+
+const WITH_MODELS: ConversationSubagent[] = [
+  ...RUNNING.slice(0, 2).map((entry, index) => ({
+    ...entry,
+    ...(index === 0 ? { model: "claude-opus-5-5", effort: "high" } : { model: "claude-haiku-4-5-20251001" }),
+  })),
+  {
+    ...subagent("tests", "Run the release tests and report failures", NOTES, 2, "running", {
+      startedSecondsAgo: 40,
+    }),
+    agentType: null,
+    model: "gpt-5.5",
+    effort: "xhigh",
+  },
+  {
+    ...subagent("kimi", "Summarise the open issues", NOTES, 1, "running", { startedSecondsAgo: 12 }),
+    model: "kimi-k3",
+  },
+];
+
+/** Fork #78: each row names its model and effort, Claude, Codex or another provider. */
+export const WithModels: Story = { args: { subagents: WITH_MODELS, modelNames: MODEL_NAMES } };
+
+/** Fork #78: the side panel names the model and effort in its meta line. */
+export const PanelWithModel: Story = {
+  render: () => (
+    <div style={{ position: "relative", width: "420px", height: "640px", display: "flex" }}>
+      <SubagentPanel
+        subagent={WITH_MODELS[0]}
+        agentName="Chief"
+        onClosePanel={() => undefined}
+        modelNames={MODEL_NAMES}
+      />
+    </div>
+  ),
+};
+
+function dockItems(subagents: readonly ConversationSubagent[]): LiveWorkItem[] {
+  return subagents
+    .filter((entry) => entry.status === "running")
+    .map((entry) => ({ kind: "subagent", key: entry.id, cardId: "card", agentId: "chief", subagent: entry }));
+}
+
+function Dock(props: { subagents: readonly ConversationSubagent[]; models: boolean }) {
+  onSettled(() => focusLiveWork("chief"));
+  return (
+    <main
+      style={{ width: "min(760px, 100vw)", height: "420px", padding: "var(--openbot-space-4)", position: "relative" }}
+    >
+      <LiveWorkDock
+        items={dockItems(props.subagents)}
+        agentName={() => "Chief"}
+        onOpenSubagent={() => undefined}
+        onReveal={() => undefined}
+        modelNames={props.models ? MODEL_NAMES : undefined}
+      />
+    </main>
+  );
+}
+
+/** The "N working" dock, open, before fork #78: no model on a row. */
+export const DockWithoutModels: Story = {
+  render: () => (
+    <Dock subagents={WITH_MODELS.map(({ model: _model, effort: _effort, ...rest }) => rest)} models={false} />
+  ),
+};
+
+/** Fork #78: the "N working" dock, open: each row names its model and effort. */
+export const DockWithModels: Story = { render: () => <Dock subagents={WITH_MODELS} models={true} /> };

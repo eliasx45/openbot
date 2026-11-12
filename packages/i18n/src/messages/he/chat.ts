@@ -57,6 +57,7 @@ export const messages = {
   "chat.subagents.state.stopped": "נעצר",
   "chat.subagents.taskFrom": "משימה מאת {name}",
   "chat.subagents.steps": "השלבים של ״{title}״",
+  "chat.subagents.model": "פועל על {model}",
   "chat.subagents.stepCount": { one: "שלב אחד", two: "שני שלבים", other: "{count} שלבים" },
   "chat.subagents.seconds": "{seconds} ש׳",
   "chat.subagents.minutes": "{minutes} ד׳ {seconds} ש׳",

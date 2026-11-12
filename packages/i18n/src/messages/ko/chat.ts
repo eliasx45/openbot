@@ -64,6 +64,7 @@ export const messages = {
   "chat.subagents.hideBrief": "지시 숨기기",
   "chat.subagents.taskFrom": "{name}의 작업",
   "chat.subagents.steps": "“{title}” 단계",
+  "chat.subagents.model": "{model}에서 실행",
   "chat.subagents.stepCount": { other: "{count}단계" },
   "chat.subagents.seconds": "{seconds}초",
   "chat.subagents.minutes": "{minutes}분 {seconds}초",

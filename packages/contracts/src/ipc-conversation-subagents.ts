@@ -74,12 +74,23 @@ export interface ConversationSubagent {
   providerAgentId?: string;
   /** Fork: the subagent's own task list, when it keeps one. */
   plan?: ConversationSubagentPlanStep[];
+  /**
+   * Fork (docs/fork/FEATURES.md, "Subagents show their model"): the provider's id of the model the
+   * subagent runs on, such as `claude-opus-5-5` or `gpt-5.5`: the model the provider reported for the
+   * subagent when it did, else the one the call asked for, else the parent's. Absent when unknown,
+   * as in records from before this field.
+   */
+  model?: string;
+  /** Fork: the subagent's reasoning effort, such as `high`, when known. */
+  effort?: string;
 }
 
 export const CONVERSATION_SUBAGENT_LIMIT = 24;
 export const CONVERSATION_SUBAGENT_STEP_LIMIT = 40;
 export const CONVERSATION_SUBAGENT_TITLE_LIMIT = 300;
 const AGENT_TYPE_LIMIT = 80;
+const MODEL_LIMIT = 120;
+const EFFORT_LIMIT = 40;
 const PROMPT_LIMIT = 2_000;
 const STEP_TEXT_LIMIT = 500;
 const ERROR_LIMIT = 500;
@@ -108,7 +119,9 @@ function isConversationSubagent(value: unknown): value is ConversationSubagent {
     (value.plan === undefined ||
       (Array.isArray(value.plan) &&
         value.plan.length <= CONVERSATION_SUBAGENT_PLAN_LIMIT &&
-        value.plan.every(isConversationSubagentPlanStep)))
+        value.plan.every(isConversationSubagentPlanStep))) &&
+    (value.model === undefined || isBoundedString(value.model, MODEL_LIMIT)) &&
+    (value.effort === undefined || isBoundedString(value.effort, EFFORT_LIMIT))
   );
 }
 
@@ -168,6 +181,8 @@ export function clampConversationSubagents(subagents: readonly ConversationSubag
             })),
           }
         : {}),
+      ...(optionalText(subagent.model, MODEL_LIMIT) ? { model: optionalText(subagent.model, MODEL_LIMIT) } : {}),
+      ...(optionalText(subagent.effort, EFFORT_LIMIT) ? { effort: optionalText(subagent.effort, EFFORT_LIMIT) } : {}),
     });
   }
   return result.length ? result : null;
@@ -180,6 +195,11 @@ function clampText(value: string, limit: number, oneLine = true): string {
 
 function nullableText(value: string | null, limit: number, oneLine = true): string | null {
   return value === null ? null : clampText(value, limit, oneLine) || null;
+}
+
+/** Fork: an optional one-line text cut to `limit`, or "" for a blank or missing one. */
+function optionalText(value: string | undefined, limit: number): string {
+  return value === undefined ? "" : clampText(value, limit);
 }
 
 /**

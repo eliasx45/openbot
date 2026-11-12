@@ -148,6 +148,7 @@ export const messages = {
   "chat.subagents.hideBrief": "إخفاء المهمة",
   "chat.subagents.taskFrom": "مهمة من {name}",
   "chat.subagents.steps": "خطوات «{title}»",
+  "chat.subagents.model": "يعمل على {model}",
   "chat.subagents.stepCount": {
     zero: "لا خطوات",
     one: "خطوة واحدة",

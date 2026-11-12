@@ -119,6 +119,7 @@ export const messages = {
   "chat.subagents.hideBrief": "Скрыть задание",
   "chat.subagents.taskFrom": "Задача от {name}",
   "chat.subagents.steps": "Шаги «{title}»",
+  "chat.subagents.model": "Работает на {model}",
   "chat.subagents.stepCount": { one: "{count} шаг", few: "{count} шага", many: "{count} шагов", other: "{count} шага" },
   "chat.subagents.seconds": "{seconds} с",
   "chat.subagents.minutes": "{minutes} мин {seconds} с",

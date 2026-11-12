@@ -64,6 +64,7 @@ export const messages = {
   "chat.subagents.hideBrief": "依頼内容を隠す",
   "chat.subagents.taskFrom": "{name} からのタスク",
   "chat.subagents.steps": "「{title}」のステップ",
+  "chat.subagents.model": "{model} で実行",
   "chat.subagents.stepCount": { other: "{count} ステップ" },
   "chat.subagents.seconds": "{seconds}秒",
   "chat.subagents.minutes": "{minutes}分{seconds}秒",

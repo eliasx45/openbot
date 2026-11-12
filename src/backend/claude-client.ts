@@ -678,6 +678,24 @@ const claudeSignInSettings = Effect.fn("claudeSignInSettings")(function* (config
  */
 const CLAUDE_LISTED_MODELS = new Set<string>();
 
+/**
+ * Fork (docs/fork/FEATURES.md #78): the model id of each alias that a model list of any sign-in
+ * reported (`opus` → `claude-opus-5-5`), so a subagent that an `Agent` call starts on `opus` shows
+ * that model before its first message names it.
+ */
+const CLAUDE_MODEL_ALIASES = new Map<string, string>();
+
+/** Fork: the model id of a Claude alias, from the lists read so far or the parent's own model. */
+function claudeAliasModel(alias: string, parentModel: string | undefined): string | undefined {
+  const key = alias.trim().toLowerCase();
+  const listed = CLAUDE_MODEL_ALIASES.get(key);
+  if (listed) return listed;
+  // `opus` is the parent's own model when the parent runs an Opus model.
+  return parentModel && /^[a-z]+$/u.test(key) && parentModel.toLowerCase().startsWith(`claude-${key}-`)
+    ? parentModel
+    : undefined;
+}
+
 export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
   readonly contextCompaction = "native";
   readonly turnContext = true;
@@ -1112,6 +1130,10 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
       for (const [id, capability] of effortCapabilities) this.#modelEffortCapabilities.set(id, capability);
       for (const [id, value] of sdkValues) this.#modelSdkValues.set(id, value);
       for (const id of sdkValues.keys()) CLAUDE_LISTED_MODELS.add(id);
+      for (const [id, value] of sdkValues) {
+        const alias = value.trim().toLowerCase();
+        if (/^[a-z]+(?:\[[a-z0-9]+\])?$/u.test(alias) && alias !== id) CLAUDE_MODEL_ALIASES.set(alias, id);
+      }
       return yield* providerSync(() => result);
     }).pipe(
       Effect.ensuring(
@@ -2115,7 +2137,15 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
         if (plan) this.#emitPlan(runtime, plan);
         this.#emitSubagents(
           runtime,
-          foldClaudeSubagentCall(runtime.subagents, turn.id, toolCall, new Date().toISOString()),
+          foldClaudeSubagentCall(
+            runtime.subagents,
+            turn.id,
+            toolCall,
+            new Date().toISOString(),
+            // Fork (FEATURES.md #78): a subagent runs on the main agent's model and effort unless the call names one.
+            { model: runtime.config.model, effort: runtime.appliedEffort },
+            (alias) => claudeAliasModel(alias, runtime.config.model),
+          ),
         );
       }
       return;

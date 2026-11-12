@@ -8,7 +8,7 @@ import { SETTINGS_PANEL_DEFAULT, SETTINGS_PANEL_MAX } from "@openbot/ui/componen
 import { BROWSER_NEW_TAB_URL } from "@openbot/ui/features/browser/browser-suggestions";
 import { SidePanelHeader, SidePanelLauncher, type SidePanelPane } from "@openbot/ui/features/conversation/SidePanel";
 import { SideQuestionPanel } from "@openbot/ui/features/conversation/SideQuestionPanel";
-import { SubagentPanel } from "@openbot/ui/features/conversation/Subagents";
+import { SubagentPanel, subagentModelNames } from "@openbot/ui/features/conversation/Subagents";
 import { VoicePanel } from "@openbot/ui/features/conversation/VoicePanel";
 import { McpSignInRelayDialog } from "@openbot/ui/features/settings/McpSignInPage";
 import { useText } from "@openbot/ui/text";
@@ -676,6 +676,7 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
           subagent={panelSubagent()}
           agentName={props.agent?.name ?? ""}
           onClosePanel={() => closeSidePanelPane("subagent")}
+          modelNames={subagentModelNames(props.modelOptions)}
         />
       </Show>
 

@@ -639,6 +639,17 @@ function modelsFromConfig(options: SessionConfigOption[]): AcpModel[] {
   }));
 }
 
+/**
+ * Fork (docs/fork/FEATURES.md #78): the effort the session runs on, from its `thought_level` option,
+ * or null when it has none. A subagent of the session shows it.
+ */
+export function currentEffortFromConfig(options: readonly SessionConfigOption[]): string | null {
+  const thought = options.find((option) => option.category === "thought_level" && option.type === "select");
+  return thought && thought.type === "select" && isString(thought.currentValue)
+    ? normalizeEffort(thought.currentValue)
+    : null;
+}
+
 function reasoningFromConfig(
   options: SessionConfigOption[],
 ): Pick<

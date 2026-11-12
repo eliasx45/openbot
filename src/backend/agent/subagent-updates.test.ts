@@ -2,13 +2,20 @@
 // Fork: a subagent that Claude Code's `SendMessage` resumes counts as running until the CLI's
 // `task_notification` for that run, which names the `SendMessage` call. Tatiana, 12 Nov 2026: the
 // resumed subagent showed as done, and the turn's end sent a "plan has open steps" note.
+
+import { clampConversationSubagents, isConversationSubagents } from "@openbot/contracts/ipc";
+import type { DynamicRecord } from "@openbot/contracts/runtime-values";
 import { describe, expect, it } from "vitest";
+import { foldAcpSubagentTool } from "./acp-subagent-updates";
 import {
+  type CodexSubagentModels,
   endSubagentTurn,
   foldClaudeSubagentCall,
+  foldClaudeSubagentMessage,
   foldClaudeSubagentResult,
   foldClaudeSubagentResume,
   foldClaudeTaskMessage,
+  foldCodexSubagentItem,
   newSubagentState,
   type SubagentState,
   stopSubagents,
@@ -171,5 +178,137 @@ describe("a subagent that SendMessage resumes", () => {
     sendMessage(state, "toolu_send");
     endSubagentTurn(state, "turn-2", now(32));
     expect(state.sends?.size).toBe(0);
+  });
+});
+
+// Fork #78: every subagent shows the model (and effort) it runs on, for every provider. Elias,
+// 12 Nov 2026: "not just Claude ofc, everything, i wanna see the subagents model".
+describe("the model a subagent runs on", () => {
+  const PARENT = { model: "claude-opus-5-5", effort: "high" };
+  const agentCall = (state: SubagentState, input: DynamicRecord) =>
+    foldClaudeSubagentCall(
+      state,
+      "turn-1",
+      { id: "toolu_agent", name: "Agent", input: { description: "Scan", prompt: "Go", ...input } },
+      now(0),
+      PARENT,
+      (alias) => (alias === "sonnet" ? "claude-sonnet-5" : undefined),
+    )?.subagents[0];
+
+  it("Claude: takes the model alias and effort of the Agent call", () => {
+    const subagent = agentCall(newSubagentState(), { model: "sonnet", effort: "low" });
+    expect(subagent).toMatchObject({ model: "claude-sonnet-5", effort: "low" });
+  });
+
+  it("Claude: inherits the parent's model and effort when the call names none", () => {
+    const subagent = agentCall(newSubagentState(), { subagent_type: "general-purpose" });
+    expect(subagent).toMatchObject({ model: "claude-opus-5-5", effort: "high", agentType: "general-purpose" });
+  });
+
+  it("Claude: keeps an alias the lists do not know as it is", () => {
+    expect(agentCall(newSubagentState(), { model: "fable" })?.model).toBe("fable");
+  });
+
+  it("Claude: the model the subagent's first message names wins, and an inherited effort goes", () => {
+    const state = newSubagentState();
+    agentCall(state, { subagent_type: "Explore" });
+    const change = foldClaudeSubagentMessage(state, "toolu_agent", "msg-1", {
+      model: "claude-haiku-4-5-20251001",
+      content: [{ type: "text", text: "Looking" }],
+    });
+    expect(change?.subagents[0]?.model).toBe("claude-haiku-4-5-20251001");
+    expect(change?.subagents[0]?.effort).toBeUndefined();
+    // A later message does not change it again.
+    foldClaudeSubagentMessage(state, "toolu_agent", "msg-2", { model: "x", content: [{ type: "text", text: "a" }] });
+    expect(running(state)[0]?.model).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("Claude: an explicit effort stays when the reported model differs", () => {
+    const state = newSubagentState();
+    agentCall(state, { model: "sonnet", effort: "max" });
+    const change = foldClaudeSubagentMessage(state, "toolu_agent", "msg-1", {
+      model: "claude-sonnet-5-1",
+      content: [{ type: "text", text: "a" }],
+    });
+    expect(change?.subagents[0]).toMatchObject({ model: "claude-sonnet-5-1", effort: "max" });
+  });
+
+  it("Codex: the requested model and effort of spawnAgent, then the resolved ones", () => {
+    const models: CodexSubagentModels = { parent: { model: "gpt-5.5", effort: "medium" }, resolved: new Map() };
+    const spawn = {
+      type: "collabAgentToolCall",
+      tool: "spawnAgent",
+      status: "completed",
+      receiverThreadIds: ["child-1"],
+      prompt: "Run the tests",
+      model: "gpt-5.5-mini",
+      reasoningEffort: "low",
+      agentsStates: {},
+    };
+    const spawned = foldCodexSubagentItem([], spawn, now(0), models);
+    expect(spawned?.[0]).toMatchObject({ model: "gpt-5.5-mini", effort: "low", agentType: null });
+    const activity = {
+      type: "subAgentActivity",
+      kind: "started",
+      agentThreadId: "child-1",
+      model: "gpt-5.5-mini-2026",
+      reasoningEffort: "high",
+    };
+    expect(foldCodexSubagentItem(spawned ?? [], activity, now(1), models)?.[0]).toMatchObject({
+      model: "gpt-5.5-mini-2026",
+      effort: "high",
+    });
+  });
+
+  it("Codex: inherits the parent's model, and an activity that came first wins", () => {
+    const models: CodexSubagentModels = { parent: { model: "gpt-5.5", effort: "xhigh" }, resolved: new Map() };
+    const spawn = (id: string) => ({ type: "collabAgentToolCall", tool: "spawnAgent", receiverThreadIds: [id] });
+    expect(foldCodexSubagentItem([], spawn("a"), now(0), models)?.[0]).toMatchObject({
+      model: "gpt-5.5",
+      effort: "xhigh",
+    });
+    foldCodexSubagentItem([], { type: "subAgentActivity", agentThreadId: "b", model: "gpt-5.4" }, now(0), models);
+    expect(foldCodexSubagentItem([], spawn("b"), now(1), models)?.[0]).toMatchObject({
+      model: "gpt-5.4",
+      effort: "xhigh",
+    });
+    expect(models.resolved.size).toBe(0);
+  });
+
+  it("ACP: the model the call names, else the session's", () => {
+    const call = (id: string, rawInput: DynamicRecord) =>
+      foldAcpSubagentTool(
+        newSubagentState(),
+        "turn-1",
+        ["delegate_task"],
+        { id, name: "delegate_task", status: "in_progress", rawInput, rawOutput: null, content: null },
+        now(0),
+        { model: "kimi-k3", effort: null },
+      )?.subagents[0];
+    expect(call("a", { goal: "x" })).toMatchObject({ model: "kimi-k3" });
+    expect(call("a", { goal: "x" })?.effort).toBeUndefined();
+    expect(call("b", { goal: "x", model: "glm-5", reasoning_effort: "high" })).toMatchObject({
+      model: "glm-5",
+      effort: "high",
+    });
+  });
+
+  it("stored lists without the fields still load, and the fields survive the clamp", () => {
+    const old = {
+      id: "s1",
+      title: "Old",
+      agentType: "Explore",
+      prompt: null,
+      status: "completed" as const,
+      startedAt: now(0),
+      endedAt: now(1),
+      steps: [],
+      error: null,
+    };
+    expect(isConversationSubagents([old])).toBe(true);
+    const withModel = { ...old, model: " claude-opus-5-5 ", effort: "high" } as const;
+    expect(isConversationSubagents([withModel])).toBe(true);
+    expect(clampConversationSubagents([withModel])?.[0]).toMatchObject({ model: "claude-opus-5-5", effort: "high" });
+    expect(clampConversationSubagents([old])?.[0]).not.toHaveProperty("model");
   });
 });

@@ -1,9 +1,13 @@
-import type {
-  ConversationSubagent,
-  ConversationSubagentStatus,
-  ConversationSubagentStepKind,
+import { claudeModelName } from "@openbot/contracts/agent-providers";
+import {
+  AGENT_REASONING_EFFORTS,
+  type AgentReasoningEffort,
+  type ConversationSubagent,
+  type ConversationSubagentStatus,
+  type ConversationSubagentStepKind,
 } from "@openbot/contracts/ipc";
-import type { AppTextKey } from "@openbot/i18n";
+import { isOneOf } from "@openbot/contracts/runtime-values";
+import type { AppTextKey, AppTranslate } from "@openbot/i18n";
 import {
   Badge,
   Brain,
@@ -38,6 +42,72 @@ const STATE_LABEL = {
 
 /** The Claude type of a subagent with no special role. The meta line does not name it. */
 const GENERAL_AGENT_TYPE = "general-purpose";
+
+/**
+ * Fork (docs/fork/FEATURES.md #78): the name of a model id in the app's model list, or `undefined`
+ * for an id the list does not have. The screen passes it; without one a model shows by its id.
+ */
+export type SubagentModelNames = (id: string) => string | undefined;
+
+/** Fork: a `SubagentModelNames` that reads a model list, such as the model picker's. */
+export function subagentModelNames(options: readonly { id: string; name: string }[]): SubagentModelNames {
+  return (id) => options.find((option) => option.id === id)?.name;
+}
+
+const EFFORT_LABEL = {
+  none: "provider.effort.none",
+  minimal: "provider.effort.minimal",
+  low: "provider.effort.low",
+  medium: "provider.effort.medium",
+  high: "provider.effort.high",
+  xhigh: "provider.effort.xhigh",
+  max: "provider.effort.max",
+  ultra: "provider.effort.ultra",
+} as const satisfies Record<AgentReasoningEffort, AppTextKey>;
+
+/**
+ * Fork (#78): the model and effort a subagent runs on, such as "Claude Opus 5.5 · High", or null
+ * when neither is known. The name is the model picker's, else the Claude product name of the id,
+ * else the id. `compact` drops the "Claude " that every Claude model starts with, for a row.
+ */
+export function subagentModelText(
+  subagent: Pick<ConversationSubagent, "model" | "effort">,
+  t: AppTranslate,
+  names?: SubagentModelNames,
+  compact = false,
+): string | null {
+  const id = subagent.model?.trim();
+  const name = id ? (names?.(id) ?? claudeModelName(id) ?? id) : null;
+  const shown = name && compact ? name.replace(/^Claude\s+/u, "") : name;
+  const effort = subagent.effort?.trim().toLowerCase();
+  const effortText = !effort
+    ? null
+    : isOneOf(AGENT_REASONING_EFFORTS, effort)
+      ? t(EFFORT_LABEL[effort])
+      : `${effort[0]?.toUpperCase()}${effort.slice(1)}`;
+  const text = [shown, effortText].filter(Boolean).join(" · ");
+  return text || null;
+}
+
+/** Fork (#78): the model a subagent runs on, muted, at the end of its row's title line. */
+export function SubagentModel(props: { subagent: ConversationSubagent; names?: SubagentModelNames | undefined }) {
+  const { t } = useText();
+  const compact = () => subagentModelText(props.subagent, t, props.names, true);
+  return (
+    <Show when={compact()}>
+      {(text) => (
+        <span
+          class="subagents-row-model"
+          title={t("chat.subagents.model", {
+            model: subagentModelText(props.subagent, t, props.names) ?? text(),
+          })}
+        >
+          {text()}
+        </span>
+      )}
+    </Show>
+  );
+}
 
 /** The time now, once a second while `running` is true. */
 export function createClock(running: () => boolean) {
@@ -252,6 +322,8 @@ export interface SubagentGroupProps {
   selectedId?: string | null | undefined;
   /** Opens the subagent in the side panel, or closes the panel when it shows that subagent. */
   onOpen: (subagentId: string) => void;
+  /** Fork (#78): the names of the app's models, for the model each subagent runs on. */
+  modelNames?: SubagentModelNames | undefined;
 }
 
 /**
@@ -319,7 +391,10 @@ export function SubagentGroup(props: SubagentGroupProps) {
                   >
                     <SubagentStatus status={subagent().status} />
                     <span class="subagents-row-copy">
-                      <span class="subagents-row-title">{subagent().title}</span>
+                      <span class="subagents-row-title subagents-row-title-model">
+                        <span class="subagents-row-title-text">{subagent().title}</span>
+                        <SubagentModel subagent={subagent()} names={props.modelNames} />
+                      </span>
                       <LiveLine subagent={subagent()} />
                     </span>
                     <SubagentPlanBadge subagent={subagent()} />
@@ -447,6 +522,8 @@ export interface SubagentPanelProps {
   /** The agent that started the subagent. */
   agentName: string;
   onClosePanel: () => void;
+  /** Fork (#78): the names of the app's models, for the model the subagent runs on. */
+  modelNames?: SubagentModelNames | undefined;
 }
 
 /** The side panel pane of one subagent: its task, its state, and all of its steps. */
@@ -478,6 +555,8 @@ export function SubagentPanel(props: SubagentPanelProps) {
             <p class="subagents-panel-meta">
               {[
                 subagent().agentType === GENERAL_AGENT_TYPE ? null : subagent().agentType,
+                // Fork (#78): the model and effort the subagent runs on.
+                subagentModelText(subagent(), t, props.modelNames),
                 t(STATE_LABEL[subagent().status]),
                 duration(elapsedMs(subagent(), now())),
                 t("chat.subagents.stepCount", { count: subagent().steps.length }),

@@ -14,6 +14,8 @@ import {
   createClock,
   elapsedMs,
   LiveLine,
+  SubagentModel,
+  type SubagentModelNames,
   SubagentPlanBadge,
   SubagentStatus,
   subagentPlanProgress,
@@ -58,6 +60,8 @@ export interface LiveWorkDockProps {
   onOpenSubagent: (subagentId: string) => void;
   /** Scrolls the chat to a card. */
   onReveal: (cardId: string) => void;
+  /** Fork (docs/fork/FEATURES.md #78): the names of the app's models, for each subagent's model. */
+  modelNames?: SubagentModelNames | undefined;
 }
 
 export function LiveWorkDock(props: LiveWorkDockProps) {
@@ -222,7 +226,10 @@ export function LiveWorkDock(props: LiveWorkDockProps) {
                             >
                               <SubagentStatus status={item().subagent.status} />
                               <span class="subagents-row-copy">
-                                <span class="subagents-row-title">{item().subagent.title}</span>
+                                <span class="subagents-row-title subagents-row-title-model">
+                                  <span class="subagents-row-title-text">{item().subagent.title}</span>
+                                  <SubagentModel subagent={item().subagent} names={props.modelNames} />
+                                </span>
                                 <Show
                                   when={subagentPlanProgress(item().subagent)?.current}
                                   fallback={<LiveLine subagent={item().subagent} />}

@@ -7,10 +7,12 @@ import {
   pushSubagentReport,
   pushSubagentStep,
   type SubagentChange,
+  type SubagentModelPick,
   type SubagentState,
   startSubagent,
   subagentChange,
   subagentFor,
+  subagentModelFields,
 } from "./subagent-updates";
 
 /** The ACP extension notification that OpenCode sends for the sessions of its subagents. */
@@ -86,6 +88,7 @@ export function foldAcpSubagentTool(
   names: readonly string[],
   call: AcpSubagentToolCall,
   now: string,
+  parent?: SubagentModelPick,
 ): SubagentChange | null {
   const title = subagentToolTitle(names, call.name);
   const existing = subagentFor(state, call.id);
@@ -99,6 +102,9 @@ export function foldAcpSubagentTool(
   const description = title || firstString(input, ["description", "title"]) || "";
   const prompt = firstString(input, ["prompt", "task", "goal"]);
   const agentType = firstString(input, ["subagent_type", "agent", "role"]);
+  // Fork (FEATURES.md #78): these agents report no model of the subagent, so it is the model the
+  // call names, else the parent's.
+  const requested = acpRequestedModel(input);
   if (!existing)
     return startSubagent(state, turnId, {
       id: call.id,
@@ -110,6 +116,7 @@ export function foldAcpSubagentTool(
       endedAt: null,
       steps: [],
       error: null,
+      ...subagentModelFields(requested, parent),
     });
   // The arguments stream in, so a later update can name the task that the first one did not.
   let changed = false;
@@ -126,6 +133,14 @@ export function foldAcpSubagentTool(
       existing.agentType = agentType;
       changed = true;
     }
+    if (requested.model && existing.model !== requested.model) {
+      existing.model = requested.model;
+      changed = true;
+    }
+    if (requested.effort && existing.effort !== requested.effort) {
+      existing.effort = requested.effort;
+      changed = true;
+    }
   }
   if (call.status === "completed") {
     pushSubagentReport(existing, resultText(call.rawOutput, call.content));
@@ -135,12 +150,24 @@ export function foldAcpSubagentTool(
   return changed ? subagentChange(state, state.turnOf.get(call.id)) : null;
 }
 
+/** Fork: the model and effort that a subagent call's arguments name, when they name one. */
+function acpRequestedModel(input: DynamicRecord | null): { model: string | null; effort: string | null } {
+  const model = firstString(input, ["model", "model_id", "modelId"]);
+  return {
+    model: model && model !== "inherit" ? model.trim() : null,
+    effort: firstString(input, ["reasoning_effort", "reasoningEffort", "effort"])?.trim() ?? null,
+  };
+}
+
 /** A subagent call that OpenCode's parent session made, which its child session takes the task of. */
 interface OpenCodeLaunch {
   title: string;
   prompt: string | null;
   agentType: string | null;
   background: boolean;
+  /** Fork (FEATURES.md #78): the model and effort the call named, if any. */
+  model: string | null;
+  effort: string | null;
 }
 
 /** The parent's `subagent` (`task` before OpenCode 2) calls that no child session took yet, by call id. */
@@ -165,6 +192,7 @@ export function noteOpenCodeLaunch(launches: OpenCodeLaunches, call: AcpSubagent
     prompt,
     agentType: firstString(input, ["agent", "subagent_type"]),
     background: input?.background === true,
+    ...acpRequestedModel(input),
   });
   for (const id of launches.keys()) {
     if (launches.size <= OPENCODE_LAUNCH_LIMIT) break;
@@ -219,6 +247,7 @@ export function foldOpenCodeChildUpdate(
   turnId: string | null,
   params: unknown,
   now: string,
+  parent?: SubagentModelPick,
 ): SubagentChange | null {
   if (!isRecord(params) || !isString(params.childSessionId)) return null;
   const childId = params.childSessionId;
@@ -255,6 +284,7 @@ export function foldOpenCodeChildUpdate(
         steps: [],
         error: null,
         ...(launch?.background ? { background: true as const } : {}),
+        ...subagentModelFields({ model: launch?.model, effort: launch?.effort }, parent),
       });
     }
     if (!subagent) return null;

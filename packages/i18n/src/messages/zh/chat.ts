@@ -64,6 +64,7 @@ export const messages = {
   "chat.subagents.hideBrief": "隐藏任务说明",
   "chat.subagents.taskFrom": "来自 {name} 的任务",
   "chat.subagents.steps": "“{title}”的步骤",
+  "chat.subagents.model": "运行于 {model}",
   "chat.subagents.stepCount": { other: "{count} 个步骤" },
   "chat.subagents.seconds": "{seconds} 秒",
   "chat.subagents.minutes": "{minutes} 分 {seconds} 秒",

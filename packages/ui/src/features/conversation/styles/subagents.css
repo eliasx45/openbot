@@ -235,6 +235,30 @@
   -webkit-line-clamp: 1;
 }
 
+/* Fork (docs/fork/FEATURES.md #78): the title line also names the model, which stays whole while
+   the title is cut. */
+.subagents-row-title.subagents-row-title-model {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--openbot-space-1-5);
+}
+
+.subagents-row-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagents-row-model {
+  flex: 0 0 auto;
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+  font-weight: var(--openbot-weight-regular);
+  white-space: nowrap;
+}
+
 .subagents-row .subagents-elapsed {
   line-height: var(--openbot-leading-md);
 }

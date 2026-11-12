@@ -1,4 +1,4 @@
-import type { ConversationTurnTrace } from "@openbot/contracts/ipc";
+import type { ConversationSubagent, ConversationTurnTrace } from "@openbot/contracts/ipc";
 import type { AgentMessage } from "@openbot/ui/data";
 import type { AgentStep, AgentStepsFacts } from "@openbot/ui/features/conversation/AgentSteps";
 import { silentAgentAnswer } from "@openbot/ui/features/conversation/new-message-tally";
@@ -53,9 +53,17 @@ export interface TraceLabels {
   reply: string;
   /** The names of agents, from their ids. */
   agentNames: (ids: readonly string[]) => string;
+  /** Fork (docs/fork/FEATURES.md #78): the model and effort a subagent runs on, or null. */
+  subagentModel?: (subagent: ConversationSubagent) => string | null;
 }
 
 type TimedStep = { step: AgentStep; at: number };
+
+/** Fork (#78): a subagent row's detail: its type and the model it runs on. */
+function subagentDetail(agentType: string | null, model: string | null): { detail?: string } {
+  const detail = [agentType, model].filter(Boolean).join(" · ");
+  return detail ? { detail } : {};
+}
 
 /**
  * The spans of a turn's stored steps. A thought takes its title from the thought with its id, and a
@@ -395,7 +403,7 @@ export function createTurnSteps(deps: {
           id: `${SUBAGENT_SPAN_PREFIX}${subagent.id}`,
           parentId: "turn",
           name: subagent.title,
-          ...(subagent.agentType ? { detail: subagent.agentType } : {}),
+          ...subagentDetail(subagent.agentType, labels.subagentModel?.(subagent) ?? null),
           kind: "model",
           icon: "agent",
           failed: subagent.status === "failed",
