@@ -78,6 +78,14 @@ export interface AgentClient {
    */
   holdsBackgroundWork?(externalThreadId: string): Effect.Effect<boolean, ProviderClientOperationError>;
   /**
+   * Fork (docs/fork/FEATURES.md #72, "A replaced process ends its subagents"): reports the background
+   * subagents that still run as stopped, because OpenBot is about to stop this process while it keeps
+   * running (an account switch, a sign-out, a refresh). `stop()` alone reports nothing: at quit the
+   * restart resume needs them still marked as running. Optional: a client without background
+   * subagents has nothing to report.
+   */
+  endBackgroundWork?(): void;
+  /**
    * Hides a thread that a replacement session took over, or that a deleted agent leaves, from the
    * provider's own thread list, and keeps its history readable. Optional, because only a provider
    * that shows its threads to the user in another app has a list to keep clean.

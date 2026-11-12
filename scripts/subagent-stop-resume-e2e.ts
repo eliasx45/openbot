@@ -12,6 +12,9 @@
 // - quit-no-live-note: OpenBot quitting notes nothing live (the restart resume covers it).
 // - finished-before-stop: the subagent's transcript ends with its final answer (its "done" was lost
 //   with the process): the wake hands over that answer and says not to continue it.
+// - account-switch (fork #72): the agent runs on a second Claude account; it moves back to the
+//   default account and its next message stops the account's process. The subagent shows stopped and
+//   the agent no longer shows as working. Before, it stayed "running" until a restart (Adrian, 11 Nov).
 // `bun scripts/subagent-stop-resume-e2e.ts`. Writes .openbot-build/subagent-stop-resume-e2e/report.json.
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
@@ -58,6 +61,7 @@ const { runCauseEffect } = await import("../src/backend/effect-boundary");
 const { MailboxStore } = await import("../src/backend/mailbox-store");
 const { OpenBotDatabase } = await import("../src/backend/openbot-database");
 const { forkHub } = await import("../src/backend/fork-hub");
+const { ProviderAccountStore } = await import("../src/backend/agent/provider-account-store");
 
 /**
  * The stand-in for the Claude CLI. "bg-start <n>" starts a background subagent "agent-bg-<n>" that
@@ -95,7 +99,8 @@ const turn = (message) => {
   fs.appendFileSync(${JSON.stringify(claudeMessages)}, JSON.stringify({ pid: process.pid, sessionId, text }) + "\\n");
   // A wake quotes the request it continues: it starts nothing again.
   const wake = text.includes("[OpenBot: 🔄 restart]");
-  const background = wake ? null : /bg-start (\\d+)/.exec(text);
+  // A new session's first prompt quotes the chat so far, with its "bg-start": "after-switch" starts nothing.
+  const background = wake || text.includes("after-switch") ? null : /bg-start (\\d+)/.exec(text);
   if (background) {
     const id = "toolu_bg_" + background[1];
     // The subagent's own transcript, as Claude writes it: here in the middle of a step.
@@ -187,6 +192,8 @@ class ClaudeStandIn extends EventEmitter<ClientEvents> implements AgentClient {
 
   holdsBackgroundWork = (externalThreadId: string) => this.#real.holdsBackgroundWork(externalThreadId);
 
+  endBackgroundWork = () => this.#real.endBackgroundWork();
+
   forkSubagentOutcomes = (externalThreadId: string, cwd: string, agentIds: readonly string[]) =>
     this.#real.forkSubagentOutcomes(externalThreadId, cwd, agentIds);
 
@@ -236,6 +243,8 @@ interface CaseDetails {
   reason?: string | null;
   woken?: number[];
   liveNotes?: number;
+  /** Whether the runtime snapshot still counts the agent as working on subagents. */
+  working?: boolean;
   /** The live notes when a wake did not come, to see why. */
   notes?: Array<{ key: string; state: string; reason: string | null }>;
 }
@@ -310,7 +319,11 @@ interface Profile {
 const clientFactory: AgentClientFactory = (_provider, cli) => new ClaudeStandIn(cli);
 
 /** Runs one case on its own temporary profile and service, where only Claude is on. */
-async function runCase(name: string, run: (profile: Profile, details: CaseDetails) => Promise<void>): Promise<void> {
+async function runCase(
+  name: string,
+  run: (profile: Profile, details: CaseDetails) => Promise<void>,
+  accounts?: InstanceType<typeof ProviderAccountStore>,
+): Promise<void> {
   const result: CaseReport = { name, passed: false, details: {} };
   report.cases.push(result);
   const userData = join(root, `user-data-${name}`);
@@ -325,6 +338,7 @@ async function runCase(name: string, run: (profile: Profile, details: CaseDetail
     offProviders: AGENT_PROVIDERS.filter((candidate) => candidate !== "claude"),
     timezone: () => "UTC",
     clientFactory,
+    ...(accounts ? { providerAccounts: accounts } : {}),
   });
   let connection: DatabaseSync | null = null;
   const sqlite = () => {
@@ -612,7 +626,53 @@ try {
     assert.doesNotMatch(wake.text, /continue it with SendMessage/u, "The wake does not say to continue it.");
   });
 
-  report.passed = report.cases.length === 9 && report.cases.every((entry) => entry.passed);
+  const accounts = new ProviderAccountStore(join(root, "provider-accounts.json"), join(root, "provider-accounts"));
+  await runCauseEffect(accounts.load());
+  const second = await runCauseEffect(accounts.create("claude"));
+  assert.ok(second, "The second Claude account was created.");
+  await runCase(
+    "account-switch",
+    async (profile, details) => {
+      const agent = await createAgent(profile.agents, "Switch lead");
+      await runCauseEffect(profile.agents.updateAgent({ agentId: agent.id, providerAccountId: second.id }));
+      const { threadId, sessionId } = await startBackground(profile, agent.id, 8);
+      const accountPid = processOf(sessionId);
+      const working = () =>
+        (profile.agents.getRuntimeSnapshot().subagentTurns ?? []).some((turn) => turn.agentId === agent.id);
+      assert.ok(working(), "The background subagent keeps the agent at work.");
+      // Back on the default account, as after a usage-limit reset; the next message starts there.
+      await runCauseEffect(profile.agents.updateAgent({ agentId: agent.id, providerAccountId: null }));
+      await sendTurn(profile.agents, agent.id, "after-switch");
+      await waitFor("the account process to end", () => {
+        try {
+          process.kill(accountPid, 0);
+          return false;
+        } catch {
+          return true;
+        }
+      });
+      const status = (): string | undefined =>
+        profile
+          .sqlite()
+          .prepare(
+            "SELECT message_json FROM projection_thread_messages WHERE thread_id = ? AND item_type = 'subagents'",
+          )
+          .all(threadId)
+          .flatMap((one) => JSON.parse(String(one.message_json)).subagents ?? [])
+          .find((subagent: { title: string }) => subagent.title === "Background work 8")?.status;
+      details.subagentStatus = await waitFor(
+        "the chat to show the subagent stopped",
+        () => (status() === "stopped" ? "stopped" : null),
+        5_000,
+      ).catch(() => status() ?? null);
+      details.working = working();
+      assert.equal(details.subagentStatus, "stopped", "The chat shows the subagent stopped.");
+      assert.equal(working(), false, "The agent no longer shows as working.");
+    },
+    accounts,
+  );
+
+  report.passed = report.cases.length === 10 && report.cases.every((entry) => entry.passed);
 } finally {
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(OUT, "report.json"), `${JSON.stringify(report, null, 2)}\n`);

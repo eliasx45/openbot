@@ -780,6 +780,15 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
     this.#serverRequests.rejectAll("Claude session stopped.");
   });
 
+  /** Fork #72: see `AgentClient.endBackgroundWork`. Runs before `stop()`, while the client still runs. */
+  endBackgroundWork(): void {
+    if (!this.#running) return;
+    for (const id of [...this.#threads.ids()]) {
+      const runtime = this.#threads.get(id);
+      if (runtime) this.#stopSubagentsOf(runtime, "closed");
+    }
+  }
+
   releaseIdleThreads(): Effect.Effect<void, ProviderClientOperationError> {
     return this.#threads.releaseIdle();
   }

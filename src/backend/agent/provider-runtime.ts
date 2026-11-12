@@ -2581,6 +2581,9 @@ export class ProviderRuntime implements ProviderPort {
     confined: ConfinedClient,
   ) {
     yield* providerStep(() => {
+      // Fork #72: an account switch closed Adrian's backup-account process with two background
+      // subagents in it (11 Nov 2026); nothing reported their end, so he showed as working all night.
+      if (!this.#hooks.isStopping()) confined.client.endBackgroundWork?.();
       if (this.#confined.get(agentId) === confined) this.#confined.delete(agentId);
       this.#conversation.unloadClientThreads(confined.client);
     });
