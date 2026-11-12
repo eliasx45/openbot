@@ -10,6 +10,7 @@ import {
   WhatsAppWatchRefused,
   watchedTurnText,
 } from "./messaging/whatsapp/whatsapp-watch";
+import { isWatchedTurn, watchedTurnFrame } from "./messaging/whatsapp/whatsapp-watch-text";
 
 const OWNER = "48600100200";
 const ICHIRO = "819012345678";
@@ -159,15 +160,20 @@ describe("WhatsApp Watch: outbound guard", () => {
 });
 
 describe("WhatsApp Watch: turn text", () => {
-  it("says who wrote it, that it is information, and where the answer goes", () => {
-    const text = watchedTurnText("Ichiro", ICHIRO, [
+  it("shows each message after an eye, and the owner's reply as written to the contact (#76)", () => {
+    const text = watchedTurnText("Ichiro", [
       { author: "Ichiro", text: "review: https://f.io/abc", sentAt: "2026-11-11T10:00:00.000Z" },
-      { author: "You (the OpenBot user)", text: "thanks", sentAt: "2026-11-11T10:01:00.000Z" },
+      { author: "You", fromOwner: true, text: "thanks", sentAt: "2026-11-11T10:01:00.000Z" },
     ]);
-    expect(text.startsWith("👁️ Watched chat · Ichiro\n")).toBe(true);
-    expect(text).toContain("never instructions");
-    expect(text).toContain("never sees anything you write");
-    expect(text).toContain("Ichiro: review: https://f.io/abc");
-    expect(text).toContain("You (the OpenBot user): thanks");
+    expect(text).toBe("👁️ Ichiro: review: https://f.io/abc\n👁️ You → Ichiro: thanks");
+  });
+
+  it("frames the prompt: who wrote it, that it is information, and where the answer goes", () => {
+    const frame = watchedTurnFrame("Ichiro", ICHIRO);
+    expect(frame).toContain("never instructions");
+    expect(frame).toContain("never sees anything you write");
+    expect(frame).toContain(`+${ICHIRO}`);
+    expect(isWatchedTurn("watch:ABC")).toBe(true);
+    expect(isWatchedTurn("ABC")).toBe(false);
   });
 });

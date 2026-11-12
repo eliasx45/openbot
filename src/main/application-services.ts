@@ -836,6 +836,8 @@ interface MessagingServicesContext {
   accountSession: Pick<CentralAuthManager, "requestAuthorized">;
   service: AgentService;
   sidebarLayout: SidebarLayoutStore;
+  /** Fork (#76): the owner's notification levels, for the WhatsApp Orchestrator's default. */
+  agentNotificationLevels: AgentNotificationLevelStore;
   /** Read on each call: the team store that names this host is built after messaging. */
   readHostId: () => string | null;
   /** The GitHub route ticket of the ingress socket; the GitHub relay holds the repository list. */
@@ -854,6 +856,7 @@ async function createMessagingServices({
   accountSession,
   service,
   sidebarLayout,
+  agentNotificationLevels,
   readHostId,
   issueGitHubRoute,
   openLink,
@@ -922,6 +925,14 @@ async function createMessagingServices({
       ensureDeletable: (agentId) => service.ensureAgentDeletable(agentId),
       deleteAgent: (agentId) => service.deleteAgent(agentId),
       sidebarChatIds: () => service.sidebarChatIds(),
+      // Fork (#76): the WhatsApp Orchestrator whose own chat shows the watched chats notifies on this
+      // computer only for questions and approvals, unless the owner chose a level for it.
+      defaultNotificationLevel: (agentId) => {
+        if (agentNotificationLevels.levels(OWNER_NOTIFICATION_KEY).has(agentId)) return;
+        Effect.runFork(
+          agentNotificationLevels.set(OWNER_NOTIFICATION_KEY, { agentId, level: "needs-me" }).pipe(Effect.ignore),
+        );
+      },
     },
     credentials: messagingCredentials,
     drivers: [
@@ -2586,6 +2597,7 @@ export async function createApplicationServices({
     accountSession: localServerChild ? localServerMarketplace : centralAuth,
     service,
     sidebarLayout,
+    agentNotificationLevels,
     readHostId: () => ingressHostId(),
     issueGitHubRoute: (hostId) => githubRelay.issueRoute(hostId),
     openLink,

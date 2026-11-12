@@ -32,6 +32,7 @@ export type WhatsAppPort = Pick<
   | "answerWhatsAppRequest"
   | "setWhatsAppOwnNumber"
   | "setWhatsAppWorkingMessage"
+  | "setWhatsAppWatchPlacement"
 >;
 
 /** This computer's WhatsApp, through main. Read on each call: tests and stories replace `window.openbot`. */
@@ -54,6 +55,7 @@ export type HostWhatsAppApi = Pick<
   | "hostAnswerWhatsAppRequest"
   | "hostSetWhatsAppOwnNumber"
   | "hostSetWhatsAppWorkingMessage"
+  | "hostSetWhatsAppWatchPlacement"
 >;
 
 /**
@@ -85,6 +87,7 @@ export function hostWhatsAppPort(
     answerWhatsAppRequest: (input) => call((api, id) => api.hostAnswerWhatsAppRequest(input, id)),
     setWhatsAppOwnNumber: (input) => call((api, id) => api.hostSetWhatsAppOwnNumber(input, id)),
     setWhatsAppWorkingMessage: (input) => call((api, id) => api.hostSetWhatsAppWorkingMessage(input, id)),
+    setWhatsAppWatchPlacement: (input) => call((api, id) => api.hostSetWhatsAppWatchPlacement(input, id)),
   };
 }
 
@@ -235,6 +238,8 @@ export function createWhatsAppConnector(
         onSetOwnNumber: (workspaceId, ownNumber) => run(() => port().setWhatsAppOwnNumber({ workspaceId, ownNumber })),
         onSetWorkingMessage: (workspaceId, workingMessage) =>
           run(() => port().setWhatsAppWorkingMessage({ workspaceId, workingMessage })),
+        onSetWatchPlacement: (workspaceId, placement) =>
+          run(() => port().setWhatsAppWatchPlacement({ workspaceId, placement })),
         onAddOrchestrator: (choice) =>
           run(async () => {
             const { sectionId } = await port().addWhatsAppOrchestrator({ ...(choice ?? {}) });

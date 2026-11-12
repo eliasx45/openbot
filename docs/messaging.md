@@ -220,6 +220,22 @@ phone. A watched number is never also in **Who can write**: adding it to one lis
 - The guard is in code: every post, reaction, edit, delete, presence or read receipt toward a watched
   chat (by phone number or WhatsApp's LID) fails before it reaches WhatsApp.
 
+### Where watched chats show
+
+Fork (docs/fork/FEATURES.md #76). Under **Watch (read-only)**, **Where watched chats show** decides where
+the "Message yourself" conversation, with the watched chats' turns in it, shows in OpenBot:
+
+- **Main chat** (default): in the WhatsApp Orchestrator's own chat. Each burst shows as "👁️ Ichiro: …"
+  lines with the answer below it, and you can ask the orchestrator about it there or in "Message
+  yourself": both are the same conversation. The answer still goes to "Message yourself" on the phone.
+  A turn there notifies on this computer at the orchestrator's notification level; an orchestrator with
+  no level of its own gets "Needs me" the first time.
+- **Own thread**: in a side thread "👁️ <names>" of the orchestrator's chat (tabs and the ⌄ menu).
+- **Phone only**: in a hidden thread, as before; only the phone shows it.
+
+The conversation moves with its next message, never while a request of it waits or runs. A hidden
+thread that it leaves stays as an archived side thread, with its history.
+
 ## Test Telegram locally
 
 Telegram must reach Signal over public HTTPS.

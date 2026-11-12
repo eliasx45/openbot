@@ -16,6 +16,7 @@ import type {
   SetDiscordAccessInput,
   SetMessagingEnabledInput,
   SetWhatsAppOwnNumberInput,
+  SetWhatsAppWatchPlacementInput,
   SetWhatsAppWorkingMessageInput,
   StartWhatsAppLinkInput,
   WhatsAppSenderInput,
@@ -26,6 +27,7 @@ import {
   isAgentProvider,
   isReasoningEffort,
   isWhatsAppSender,
+  isWhatsAppWatchPlacement,
   parseDiscordAllowedRoles,
   parseWhatsAppPhoneNumber,
   parseWhatsAppRequestCode,
@@ -161,4 +163,11 @@ export function parseSetWhatsAppOwnNumberInput(value: unknown): SetWhatsAppOwnNu
 export function parseSetWhatsAppWorkingMessageInput(value: unknown): SetWhatsAppWorkingMessageInput {
   if (!isObject(value) || !isBoolean(value.workingMessage)) throw new Error("A messaging request is invalid.");
   return { workspaceId: requireString(value.workspaceId, "Workspace id"), workingMessage: value.workingMessage };
+}
+
+/** Fork (#76). */
+export function parseSetWhatsAppWatchPlacementInput(value: unknown): SetWhatsAppWatchPlacementInput {
+  if (!isObject(value) || !isWhatsAppWatchPlacement(value.placement))
+    throw new Error("A messaging request is invalid.");
+  return { workspaceId: requireString(value.workspaceId, "Workspace id"), placement: value.placement };
 }

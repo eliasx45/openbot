@@ -57,6 +57,7 @@ import {
   parseSetDiscordAccessInput,
   parseSetMessagingEnabledInput,
   parseSetWhatsAppOwnNumberInput,
+  parseSetWhatsAppWatchPlacementInput,
   parseSetWhatsAppWorkingMessageInput,
   parseStartWhatsAppLinkInput,
   parseWhatsAppSenderInput,
@@ -94,6 +95,7 @@ interface MessagingIpcDependencies {
     | "answerWhatsAppRequest"
     | "setWhatsAppOwnNumber"
     | "setWhatsAppWorkingMessage"
+    | "setWhatsAppWatchPlacement"
   >;
   remoteServers: {
     supportsCapability(serverId: string, capability: TeamCurrentCapability): boolean;
@@ -279,6 +281,9 @@ export function messagingIpcHandlers({
         ({ workspaceId, workingMessage }) =>
           runCauseEffect(messaging.setWhatsAppWorkingMessage(workspaceId, workingMessage)),
       ),
+      setWhatsAppWatchPlacement: payloadHandler(parseSetWhatsAppWatchPlacementInput, ({ workspaceId, placement }) =>
+        runCauseEffect(messaging.setWhatsAppWatchPlacement(workspaceId, placement)),
+      ),
       hostOverview: scopedHandler(parseHostMessagingPlatformInput, {
         local: ({ platform }) => overview(platform),
         remote: ({ platform }, serverId) =>
@@ -460,6 +465,14 @@ export function messagingIpcHandlers({
             workspaceId,
             workingMessage,
           });
+        },
+      }),
+      // Fork (#76): no Team API route, so a joined server cannot set it.
+      hostSetWhatsAppWatchPlacement: scopedHandler(parseSetWhatsAppWatchPlacementInput, {
+        local: ({ workspaceId, placement }) =>
+          runCauseEffect(messaging.setWhatsAppWatchPlacement(workspaceId, placement)),
+        remote: async () => {
+          throw new Error(sourceText("error.team.connectorsUnsupported"));
         },
       }),
     },

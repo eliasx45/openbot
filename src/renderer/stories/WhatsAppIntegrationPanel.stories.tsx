@@ -63,6 +63,7 @@ const PERSONAL: WhatsAppAccount = {
     { id: "120363000000000001@g.us", kind: "group", name: "Family" },
   ],
   watched: [{ id: "819012345678", kind: "watch", name: "Ichiro" }],
+  watchPlacement: "main",
   pendingRequests: [],
 };
 
@@ -93,6 +94,7 @@ const args = (connections: MessagingConnection[], accounts: WhatsAppAccount[], l
   onSetEnabled: fn(),
   onSetOwnNumber: fn(),
   onSetWorkingMessage: fn(),
+  onSetWatchPlacement: fn(),
   onAddOrchestrator: fn(),
   loadGroups: fn(async () => [
     { id: "120363000000000001@g.us", name: "Family" },

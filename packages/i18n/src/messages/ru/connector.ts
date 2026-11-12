@@ -678,4 +678,12 @@ export const messages = {
     "OpenBot удаляет свой ключ доступа на {host}. Хранилище и его учётные данные остаются в вашем аккаунте Proton.",
   "connector.protonPass.disconnect": "Отключить",
   "connector.protonPass.actionFailed": "OpenBot не смог изменить подключение Proton Pass.",
+  "connector.whatsapp.watchPlacementLabel": "Где показывать наблюдаемые чаты",
+  "connector.whatsapp.watchPlacementMain": "Основной чат",
+  "connector.whatsapp.watchPlacementMainDescription":
+    "В чате оркестратора, вместе с его ответами. Там можно о них спросить.",
+  "connector.whatsapp.watchPlacementThread": "Отдельная ветка",
+  "connector.whatsapp.watchPlacementThreadDescription": "В ветке 👁️ чата оркестратора.",
+  "connector.whatsapp.watchPlacementPhone": "Только телефон",
+  "connector.whatsapp.watchPlacementPhoneDescription": "Только в «Сообщение себе» на телефоне.",
 } as const satisfies PartialTranslation<typeof source>;

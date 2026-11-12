@@ -387,6 +387,106 @@ export class MessagingStore {
     return created;
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md #76): the link's conversation goes on in another thread of its agent,
+   * such as the agent's own chat or a side thread. The thread it leaves keeps its history; the caller
+   * makes sure a side thread claims it, so no restart adopts it as an agent's own chat.
+   */
+  moveToThread(linkId: string, threadId: string): MessagingLink {
+    this.#database.dispatch(
+      `messaging-thread-moved:${linkId}:${randomUUID()}`,
+      [
+        {
+          aggregateType: "messaging-thread",
+          aggregateId: linkId,
+          eventType: "messaging.thread-moved",
+          payload: { threadId },
+        },
+      ],
+      (db) => {
+        db.prepare("UPDATE projection_messaging_threads SET thread_id = ?, updated_at = ? WHERE link_id = ?").run(
+          threadId,
+          new Date().toISOString(),
+          linkId,
+        );
+        return null;
+      },
+    );
+    const moved = this.link(linkId);
+    if (!moved) throw new Error("The messaging thread was not stored.");
+    return moved;
+  }
+
+  /** Fork (#76): the link's conversation goes on in a new execution thread of its own, as a new link starts. */
+  moveToNewThread(linkId: string): MessagingLink {
+    const link = this.link(linkId);
+    if (!link) throw new Error("The messaging thread was not stored.");
+    const threadId = `openbot-thread-${randomUUID()}`;
+    this.#database.dispatch(
+      `messaging-thread-moved:${linkId}:${randomUUID()}`,
+      [
+        {
+          aggregateType: "messaging-thread",
+          aggregateId: linkId,
+          eventType: "messaging.thread-moved",
+          payload: { agentId: link.agentId, threadId, created: true },
+        },
+      ],
+      (db, sequences) => {
+        const now = new Date().toISOString();
+        db.prepare("INSERT INTO projection_threads VALUES (?, ?, ?, NULL, ?, ?, ?)").run(
+          threadId,
+          link.agentId,
+          link.title,
+          now,
+          now,
+          sequences[0] ?? 0,
+        );
+        db.prepare("UPDATE projection_messaging_threads SET thread_id = ?, updated_at = ? WHERE link_id = ?").run(
+          threadId,
+          now,
+          linkId,
+        );
+        return null;
+      },
+    );
+    const moved = this.link(linkId);
+    if (!moved) throw new Error("The messaging thread was not stored.");
+    return moved;
+  }
+
+  /**
+   * Fork (#76): removes an execution thread that no link uses any more and that holds no message, such
+   * as the thread a new "Message yourself" link got before it moved to the agent's own chat.
+   */
+  dropThread(threadId: string): void {
+    if (this.linkForThread(threadId)) return;
+    this.#database.dispatch(
+      `messaging-thread-dropped:${threadId}:${randomUUID()}`,
+      [
+        {
+          aggregateType: "messaging-thread",
+          aggregateId: threadId,
+          eventType: "messaging.thread-dropped",
+          payload: { threadId },
+        },
+      ],
+      (db) => {
+        deleteAggregateHistory(db, "thread", [threadId]);
+        deleteThreadAttachments(db, threadId);
+        db.prepare("DELETE FROM projection_threads WHERE thread_id = ?").run(threadId);
+        return null;
+      },
+    );
+  }
+
+  /** Fork (#76): a new name for the conversation, such as "Message yourself" for the WhatsApp self chat. */
+  retitle(linkId: string, title: string): void {
+    this.#database.connection
+      .prepare("UPDATE projection_messaging_threads SET title = ? WHERE link_id = ?")
+      .run(title, linkId);
+  }
+
   /** Marks new activity, so the link lists first, and records what the agent has read. */
   touch(linkId: string, historyCursor?: string): void {
     const now = new Date().toISOString();

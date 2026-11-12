@@ -1525,7 +1525,13 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           return run === null || quietRoutineRun(run);
         },
         isRoutineThread: (threadId) => this.#tasks.isRoutineThreadId(threadId),
-        executionThreads: () => [...this.channels.store.executionThreads(), ...this.messaging.store.executionThreads()],
+        // Fork (#76): a messaging conversation in a side thread is recovered once, as that side thread.
+        executionThreads: () => [
+          ...this.channels.store.executionThreads(),
+          ...this.messaging.store
+            .executionThreads()
+            .filter((thread) => this.#tasks.taskForThread(thread.threadId) === null),
+        ],
         taskThreads: () => this.#tasks.executionThreads(),
         deliveryThreadId: (deliveryId) => this.#deliveryThreadId(deliveryId),
         deliverySettled: (deliveryId, terminal) => this.messaging.deliverySettled(deliveryId, terminal),
@@ -1734,7 +1740,20 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         Boolean(this.#conversation.workingSnapshot(agentId)?.activeTurnId || this.#mailbox.nextQueued(agentId)),
       interrupt: (agentId, turnId, threadId) => this.interrupt(agentId, turnId, threadId).pipe(toMessagingThreadFailed),
       forgetThread: (threadId) => this.#forgetExecutionThread(threadId).pipe(toMessagingThreadFailed),
-      ownChat: (threadId) => this.#store.ownsThread(threadId),
+      // Fork (#76): a side thread that shows a WhatsApp "Message yourself" chat keeps its events in the
+      // app too, where its tab shows them.
+      ownChat: (threadId) => this.#store.ownsThread(threadId) || this.#tasks.taskForThread(threadId) !== null,
+      placement: {
+        mainThread: (agentId) => this.#store.ensureThreadIdNow(agentId),
+        isMainThread: (threadId) => this.#store.ownsThread(threadId),
+        isSideThread: (threadId) => this.#tasks.taskForThread(threadId) !== null,
+        sideThread: (agentId, threadId, title) => this.#tasks.messagingThread(agentId, threadId, title),
+        keepThread: (agentId, threadId, title) => {
+          if (this.#store.database.readConversation(agentId, threadId).messages.length === 0)
+            this.messaging.store.dropThread(threadId);
+          else this.#tasks.keepMessagingThread(agentId, threadId, title);
+        },
+      },
       contextSession: (agentId, threadId) => {
         const agent = this.#store.list().find((item) => item.id === agentId);
         if (!agent || !this.#reportsCompactions(agentId)) return null;
@@ -6181,6 +6200,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     yield* lifecycleStep("delete task", () => {
       if (this.#mailbox.taskBusy(task.agentId, task.taskId))
         throw new Error(sourceText("error.backend.threadStillRunning"));
+      // Fork (#76): a WhatsApp "Message yourself" conversation in this thread goes on in a new one.
+      const link = this.messaging.store.linkForThread(task.threadId);
+      if (link) this.messaging.store.moveToNewThread(link.linkId);
       this.#tasks.delete(task);
     });
     // The pins of the thread went with it.

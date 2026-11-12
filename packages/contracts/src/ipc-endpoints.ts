@@ -443,6 +443,7 @@ import type {
   SetSlackEnabledInput,
   SetTelegramEnabledInput,
   SetWhatsAppOwnNumberInput,
+  SetWhatsAppWatchPlacementInput,
   SetWhatsAppWorkingMessageInput,
   SlackOverview,
   SlackWorkspaceInput,
@@ -1329,6 +1330,10 @@ export const IPC_ENDPOINTS = {
     setWhatsAppWorkingMessage: request<SetWhatsAppWorkingMessageInput, void>()(
       "messaging:set-whatsapp-working-message",
     ),
+    // Fork (#76): where the "Message yourself" chat and the watched chats show.
+    setWhatsAppWatchPlacement: request<SetWhatsAppWatchPlacementInput, void>()(
+      "messaging:set-whatsapp-watch-placement",
+    ),
     // The same for a joined server with `connectors-v1`, which an owner or admin manages from here.
     // The host opens no page: main opens it in this computer's browser. A Slack or Discord install
     // returns to this computer's `openbot://` link, and main sends the sealed grant on to the host.
@@ -1387,6 +1392,10 @@ export const IPC_ENDPOINTS = {
     // A joined server needs `whatsapp-working-message-v1`. Its numbers carry `workingMessage` only then.
     hostSetWhatsAppWorkingMessage: scopedRequest<SetWhatsAppWorkingMessageInput, void, "required">()(
       "messaging:host-set-whatsapp-working-message",
+    ),
+    // Fork (#76): this computer only; a joined server refuses it.
+    hostSetWhatsAppWatchPlacement: scopedRequest<SetWhatsAppWatchPlacementInput, void, "required">()(
+      "messaging:host-set-whatsapp-watch-placement",
     ),
   },
   // The server name, logo, timezone, agent memory limit and app update of one server's host. `host.updateIdentity` and `update`

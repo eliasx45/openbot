@@ -1254,6 +1254,7 @@ const openbotApi: OpenBotDesktopApi = {
     answerWhatsAppRequest: decodeVoid,
     setWhatsAppOwnNumber: decodeVoid,
     setWhatsAppWorkingMessage: decodeVoid,
+    setWhatsAppWatchPlacement: decodeVoid,
     // A joined server can list up to the Telegram limit; main has already read its states.
     hostOverview: decodeTelegramOverviewReply,
     hostConnect: decodeVoid,
@@ -1278,6 +1279,7 @@ const openbotApi: OpenBotDesktopApi = {
     hostAnswerWhatsAppRequest: decodeVoid,
     hostSetWhatsAppOwnNumber: decodeVoid,
     hostSetWhatsAppWorkingMessage: decodeVoid,
+    hostSetWhatsAppWatchPlacement: decodeVoid,
   }),
   hostAdmin: bridgeGroup(IPC_ENDPOINTS.hostAdmin, {
     updateIdentity: decodeServer,

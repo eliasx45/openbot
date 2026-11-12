@@ -6,8 +6,9 @@ import type {
   WhatsAppLinkState,
   WhatsAppPairingRequest,
   WhatsAppSender,
+  WhatsAppWatchPlacement,
 } from "@openbot/contracts/ipc";
-import { MESSAGING_LIMITS, parseWhatsAppPhoneNumber } from "@openbot/contracts/ipc";
+import { isWhatsAppWatchPlacement, MESSAGING_LIMITS, parseWhatsAppPhoneNumber } from "@openbot/contracts/ipc";
 import { WHATSAPP_ORCHESTRATOR_AVATAR } from "@openbot/contracts/whatsapp-app";
 import type { AppTextKey } from "@openbot/i18n";
 import {
@@ -107,6 +108,8 @@ export interface WhatsAppIntegrationPanelProps extends IntegrationPageSlots {
   onSetOwnNumber: (workspaceId: string, ownNumber: boolean) => void;
   /** Shown only for a number whose account carries `workingMessage`: an older joined server cannot set it. */
   onSetWorkingMessage: (workspaceId: string, workingMessage: boolean) => void;
+  /** Fork (#76): shown only for a number whose account carries `watchPlacement`. */
+  onSetWatchPlacement?: (workspaceId: string, placement: WhatsAppWatchPlacement) => void;
   onAddOrchestrator: (choice: WhatsAppOrchestratorChoice | null) => void;
   /** The groups of a linked number, to choose from. Rejects with the reason. */
   loadGroups: (workspaceId: string) => Promise<readonly WhatsAppGroup[]>;
@@ -400,6 +403,7 @@ export function WhatsAppIntegrationPanel(props: WhatsAppIntegrationPanelProps) {
                     busy={props.busy}
                     onAdd={() => setAddingWatch(entry.connection.workspaceId)}
                     onRemove={(senderId) => props.onRemoveSender(entry.connection.workspaceId, senderId)}
+                    onPlacement={(placement) => props.onSetWatchPlacement?.(entry.connection.workspaceId, placement)}
                   />
                 </Show>
                 {/* A personal number answers no stranger, so it shows requests only when some still wait. */}
@@ -576,6 +580,7 @@ function WatchSection(props: {
   busy: boolean;
   onAdd: () => void;
   onRemove: (senderId: string) => void;
+  onPlacement: (placement: WhatsAppWatchPlacement) => void;
 }) {
   const { t } = useText();
   const watched = () => props.account.watched ?? [];
@@ -630,6 +635,41 @@ function WatchSection(props: {
           <Text class="integration-card-note" variant="caption" tone="muted">
             {t("connector.whatsapp.sendersLimit", { count: MESSAGING_LIMITS.allowedSenders })}
           </Text>
+        </Show>
+        {/* Fork (#76): where the "Message yourself" chat, with the watched chats, shows in OpenBot. */}
+        <Show when={props.account.watchPlacement}>
+          {(placement) => (
+            <Item class="settings-modal-row whatsapp-watch-placement">
+              <ItemContent>
+                <ItemTitle>{t("connector.whatsapp.watchPlacementLabel")}</ItemTitle>
+                <RadioGroup.Root
+                  class="whatsapp-choice"
+                  aria-label={t("connector.whatsapp.watchPlacementLabel")}
+                  value={placement()}
+                  disabled={props.busy}
+                  onChange={(value) => {
+                    if (isWhatsAppWatchPlacement(value)) props.onPlacement(value);
+                  }}
+                >
+                  <ChoiceCard
+                    value="main"
+                    label={t("connector.whatsapp.watchPlacementMain")}
+                    description={t("connector.whatsapp.watchPlacementMainDescription")}
+                  />
+                  <ChoiceCard
+                    value="thread"
+                    label={t("connector.whatsapp.watchPlacementThread")}
+                    description={t("connector.whatsapp.watchPlacementThreadDescription")}
+                  />
+                  <ChoiceCard
+                    value="phone"
+                    label={t("connector.whatsapp.watchPlacementPhone")}
+                    description={t("connector.whatsapp.watchPlacementPhoneDescription")}
+                  />
+                </RadioGroup.Root>
+              </ItemContent>
+            </Item>
+          )}
         </Show>
       </ItemGroup>
     </SettingsSection>

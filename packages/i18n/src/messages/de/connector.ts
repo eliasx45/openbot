@@ -660,4 +660,12 @@ export const messages = {
     "OpenBot löscht seinen Zugriffsschlüssel auf {host}. Der Tresor und seine Zugangsdaten bleiben in Ihrem Proton-Konto.",
   "connector.protonPass.disconnect": "Trennen",
   "connector.protonPass.actionFailed": "OpenBot konnte die Proton-Pass-Verbindung nicht ändern.",
+  "connector.whatsapp.watchPlacementLabel": "Wo beobachtete Chats erscheinen",
+  "connector.whatsapp.watchPlacementMain": "Hauptchat",
+  "connector.whatsapp.watchPlacementMainDescription":
+    "Im Chat des Orchestrators, mit seinen Antworten. Du kannst dort danach fragen.",
+  "connector.whatsapp.watchPlacementThread": "Eigener Thread",
+  "connector.whatsapp.watchPlacementThreadDescription": "In einem 👁️-Thread im Chat des Orchestrators.",
+  "connector.whatsapp.watchPlacementPhone": "Nur Telefon",
+  "connector.whatsapp.watchPlacementPhoneDescription": "Nur in „Nachricht an dich selbst“ auf deinem Telefon.",
 } as const satisfies PartialTranslation<typeof source>;

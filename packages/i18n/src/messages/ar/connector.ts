@@ -695,4 +695,11 @@ export const messages = {
     "يحذف OpenBot مفتاح الوصول الخاص به على {host}. تبقى الخزنة وبيانات الدخول فيها في حساب Proton.",
   "connector.protonPass.disconnect": "قطع الاتصال",
   "connector.protonPass.actionFailed": "تعذّر على OpenBot تغيير اتصال Proton Pass.",
+  "connector.whatsapp.watchPlacementLabel": "أين تظهر المحادثات المراقَبة",
+  "connector.whatsapp.watchPlacementMain": "المحادثة الرئيسية",
+  "connector.whatsapp.watchPlacementMainDescription": "في محادثة المنسّق، مع ردوده. يمكنك السؤال عنها هناك.",
+  "connector.whatsapp.watchPlacementThread": "سلسلة خاصة",
+  "connector.whatsapp.watchPlacementThreadDescription": "في سلسلة 👁️ ضمن محادثة المنسّق.",
+  "connector.whatsapp.watchPlacementPhone": "الهاتف فقط",
+  "connector.whatsapp.watchPlacementPhoneDescription": "فقط في «مراسلة نفسك» على هاتفك.",
 } as const satisfies PartialTranslation<typeof source>;

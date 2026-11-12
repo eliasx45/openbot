@@ -681,4 +681,12 @@ export const messages = defineMessages("connector", {
     "OpenBot deletes its access key on {host}. The vault and its logins stay in your Proton account.",
   "connector.protonPass.disconnect": "Disconnect",
   "connector.protonPass.actionFailed": "OpenBot could not change the Proton Pass connection.",
+  "connector.whatsapp.watchPlacementLabel": "Where watched chats show",
+  "connector.whatsapp.watchPlacementMain": "Main chat",
+  "connector.whatsapp.watchPlacementMainDescription":
+    "In the orchestrator's chat, with its answers. You can ask about them there.",
+  "connector.whatsapp.watchPlacementThread": "Own thread",
+  "connector.whatsapp.watchPlacementThreadDescription": "In a 👁️ thread of the orchestrator's chat.",
+  "connector.whatsapp.watchPlacementPhone": "Phone only",
+  "connector.whatsapp.watchPlacementPhoneDescription": "Only in Message yourself on your phone.",
 });

@@ -250,7 +250,12 @@ function watchEvent(
     chatJid,
     lid: isLidUser(rawChatJid) ? rawChatJid : null,
     messageId: id,
-    line: { author: message.key.fromMe ? "You (the OpenBot user)" : name, text, sentAt: isoTime(message) },
+    line: {
+      author: message.key.fromMe ? "You" : name,
+      fromOwner: Boolean(message.key.fromMe),
+      text,
+      sentAt: isoTime(message),
+    },
     files,
   };
 }

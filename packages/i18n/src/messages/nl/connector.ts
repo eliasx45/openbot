@@ -639,4 +639,12 @@ export const messages = {
     "OpenBot verwijdert zijn toegangssleutel op {host}. De kluis en de logins erin blijven in je Proton-account.",
   "connector.protonPass.disconnect": "Loskoppelen",
   "connector.protonPass.actionFailed": "OpenBot kon de Proton Pass-verbinding niet wijzigen.",
+  "connector.whatsapp.watchPlacementLabel": "Waar bekeken chats verschijnen",
+  "connector.whatsapp.watchPlacementMain": "Hoofdchat",
+  "connector.whatsapp.watchPlacementMainDescription":
+    "In de chat van de orchestrator, met zijn antwoorden. Je kunt er daar naar vragen.",
+  "connector.whatsapp.watchPlacementThread": "Eigen thread",
+  "connector.whatsapp.watchPlacementThreadDescription": "In een 👁️-thread van de chat van de orchestrator.",
+  "connector.whatsapp.watchPlacementPhone": "Alleen telefoon",
+  "connector.whatsapp.watchPlacementPhoneDescription": "Alleen in ‘Bericht aan jezelf’ op je telefoon.",
 } as const satisfies PartialTranslation<typeof source>;

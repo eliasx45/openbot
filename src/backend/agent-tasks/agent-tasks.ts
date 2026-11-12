@@ -236,6 +236,43 @@ export class AgentTasks implements TaskLanes {
     return this.#store.task(thread.taskId) ?? thread;
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md #76): the open side thread that shows a WhatsApp "Message yourself"
+   * conversation. `threadId` is the conversation's thread now: a side thread already (reopened when
+   * archived), or its own execution thread, which becomes a side thread with its history. Null makes a
+   * new one. Null when the task list has no room: the conversation then stays where it is.
+   */
+  messagingThread(agentId: string, threadId: string | null, title: string): string | null {
+    const existing = threadId ? this.#store.taskForThread(threadId) : null;
+    const room = this.#store.openTaskIds(agentId).length < INPUT_LIMITS.agentTasks;
+    if (existing) {
+      if (existing.closedAt !== null) {
+        if (!room) return null;
+        this.reopen(existing);
+      }
+      this.#conversation.registerTaskThread(agentId, existing.threadId);
+      return existing.threadId;
+    }
+    const name = taskTitle(title);
+    if (!room || !name) return null;
+    const task = threadId
+      ? this.#store.adopt({ threadId, agentId, title: name, archived: false })
+      : this.#store.create({ agentId, origin: "agent", title: name, titleSource: "agent" });
+    this.#conversation.registerTaskThread(agentId, task.threadId);
+    this.changed(agentId);
+    return task.threadId;
+  }
+
+  /**
+   * Fork (#76): the execution thread that a messaging conversation leaves stays as an archived side
+   * thread, so its history can be read and no restart makes it an agent's own chat.
+   */
+  keepMessagingThread(agentId: string, threadId: string, title: string): void {
+    if (this.#store.taskForThread(threadId)) return;
+    this.#store.adopt({ threadId, agentId, title: taskTitle(title) || title.slice(0, 80), archived: true });
+    this.changed(agentId);
+  }
+
   /** The thread belongs to a routine: each run of the routine starts a new session in it. */
   isRoutineThread(taskId: string): boolean {
     return (this.#store.task(taskId)?.routineId ?? null) !== null;

@@ -26,6 +26,7 @@ import type {
   WhatsAppLinkState,
   WhatsAppOverview,
   WhatsAppSender,
+  WhatsAppWatchPlacement,
 } from "@openbot/contracts/ipc";
 import { MESSAGING_CONNECTION_STATES, MESSAGING_LIMITS } from "@openbot/contracts/ipc";
 import { isDynamicRecord, isOneOf, isString } from "@openbot/contracts/runtime-values";
@@ -85,6 +86,7 @@ import { telegramOrchestratorMemories, telegramOrchestratorProfile } from "./tel
 import { parseTelegramUpdate, telegramLink, telegramRemoval } from "./telegram/telegram-updates";
 import { WhatsAppConnect } from "./whatsapp/whatsapp-connect";
 import { whatsAppOrchestratorMemories, whatsAppOrchestratorProfile } from "./whatsapp/whatsapp-orchestrator";
+import { isSelfChat, selfChatPlacement, selfChatTitle } from "./whatsapp/whatsapp-placement";
 import type { WhatsAppRuntime } from "./whatsapp/whatsapp-runtime";
 
 const logger = createOpenBotLogger("messaging");
@@ -120,6 +122,11 @@ export interface MessagingAgents {
   deleteAgent(agentId: string): Effect.Effect<void, AgentLifecycleFailed>;
   /** The agents and group chats that the sidebar can assign to a section. */
   sidebarChatIds(): ReadonlySet<string>;
+  /**
+   * Fork (#76): gives the agent the owner's notification level "needs-me" (questions and approvals)
+   * unless the owner chose a level for it. Absent where no notification levels are kept.
+   */
+  defaultNotificationLevel?(agentId: string): void;
 }
 
 export interface MessagingServiceOptions {
@@ -454,6 +461,19 @@ export class MessagingService {
   ) {
     const whatsapp = yield* messagingStep(() => this.#requireWhatsApp());
     yield* whatsapp.setOwnNumber(workspaceId, ownNumber).pipe(toMessagingOperationFailed);
+  }).bind(this);
+
+  /**
+   * Fork (#76): where one WhatsApp number's "Message yourself" chat, with its watched chats, shows in
+   * OpenBot. Its next message moves the conversation there.
+   */
+  readonly setWhatsAppWatchPlacement = Effect.fn("MessagingService.setWhatsAppWatchPlacement")(function* (
+    this: MessagingService,
+    workspaceId: string,
+    placement: WhatsAppWatchPlacement,
+  ) {
+    const whatsapp = yield* messagingStep(() => this.#requireWhatsApp());
+    yield* whatsapp.setWatchPlacement(workspaceId, placement).pipe(toMessagingOperationFailed);
   }).bind(this);
 
   /** Turns the "Working on it…" post of one WhatsApp number on or off. A request that runs keeps its post. */
@@ -1553,6 +1573,24 @@ export class MessagingService {
             missing.length ? `(Files that did not arrive: ${missing.map((file) => file.name).join(", ")})` : "",
           ].filter(Boolean);
           const text = notes.length ? `${named}\n\n${notes.join("\n")}` : named;
+          // Fork (#76): the "Message yourself" chat is named so, also when a watched contact's turn
+          // starts it, and it shows where the owner chose.
+          const connectionId = live.record.connectionId;
+          const selfChat = isSelfChat(live.record.platform, live.record.workspaceId, message.platformChannelId);
+          const placement =
+            selfChat && this.#whatsapp
+              ? selfChatPlacement({
+                  selfChat,
+                  placement: this.#whatsapp.watchPlacement(connectionId),
+                  watchedNames: this.#whatsapp.watchedNames(connectionId),
+                })
+              : undefined;
+          if (placement?.kind === "main" && this.#whatsapp && this.#agents.defaultNotificationLevel) {
+            const first = yield* this.#whatsapp
+              .takeWatchNotificationDefault(connectionId)
+              .pipe(Effect.catch(() => Effect.succeed(false)));
+            if (first) this.#agents.defaultNotificationLevel(agentId);
+          }
           const result = yield* this.#threads
             .receive({
               connectionId: live.record.connectionId,
@@ -1560,7 +1598,12 @@ export class MessagingService {
               platformChannelId: message.platformChannelId,
               threadKey: message.threadKey,
               isDirect: message.isDirect,
-              title: message.isDirect ? authorName : `${place} · ${named.slice(0, 80) || authorName}`,
+              ...(placement ? { placement } : {}),
+              title: selfChat
+                ? selfChatTitle()
+                : message.isDirect
+                  ? authorName
+                  : `${place} · ${named.slice(0, 80) || authorName}`,
               text,
               sourcePaths: paths,
               origin: {

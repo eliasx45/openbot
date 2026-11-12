@@ -5,8 +5,9 @@ import type {
   WhatsAppGroupList,
   WhatsAppLinkState,
   WhatsAppSender,
+  WhatsAppWatchPlacement,
 } from "@openbot/contracts/ipc";
-import { MESSAGING_LIMITS } from "@openbot/contracts/ipc";
+import { DEFAULT_WHATSAPP_WATCH_PLACEMENT, isWhatsAppWatchPlacement, MESSAGING_LIMITS } from "@openbot/contracts/ipc";
 import { isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { newStoreKey } from "@openbot/whatsapp/auth-store";
@@ -173,6 +174,7 @@ export class WhatsAppConnect implements WhatsAppPolicy {
         workspaceId: record.workspaceId,
         ownNumber: this.#ownNumber(record.connectionId),
         workingMessage: this.workingMessage(record.connectionId),
+        watchPlacement: this.watchPlacement(record.connectionId),
         allowedSenders: this.#store.allowedSenders(record.connectionId).slice(0, MESSAGING_LIMITS.allowedSenders),
         watched: this.#watched(record.connectionId).map((sender) => ({ ...sender, kind: "watch" as const })),
         pendingRequests: this.#requests.list(record.workspaceId),
@@ -283,6 +285,42 @@ export class WhatsAppConnect implements WhatsAppPolicy {
     yield* this.#credentials.set(connectionId, { ...values, workingMessage: workingMessage ? "1" : "0" });
   });
 
+  /** Fork (#76): where the "Message yourself" chat, with the watched chats' turns, shows in OpenBot. */
+  readonly setWatchPlacement = Effect.fn("WhatsAppConnect.setWatchPlacement")(function* (
+    this: WhatsAppConnect,
+    workspaceId: string,
+    placement: WhatsAppWatchPlacement,
+  ) {
+    const connectionId = yield* this.#connectionId(workspaceId);
+    const values = this.#credentials.get(connectionId);
+    if (!values) return yield* failure("error.messaging.whatsappNotConnected");
+    yield* this.#credentials.set(connectionId, { ...values, watchPlacement: placement });
+  });
+
+  /** Fork (#76): the names of the watched contacts, for the title of their side thread. */
+  watchedNames(connectionId: string): string[] {
+    return this.#watched(connectionId).map((sender) => sender.name);
+  }
+
+  /** Fork (#76): the placement of a number, `main` when the owner never chose one. */
+  watchPlacement(connectionId: string): WhatsAppWatchPlacement {
+    return watchPlacementOf(this.#credentials.get(connectionId)?.watchPlacement);
+  }
+
+  /**
+   * Fork (#76): true once for a number, the first time its watched chats show in the orchestrator's own
+   * chat, so that orchestrator gets its default notification level once and a later choice stays.
+   */
+  readonly takeWatchNotificationDefault = Effect.fn("WhatsAppConnect.takeWatchNotificationDefault")(function* (
+    this: WhatsAppConnect,
+    connectionId: string,
+  ) {
+    const values = this.#credentials.get(connectionId);
+    if (!values || values.watchNotify === "1") return false;
+    yield* this.#credentials.set(connectionId, { ...values, watchNotify: "1" });
+    return true;
+  });
+
   readonly groups = Effect.fn("WhatsAppConnect.groups")(function* (this: WhatsAppConnect, workspaceId: string) {
     const connectionId = yield* this.#connectionId(workspaceId);
     const handle = this.#handle(connectionId);
@@ -333,6 +371,9 @@ export class WhatsAppConnect implements WhatsAppPolicy {
         ...(watched ? { watched } : {}),
         // A number that links again keeps this setting, as it keeps its allowed senders.
         ...(earlier?.workingMessage === "0" ? { workingMessage: "0" } : {}),
+        // Fork (#76): and where its watched chats show.
+        ...(earlier?.watchPlacement ? { watchPlacement: earlier.watchPlacement } : {}),
+        ...(earlier?.watchNotify ? { watchNotify: earlier.watchNotify } : {}),
       });
       // The number's earlier device was replaced by this link, so its keys go, but only once the new
       // link is saved: a failed save keeps the device that worked before.
@@ -463,4 +504,9 @@ function failureError(key: WhatsAppErrorKey): WhatsAppConnectFailed {
 
 function failure(key: WhatsAppErrorKey): Effect.Effect<never, WhatsAppConnectFailed> {
   return Effect.fail(failureError(key));
+}
+
+/** Fork (#76): a stored placement, or the default for a number that never chose one. */
+export function watchPlacementOf(value: string | undefined): WhatsAppWatchPlacement {
+  return isWhatsAppWatchPlacement(value) ? value : DEFAULT_WHATSAPP_WATCH_PLACEMENT;
 }

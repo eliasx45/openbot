@@ -649,4 +649,12 @@ export const messages = {
     "OpenBot supprime sa clé d’accès sur {host}. Le coffre et ses identifiants restent dans votre compte Proton.",
   "connector.protonPass.disconnect": "Déconnecter",
   "connector.protonPass.actionFailed": "OpenBot n’a pas pu modifier la connexion Proton Pass.",
+  "connector.whatsapp.watchPlacementLabel": "Où s’affichent les discussions observées",
+  "connector.whatsapp.watchPlacementMain": "Discussion principale",
+  "connector.whatsapp.watchPlacementMainDescription":
+    "Dans la discussion de l’orchestrateur, avec ses réponses. Vous pouvez poser vos questions là.",
+  "connector.whatsapp.watchPlacementThread": "Fil à part",
+  "connector.whatsapp.watchPlacementThreadDescription": "Dans un fil 👁️ de la discussion de l’orchestrateur.",
+  "connector.whatsapp.watchPlacementPhone": "Téléphone seulement",
+  "connector.whatsapp.watchPlacementPhoneDescription": "Seulement dans « Message à vous-même » sur votre téléphone.",
 } as const satisfies PartialTranslation<typeof source>;

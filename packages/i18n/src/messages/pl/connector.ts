@@ -686,4 +686,12 @@ export const messages = {
     "OpenBot usuwa swój klucz dostępu z {host}. Sejf i jego dane logowania zostają na Twoim koncie Proton.",
   "connector.protonPass.disconnect": "Odłącz",
   "connector.protonPass.actionFailed": "OpenBot nie mógł zmienić połączenia z Proton Pass.",
+  "connector.whatsapp.watchPlacementLabel": "Gdzie widać obserwowane czaty",
+  "connector.whatsapp.watchPlacementMain": "Główny czat",
+  "connector.whatsapp.watchPlacementMainDescription":
+    "W czacie orkiestratora, razem z jego odpowiedziami. Możesz o nie tam zapytać.",
+  "connector.whatsapp.watchPlacementThread": "Osobny wątek",
+  "connector.whatsapp.watchPlacementThreadDescription": "W wątku 👁️ czatu orkiestratora.",
+  "connector.whatsapp.watchPlacementPhone": "Tylko telefon",
+  "connector.whatsapp.watchPlacementPhoneDescription": "Tylko w „Wiadomość do siebie” na telefonie.",
 } as const satisfies PartialTranslation<typeof source>;

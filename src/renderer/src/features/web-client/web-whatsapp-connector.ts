@@ -3,6 +3,7 @@
 // `whatsapp-working-message-v1` adds the "Working on it…" setting of each number.
 
 import { withWhatsAppWorkingMessages } from "@openbot/contracts/ipc";
+import { sourceText } from "@openbot/i18n/source";
 import { runTeamEffect } from "@openbot/team-client";
 import {
   type TeamAdminRequestError,
@@ -67,5 +68,8 @@ export function webHostWhatsApp(
       run(serverId, (target) => whatsappConnectorSetOwnNumber(target, input)),
     hostSetWhatsAppWorkingMessage: (input, serverId) =>
       run(serverId, (target) => whatsappConnectorSetWorkingMessage(target, input)),
+    // Fork (#76): this computer's setting only. A joined server's numbers carry no placement, so the
+    // page shows no choice.
+    hostSetWhatsAppWatchPlacement: () => Promise.reject(new Error(sourceText("error.team.connectorsUnsupported"))),
   };
 }

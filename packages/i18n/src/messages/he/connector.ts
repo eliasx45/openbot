@@ -678,4 +678,11 @@ export const messages = {
     "OpenBot מוחק את מפתח הגישה שלו ב-{host}. הכספת ופרטי הכניסה שבה נשארים בחשבון Proton שלך.",
   "connector.protonPass.disconnect": "ניתוק",
   "connector.protonPass.actionFailed": "OpenBot לא הצליח לשנות את החיבור ל-Proton Pass.",
+  "connector.whatsapp.watchPlacementLabel": "איפה מוצגים הצ'אטים שבמעקב",
+  "connector.whatsapp.watchPlacementMain": "הצ'אט הראשי",
+  "connector.whatsapp.watchPlacementMainDescription": "בצ'אט של המתזמר, יחד עם התשובות שלו. אפשר לשאול עליהם שם.",
+  "connector.whatsapp.watchPlacementThread": "שרשור נפרד",
+  "connector.whatsapp.watchPlacementThreadDescription": "בשרשור 👁️ בצ'אט של המתזמר.",
+  "connector.whatsapp.watchPlacementPhone": "טלפון בלבד",
+  "connector.whatsapp.watchPlacementPhoneDescription": 'רק ב"הודעה לעצמך" בטלפון.',
 } as const satisfies PartialTranslation<typeof source>;

@@ -27,6 +27,7 @@ import type { MessagingOperationFailed } from "./messaging-service";
 import { type MessagingLink, type MessagingPingInput, MessagingStore } from "./messaging-store";
 import { boundedHistory, parseMessagingOutboundTool, parseMessagingTool } from "./messaging-tools";
 import type { ContextEntry, InboundFile, MessageTarget, MessagingPlace } from "./messaging-types";
+import { isWatchedTurn, watchedTurnFrame } from "./whatsapp/whatsapp-watch-text";
 
 /** A file the agent attached to its answer, ready to upload. */
 export interface MessagingAnswerFile {
@@ -70,6 +71,35 @@ export interface MessagingReceiveInput {
   origin: Omit<MessagingOrigin, "linkId">;
   /** Stable for one external message, so a redelivered event enqueues nothing. */
   idempotencyKey: string;
+  /**
+   * Fork (docs/fork/FEATURES.md #76): where the conversation shows in OpenBot. Only the WhatsApp
+   * "Message yourself" chat has one; without it the conversation keeps its own hidden thread.
+   */
+  placement?: MessagingPlacement;
+}
+
+/**
+ * Fork (#76): where a conversation's turns run and show: in the agent's own chat (`main`), in a side
+ * thread with this title (`thread`), or in a hidden thread of its own (`phone`, as every other
+ * conversation).
+ */
+export type MessagingPlacement = { kind: "main" } | { kind: "thread"; title: string } | { kind: "phone" };
+
+/** Fork (#76): what kind of thread a conversation runs in now. */
+export type MessagingThreadKind = "main" | "thread" | "phone";
+
+/**
+ * Fork (#76): the move that puts a conversation where its placement says. A conversation whose request
+ * waits or runs stays where it is: that turn's end must still find it. The next message moves it.
+ */
+export function placementMove(
+  now: MessagingThreadKind,
+  placement: MessagingPlacement,
+  pending: boolean,
+): "stay" | "reopen" | MessagingThreadKind {
+  if (pending) return "stay";
+  if (now === placement.kind) return placement.kind === "thread" ? "reopen" : "stay";
+  return placement.kind;
 }
 
 export type MessagingReceiveResult =
@@ -256,6 +286,23 @@ export interface MessagingThreadsHooks {
    * agent's progress lines. Null with the Classic style: the conversation sees only "Working".
    */
   progressUpdates(agentId: string): AgentProviderRef | null;
+  /** Fork (#76): the threads that a placement moves a conversation to. Without them, placements do nothing. */
+  placement?: MessagingPlacementHooks;
+}
+
+/** Fork (docs/fork/FEATURES.md #76). */
+export interface MessagingPlacementHooks {
+  /** The agent's own chat, made when it has none yet. */
+  mainThread(agentId: string): string;
+  isMainThread(threadId: string): boolean;
+  isSideThread(threadId: string): boolean;
+  /**
+   * The open side thread for the conversation: `threadId` itself (reopened, or made a side thread with
+   * its history), or a new one for null. Null when the agent has no room for another open side thread.
+   */
+  sideThread(agentId: string, threadId: string | null, title: string): string | null;
+  /** Keeps a hidden thread that the conversation leaves, as an archived side thread with this title. */
+  keepThread(agentId: string, threadId: string, title: string): void;
 }
 
 /**
@@ -728,6 +775,16 @@ export class MessagingThreads {
     link: MessagingLink,
     input: MessagingReceiveInput,
   ): Effect.fn.Return<MessagingReceiveResult, MessagingThreadFailed> {
+    const placed = input.placement ? yield* threadsStep(() => this.#place(link, input)) : link;
+    return yield* this.#queue(agentId, placed, input);
+  });
+
+  readonly #queue = Effect.fn("MessagingThreads.queue")(function* (
+    this: MessagingThreads,
+    agentId: string,
+    link: MessagingLink,
+    input: MessagingReceiveInput,
+  ): Effect.fn.Return<MessagingReceiveResult, MessagingThreadFailed> {
     // Only external messages count: a teammate's answer to a request from here is the agent's own work.
     const pending = yield* threadsStep(() =>
       this.store
@@ -759,6 +816,40 @@ export class MessagingThreads {
     this.#hooks.schedule(agentId);
     return { status: "queued", link, deliveryId, waiting };
   });
+
+  /**
+   * Fork (#76): moves the conversation to the thread its placement names, before its message is queued,
+   * so the message's turn runs there. It also names the conversation as the platform side does now, such
+   * as "Message yourself".
+   */
+  #place(received: MessagingLink, input: MessagingReceiveInput): MessagingLink {
+    const hooks = this.#hooks.placement;
+    const placement = input.placement;
+    const name = input.title.slice(0, MESSAGING_LIMITS.name);
+    if (received.title !== name) this.store.retitle(received.linkId, name);
+    const link = received.title === name ? received : { ...received, title: name };
+    if (!hooks || !placement) return link;
+    const now: MessagingThreadKind = hooks.isMainThread(link.threadId)
+      ? "main"
+      : hooks.isSideThread(link.threadId)
+        ? "thread"
+        : "phone";
+    const move = placementMove(now, placement, this.#mailbox.unresolvedMessagingDeliveries(link.linkId).length > 0);
+    if (move === "stay") return link;
+    if (move === "reopen" || move === "thread") {
+      const title = placement.kind === "thread" ? placement.title : link.title;
+      // A hidden thread becomes the side thread with its history; from the agent's own chat, a new one starts.
+      const threadId = hooks.sideThread(link.agentId, now === "main" ? null : link.threadId, title);
+      return threadId && threadId !== link.threadId ? this.store.moveToThread(link.linkId, threadId) : link;
+    }
+    const moved =
+      move === "phone"
+        ? this.store.moveToNewThread(link.linkId)
+        : this.store.moveToThread(link.linkId, hooks.mainThread(link.agentId));
+    // The hidden thread that the conversation leaves stays, archived, where the person can read it.
+    if (now === "phone") hooks.keepThread(link.agentId, link.threadId, link.title);
+    return moved;
+  }
 
   /** The execution thread of a messaging delivery, or null for any other delivery. */
   threadForDelivery(deliveryId: string): string | null {
@@ -806,7 +897,10 @@ export class MessagingThreads {
       place: prompt.place,
       authorName: origin.authorName,
       authorId: origin.authorId,
-      text: context.delivery.text,
+      // Fork (#76): the chat shows a watched turn's messages alone; its prompt says what they are.
+      text: isWatchedTurn(origin.platformMessageId)
+        ? `${watchedTurnFrame(origin.authorName, origin.authorId)}\n${context.delivery.text}`
+        : context.delivery.text,
       context: prompt.messages,
       replyTo: origin.replyTo ?? null,
       skippedFiles: prompt.skippedFiles,

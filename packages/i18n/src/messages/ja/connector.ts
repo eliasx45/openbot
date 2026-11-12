@@ -645,4 +645,12 @@ export const messages = {
     "OpenBot は {host} 上のアクセスキーを削除します。保管庫とそのログイン情報は Proton アカウントに残ります。",
   "connector.protonPass.disconnect": "切断",
   "connector.protonPass.actionFailed": "OpenBot は Proton Pass の接続を変更できませんでした。",
+  "connector.whatsapp.watchPlacementLabel": "見守るチャットの表示先",
+  "connector.whatsapp.watchPlacementMain": "メインチャット",
+  "connector.whatsapp.watchPlacementMainDescription":
+    "オーケストレーターのチャットに、その返答と一緒に表示します。そこで内容を質問できます。",
+  "connector.whatsapp.watchPlacementThread": "専用スレッド",
+  "connector.whatsapp.watchPlacementThreadDescription": "オーケストレーターのチャットの 👁️ スレッドに表示します。",
+  "connector.whatsapp.watchPlacementPhone": "電話のみ",
+  "connector.whatsapp.watchPlacementPhoneDescription": "電話の「自分にメッセージ」にだけ表示します。",
 } as const satisfies PartialTranslation<typeof source>;

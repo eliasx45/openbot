@@ -264,3 +264,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Fork (#76): the choice under the watched contacts, the full width of its row. */
+.whatsapp-watch-placement .whatsapp-choice {
+  margin-top: var(--openbot-space-2);
+}

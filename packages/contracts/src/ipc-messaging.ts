@@ -350,7 +350,25 @@ export interface WhatsAppAccount {
    * overview from a host without the feature still parses.
    */
   watched?: WhatsAppSender[];
+  /**
+   * Fork (#76): where the turns of the watched chats and of the "Message yourself" chat show in OpenBot.
+   * Absent from a host without the feature.
+   */
+  watchPlacement?: WhatsAppWatchPlacement;
   pendingRequests: WhatsAppPairingRequest[];
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md #76): where the "Message yourself" conversation, with the watched chats'
+ * turns in it, shows in OpenBot: in the orchestrator's own chat (`main`, the default), in a side thread
+ * of it (`thread`), or nowhere, only on the phone (`phone`).
+ */
+export const WHATSAPP_WATCH_PLACEMENTS = ["main", "thread", "phone"] as const;
+export type WhatsAppWatchPlacement = (typeof WHATSAPP_WATCH_PLACEMENTS)[number];
+export const DEFAULT_WHATSAPP_WATCH_PLACEMENT: WhatsAppWatchPlacement = "main";
+
+export function isWhatsAppWatchPlacement(value: unknown): value is WhatsAppWatchPlacement {
+  return isOneOf(WHATSAPP_WATCH_PLACEMENTS, value);
 }
 
 /** The WhatsApp numbers linked to this computer. One orchestrator answers all of them. */
@@ -414,6 +432,12 @@ export interface SetWhatsAppWorkingMessageInput {
   workingMessage: boolean;
 }
 
+/** Fork (#76). */
+export interface SetWhatsAppWatchPlacementInput {
+  workspaceId: string;
+  placement: WhatsAppWatchPlacement;
+}
+
 /** The "Working on it…" setting of each linked number of a joined server (`whatsapp-working-message-v1`). */
 export interface WhatsAppWorkingMessageList {
   numbers: { workspaceId: string; workingMessage: boolean }[];
@@ -456,6 +480,7 @@ function isWhatsAppAccount(value: unknown): value is WhatsAppAccount {
     isIdentifier(value.workspaceId) &&
     isBoolean(value.ownNumber) &&
     (value.workingMessage === undefined || isBoolean(value.workingMessage)) &&
+    (value.watchPlacement === undefined || isWhatsAppWatchPlacement(value.watchPlacement)) &&
     Array.isArray(value.allowedSenders) &&
     value.allowedSenders.length <= MESSAGING_LIMITS.allowedSenders &&
     value.allowedSenders.every(isWhatsAppSender) &&

@@ -586,4 +586,12 @@ export const messages = {
     "OpenBot이 {host}의 액세스 키를 삭제합니다. 보관함과 그 안의 로그인 정보는 Proton 계정에 남습니다.",
   "connector.protonPass.disconnect": "연결 해제",
   "connector.protonPass.actionFailed": "OpenBot이 Proton Pass 연결을 변경하지 못했습니다.",
+  "connector.whatsapp.watchPlacementLabel": "지켜보는 채팅을 표시할 곳",
+  "connector.whatsapp.watchPlacementMain": "메인 채팅",
+  "connector.whatsapp.watchPlacementMainDescription":
+    "오케스트레이터 채팅에 답변과 함께 표시합니다. 거기서 내용을 물어볼 수 있습니다.",
+  "connector.whatsapp.watchPlacementThread": "별도 스레드",
+  "connector.whatsapp.watchPlacementThreadDescription": "오케스트레이터 채팅의 👁️ 스레드에 표시합니다.",
+  "connector.whatsapp.watchPlacementPhone": "휴대폰만",
+  "connector.whatsapp.watchPlacementPhoneDescription": "휴대폰의 '나에게 메시지'에만 표시합니다.",
 } as const satisfies PartialTranslation<typeof source>;

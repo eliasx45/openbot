@@ -414,6 +414,38 @@ export class AgentThreadStore {
     return created;
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md #76): an execution thread that exists already, such as the thread of the
+   * WhatsApp "Message yourself" chat, becomes a side thread of its agent with its history: open, or
+   * archived. Its `projection_threads` row stays.
+   */
+  adopt(input: { threadId: string; agentId: string; title: string; archived: boolean }): AgentThreadRecord {
+    this.#database.dispatch(
+      `agent-thread-adopted:${input.threadId}:${randomUUID()}`,
+      [
+        {
+          aggregateType: "agent-thread",
+          aggregateId: input.threadId,
+          eventType: "agent-thread.created",
+          payload: { agentId: input.agentId, origin: "agent" },
+        },
+      ],
+      (db, sequences) => {
+        const now = new Date().toISOString();
+        db.prepare(
+          `INSERT INTO projection_agent_threads
+             (thread_id, agent_id, legacy_task_id, origin, title, title_source, outcome, error, created_at,
+              updated_at, archived_at, last_event_sequence, routine_id)
+           VALUES (?, ?, NULL, 'agent', ?, 'agent', NULL, NULL, ?, ?, ?, ?, NULL)`,
+        ).run(input.threadId, input.agentId, input.title, now, now, input.archived ? now : null, sequences[0] ?? 0);
+        return null;
+      },
+    );
+    const adopted = this.taskForThread(input.threadId);
+    if (!adopted) throw new Error("The thread was not stored.");
+    return adopted;
+  }
+
   /** A rename by a person. The title no longer follows the first message. */
   rename(threadId: string, title: string): void {
     this.#database.dispatch(

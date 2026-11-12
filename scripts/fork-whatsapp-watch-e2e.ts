@@ -498,10 +498,10 @@ try {
         assert.ok(context, "No delivery for the watched turn.");
         assert.equal(context.delivery.recipientAgentId, orchestratorId, "The turn did not go to the orchestrator.");
         const turn = context.delivery.text;
-        assert.ok(turn.startsWith("👁️ Watched chat · Ichiro"), turn);
-        assert.ok(turn.includes("Ichiro: new review is up: https://f.io/abc123"));
-        assert.ok(turn.includes("Ichiro: frame 1280 the logo pops too early (image: image-"));
-        assert.ok(turn.includes("You (the OpenBot user): thanks, on it tomorrow"));
+        // Fork (#76): the chat shows the messages alone; the prompt below carries the frame.
+        assert.ok(turn.startsWith("👁️ Ichiro: new review is up: https://f.io/abc123"), turn);
+        assert.ok(turn.includes("👁️ Ichiro: frame 1280 the logo pops too early (image: image-"));
+        assert.ok(turn.includes("👁️ You → Ichiro: thanks, on it tomorrow"));
         assert.ok(!turn.includes("did not arrive"), turn);
         // One turn: the other two messages did not become turns of their own.
         assert.equal(received(agents, ICHIRO_JID, shot.key.id ?? ""), false);

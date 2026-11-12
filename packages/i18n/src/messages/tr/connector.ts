@@ -690,4 +690,12 @@ export const messages = {
     "OpenBot {host} üzerindeki erişim anahtarını siler. Kasa ve içindeki oturum bilgileri Proton hesabınızda kalır.",
   "connector.protonPass.disconnect": "Bağlantıyı kes",
   "connector.protonPass.actionFailed": "OpenBot, Proton Pass bağlantısını değiştiremedi.",
+  "connector.whatsapp.watchPlacementLabel": "İzlenen sohbetler nerede görünsün",
+  "connector.whatsapp.watchPlacementMain": "Ana sohbet",
+  "connector.whatsapp.watchPlacementMainDescription":
+    "Orkestratörün sohbetinde, yanıtlarıyla birlikte. Orada onlar hakkında soru sorabilirsin.",
+  "connector.whatsapp.watchPlacementThread": "Ayrı konu",
+  "connector.whatsapp.watchPlacementThreadDescription": "Orkestratör sohbetinin bir 👁️ konusunda.",
+  "connector.whatsapp.watchPlacementPhone": "Yalnızca telefon",
+  "connector.whatsapp.watchPlacementPhoneDescription": "Yalnızca telefonundaki Kendine mesaj sohbetinde.",
 } as const satisfies PartialTranslation<typeof source>;

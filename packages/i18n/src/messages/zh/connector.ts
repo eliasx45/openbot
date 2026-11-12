@@ -626,4 +626,11 @@ export const messages = {
     "OpenBot 会删除它在 {host} 上的访问密钥。保管库及其登录信息保留在你的 Proton 账户中。",
   "connector.protonPass.disconnect": "断开连接",
   "connector.protonPass.actionFailed": "OpenBot 无法更改 Proton Pass 连接。",
+  "connector.whatsapp.watchPlacementLabel": "关注的聊天显示在哪里",
+  "connector.whatsapp.watchPlacementMain": "主聊天",
+  "connector.whatsapp.watchPlacementMainDescription": "在编排助手的聊天中，连同它的回复。你可以在那里询问。",
+  "connector.whatsapp.watchPlacementThread": "单独话题",
+  "connector.whatsapp.watchPlacementThreadDescription": "在编排助手聊天的 👁️ 话题中。",
+  "connector.whatsapp.watchPlacementPhone": "仅手机",
+  "connector.whatsapp.watchPlacementPhoneDescription": "只在手机上的“给自己发消息”中。",
 } as const satisfies PartialTranslation<typeof source>;

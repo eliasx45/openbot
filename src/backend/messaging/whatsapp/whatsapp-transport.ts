@@ -318,7 +318,7 @@ export class WhatsAppTransport implements MessagingTransport {
         requiresLink: false,
         // The contact, so its turns have their own queue limit, apart from the owner's.
         authorId: batch.number,
-        text: watchedTurnText(batch.name, batch.number, batch.lines),
+        text: watchedTurnText(batch.name, batch.lines),
         mentionedUserIds: [],
         files: batch.files,
       },
