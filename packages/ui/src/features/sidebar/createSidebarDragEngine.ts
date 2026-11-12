@@ -36,6 +36,7 @@ import {
   sidebarDropTargetsEqual,
 } from "./sidebar-drag-model";
 import type { SidebarPinnedItem } from "./sidebar-pins";
+import type { createSidebarRowMotion } from "./sidebar-row-motion";
 import type { SidebarChatItem, SidebarProps } from "./sidebar-types";
 import type { SidebarDragWriters } from "./stores/drag-state-store";
 
@@ -56,6 +57,8 @@ export interface SidebarDragEngineDeps {
   sectionAcceptsChat: (sectionId: string) => boolean;
   /** The folder rules for a dragged folder. Null when the host keeps sections flat. */
   folders: () => SidebarDragFolders | null;
+  /** Holds the rows where a drop leaves them until the new order is in, then slides them there. */
+  rowMotion?: ReturnType<typeof createSidebarRowMotion>;
   /** Whether a section is closed, so a drag that rests on it can open it. */
   sectionIsCollapsed: (sectionId: string) => boolean;
   visiblePinnedKeys: () => string[];
@@ -450,9 +453,32 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
       dragState.emptyPinnedDropVisible() && dragTarget?.kind === "pinned" ? dragTarget : null;
     if (dragState.emptyPinnedDropVisible() && !animatedPinnedTarget) measureSidebarDragTargets();
     const target = animatedPinnedTarget ?? flushSidebarDragTarget({ clientX: event.clientX, clientY: event.clientY });
-    commitSidebarDrop(dragSession.source, target);
+    const source = dragSession.source;
+    if (source.kind === "chat" && (target?.kind === "chat" || target?.kind === "section")) {
+      deps.rowMotion?.beginDropSettle({
+        chatId: source.id,
+        clientY: event.clientY,
+        expectsChange: chatDropChangesOrder(source.id, target),
+      });
+    }
+    commitSidebarDrop(source, target);
     suppressSidebarClickUntil = Date.now() + 250;
     stopSidebarDragging();
+  }
+
+  /** Whether a chat dropped on this target ends up somewhere else than where it is. */
+  function chatDropChangesOrder(
+    chatId: string,
+    target: Extract<SidebarDropTarget, { kind: "chat" } | { kind: "section" }>,
+  ): boolean {
+    const fromSection = assignedSectionId(chatId);
+    if (target.kind === "section") {
+      if (target.sectionId !== fromSection) return true;
+      const ids = filteredChatsBySection().get(fromSection) ?? [];
+      return ids[ids.length - 1]?.id !== chatId;
+    }
+    if (target.target.sectionId !== fromSection) return true;
+    return Object.keys(sidebarDragOffsets(target)).length > 0;
   }
 
   function endChatDragging(event: DragEvent): void {

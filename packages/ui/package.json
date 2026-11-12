@@ -378,6 +378,7 @@
     "./features/sidebar/sidebar-agent-order": "./src/features/sidebar/sidebar-agent-order.ts",
     "./features/sidebar/sidebar-drag-dom": "./src/features/sidebar/sidebar-drag-dom.ts",
     "./features/sidebar/sidebar-drag-model": "./src/features/sidebar/sidebar-drag-model.ts",
+    "./features/sidebar/sidebar-row-motion": "./src/features/sidebar/sidebar-row-motion.ts",
     "./features/sidebar/sidebar-filtering": "./src/features/sidebar/sidebar-filtering.ts",
     "./features/sidebar/sidebar-pins": "./src/features/sidebar/sidebar-pins.ts",
     "./features/sidebar/sidebar-scope": "./src/features/sidebar/sidebar-scope.ts",

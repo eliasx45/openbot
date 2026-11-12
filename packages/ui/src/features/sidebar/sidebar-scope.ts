@@ -10,6 +10,7 @@
 import { createContext, createEffect, onCleanup, useContext } from "solid-js";
 import { createScrollFades } from "../../components/createScrollFades";
 import { createSidebarDragEngine } from "./createSidebarDragEngine";
+import { createSidebarRowMotion } from "./sidebar-row-motion";
 import type { SidebarProps } from "./sidebar-types";
 import { createSidebarAnnouncementStore } from "./stores/announcement-store";
 import { createSidebarDataStore } from "./stores/data-store";
@@ -77,11 +78,12 @@ export function createSidebarScope(props: SidebarProps) {
     updateSectionEditorName,
   } = createSidebarPendingStore({ customSectionById, props });
   let agentList: HTMLElement | undefined;
+  const rowMotion = createSidebarRowMotion();
   const foldersSupported = () => props.foldersSupported === true && layoutMutable();
   const dragFolders = () =>
     foldersSupported() ? { canNest: sectionCanNest, isInside: sectionIsInside, parent: sectionParent } : null;
 
-  const dragState = createSidebarDragStateStore({ chatKind, sectionAcceptsChat });
+  const dragState = createSidebarDragStateStore({ assignedSectionId, chatKind, sectionAcceptsChat });
   dragActive = () => dragState.draggingKind() !== undefined;
   const {
     assignChatSection,
@@ -133,6 +135,7 @@ export function createSidebarScope(props: SidebarProps) {
     dragState,
     filteredChatsBySection,
     getAgentList: () => agentList,
+    rowMotion,
     orderedPeople,
     props,
     scrollFades,
@@ -147,6 +150,7 @@ export function createSidebarScope(props: SidebarProps) {
 
   onCleanup(() => {
     stopSidebarDragging();
+    rowMotion.detach();
     scrollFades.stop();
   });
 
@@ -168,6 +172,7 @@ export function createSidebarScope(props: SidebarProps) {
   const setAgentListElement = (element: HTMLElement) => {
     agentList = element;
     scrollFades.bind(element);
+    rowMotion.attach(element);
   };
 
   /**

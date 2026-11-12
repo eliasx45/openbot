@@ -11,6 +11,7 @@
 
 import { createMemo, createStore } from "solid-js";
 import {
+  chatDropSectionId as chatDropSectionFor,
   type DragOffset,
   type SidebarDrag,
   type SidebarDragSource,
@@ -30,11 +31,13 @@ export interface SidebarDragWriters {
 }
 
 export function createSidebarDragStateStore(deps: {
+  /** The section a chat is in now. A drop back into it is a reorder and tints no section. */
+  assignedSectionId: (chatId: string) => string;
   /** Which kind of chat an id names, or null when it names none: an unknown chat cannot be pinned. */
   chatKind: (chatId: string) => "agent" | "channel" | null;
   sectionAcceptsChat: (sectionId: string) => boolean;
 }) {
-  const { chatKind, sectionAcceptsChat } = deps;
+  const { assignedSectionId, chatKind, sectionAcceptsChat } = deps;
 
   const [drag, setDrag] = createStore<SidebarDrag>({
     emptyPinnedDropVisible: false,
@@ -69,13 +72,11 @@ export function createSidebarDragStateStore(deps: {
     return target?.kind === "pinned" ? target.key : null;
   });
 
-  /** The section a dragged chat would land in, whether it aims at a row inside it or at the section. */
-  const chatDropSectionId = createMemo(() => {
-    const target = drag.target;
-    if (target?.kind === "chat") return target.target.sectionId;
-    if (target?.kind === "section" && drag.source?.kind === "chat") return target.sectionId;
-    return null;
-  });
+  /**
+   * The section a dragged chat would move into, whether it aims at a row inside it or at the section.
+   * Null while it stays in its own section: a reorder there draws no box.
+   */
+  const chatDropSectionId = createMemo(() => chatDropSectionFor(drag.source, drag.target, assignedSectionId));
 
   const sectionDropTarget = createMemo(() => {
     const target = drag.target;

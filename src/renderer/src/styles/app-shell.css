@@ -2054,9 +2054,16 @@ textarea {
   will-change: transform;
 }
 
+/* The rows a drag pushes aside slide to their new place (the offset transition above); only the
+   dragged row moves at once (fork FEATURES #73). */
 .agent-list[data-sidebar-dragging="chat"] .sidebar-agent-item {
-  transition: none;
   will-change: transform;
+}
+
+/* While a drop settles, `sidebar-row-motion.ts` moves the rows; the offset reset must not also
+   transition. */
+.agent-list[data-sidebar-settling] .sidebar-agent-item {
+  transition: none !important;
 }
 
 .agent-list[data-sidebar-dragging="person"] .sidebar-person-item {

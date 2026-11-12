@@ -192,6 +192,25 @@ export interface SidebarDragFolders {
   parent: (sectionId: string) => string | null;
 }
 
+/**
+ * The section that a drop would move a chat into, which is the one section the drag tints. A chat
+ * dragged within its own section is a reorder: its neighbours slide and no section lights up, as in
+ * Claude's sidebar (fork FEATURES #73). A pinned tile always leaves the pinned strip, so the section
+ * it lands in lights up even when the chat already belongs to it.
+ */
+export function chatDropSectionId(
+  source: SidebarDragSource | null,
+  target: SidebarDropTarget | null,
+  sourceSectionId: (chatId: string) => string,
+): string | null {
+  let sectionId: string | null = null;
+  if (target?.kind === "chat") sectionId = target.target.sectionId;
+  else if (target?.kind === "section" && source?.kind === "chat") sectionId = target.sectionId;
+  if (sectionId === null) return null;
+  if (source?.kind === "chat" && sourceSectionId(source.id) === sectionId) return null;
+  return sectionId;
+}
+
 export function sidebarDropTargetsEqual(left: SidebarDropTarget | null, right: SidebarDropTarget | null): boolean {
   if (left === right) return true;
   if (!left || !right || left.kind !== right.kind) return false;
