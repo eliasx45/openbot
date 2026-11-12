@@ -8,6 +8,7 @@ import { SidebarMobileAppCard } from "@openbot/ui/features/sidebar/SidebarMobile
 import { SidebarStorageCard } from "@openbot/ui/features/sidebar/SidebarStorageCard";
 import { normalizeSidebarPinnedItems, type SidebarPinnedItem } from "@openbot/ui/features/sidebar/sidebar-pins";
 import { SIDEBAR_HIDDEN_GROUP_OPEN_ID, type SidebarAgentState } from "@openbot/ui/features/sidebar/sidebar-types";
+import type { JSX } from "@solidjs/web";
 import { createSignal, For, untrack } from "solid-js";
 import { fn } from "storybook/test";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
@@ -691,6 +692,84 @@ const dragOffsetLayout: SidebarLayoutSnapshot = {
 export const DragOffsets: Story = {
   args: { agents: dragOffsetAgents, layout: dragOffsetLayout, pinnedItems: pinnedThree },
   decorators: [(Story) => <div style={{ width: "280px", height: "100vh" }}>{Story()}</div>],
+};
+
+/** Holds a chat drag from Internal over a row of Acme Robotics, so the folder shows its drop outline.
+ *  The drag starts again whenever the window's blur ends it, so the outline stays for a screenshot. */
+function HeldFolderDrop(props: { children: JSX.Element; scrollTop?: number; targetId?: string }) {
+  const hold = (host: HTMLDivElement) => {
+    const transfer = new DataTransfer();
+    const timer = setInterval(() => {
+      if (host.dataset.held !== undefined && !host.isConnected) {
+        clearInterval(timer);
+        return;
+      }
+      const source = host.querySelector<HTMLElement>('[data-chat-id="chief"]');
+      const target = host.querySelector<HTMLElement>(`[data-chat-id="${props.targetId ?? "research"}"]`);
+      if (!source || !target) return;
+      host.dataset.held = "";
+      const shown = host.querySelector(".sidebar-section-agent-drop-target");
+      const list = host.querySelector<HTMLElement>(".agent-list");
+      // Scroll once the drag has opened the pin target above the list, so the scroll is not pushed.
+      const scroll = Boolean(shown && list && props.scrollTop && host.dataset.scrolled === undefined);
+      if (scroll && list && props.scrollTop) {
+        list.scrollTop = props.scrollTop;
+        host.dataset.scrolled = "";
+      }
+      // A scroll leaves the drag measured for the old place: end it and start again.
+      if (scroll || (host.dataset.over !== undefined && !shown)) {
+        source.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer: transfer }));
+        delete host.dataset.over;
+        return;
+      }
+      if (!host.querySelector(".agent-list[data-sidebar-dragging]")) {
+        const start = source.getBoundingClientRect();
+        source.dispatchEvent(
+          new DragEvent("dragstart", {
+            bubbles: true,
+            dataTransfer: transfer,
+            clientX: start.x + 20,
+            clientY: start.y + 10,
+          }),
+        );
+      }
+      const over = target.getBoundingClientRect();
+      target.dispatchEvent(
+        new DragEvent("dragover", {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer: transfer,
+          clientX: over.x + 60,
+          clientY: over.y + over.height / 2,
+        }),
+      );
+      host.dataset.over = "";
+    }, 300);
+  };
+  return (
+    <div ref={hold} style={{ display: "flex", width: "280px", height: "100vh", "flex-direction": "column" }}>
+      {props.children}
+    </div>
+  );
+}
+
+/** A chat dragged into another folder: only that folder gets the blue outline. */
+export const FolderDropTarget: Story = {
+  args: { ...Folders.args },
+  decorators: [(Story) => <HeldFolderDrop>{Story()}</HeldFolderDrop>],
+};
+
+/** The same drag with the list scrolled, so the target folder's header is stuck at the top: the
+ *  outline still has a top edge there. */
+export const FolderDropTargetScrolled: Story = {
+  args: { ...Folders.args },
+  decorators: [
+    (Story) => (
+      <HeldFolderDrop scrollTop={540} targetId="stress-agent-1">
+        {Story()}
+      </HeldFolderDrop>
+    ),
+  ],
 };
 
 export const Empty: Story = {
