@@ -395,6 +395,7 @@ export const messages = {
   "mobile.server.route.invite": "دعوة أشخاص",
   "mobile.server.route.member": "العضو",
   "mobile.server.route.timezone": "المنطقة الزمنية",
+  "mobile.server.route.personality": "شخصية الوكيل",
   "mobile.server.settings.storage": "التخزين",
   "mobile.server.route.storage": "التخزين",
   "mobile.server.route.storageFiles": "كل الملفات",
@@ -526,6 +527,14 @@ export const messages = {
   "mobile.server.settings.memoryLimitLoadFailed": "تعذّر تحميل حد الذاكرة لهذا الخادم.",
   "mobile.server.settings.memoryLimitSaveFailed": "تعذّر حفظ حد الذاكرة. أعد المحاولة.",
   "mobile.server.settings.memoryLimitUnsupported": "حدّث OpenBot على هذا الخادم لتغيير حد الذاكرة من هنا.",
+  "mobile.server.settings.responseStyleDescription":
+    "طبيعي: يرسل الوكلاء تحديثات قصيرة أثناء العمل وتعرضها الدردشة. كلاسيكي: يرد الوكلاء مرة واحدة عند الانتهاء.",
+  "mobile.server.settings.responseStyleNatural": "طبيعي",
+  "mobile.server.settings.responseStyleClassic": "كلاسيكي",
+  "mobile.server.settings.personalityLoadFailed": "تعذّر تحميل شخصية الخادم.",
+  "mobile.server.settings.personalitySaveFailed": "تعذّر حفظ نمط الرد. أعد المحاولة.",
+  "mobile.server.settings.personalityUnsupported": "حدّث OpenBot على هذا الخادم لتغيير نمط الرد من هنا.",
+  "mobile.server.settings.personalityUnavailable": "اتصل بهذا الخادم بصفتك مالكًا أو مسؤولًا لتغيير شخصية الوكيل.",
   "mobile.server.route.browserProfiles": "ملفات تعريف المتصفح",
   "mobile.server.browserProfiles.unavailable": "يمكن فقط لمالك خادم متصل أو مسؤوله إدارة ملفات تعريف المتصفح فيه.",
   "mobile.server.browserProfiles.unsupported": "حدّث OpenBot على هذا الخادم لإدارة ملفات تعريف المتصفح من هنا.",
@@ -1081,6 +1090,9 @@ export const messages = {
   "mobile.server.connectors.whatsapp.ownNumber": "رقم شخصي",
   "mobile.server.connectors.whatsapp.ownNumberDescription":
     "يمكن فقط لدردشة «مراسلة نفسك» والأشخاص الذين تسمح لهم المراسلة. أوقف هذا الخيار لرقم مخصص لـ OpenBot فقط.",
+  "mobile.server.connectors.whatsapp.workingMessage": "رسالة «جارٍ العمل على ذلك…»",
+  "mobile.server.connectors.whatsapp.workingMessageDescription":
+    "يرسلها OpenBot أثناء عمل الوكيل، ثم يستبدلها بالإجابة. أوقفها لإرسال الإجابة فقط.",
   "mobile.server.connectors.whatsapp.orchestratorTitle": "WhatsApp Orchestrator",
   "mobile.server.connectors.whatsapp.orchestratorDescription":
     "يستقبل هذا الوكيل الرسائل الموجّهة إلى OpenBot من كل أرقامك المرتبطة. يجيب بنفسه عن الرسائل القصيرة، ويسند الأعمال الأخرى إلى الوكيل المناسب، ويجيب في WhatsApp.",
@@ -1273,6 +1285,16 @@ export const messages = {
   "mobile.server.providers.removeAccount": "إزالة الحساب",
   "mobile.server.providers.removeAccountTitle": "هل تريد إزالة {name}؟",
   "mobile.server.providers.removeAccountBody": "يزيل الخادم هذا الحساب وتسجيل الدخول الخاص به.",
+  "mobile.server.providers.pool": "تجميع الحسابات",
+  "mobile.server.providers.poolHint":
+    "يستخدم الوكلاء حسابًا واحدًا حتى يقترب من حد الاستخدام، ثم الحساب الذي يُعاد تعيين حده أولًا.",
+  "mobile.server.providers.accountsPooledHint":
+    "يتشارك الوكلاء هذه الحسابات. يسجّل الحساب الجديد الدخول في صفحته على هذا الهاتف.",
+  "mobile.server.providers.accountsPooledOnComputer": "يتشارك الوكلاء هذه الحسابات. أضف حسابًا في OpenBot على حاسوب.",
+  "mobile.server.providers.inUse": "قيد الاستخدام",
+  "mobile.server.providers.notInPool": "خارج المجموعة",
+  "mobile.server.providers.leaveOutOfPool": "استبعاد من المجموعة",
+  "mobile.server.providers.putBackInPool": "إعادة إلى المجموعة",
   "mobile.server.providers.models": "النماذج",
   "mobile.server.providers.modelsCount": "{shown} من {total}",
   "mobile.server.providers.modelsTitle": "نماذج {name}",

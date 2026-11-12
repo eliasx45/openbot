@@ -52,7 +52,7 @@ import {
   readStateForMessages,
   retainedAutoReadState,
 } from "./conversation-read-state";
-import type { SendMessageResult } from "./conversation-types";
+import type { ConversationMessagePins, SendMessageResult } from "./conversation-types";
 import { useDirectMessages } from "./direct-messages-context";
 import { noteAgentMessageSent } from "./github-star-prompt";
 import { noteSocialFollowMessageSent } from "./social-follow-prompt";
@@ -1102,6 +1102,23 @@ const Conversation = createSimpleContext({
       }
     }
 
+    /** The pinned messages of an agent on the active server, Pin or Unpin on one message, and their changes. */
+    const messagePins: ConversationMessagePins = {
+      list: (agentId) => conversationPort().agent.listPinnedMessages(agentId, activeServerId()),
+      set: (input) => conversationPort().agent.setMessagePinned(input, activeServerId()),
+      subscribe: (agentId, changed) => {
+        const serverId = activeServerId();
+        return conversationPort().agent.onScopedEvent((scoped) => {
+          if (
+            scoped.serverId === serverId &&
+            scoped.event.type === "message-pins-changed" &&
+            scoped.event.agentId === agentId
+          )
+            changed();
+        });
+      },
+    };
+
     /**
      * Deletes a message of an agent's chat, or of one of its side threads with `taskId`. The host
      * publishes the change, but a merge of the latest page keeps the loaded messages that the page
@@ -1242,6 +1259,7 @@ const Conversation = createSimpleContext({
       markAgentMessagesRead,
       markAgentMessagesUnread,
       deleteAgentMessage,
+      messagePins,
       markAgentChatRead,
       markAgentChatUnread,
       markAllAgentMessagesRead,

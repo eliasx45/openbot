@@ -370,6 +370,7 @@ export const messages = {
   "mobile.server.route.invite": "Пригласить людей",
   "mobile.server.route.member": "Участник",
   "mobile.server.route.timezone": "Часовой пояс",
+  "mobile.server.route.personality": "Личность агента",
   "mobile.server.settings.storage": "Хранилище",
   "mobile.server.route.storage": "Хранилище",
   "mobile.server.route.storageFiles": "Все файлы",
@@ -501,6 +502,16 @@ export const messages = {
   "mobile.server.settings.memoryLimitSaveFailed": "Не удалось сохранить лимит воспоминаний. Повторите попытку.",
   "mobile.server.settings.memoryLimitUnsupported":
     "Обновите OpenBot на этом сервере, чтобы изменить здесь его лимит воспоминаний.",
+  "mobile.server.settings.responseStyleDescription":
+    "Естественный: агенты присылают короткие обновления во время работы, и чат их показывает. Классический: агенты отвечают один раз, когда закончат.",
+  "mobile.server.settings.responseStyleNatural": "Естественный",
+  "mobile.server.settings.responseStyleClassic": "Классический",
+  "mobile.server.settings.personalityLoadFailed": "Не удалось загрузить характер сервера.",
+  "mobile.server.settings.personalitySaveFailed": "Не удалось сохранить стиль ответов. Повторите попытку.",
+  "mobile.server.settings.personalityUnsupported":
+    "Обновите OpenBot на этом сервере, чтобы изменить здесь его стиль ответов.",
+  "mobile.server.settings.personalityUnavailable":
+    "Подключитесь к этому серверу как владелец или администратор, чтобы изменить личность агента.",
   "mobile.server.route.browserProfiles": "Профили браузера",
   "mobile.server.browserProfiles.unavailable":
     "Управлять профилями браузера сервера в сети может только владелец или администратор.",
@@ -929,6 +940,9 @@ export const messages = {
   "mobile.server.connectors.whatsapp.ownNumber": "Личный номер",
   "mobile.server.connectors.whatsapp.ownNumberDescription":
     "Писать могут только вы в чате «Сообщение себе» и люди, которым вы разрешили. Выключите, если номер только для OpenBot.",
+  "mobile.server.connectors.whatsapp.workingMessage": "Сообщение «Уже работаю…»",
+  "mobile.server.connectors.whatsapp.workingMessageDescription":
+    "OpenBot отправляет его, пока агент работает, а затем заменяет ответом. Выключите, чтобы отправлять только ответ.",
   "mobile.server.connectors.whatsapp.orchestratorTitle": "Оркестратор WhatsApp",
   "mobile.server.connectors.whatsapp.orchestratorDescription":
     "Этот агент получает сообщения для OpenBot со всех ваших привязанных номеров. Короткие он обрабатывает сам, остальную работу передаёт нужному агенту и отвечает в WhatsApp.",
@@ -1114,6 +1128,17 @@ export const messages = {
   "mobile.server.providers.status.ready": "Установлено",
   "mobile.server.providers.status.notInstalled": "Не установлено",
   "mobile.server.providers.status.checking": "Проверка",
+  "mobile.server.providers.pool": "Объединить аккаунты",
+  "mobile.server.providers.poolHint":
+    "Агенты используют один аккаунт, пока он не приблизится к лимиту, а затем аккаунт, чей лимит сбросится раньше всех.",
+  "mobile.server.providers.accountsPooledHint":
+    "Агенты используют эти аккаунты вместе. Новый аккаунт входит на своей странице на этом телефоне.",
+  "mobile.server.providers.accountsPooledOnComputer":
+    "Агенты используют эти аккаунты вместе. Добавьте аккаунт в OpenBot на компьютере.",
+  "mobile.server.providers.inUse": "Используется",
+  "mobile.server.providers.notInPool": "Вне пула",
+  "mobile.server.providers.leaveOutOfPool": "Исключить из пула",
+  "mobile.server.providers.putBackInPool": "Вернуть в пул",
   "mobile.server.providers.models": "Модели",
   "mobile.server.providers.modelsCount": "{shown} из {total}",
   "mobile.server.providers.modelsTitle": "Модели {name}",

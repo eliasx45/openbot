@@ -322,6 +322,7 @@ export const messages = {
   "mobile.server.route.invite": "Mensen uitnodigen",
   "mobile.server.route.member": "Lid",
   "mobile.server.route.timezone": "Tijdzone",
+  "mobile.server.route.personality": "Agentpersoonlijkheid",
   "mobile.server.settings.storage": "Opslag",
   "mobile.server.route.storage": "Opslag",
   "mobile.server.route.storageFiles": "Alle bestanden",
@@ -445,6 +446,16 @@ export const messages = {
   "mobile.server.settings.memoryLimitSaveFailed": "Kan de geheugenlimiet niet opslaan. Probeer het opnieuw.",
   "mobile.server.settings.memoryLimitUnsupported":
     "Werk OpenBot bij op deze server om de geheugenlimiet hier te wijzigen.",
+  "mobile.server.settings.responseStyleDescription":
+    "Natuurlijk: agents sturen korte updates terwijl ze werken, en de chat toont ze. Klassiek: agents antwoorden één keer, als ze klaar zijn.",
+  "mobile.server.settings.responseStyleNatural": "Natuurlijk",
+  "mobile.server.settings.responseStyleClassic": "Klassiek",
+  "mobile.server.settings.personalityLoadFailed": "Kan de persoonlijkheid van de server niet laden.",
+  "mobile.server.settings.personalitySaveFailed": "Kan de antwoordstijl niet opslaan. Probeer het opnieuw.",
+  "mobile.server.settings.personalityUnsupported":
+    "Werk OpenBot bij op deze server om de antwoordstijl hier te wijzigen.",
+  "mobile.server.settings.personalityUnavailable":
+    "Maak verbinding met deze server als eigenaar of beheerder om de agentpersoonlijkheid te wijzigen.",
   "mobile.server.route.browserProfiles": "Browserprofielen",
   "mobile.server.browserProfiles.unavailable":
     "Alleen een eigenaar of beheerder van een online server kan de browserprofielen beheren.",
@@ -807,6 +818,9 @@ export const messages = {
   "mobile.server.connectors.whatsapp.ownNumber": "Persoonlijk nummer",
   "mobile.server.connectors.whatsapp.ownNumberDescription":
     "Alleen je chat “Bericht aan jezelf” en de mensen die je toestaat kunnen schrijven. Zet dit uit voor een nummer alleen voor OpenBot.",
+  "mobile.server.connectors.whatsapp.workingMessage": "Bericht “Mee bezig…”",
+  "mobile.server.connectors.whatsapp.workingMessageDescription":
+    "OpenBot stuurt het terwijl de agent werkt en vervangt het daarna door het antwoord. Zet dit uit om alleen het antwoord te sturen.",
   "mobile.server.connectors.whatsapp.orchestratorTitle": "WhatsApp Orchestrator",
   "mobile.server.connectors.whatsapp.orchestratorDescription":
     "Deze agent ontvangt de berichten voor OpenBot van al je gekoppelde nummers. Korte berichten beantwoordt hij zelf, ander werk geeft hij aan de juiste agent, en hij antwoordt in WhatsApp.",
@@ -985,6 +999,17 @@ export const messages = {
   "mobile.server.providers.status.ready": "Geïnstalleerd",
   "mobile.server.providers.status.notInstalled": "Niet geïnstalleerd",
   "mobile.server.providers.status.checking": "Controleren",
+  "mobile.server.providers.pool": "Accounts bundelen",
+  "mobile.server.providers.poolHint":
+    "Agents gebruiken één account tot het een gebruikslimiet nadert, en dan het account waarvan de limiet het eerst reset.",
+  "mobile.server.providers.accountsPooledHint":
+    "Agents delen deze accounts. Een nieuw account meldt zich aan op zijn pagina op deze telefoon.",
+  "mobile.server.providers.accountsPooledOnComputer":
+    "Agents delen deze accounts. Voeg een account toe in OpenBot op een computer.",
+  "mobile.server.providers.inUse": "In gebruik",
+  "mobile.server.providers.notInPool": "Niet in pool",
+  "mobile.server.providers.leaveOutOfPool": "Uit pool halen",
+  "mobile.server.providers.putBackInPool": "Terug in pool",
   "mobile.server.providers.models": "Modellen",
   "mobile.server.providers.modelsCount": "{shown} van {total}",
   "mobile.server.providers.modelsTitle": "Modellen van {name}",

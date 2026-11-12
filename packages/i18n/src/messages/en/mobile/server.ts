@@ -425,6 +425,7 @@ export const messages = defineMessages("mobile.server", {
   "mobile.server.route.invite": "Invite people",
   "mobile.server.route.member": "Member",
   "mobile.server.route.timezone": "Timezone",
+  "mobile.server.route.personality": "Agent personality",
   "mobile.server.settings.storage": "Storage",
   "mobile.server.route.storage": "Storage",
   "mobile.server.route.storageFiles": "All files",
@@ -545,6 +546,15 @@ export const messages = defineMessages("mobile.server", {
   "mobile.server.settings.memoryLimitLoadFailed": "Could not load the memory limit of this server.",
   "mobile.server.settings.memoryLimitSaveFailed": "Could not save the memory limit. Try again.",
   "mobile.server.settings.memoryLimitUnsupported": "Update OpenBot on this server to change its memory limit here.",
+  "mobile.server.settings.responseStyleDescription":
+    "Natural: agents send short updates while they work, and the chat shows them. Classic: agents answer once, when they are done.",
+  "mobile.server.settings.responseStyleNatural": "Natural",
+  "mobile.server.settings.responseStyleClassic": "Classic",
+  "mobile.server.settings.personalityLoadFailed": "Could not load the server personality.",
+  "mobile.server.settings.personalitySaveFailed": "Could not save the response style. Try again.",
+  "mobile.server.settings.personalityUnsupported": "Update OpenBot on this server to change its response style here.",
+  "mobile.server.settings.personalityUnavailable":
+    "Connect to this server as an owner or admin to change its agent personality.",
   // Server settings › Vault: the logins, cards and contact info of a joined server, for an owner or
   // admin. {host} is the server name, such as Studio. The phone never shows a saved secret.
   "mobile.server.route.browserProfiles": "Browser profiles",
@@ -1061,6 +1071,9 @@ export const messages = defineMessages("mobile.server", {
   "mobile.server.connectors.whatsapp.ownNumber": "Personal number",
   "mobile.server.connectors.whatsapp.ownNumberDescription":
     "Only your “Message yourself” chat and the people you allow can write. Turn off for a number only for OpenBot.",
+  "mobile.server.connectors.whatsapp.workingMessage": "“Working on it…” message",
+  "mobile.server.connectors.whatsapp.workingMessageDescription":
+    "OpenBot posts it while the agent works, then replaces it with the answer. Turn off to post only the answer.",
   "mobile.server.connectors.whatsapp.orchestratorTitle": "WhatsApp Orchestrator",
   "mobile.server.connectors.whatsapp.orchestratorDescription":
     "This agent receives the messages for OpenBot from all your linked numbers. It answers short ones itself, gives other work to the right agent, and answers in WhatsApp.",
@@ -1252,6 +1265,18 @@ export const messages = defineMessages("mobile.server", {
   "mobile.server.providers.removeAccount": "Remove account",
   "mobile.server.providers.removeAccountTitle": "Remove {name}?",
   "mobile.server.providers.removeAccountBody": "The server removes this account and its sign-in.",
+  // The pool of a provider's accounts (`provider-account-pool-v1`), as the desktop Accounts section.
+  "mobile.server.providers.pool": "Pool accounts",
+  "mobile.server.providers.poolHint":
+    "Agents use one account until it nears a usage limit, then the account whose limit resets first.",
+  "mobile.server.providers.accountsPooledHint":
+    "Agents share these accounts. A new account signs in on its page on this phone.",
+  "mobile.server.providers.accountsPooledOnComputer":
+    "Agents share these accounts. Add an account in OpenBot on a computer.",
+  "mobile.server.providers.inUse": "In use",
+  "mobile.server.providers.notInPool": "Not in pool",
+  "mobile.server.providers.leaveOutOfPool": "Leave out of pool",
+  "mobile.server.providers.putBackInPool": "Put back in pool",
   "mobile.server.providers.models": "Models",
   "mobile.server.providers.modelsCount": "{shown} of {total}",
   "mobile.server.providers.modelsTitle": "{name} models",

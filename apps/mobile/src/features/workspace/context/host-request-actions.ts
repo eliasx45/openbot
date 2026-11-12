@@ -26,12 +26,14 @@ import {
   isQueueSnapshot,
   isRoutine,
   isRoutineRun,
+  LEGACY_RESPONSE_STYLE,
   MCP_SERVERS_CAPABILITY,
   type RoutineCalendarOwner,
   type SetAgentHiddenInput,
   STORAGE_CAPABILITY,
   type TeamRole,
   withFastServiceTiers,
+  withWhatsAppWorkingMessages,
 } from "@openbot/contracts/ipc";
 import { isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
 import { TEAM_API_ROUTES } from "@openbot/contracts/team-api-routes";
@@ -117,6 +119,7 @@ import {
 } from "@openbot/contracts/team-protocol/current";
 import { EVENTS_CAPABILITY } from "@openbot/contracts/team-protocol/events-v1";
 import { HOST_MEMBER_UPDATE_CAPABILITY } from "@openbot/contracts/team-protocol/host-member-update-v1";
+import { HOST_PERSONALITY_CAPABILITY } from "@openbot/contracts/team-protocol/host-personality-v1";
 import { HOST_RELEASE_CAPABILITY } from "@openbot/contracts/team-protocol/host-release-v1";
 import { HOST_TIMEZONE_CAPABILITY } from "@openbot/contracts/team-protocol/host-timezone-v1";
 import { HOST_UPDATE_CAPABILITY } from "@openbot/contracts/team-protocol/host-update-v1";
@@ -132,6 +135,7 @@ import { MESSAGE_DELETE_CAPABILITY, MESSAGE_DELETE_ROUTES } from "@openbot/contr
 import { ONEPASSWORD_CONNECTOR_CAPABILITY } from "@openbot/contracts/team-protocol/onepassword-connector-v1";
 import { PASSWORD_MANAGERS_CAPABILITY } from "@openbot/contracts/team-protocol/password-managers-v1";
 import { PROVIDER_ACCOUNT_MODELS_CAPABILITY } from "@openbot/contracts/team-protocol/provider-account-models-v1";
+import { PROVIDER_ACCOUNT_POOL_CAPABILITY } from "@openbot/contracts/team-protocol/provider-account-pool-v1";
 import { PROVIDER_ACCOUNTS_CAPABILITY } from "@openbot/contracts/team-protocol/provider-accounts-v1";
 import { PROVIDERS_ADMIN_CAPABILITY } from "@openbot/contracts/team-protocol/providers-v1";
 import { TEAM_QUEUE_EDIT_CAPABILITY } from "@openbot/contracts/team-protocol/queue-edit-v1";
@@ -148,6 +152,7 @@ import { VAULT_IMPORT_CAPABILITY } from "@openbot/contracts/team-protocol/vault-
 import { VAULT_CAPABILITY } from "@openbot/contracts/team-protocol/vault-v1";
 import { VAULT_V2_CAPABILITY } from "@openbot/contracts/team-protocol/vault-v2";
 import { WHATSAPP_CONNECTOR_CAPABILITY } from "@openbot/contracts/team-protocol/whatsapp-connector-v1";
+import { WHATSAPP_WORKING_MESSAGE_CAPABILITY } from "@openbot/contracts/team-protocol/whatsapp-working-message-v1";
 import { WORKFLOWS_CHATS_CAPABILITY } from "@openbot/contracts/team-protocol/workflows-chats-v1";
 import { WORKFLOWS_GITHUB_CAPABILITY } from "@openbot/contracts/team-protocol/workflows-github-v1";
 import { WORKFLOWS_CAPABILITY } from "@openbot/contracts/team-protocol/workflows-v1";
@@ -155,7 +160,7 @@ import type { MobileTextKey } from "@openbot/i18n/mobile";
 import { sourceText } from "@openbot/i18n/source";
 import { readHostAnalytics } from "@openbot/team-client";
 import { readPlanLimits } from "@openbot/team-client/plan-limits";
-import type { RemoteFileUpload } from "@openbot/team-client/remote-peer";
+import type { RemoteFileUpload, RemoteLargeDownload } from "@openbot/team-client/remote-peer";
 import { buildRoutineCalendar, type RoutineCalendarSource } from "@openbot/team-client/routine-calendar";
 import {
   addAgentFolder,
@@ -180,6 +185,7 @@ import {
   getHostAgentBrowserProfile,
   getHostAgentMemoryLimit,
   getHostAuditLog,
+  getHostPersonality,
   getHostReleaseStatus,
   getHostTimezone,
   getHostUpdateStatus,
@@ -235,6 +241,7 @@ import {
   setHostAgentAccess,
   setHostAgentMemoryLimit,
   setHostBrowserProfileProxy,
+  setHostPersonality,
   setHostTimezone,
   setHostUpdateSettings,
   setMcpServerEnabled,
@@ -262,7 +269,9 @@ import {
   whatsappConnectorRemoveSender,
   whatsappConnectorSetEnabled,
   whatsappConnectorSetOwnNumber,
+  whatsappConnectorSetWorkingMessage,
   whatsappConnectorStartLink,
+  whatsappConnectorWorkingMessages,
 } from "@openbot/team-client/team-admin-requests";
 import {
   type AgentMemoriesRequest,
@@ -326,6 +335,7 @@ export type WorkspaceRequest = <T>(
   serverId?: string | null,
   upload?: RemoteFileUpload,
   onUploadProgress?: (fraction: number) => void,
+  largeDownload?: RemoteLargeDownload,
 ) => Promise<T>;
 
 /** The capability checks that only read what a host advertised. */
@@ -413,6 +423,8 @@ type HostRequestActions = Pick<
   | "setServerTimezone"
   | "loadAgentMemoryLimit"
   | "setAgentMemoryLimit"
+  | "loadServerPersonality"
+  | "setServerPersonality"
   | "loadServerRoles"
   | "setServerRoles"
   | "loadServerAuditLog"
@@ -475,6 +487,7 @@ type HostRequestActions = Pick<
   | "removeWhatsAppSender"
   | "answerWhatsAppRequest"
   | "setWhatsAppOwnNumber"
+  | "setWhatsAppWorkingMessage"
   | "loadServerUpdate"
   | "checkServerUpdate"
   | "startServerUpdate"
@@ -585,6 +598,7 @@ export function createHostRequestActions({
   queryScope,
   capabilities,
   attachmentDownloads,
+  largeAttachmentDownloads,
 }: {
   request: WorkspaceRequest;
   teamApi: (serverId: string, onUploadProgress?: (fraction: number) => void) => TeamApiRequest;
@@ -593,6 +607,8 @@ export function createHostRequestActions({
   queryScope: QueryScope;
   capabilities: ServerCapabilities;
   attachmentDownloads: { current: Promise<void> };
+  /** The lane of the files above the attachment limit, one at a time. */
+  largeAttachmentDownloads: { current: Promise<void> };
 }): { checks: HostRequestChecks; actions: HostRequestActions } {
   const has = (serverId: string, capability: string) => hasCapability(capabilities, serverId, capability);
   /** The Team API of a server that serves `capability`, for an optional admin route set. */
@@ -647,6 +663,9 @@ export function createHostRequestActions({
     capabilityApi(serverId, HOST_TIMEZONE_CAPABILITY, "mobile.server.settings.timezoneUnsupported");
   const memoryLimitAdmin = (serverId: string) =>
     capabilityApi(serverId, AGENT_MEMORY_LIMIT_CAPABILITY, "mobile.server.settings.memoryLimitUnsupported");
+  /** Any member reads the personality; the host lets only an owner or admin set it. */
+  const personalityApi = (serverId: string) =>
+    capabilityApi(serverId, HOST_PERSONALITY_CAPABILITY, "mobile.server.settings.personalityUnsupported");
   /** The roles that set the agents of each member are an optional admin route set. */
   const rolesAdmin = (serverId: string) =>
     capabilityApi(serverId, AGENT_ACCESS_CAPABILITY, "mobile.server.roles.unsupported");
@@ -750,6 +769,13 @@ export function createHostRequestActions({
     loadAgentMemoryLimit: async (serverId) => runTeamRequest(getHostAgentMemoryLimit(memoryLimitAdmin(serverId))),
     setAgentMemoryLimit: async (limit, serverId) =>
       runTeamRequest(setHostAgentMemoryLimit(memoryLimitAdmin(serverId), limit)),
+    // A host before host-personality-v1 uses the classic prompt, as the desktop and the web client read it.
+    loadServerPersonality: async (serverId) =>
+      has(serverId, HOST_PERSONALITY_CAPABILITY)
+        ? runTeamRequest(getHostPersonality(personalityApi(serverId)))
+        : { responseStyle: LEGACY_RESPONSE_STYLE },
+    setServerPersonality: async (personality, serverId) =>
+      runTeamRequest(setHostPersonality(personalityApi(serverId), personality)),
     loadServerRoles: async (serverId) => runTeamRequest(getHostAgentAccess(rolesAdmin(serverId))),
     setServerRoles: async (change, serverId) => runTeamRequest(setHostAgentAccess(rolesAdmin(serverId), change)),
     loadServerAuditLog: async (serverId) => runTeamRequest(getHostAuditLog(auditAdmin(serverId))),
@@ -855,7 +881,19 @@ export function createHostRequestActions({
       runTeamRequest(messagingConnectorSetEnabled(connectorsAdmin(serverId), input)),
     addMessagingOrchestrator: async (input, serverId) =>
       runTeamRequest(messagingConnectorAddOrchestrator(connectorsAdmin(serverId), input)),
-    loadWhatsAppConnector: async (serverId) => runTeamRequest(whatsappConnectorOverview(whatsappAdmin(serverId))),
+    // `whatsapp-connector-v1` is frozen without the "Working on it…" setting: a second request reads
+    // it. The numbers of an older host carry no setting, and the page then shows no switch.
+    loadWhatsAppConnector: async (serverId) => {
+      const overview = whatsappConnectorOverview(whatsappAdmin(serverId));
+      if (!has(serverId, WHATSAPP_WORKING_MESSAGE_CAPABILITY)) return runTeamRequest(overview);
+      return runTeamRequest(
+        Effect.zipWith(
+          overview,
+          whatsappConnectorWorkingMessages(whatsappAdmin(serverId)),
+          withWhatsAppWorkingMessages,
+        ),
+      );
+    },
     startWhatsAppLink: async (input, serverId) =>
       runTeamRequest(whatsappConnectorStartLink(whatsappAdmin(serverId), input)),
     loadWhatsAppLinkState: async (serverId) => runTeamRequest(whatsappConnectorLinkState(whatsappAdmin(serverId))),
@@ -878,6 +916,13 @@ export function createHostRequestActions({
       runTeamRequest(whatsappConnectorAnswerRequest(whatsappAdmin(serverId), input)),
     setWhatsAppOwnNumber: async (input, serverId) =>
       runTeamRequest(whatsappConnectorSetOwnNumber(whatsappAdmin(serverId), input)),
+    setWhatsAppWorkingMessage: async (input, serverId) =>
+      runTeamRequest(
+        whatsappConnectorSetWorkingMessage(
+          capabilityApi(serverId, WHATSAPP_WORKING_MESSAGE_CAPABILITY, "mobile.server.connectors.unsupported"),
+          input,
+        ),
+      ),
     loadServerUpdate: async (serverId, access) =>
       runTeamRequest(getHostUpdateStatus(updateApi(serverId, access), access === "member")),
     checkServerUpdate: async (serverId, access) =>
@@ -1265,7 +1310,11 @@ export function createHostRequestActions({
     loadProviderAccounts: async (serverId) =>
       has(serverId, PROVIDER_ACCOUNTS_CAPABILITY)
         ? runTeamRequest(
-            listProviderAccountsWithModels(teamApi(serverId), has(serverId, PROVIDER_ACCOUNT_MODELS_CAPABILITY)),
+            listProviderAccountsWithModels(
+              teamApi(serverId),
+              has(serverId, PROVIDER_ACCOUNT_MODELS_CAPABILITY),
+              has(serverId, PROVIDER_ACCOUNT_POOL_CAPABILITY),
+            ),
           )
         : null,
     loadPlanLimits: (serverId, accounts) => runTeamRequest(readPlanLimits(teamApi(serverId), accounts)),
@@ -1402,12 +1451,24 @@ export function createHostRequestActions({
         await request("POST", MESSAGE_DELETE_ROUTES.agent, ignoreResponse, body, serverId);
       }
     },
-    downloadAttachment: (serverId, attachmentId) => {
+    downloadAttachment: (serverId, attachmentId, largeDownload) => {
       const download = () =>
-        request("GET", TEAM_API_ROUTES.attachment(attachmentId), decodeHostFile, undefined, serverId);
-      // Limit native/DOM copies when a message contains several large images.
-      const result = attachmentDownloads.current.then(download);
-      attachmentDownloads.current = result.then(
+        request(
+          "GET",
+          TEAM_API_ROUTES.attachment(attachmentId),
+          decodeHostFile,
+          undefined,
+          serverId,
+          undefined,
+          undefined,
+          largeDownload,
+        );
+      // Limit native/DOM copies when a message contains several large images. A file above the
+      // attachment limit has its own lane: the images of the chat do not wait behind it, and two
+      // such files never download at the same time.
+      const lane = largeDownload ? largeAttachmentDownloads : attachmentDownloads;
+      const result = lane.current.then(download);
+      lane.current = result.then(
         () => {},
         () => {},
       );

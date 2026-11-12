@@ -1822,19 +1822,23 @@ export class MailboxStore {
   }
 
   /**
-   * A queued message from another agent that can steer its recipient's running chat turn. Channel,
-   * messaging and task work runs outside that turn. The answers to a request that went to several
-   * teammates start together in one turn (`#isHeldReply`), so none of them goes into it alone.
+   * What a queued message from another agent does when its recipient runs a chat turn: it `joins`
+   * that turn, or it waits for its `own-turn`. A request asks for work and a result, so it gets its
+   * own turn: in a running turn, its result and the answer to the person would be one message. An
+   * answer, a requested result or a notice only gives information, so it can join. Null for channel,
+   * messaging and task work, which runs outside that turn, and for the answers to a request that went
+   * to several teammates: they start together in one turn (`#isHeldReply`), so none goes in alone.
    */
-  steersChatTurn(deliveryId: string): boolean {
+  chatTurnSteer(deliveryId: string): "joins" | "own-turn" | null {
     const delivery = this.#state.deliveries.find((candidate) => candidate.id === deliveryId);
-    if (delivery?.status !== "queued") return false;
+    if (delivery?.status !== "queued") return null;
     const message = this.#requireMessage(delivery.messageId);
-    if (message.channelId || message.messaging || message.taskId) return false;
-    return (
-      !isAnswer(message) ||
+    if (message.channelId || message.messaging || message.taskId) return null;
+    if (message.expectsReply !== false) return "own-turn";
+    return !isAnswer(message) ||
       this.#state.deliveries.filter((candidate) => candidate.messageId === message.replyToMessageId).length < 2
-    );
+      ? "joins"
+      : null;
   }
 
   queuedDeliveryIds(agentId: string): string[] {
@@ -1903,6 +1907,46 @@ export class MailboxStore {
         (delivery.status === "starting" || delivery.status === "running") &&
         this.#state.messages.some((message) => message.id === delivery.messageId && message.messagingReturn),
     );
+  }
+
+  /**
+   * Whether a turn of the agent works for an external conversation: on a message from it, on a
+   * request that an agent sent from it, or on a request from a turn that works for it. A steered
+   * request counts: its answer can go back there too.
+   */
+  turnServesExternalChat(agentId: string, turnId: string): boolean {
+    const sourceTurnIds = this.#sourceTurnIds();
+    const messages = this.#messagesById();
+    const seen = new Set<string>();
+    const serves = (agent: string, turn: string, activeOnly: boolean): boolean => {
+      const key = `${agent}:${turn}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return this.#state.deliveries.some((delivery) => {
+        if (delivery.recipientAgentId !== agent) return false;
+        if (activeOnly) {
+          if (delivery.turnId !== turn || (delivery.status !== "starting" && delivery.status !== "running"))
+            return false;
+          // A delivery that ran again has a new turn id. Its earlier turns can have sent the request.
+        } else if (
+          delivery.turnId !== turn &&
+          delivery.resumeAfterUsageLimit?.previousTurnIds.includes(turn) !== true &&
+          delivery.planContinuation?.turnIds.includes(turn) !== true
+        )
+          return false;
+        const message = messages.get(delivery.messageId);
+        if (!message) return false;
+        if (message.messaging || message.messagingReturn) return true;
+        // The turn that sent this request can be complete, so its deliveries count in any status.
+        const sourceTurn = sourceTurnIds.get(message.id);
+        return (
+          message.sender.kind === "agent" &&
+          sourceTurn !== undefined &&
+          serves(message.sender.agentId, sourceTurn, false)
+        );
+      });
+    };
+    return serves(agentId, turnId, true);
   }
 
   findDeliveriesByTurn(agentId: string, turnId: string): DeliveryContext[] {
@@ -2868,12 +2912,18 @@ export class MailboxStore {
   /**
    * As {@link hasUnfinishedDelivery}, without the work of the agent's tasks, which run in their own
    * threads. Channel work counts only with `includeChannels`: on a provider that runs one turn at a
-   * time, a channel turn holds the agent's own chat too.
+   * time, a channel turn holds the agent's own chat too. The `exceptQueued` deliveries do not count
+   * while they are queued.
    */
-  hasUnfinishedDeliveryOutsideTasks(agentId: string, includeChannels: boolean): boolean {
+  hasUnfinishedDeliveryOutsideTasks(
+    agentId: string,
+    includeChannels: boolean,
+    exceptQueued: readonly string[] = [],
+  ): boolean {
     const messages = this.#messagesById();
     return this.#state.deliveries.some((delivery) => {
       if (delivery.recipientAgentId !== agentId || !isActiveDelivery(delivery)) return false;
+      if (delivery.status === "queued" && exceptQueued.includes(delivery.id)) return false;
       const lane = this.#laneOf(delivery, messages);
       return lane === null || (includeChannels && laneChannelId(lane) !== null);
     });
@@ -3156,6 +3206,15 @@ export class MailboxStore {
       return yield* new StoredStateFailure({ cause });
     }
   }, Effect.uninterruptible).bind(this);
+
+  /** The content digest of a staged or saved generated attachment, or null for any other file. */
+  generatedAttachmentSha256(attachmentId: string): string | null {
+    return (
+      this.#stagedGeneratedAttachments.get(attachmentId)?.sha256 ??
+      this.#state.generatedAttachments.find((candidate) => candidate.id === attachmentId)?.sha256 ??
+      null
+    );
+  }
 
   storeGeneratedAttachment = Effect.fn("MailboxStore.storeGeneratedAttachment")(function* (
     this: MailboxStore,

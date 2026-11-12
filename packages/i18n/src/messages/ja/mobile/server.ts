@@ -319,6 +319,7 @@ export const messages = {
   "mobile.server.route.invite": "ユーザーを招待",
   "mobile.server.route.member": "メンバー",
   "mobile.server.route.timezone": "タイムゾーン",
+  "mobile.server.route.personality": "エージェントの性格",
   "mobile.server.settings.storage": "ストレージ",
   "mobile.server.route.storage": "ストレージ",
   "mobile.server.route.storageFiles": "すべてのファイル",
@@ -442,6 +443,16 @@ export const messages = {
   "mobile.server.settings.memoryLimitSaveFailed": "メモリー数の上限を保存できませんでした。もう一度お試しください。",
   "mobile.server.settings.memoryLimitUnsupported":
     "ここでメモリー数の上限を変更するには、このサーバーの OpenBot を更新してください。",
+  "mobile.server.settings.responseStyleDescription":
+    "ナチュラル: エージェントは作業中に短い進捗を送り、チャットに表示されます。クラシック: エージェントは完了時に一度だけ答えます。",
+  "mobile.server.settings.responseStyleNatural": "ナチュラル",
+  "mobile.server.settings.responseStyleClassic": "クラシック",
+  "mobile.server.settings.personalityLoadFailed": "サーバーのパーソナリティを読み込めませんでした。",
+  "mobile.server.settings.personalitySaveFailed": "応答スタイルを保存できませんでした。もう一度お試しください。",
+  "mobile.server.settings.personalityUnsupported":
+    "ここで応答スタイルを変更するには、このサーバーの OpenBot を更新してください。",
+  "mobile.server.settings.personalityUnavailable":
+    "エージェントの性格を変更するには、オーナーまたは管理者としてこのサーバーに接続してください。",
   "mobile.server.route.browserProfiles": "ブラウザープロファイル",
   "mobile.server.browserProfiles.unavailable":
     "オンラインのサーバーのオーナーまたは管理者だけが、そのブラウザープロファイルを管理できます。",
@@ -807,6 +818,9 @@ export const messages = {
   "mobile.server.connectors.whatsapp.ownNumber": "個人の番号",
   "mobile.server.connectors.whatsapp.ownNumberDescription":
     "あなたの「自分にメッセージ」チャットと、許可した人だけが書き込めます。OpenBot 専用の番号ではオフにしてください。",
+  "mobile.server.connectors.whatsapp.workingMessage": "「対応しています…」メッセージ",
+  "mobile.server.connectors.whatsapp.workingMessageDescription":
+    "エージェントの作業中に OpenBot が送信し、その後、回答に置き換えます。回答だけを送信するにはオフにしてください。",
   "mobile.server.connectors.whatsapp.orchestratorTitle": "WhatsApp Orchestrator",
   "mobile.server.connectors.whatsapp.orchestratorDescription":
     "このエージェントは、リンクしたすべての番号から OpenBot 宛てのメッセージを受け取ります。短いものには自分で回答し、その他の作業は適切なエージェントに任せて、WhatsApp で回答します。",
@@ -989,6 +1003,17 @@ export const messages = {
   "mobile.server.providers.status.ready": "インストール済み",
   "mobile.server.providers.status.notInstalled": "未インストール",
   "mobile.server.providers.status.checking": "確認中",
+  "mobile.server.providers.pool": "アカウントをプール",
+  "mobile.server.providers.poolHint":
+    "エージェントは使用量の上限に近づくまで 1 つのアカウントを使い、その後は上限が最初にリセットされるアカウントを使います。",
+  "mobile.server.providers.accountsPooledHint":
+    "エージェントはこれらのアカウントを共有します。新しいアカウントは、このスマートフォンでそのページからサインインします。",
+  "mobile.server.providers.accountsPooledOnComputer":
+    "エージェントはこれらのアカウントを共有します。アカウントはコンピュータの OpenBot で追加してください。",
+  "mobile.server.providers.inUse": "使用中",
+  "mobile.server.providers.notInPool": "プール外",
+  "mobile.server.providers.leaveOutOfPool": "プールから外す",
+  "mobile.server.providers.putBackInPool": "プールに戻す",
   "mobile.server.providers.models": "モデル",
   "mobile.server.providers.modelsCount": "{shown} / {total}",
   "mobile.server.providers.modelsTitle": "{name} のモデル",

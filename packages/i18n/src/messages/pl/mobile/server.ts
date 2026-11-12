@@ -369,6 +369,7 @@ export const messages = {
   "mobile.server.route.invite": "Zaproś osoby",
   "mobile.server.route.member": "Członek",
   "mobile.server.route.timezone": "Strefa czasowa",
+  "mobile.server.route.personality": "Osobowość agenta",
   "mobile.server.settings.storage": "Pamięć dyskowa",
   "mobile.server.route.storage": "Pamięć dyskowa",
   "mobile.server.route.storageFiles": "Wszystkie pliki",
@@ -501,6 +502,16 @@ export const messages = {
   "mobile.server.settings.memoryLimitSaveFailed": "Nie udało się zapisać limitu wspomnień. Spróbuj ponownie.",
   "mobile.server.settings.memoryLimitUnsupported":
     "Zaktualizuj OpenBot na tym serwerze, aby zmienić tu jego limit wspomnień.",
+  "mobile.server.settings.responseStyleDescription":
+    "Naturalny: agenci wysyłają krótkie aktualizacje podczas pracy, a czat je pokazuje. Klasyczny: agenci odpowiadają raz, gdy skończą.",
+  "mobile.server.settings.responseStyleNatural": "Naturalny",
+  "mobile.server.settings.responseStyleClassic": "Klasyczny",
+  "mobile.server.settings.personalityLoadFailed": "Nie udało się wczytać osobowości serwera.",
+  "mobile.server.settings.personalitySaveFailed": "Nie udało się zapisać stylu odpowiedzi. Spróbuj ponownie.",
+  "mobile.server.settings.personalityUnsupported":
+    "Zaktualizuj OpenBot na tym serwerze, aby zmienić tu jego styl odpowiedzi.",
+  "mobile.server.settings.personalityUnavailable":
+    "Połącz się z tym serwerem jako właściciel lub administrator, aby zmienić osobowość agenta.",
   "mobile.server.route.browserProfiles": "Profile przeglądarki",
   "mobile.server.browserProfiles.unavailable":
     "Tylko właściciel lub administrator serwera online może zarządzać jego profilami przeglądarki.",
@@ -935,6 +946,9 @@ export const messages = {
   "mobile.server.connectors.whatsapp.ownNumber": "Numer prywatny",
   "mobile.server.connectors.whatsapp.ownNumberDescription":
     "Pisać mogą tylko twój czat „Wiadomość do siebie” i osoby, którym pozwolisz. Wyłącz dla numeru tylko dla OpenBot.",
+  "mobile.server.connectors.whatsapp.workingMessage": "Wiadomość „Pracuję nad tym…”",
+  "mobile.server.connectors.whatsapp.workingMessageDescription":
+    "OpenBot wysyła ją, gdy agent pracuje, a potem zastępuje odpowiedzią. Wyłącz, aby wysyłać tylko odpowiedź.",
   "mobile.server.connectors.whatsapp.orchestratorTitle": "WhatsApp Orchestrator",
   "mobile.server.connectors.whatsapp.orchestratorDescription":
     "Ten agent odbiera wiadomości do OpenBot ze wszystkich twoich połączonych numerów. Na krótkie odpowiada sam, inną pracę przekazuje odpowiedniemu agentowi i odpowiada w WhatsApp.",
@@ -1117,6 +1131,17 @@ export const messages = {
   "mobile.server.providers.status.ready": "Zainstalowano",
   "mobile.server.providers.status.notInstalled": "Nie zainstalowano",
   "mobile.server.providers.status.checking": "Sprawdzanie",
+  "mobile.server.providers.pool": "Łącz konta w pulę",
+  "mobile.server.providers.poolHint":
+    "Agenci używają jednego konta, aż zbliży się do limitu użycia, a potem konta, którego limit odnowi się najwcześniej.",
+  "mobile.server.providers.accountsPooledHint":
+    "Agenci współdzielą te konta. Nowe konto loguje się na swojej stronie na tym telefonie.",
+  "mobile.server.providers.accountsPooledOnComputer":
+    "Agenci współdzielą te konta. Dodaj konto w OpenBot na komputerze.",
+  "mobile.server.providers.inUse": "W użyciu",
+  "mobile.server.providers.notInPool": "Poza pulą",
+  "mobile.server.providers.leaveOutOfPool": "Wyłącz z puli",
+  "mobile.server.providers.putBackInPool": "Przywróć do puli",
   "mobile.server.providers.models": "Modele",
   "mobile.server.providers.modelsCount": "{shown} z {total}",
   "mobile.server.providers.modelsTitle": "Modele: {name}",

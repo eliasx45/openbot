@@ -17,6 +17,13 @@ git merge upstream/main
 
 Before committing the merge: `grep -n 'forkUpdatesAllowed &&' src/main/application-services.ts` must still find the updater gate (upstream's AGENTS.md allows no unit tests, so there is no test for it), then click the launcher.
 
+### Upstream merge 12 Nov 2026 (v0.68.0+, 130 commits, #7462–#8247)
+
+- 29 files conflicted; each kept upstream's change plus the fork's. The commit message lists them.
+- Fork behaviour re-applied on new upstream code: `ask_ui` keeps choice and form cards for agents (FEATURES #74, against #7623); the New menu moved into the fork's sidebar top bar (#51, against #7830); the usage button sits in the rail's new end group (#44); selection notes and the per-account sign-in button moved into the composer's new stack cards (#35, #59, against #7740); the fork's "hidden agent" checks read upstream's `paused` set (#7825: a hidden agent keeps working).
+- Upstream changes Elias sees: page rail with the server menu and one top row per page (#7830), pill message input (#7740), a message to a working agent steers it by default (#7826; ⌘↩ still queues), hidden agents keep working (#7825; at the first start the active routines of a hidden agent are turned off once; Elias had no hidden agent on 12 Nov), Claude backup model and account pools (#7556, #7698, #7841, #7891), `[SILENT]` quiet routine runs (#7561), Electron 45.3.0 (#7735), cua-driver 0.41.3 (#7833), migration 61 (pinned thread messages).
+- The fork's thread child indexes stay out of the numbered migrations (`applyForkSchema`); `thread-child-index-migration.test.ts` now expects version 61.
+
 ## Build
 
 The launcher runs upstream's `bun run package` with these differences:

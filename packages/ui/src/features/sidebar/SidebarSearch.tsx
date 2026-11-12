@@ -1,8 +1,12 @@
-/** The search field, and the compact-mode button in its place. Both open the global search. */
+/**
+ * The search field with the New menu at its end, and the compact-mode button in their place. The field
+ * and the button open the global search.
+ */
 
 import { Button } from "@openbot/ui";
 import { useText } from "../../text";
 import { SearchIcon } from "./SidebarIcons";
+import { SidebarNewMenu } from "./SidebarNewMenu";
 import { useSidebarScope } from "./sidebar-scope";
 
 export function SidebarSearch() {
@@ -23,6 +27,7 @@ export function SidebarSearch() {
         <SearchIcon />
         <span class="sidebar-search-placeholder">{t("common.search")}</span>
       </Button>
+      <SidebarNewMenu />
       <Button
         variant="ghost"
         type="button"

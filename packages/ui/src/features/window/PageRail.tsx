@@ -202,6 +202,8 @@ export interface PageRailProps {
   settingsNotice?: string | undefined;
   /** The Help menu, between Marketplace and Settings. */
   help: JSX.Element;
+  /** The menu of the open server, below Settings. Absent where the window has one server and no menu. */
+  server?: JSX.Element;
   /**
    * The OpenBot logo in the top row, for a window that has no macOS window buttons there. With
    * `href`, the logo is a link to the OpenBot site.
@@ -373,36 +375,40 @@ export function PageRail(props: PageRailProps) {
         </For>
         <RailMoreMenu pages={pages()} current={props.current} pinned={props.pinned} onPinChange={props.onPinChange} />
       </div>
-      <div class="window-rail-group">
-        <Show when={usageRows().length > 0 || (props.customAgentUsage?.length ?? 0) > 0}>
-          <UsageButton rows={usageRows()} customAgents={props.customAgentUsage ?? []} onOpen={props.onUsage} />
-        </Show>
-        <Show when={props.onMarketplace}>
-          {(onMarketplace) => (
-            <RailButton
-              label={t("app.rail.marketplace")}
-              current={props.current === "marketplace"}
-              onClick={() => onMarketplace()()}
-            >
-              <Store aria-hidden="true" />
-            </RailButton>
-          )}
-        </Show>
-        {props.help}
-        <RailButton
-          label={
-            props.settingsNotice
-              ? t("app.rail.settingsNotice", { notice: props.settingsNotice })
-              : t("app.rail.settings")
-          }
-          current={props.current === "settings"}
-          onClick={props.onSettings}
-        >
-          <Settings aria-hidden="true" />
-          <Show when={props.settingsNotice}>
-            <span class="window-rail-notice" aria-hidden="true" />
+      <div class="window-rail-end">
+        <div class="window-rail-group">
+          <Show when={usageRows().length > 0 || (props.customAgentUsage?.length ?? 0) > 0}>
+            <UsageButton rows={usageRows()} customAgents={props.customAgentUsage ?? []} onOpen={props.onUsage} />
           </Show>
-        </RailButton>
+          <Show when={props.onMarketplace}>
+            {(onMarketplace) => (
+              <RailButton
+                label={t("app.rail.marketplace")}
+                current={props.current === "marketplace"}
+                onClick={() => onMarketplace()()}
+              >
+                <Store aria-hidden="true" />
+              </RailButton>
+            )}
+          </Show>
+          {props.help}
+          <RailButton
+            label={
+              props.settingsNotice
+                ? t("app.rail.settingsNotice", { notice: props.settingsNotice })
+                : t("app.rail.settings")
+            }
+            current={props.current === "settings"}
+            onClick={props.onSettings}
+          >
+            <Settings aria-hidden="true" />
+            <Show when={props.settingsNotice}>
+              <span class="window-rail-notice" aria-hidden="true" />
+            </Show>
+          </RailButton>
+        </div>
+        {/* The slot shows no line while it is empty. */}
+        <div class="window-rail-server-slot">{props.server}</div>
       </div>
     </nav>
   );

@@ -16,6 +16,7 @@ import {
   isBillingAmount,
   isOpenBillingStatus,
   parseBillingLookupKey,
+  planStorageGb,
 } from "@openbot/contracts/billing";
 import type {
   HostedServerCatalog,
@@ -109,6 +110,8 @@ interface ServerPlanRow {
   status: string;
   current_period_end: number | null;
   cancel_at_period_end: number;
+  /** 1 for a hosted server on a machine of the operator. */
+  on_operator_host: number;
 }
 
 /** A subscription that the webhook stored, for a server that its metadata names. */
@@ -617,9 +620,11 @@ export class BillingService {
     ): Effect.fn.Return<boolean, BillingError | BillingOperationError, BillingDependencies> {
       const dependencies = yield* BillingDependencies;
       const subscription = yield* this.#stripeCall(() => dependencies.stripe.getSubscription(subscriptionId));
-      if (subscription.status !== "canceled") return false;
+      // A first payment that never came also ends the subscription, as in `cancelSubscription`.
+      const ended = subscription.status === "canceled" || subscription.status === "incomplete_expired";
+      // Also on `false`: a stale local status that Stripe shows as open leaves the expiry query of the cron.
       yield* this.#syncSubscription(subscriptionId);
-      return true;
+      return ended;
     },
     (operation) => operation.pipe(Effect.provide(this.#layer)),
   ).bind(this);
@@ -711,9 +716,11 @@ export class BillingService {
             dependencies.database
               .prepare(
                 `SELECT s.stripe_subscription_id, s.server_id, h.name AS server_name, s.plan, s.interval, s.currency,
-                  s.amount, s.status, s.current_period_end, s.cancel_at_period_end
+                  s.amount, s.status, s.current_period_end, s.cancel_at_period_end,
+                  hs.operator_host IS NOT NULL AS on_operator_host
            FROM billing_subscriptions s
            LEFT JOIN remote_hosts h ON h.host_id = s.server_id AND h.owner_user_id = s.user_id
+           LEFT JOIN hosted_servers hs ON hs.server_id = s.server_id AND hs.owner_user_id = s.user_id
            WHERE s.user_id = ? AND s.status IN ${OPEN_STATUSES_SQL}
            ORDER BY h.name IS NULL, h.name COLLATE NOCASE, s.updated_at DESC`,
               )
@@ -1267,6 +1274,7 @@ function serverPlan(row: ServerPlanRow): BillingServerPlan | null {
     status: row.status,
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: row.cancel_at_period_end === 1,
+    storageGb: planStorageGb(row.plan, row.on_operator_host === 1),
   };
 }
 

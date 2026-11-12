@@ -444,6 +444,7 @@ export const messages = {
   "mobile.server.route.invite": "הזמנת אנשים",
   "mobile.server.route.member": "חבר",
   "mobile.server.route.timezone": "אזור זמן",
+  "mobile.server.route.personality": "אישיות הסוכן",
   "mobile.server.settings.storage": "אחסון",
   "mobile.server.route.storage": "אחסון",
   "mobile.server.route.storageFiles": "כל הקבצים",
@@ -564,6 +565,14 @@ export const messages = {
   "mobile.server.settings.memoryLimitLoadFailed": "לא ניתן לטעון את מגבלת הזיכרונות של השרת הזה.",
   "mobile.server.settings.memoryLimitSaveFailed": "לא ניתן לשמור את מגבלת הזיכרונות. אפשר לנסות שוב.",
   "mobile.server.settings.memoryLimitUnsupported": "יש לעדכן את OpenBot בשרת הזה כדי לשנות כאן את מגבלת הזיכרונות שלו.",
+  "mobile.server.settings.responseStyleDescription":
+    "טבעי: הסוכנים שולחים עדכונים קצרים בזמן העבודה, והצ'אט מציג אותם. קלאסי: הסוכנים עונים פעם אחת, כשהם מסיימים.",
+  "mobile.server.settings.responseStyleNatural": "טבעי",
+  "mobile.server.settings.responseStyleClassic": "קלאסי",
+  "mobile.server.settings.personalityLoadFailed": "לא ניתן לטעון את אישיות השרת.",
+  "mobile.server.settings.personalitySaveFailed": "לא ניתן לשמור את סגנון התגובה. אפשר לנסות שוב.",
+  "mobile.server.settings.personalityUnsupported": "יש לעדכן את OpenBot בשרת הזה כדי לשנות כאן את סגנון התגובה שלו.",
+  "mobile.server.settings.personalityUnavailable": "יש להתחבר לשרת הזה כבעלים או כמנהל כדי לשנות את אישיות הסוכן שלו.",
   // Server settings › Vault: the logins, cards and contact info of a joined server, for an owner or
   // admin. {host} is the server name, such as Studio. The phone never shows a saved secret.
   "mobile.server.route.browserProfiles": "פרופילי דפדפן",
@@ -1094,6 +1103,9 @@ export const messages = {
   "mobile.server.connectors.whatsapp.ownNumber": "מספר אישי",
   "mobile.server.connectors.whatsapp.ownNumberDescription":
     "רק הצ'אט ״הודעה לעצמך״ שלך והאנשים שאישרת יכולים לכתוב. יש לכבות עבור מספר ששייך רק ל-OpenBot.",
+  "mobile.server.connectors.whatsapp.workingMessage": "הודעת ״עובד על זה…״",
+  "mobile.server.connectors.whatsapp.workingMessageDescription":
+    "OpenBot שולח אותה בזמן שהסוכן עובד, ואז מחליף אותה בתשובה. יש לכבות כדי לשלוח רק את התשובה.",
   "mobile.server.connectors.whatsapp.orchestratorTitle": "WhatsApp Orchestrator",
   "mobile.server.connectors.whatsapp.orchestratorDescription":
     "הסוכן הזה מקבל את ההודעות ל-OpenBot מכל המספרים המקושרים שלך. הוא עונה בעצמו על הודעות קצרות, מעביר עבודה אחרת לסוכן המתאים, ועונה ב-WhatsApp.",
@@ -1281,6 +1293,15 @@ export const messages = {
   "mobile.server.providers.removeAccount": "הסרת החשבון",
   "mobile.server.providers.removeAccountTitle": "להסיר את {name}?",
   "mobile.server.providers.removeAccountBody": "השרת מסיר את החשבון הזה ואת ההתחברות שלו.",
+  "mobile.server.providers.pool": "איגום חשבונות",
+  "mobile.server.providers.poolHint":
+    "הסוכנים משתמשים בחשבון אחד עד שהוא מתקרב למגבלת שימוש, ואז בחשבון שהמגבלה שלו מתאפסת ראשונה.",
+  "mobile.server.providers.accountsPooledHint": "הסוכנים חולקים את החשבונות האלה. חשבון חדש מתחבר בדף שלו בטלפון הזה.",
+  "mobile.server.providers.accountsPooledOnComputer": "הסוכנים חולקים את החשבונות האלה. חשבון מוסיפים ב-OpenBot במחשב.",
+  "mobile.server.providers.inUse": "בשימוש",
+  "mobile.server.providers.notInPool": "מחוץ למאגר",
+  "mobile.server.providers.leaveOutOfPool": "הוצאה מהמאגר",
+  "mobile.server.providers.putBackInPool": "החזרה למאגר",
   "mobile.server.providers.models": "מודלים",
   "mobile.server.providers.modelsCount": "{shown} מתוך {total}",
   "mobile.server.providers.modelsTitle": "המודלים של {name}",

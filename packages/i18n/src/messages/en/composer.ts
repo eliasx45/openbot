@@ -88,6 +88,7 @@ export const messages = defineMessages("composer", {
   "composer.iphonePhoto.unavailable": "Photos from the iPhone need OpenBot on a Mac.",
   "composer.iphonePhoto.failed": "Could not read the photo from the iPhone.",
   "composer.add.files": "Attach files",
+  "composer.add.teach": "Teach a task",
   "composer.add.skill": "Use a skill",
   "composer.upload.cancel": "Cancel upload",
   "composer.upload.uploading": "Uploading {name}",

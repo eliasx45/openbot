@@ -12,6 +12,7 @@ import {
 import { BROWSER_PROFILES_CAPABILITY } from "@openbot/contracts/team-protocol/browser-profiles-v1";
 import { CONVERSATION_UNREAD_FROM_CAPABILITY } from "@openbot/contracts/team-protocol/conversation-unread-from-v1";
 import { MESSAGE_DELETE_CAPABILITY } from "@openbot/contracts/team-protocol/message-delete-v1";
+import { MESSAGE_PINS_CAPABILITY } from "@openbot/contracts/team-protocol/message-pins-v1";
 import { hasVisibleToasts } from "@openbot/ui";
 import type { AgentMessage } from "@openbot/ui/data";
 import type { UsageLimitAskCardProps } from "@openbot/ui/features/conversation/BackupModels";
@@ -129,7 +130,7 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
     agentList,
     agentListConnecting,
     activeAgent,
-    userHiddenAgentIds,
+    userPausedAgentIds,
     modelOptions,
     settingsRequest,
     updateAgent,
@@ -140,7 +141,7 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
   const mentionSections = createMemo(() =>
     forkMentionSections(
       sidebarLayout(),
-      agentList().filter((agent) => !userHiddenAgentIds().has(agent.id)),
+      agentList().filter((agent) => !userPausedAgentIds().has(agent.id)),
     ),
   );
   const {
@@ -181,6 +182,7 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
     markAgentMessagesRead,
     markAgentMessagesUnread,
     deleteAgentMessage,
+    messagePins,
     loadOlderAgentMessages,
     loadLatestAgentMessages,
     searchAgentMessages,
@@ -441,6 +443,8 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
   };
   /** The Delete action of the active agent's chat. A host without `message-delete-v1` has none. */
   const deleteMessageAction = () => (messageDeleteSupported() ? deleteActiveAgentMessage : undefined);
+  /** Pin and Unpin of the active server. A host without `message-pins-v1` has none; this computer always has. */
+  const messagePinsAction = () => (activeServerSupportsCapability(MESSAGE_PINS_CAPABILITY) ? messagePins : undefined);
   const { t } = useText();
   const agentTasks = useAgentTasks();
   const agentThreads = useAgentThreads();
@@ -462,7 +466,7 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
         respondToApprovalRequest(approval.agentId, approval.requestId, decision, options),
       contextStates: threadContextStates,
       onCompactContext: compactTaskContext(),
-      onOpenMainMessage: (messageId) => void openAgentMessage(agent.id, messageId),
+      onOpenMainMessage: (messageId) => openAgentMessage(agent.id, messageId),
     });
   });
   /** The thread that the conversation shows: the open side thread, or the agent's own chat. */
@@ -581,7 +585,7 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
         onOpenNotificationSettings={openNotificationLevels}
         agent={conversationAgent()}
         agents={agentList()}
-        mentionAgents={agentList().filter((agent) => !userHiddenAgentIds().has(agent.id))}
+        mentionAgents={agentList().filter((agent) => !userPausedAgentIds().has(agent.id))}
         mentionSections={mentionSections()}
         availableRoutineIds={activeRoutineIds()}
         routines={activeRoutines()}
@@ -666,6 +670,7 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
         }
         onDeleteMessage={deleteMessageAction()}
         canDeleteMessage={canDeleteAgentMessage}
+        messagePins={messagePinsAction()}
         sendToChannel={sendToChannel()}
         onLoadOlder={() => void loadOlderAgentMessages()}
         onLoadLatest={() => (activeAgent() ? loadLatestAgentMessages(activeAgent()?.id ?? "") : Promise.resolve())}
@@ -674,9 +679,10 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
             ? searchAgentMessages(activeAgent()?.id ?? "", query)
             : Promise.resolve({ messageIds: [], total: 0 })
         }
-        onOpenSearchMessage={(messageId) =>
-          activeAgent() ? openAgentMessage(activeAgent()?.id ?? "", messageId) : Promise.resolve()
-        }
+        onOpenSearchMessage={async (messageId) => {
+          const agentId = activeAgent()?.id;
+          if (agentId) await openAgentMessage(agentId, messageId);
+        }}
         onTypingChange={setTeamTyping}
         onAnswerPrompt={(answers, options) => answerPrompt(answers, options, openThreadId())}
         onPromptResolutionPresented={presentPromptResolution}

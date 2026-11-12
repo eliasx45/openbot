@@ -1,4 +1,13 @@
-import { AudioLines, Camera, DropdownMenu, File, MessageCircleQuestionMark, Plus, Puzzle } from "@openbot/ui";
+import {
+  AudioLines,
+  Camera,
+  CircleDot,
+  DropdownMenu,
+  File,
+  MessageCircleQuestionMark,
+  Plus,
+  Puzzle,
+} from "@openbot/ui";
 import { useText } from "@openbot/ui/text";
 import { Show } from "solid-js";
 
@@ -11,6 +20,8 @@ export interface ComposerAddMenuProps {
   onAttach?: (() => void) | undefined;
   /** Opens the skill picker of the editor, after the menu gave the focus back. Without it, no skill item. */
   onPickSkill?: (() => void) | undefined;
+  /** Starts the recording of a task that the user shows in the browser. Without it, no teach item. */
+  onTeach?: (() => void) | undefined;
   /** Without it, no side question item. */
   onSideQuestion?: (() => void) | undefined;
   /** Without it, no voice conversation item. */
@@ -92,6 +103,14 @@ export function ComposerAddMenu(props: ComposerAddMenuProps) {
               <Puzzle aria-hidden="true" />
               <span>{t("composer.add.skill")}</span>
             </DropdownMenu.Item>
+          </Show>
+          <Show when={props.onTeach}>
+            {(teach) => (
+              <DropdownMenu.Item onSelectAfterClose={() => teach()()}>
+                <CircleDot class="composer-add-record" aria-hidden="true" />
+                <span>{t("composer.add.teach")}</span>
+              </DropdownMenu.Item>
+            )}
           </Show>
           <Show when={props.onSideQuestion}>
             {(open) => (

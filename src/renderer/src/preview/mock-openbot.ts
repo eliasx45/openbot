@@ -128,13 +128,22 @@ import {
   LOCAL_SERVER_ID,
   type MachineAlertSettings,
   type MacPermissionId,
+  type McpAccessSnapshot,
+  type McpServerAccess,
+  MESSAGE_PIN_TEXT_LIMIT,
+  MESSAGE_PIN_THREAD_TITLE_LIMIT,
+  MESSAGE_PINS_LIMIT,
+  MESSAGE_PINS_LIST_LIMIT,
   type MemoryReviewPreference,
+  type MessagePinner,
   nextBrowserProfileHue,
   normalizeMcpConfig,
   type OpenAttachmentInput,
   type OpenBotDesktopApi,
   type OpenSharedFileInput,
   type OpenWorkspaceFileInput,
+  type PinnedMessage,
+  type PinnedMessagesSnapshot,
   PLAN_CONTINUATION_ITEM_TYPE,
   type PromptCacheTtlSetting,
   type ProviderAccountStatus,
@@ -143,6 +152,7 @@ import {
   parseAgentAccessChange,
   parseBrowserProxyAddress,
   parseProviderModelVisibilityChange,
+  parseSetMcpAccessInput,
   type QueueDelivery,
   type QueuedMessageReceipt,
   type QueueSnapshot,
@@ -270,6 +280,11 @@ export interface MockOpenBotOptions
   tasks?: Record<string, AgentTask[]>;
   /** The conversation of each task, keyed by task id. */
   taskConversations?: Record<string, ConversationSnapshot>;
+  /**
+   * Pinned messages, newest pin first, keyed by agent id for its own chat or by task id for a side
+   * thread. An id alone is a pin by the user of this computer.
+   */
+  pinnedMessages?: Record<string, (string | { messageId: string; pinnedBy: MessagePinner })[]>;
   /** The agent messages of each task that the user has not read, keyed by task id. A task without one is read. */
   taskUnread?: Record<string, number>;
   updateStatus?: UpdateStatus;
@@ -656,6 +671,13 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
     return value;
   }
   let mcpServers = clone(STORY_MCP_SERVERS);
+  let mcpAccess: Record<string, McpServerAccess> = {};
+  let mcpAccessRevision = 0;
+  const mcpAccessSnapshot = (): McpAccessSnapshot => ({
+    revision: mcpAccessRevision,
+    mine: Object.fromEntries(mcpServers.map((server) => [server.id, "manage" as const])),
+    servers: clone(mcpAccess),
+  });
   let mcpSignedIn = new Set<string>();
   // Figma refused its saved sign-in, so the preview shows a row that asks for a new one.
   let mcpLost = new Set<string>(["mcp-figma"]);
@@ -948,6 +970,54 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
 
   function emitTasks(agentId: string): void {
     emitAgentEvent({ type: "agent-tasks-changed", snapshot: taskList(agentId) });
+  }
+
+  /** The pins of each chat, the newest pin first, as the host keeps them. */
+  const messagePins = new Map<string, { messageId: string; pinnedAt: string; pinnedBy: MessagePinner }[]>(
+    Object.entries(clone(options.pinnedMessages ?? {})).map(([key, entries]) => [
+      key,
+      entries.map((entry, index) => ({
+        ...(typeof entry === "string" ? { messageId: entry, pinnedBy: { kind: "person", sender: null } } : entry),
+        pinnedAt: new Date(Date.now() - index * 60_000).toISOString(),
+      })),
+    ]),
+  );
+  /** The agent's own chat has the agent id as its key, a side thread its task id. */
+  const pinKey = (target: { agentId: string; taskId?: string | undefined }) => target.taskId ?? target.agentId;
+  const pinnableMessages = (target: { agentId: string; taskId?: string | undefined }) =>
+    target.taskId === undefined
+      ? getSnapshot(target.agentId).messages
+      : taskConversation(findTask(target.agentId, target.taskId)).messages;
+  /** The pins of all chats of the agent, the newest pin first, as `MessagePins.list` reads them. */
+  function pinnedSnapshot(agentId: string): PinnedMessagesSnapshot {
+    const chats = [
+      { taskId: undefined, title: null },
+      ...(tasks.get(agentId) ?? []).map((task) => ({ taskId: task.id, title: task.title })),
+    ];
+    const pins: PinnedMessage[] = [];
+    for (const chat of chats) {
+      const messages = new Map(
+        pinnableMessages({ agentId, taskId: chat.taskId }).map((message) => [message.id, message]),
+      );
+      for (const pin of messagePins.get(pinKey({ agentId, taskId: chat.taskId })) ?? []) {
+        const message = messages.get(pin.messageId);
+        if (!message) continue;
+        pins.push({
+          messageId: message.id,
+          taskId: chat.taskId ?? null,
+          threadTitle: chat.title?.slice(0, MESSAGE_PIN_THREAD_TITLE_LIMIT) ?? null,
+          pinnedAt: pin.pinnedAt,
+          pinnedBy: pin.pinnedBy,
+          author: message.author === "user" ? "user" : "agent",
+          sender: message.senderMember ?? null,
+          senderAgentId: message.senderAgentId ?? null,
+          createdAt: message.createdAt,
+          text: message.text.trim().slice(0, MESSAGE_PIN_TEXT_LIMIT),
+        });
+      }
+    }
+    pins.sort((left, right) => right.pinnedAt.localeCompare(left.pinnedAt));
+    return { agentId, pins: pins.slice(0, MESSAGE_PINS_LIST_LIMIT) };
   }
 
   function findTask(agentId: string, taskId: string): AgentTask {
@@ -1552,6 +1622,20 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         changeProviderAccounts(provider, (accounts) => accounts.filter((account) => account.id !== accountId)),
       );
     },
+    // The preview uses the first account in the pool: it has no usage readings to compare.
+    setProviderAccountPool: async ({ provider, enabled, leftOut }) => {
+      agentStatus = {
+        ...agentStatus,
+        providers: agentStatus.providers?.map((row) => {
+          if (row.id !== provider) return row;
+          const { accountPool: _old, ...rest } = row;
+          if (!enabled) return rest;
+          const inUse = row.accounts?.find((account) => !leftOut.includes(account.id))?.id ?? null;
+          return { ...rest, accountPool: { leftOut: [...leftOut], inUse } };
+        }),
+      };
+      return clone(agentStatus);
+    },
     signOutProvider: async (provider) => {
       agentStatus = {
         ...agentStatus,
@@ -1828,6 +1912,9 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         providers: (agentStatus.providers ?? []).flatMap((row) =>
           row.accounts ? [{ provider: row.id, accounts: clone(row.accounts) }] : [],
         ),
+        pools: (agentStatus.providers ?? []).flatMap((row) =>
+          row.accounts && row.accountPool ? [{ provider: row.id, pool: clone(row.accountPool) }] : [],
+        ),
         agents: [],
       }),
       accountUsage: async () => ({ limits: [] }),
@@ -1839,6 +1926,9 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       },
       removeAccount: async (input) => {
         await api.removeProviderAccount(input);
+      },
+      setAccountPool: async (input) => {
+        await api.setProviderAccountPool(input);
       },
       // The preview host's default is the one of this computer.
       hostDefaultProvider: async () => ({
@@ -2441,7 +2531,19 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       },
       removeMcpServer: async ({ mcpServerId }) => {
         mcpServers = mcpServers.filter((server) => server.id !== mcpServerId);
+        mcpAccess = Object.fromEntries(Object.entries(mcpAccess).filter(([id]) => id !== mcpServerId));
         return clone(mcpServers);
+      },
+      // Preview has one host, and its user owns it, so `mine` gives every server.
+      getMcpAccess: async () => mcpAccessSnapshot(),
+      setMcpAccess: async (input) => {
+        const change = parseSetMcpAccessInput(input);
+        if (!mcpServers.some((server) => server.id === change.mcpServerId))
+          throw new Error("Invalid MCP access change.");
+        if (change.revision !== mcpAccessRevision) throw new Error(sourceText("error.team.mcpAccessStale"));
+        mcpAccessRevision += 1;
+        mcpAccess = { ...mcpAccess, [change.mcpServerId]: change.access };
+        return mcpAccessSnapshot();
       },
       setMcpServerEnabled: async ({ mcpServerId, enabled }) => {
         mcpServers = mcpServers.map((server) => (server.id === mcpServerId ? { ...server, enabled } : server));
@@ -2933,6 +3035,24 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         emitAgentEvent({ type: "conversation-invalidated", agentId: input.agentId, revision });
         return clone(conversationReadState(input.agentId));
       },
+      listPinnedMessages: async (agentId) => pinnedSnapshot(agentId),
+      setMessagePinned: async (input) => {
+        const key = pinKey(input);
+        const pins = (messagePins.get(key) ?? []).filter((pin) => pin.messageId !== input.messageId);
+        if (input.pinned) {
+          if (!pinnableMessages(input).some((message) => message.id === input.messageId))
+            throw new Error(sourceText("error.backend.messagePinNotFound"));
+          if (pins.length >= MESSAGE_PINS_LIMIT) throw new Error(sourceText("error.backend.messagePinLimit"));
+          pins.unshift({
+            messageId: input.messageId,
+            pinnedAt: new Date().toISOString(),
+            pinnedBy: { kind: "person", sender: null },
+          });
+        }
+        messagePins.set(key, pins);
+        emitAgentEvent({ type: "message-pins-changed", agentId: input.agentId });
+        return pinnedSnapshot(input.agentId);
+      },
       deleteConversationMessage: async (input) => {
         if (input.taskId !== undefined) {
           const task = findTask(input.agentId, input.taskId);
@@ -2942,6 +3062,8 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
           conversation.messages = conversation.messages.filter((message) => message.id !== input.messageId);
           conversation.revision += 1;
           emitAgentEvent({ type: "agent-task-conversation", taskId: task.id, snapshot: clone(conversation) });
+          // The host removes the pin of a deleted message with it.
+          emitAgentEvent({ type: "message-pins-changed", agentId: input.agentId });
           return;
         }
         if (!getSnapshot(input.agentId).messages.some((message) => message.id === input.messageId))
@@ -2949,6 +3071,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         updateSnapshot(input.agentId, (snapshot) => {
           snapshot.messages = snapshot.messages.filter((message) => message.id !== input.messageId);
         });
+        emitAgentEvent({ type: "message-pins-changed", agentId: input.agentId });
       },
       chooseAttachments: async (_input) => [],
       importAttachmentData: async (data) =>
@@ -2989,8 +3112,6 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       // Every named file resolves in the preview, so its chips show as before the check.
       checkFileChips: async (input: CheckFileChipsInput) => input.files.map(() => true),
       sendMessage: async (input: SendMessageInput) => {
-        if (agents.some((agent) => agent.id === input.agentId && agent.hiddenAt !== undefined))
-          throw new Error(sourceText("error.backend.recipientHidden"));
         if (input.taskId)
           return runTaskTurn(findTask(input.agentId, input.taskId), input.text, input.replyToMessageId ?? null);
         // As on a host, a repeated client id answers with the first receipt and stores nothing.
@@ -3179,6 +3300,19 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         return clone({
           conversation: { ...conversation, messages: index > 0 ? conversation.messages.slice(start, index) : [] },
           hasOlder: start > 0,
+        });
+      },
+      readTaskAround: async (input) => {
+        const conversation = taskConversation(findTask(input.agentId, input.taskId));
+        const index = conversation.messages.findIndex((message) => message.id === input.messageId);
+        if (index < 0)
+          return clone({ conversation: { ...conversation, messages: [] }, hasOlder: false, hasNewer: false });
+        const start = Math.max(0, index - Math.floor(input.limit / 2));
+        const end = Math.min(conversation.messages.length, start + input.limit);
+        return clone({
+          conversation: { ...conversation, messages: conversation.messages.slice(start, end) },
+          hasOlder: start > 0,
+          hasNewer: end < conversation.messages.length,
         });
       },
       startTask: async (input) => {

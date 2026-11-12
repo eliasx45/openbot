@@ -63,6 +63,8 @@ export interface ConversationRuntime {
     | "stop"
     | "releaseControl"
     | "setVisible"
+    | "startTeach"
+    | "stopTeach"
     | "takeControl"
   >;
   voice: Pick<
