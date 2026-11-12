@@ -315,6 +315,9 @@
 
 .agent-routine-editor {
   display: grid;
+  /* One track no wider than the pane. An `auto` track grows to the widest row's min-content (the
+     action buttons), and then every field ran past the pane's right edge (fork FEATURES #73). */
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 
@@ -324,6 +327,8 @@
 
 .agent-routine-editor-actions {
   display: flex;
+  /* At the pane's minimum width the buttons go to a second row instead of past the edge. */
+  flex-wrap: wrap;
   min-height: 34px;
   align-items: center;
   justify-content: space-between;
@@ -356,9 +361,15 @@
 
 .agent-routine-action-buttons {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 7px;
+  min-width: 0;
+  margin-inline-start: auto;
+}
+
+.agent-routine-action-buttons button {
+  white-space: nowrap;
 }
 
 .agent-routine-action-buttons button {

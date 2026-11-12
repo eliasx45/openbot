@@ -778,3 +778,13 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Guard:** health-watch `openbot-stale-subagents`: fails when a chat holds a subagent marked running whose provider session is no longer active, for more than 30 min.
 - **Not covered:** an already stuck badge (Adrian now) clears at the next app start (boot recovery stops every subagent).
 - **Check:** put an agent on a second Claude account, have it start a background subagent, switch it back to the default account and send a message. The subagent shows stopped and the avatar dots go away.
+
+## 73. Side panels and sidebar drags: content fits the pane, one cursor, live row drags
+
+- **Get:** (a) the routine editor in the docked "Agent settings" pane always fits the pane: at the pane's minimum width (360 px, where the splitter stops) the action buttons wrap under the Active switch and every field stays inside the right edge.
+- **Why:** Elias, 12 Nov 2026 (recording): "the box on the right gets shrunken beyond its sort of limit". The pane did stop at its minimum, but the routine form inside it did not shrink with it and was cut at the right edge.
+- **How (portable):** a CSS grid with an implicit `auto` column sizes that column to the widest child's min-content, not to the container. The routine editor is a one-column grid, and its action row (switch + Delete + "Copy run command" + Test run, all `nowrap`) is ~375 px wide, so the column, and with it every field, became wider than a 360 px pane. Fix: `grid-template-columns: minmax(0, 1fr)` on the editor, and `flex-wrap: wrap` on the action row and its buttons (each button stays `nowrap`). Rule: every grid or flex row inside a resizable pane must be able to reach the pane's minimum width.
+- **Here:** `packages/ui/src/features/conversation/styles/agent-settings.css`.
+- **Tests:** `src/renderer/src/fork-settings-pane-min-width.test.ts` (the grid track and the wrapping rows). Storybook `App/Playground`, Chief > Agent settings > Routines > Create, with the "Copy run command" button added: before, the Name field ended at 1274 px with the pane edge at 1246 px; after, at 1231 px (`Transfers/ui-fixes-20261112/bug1-before-storybook.png`, `bug1-after-storybook.png`).
+- **Not covered:** checked in Storybook (Chromium), not in the packaged app.
+- **Check:** open an agent with a routine, Agent settings > Routines > the routine, drag the splitter to the right until it stops. All fields and buttons stay inside the pane.
