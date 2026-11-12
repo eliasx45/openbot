@@ -12,9 +12,33 @@ interface PointerDragOptions {
   onEnd?: (delta: number) => void;
 }
 
+/** The root attribute and variable that give the whole window one cursor while a handle drags. */
+export const POINTER_DRAG_ATTRIBUTE = "data-pointer-drag";
+export const POINTER_DRAG_CURSOR_VARIABLE = "--pointer-drag-cursor";
+
 /**
- * The pointer lifecycle of a drag handle: pointer capture, window listeners, and the root class.
- * Call `cancel` when the owner unmounts.
+ * One owner of the cursor for the whole drag (fork FEATURES #73). A root class with `cursor` only
+ * reaches elements that do not set their own: once the pointer left the handle (a fast move, or a
+ * panel at its limit), every link, button, field and window-drag strip it crossed showed its own
+ * cursor and hover fill, so the cursor flickered between states. While the attribute is on the root,
+ * `app-shell.css` gives every element the handle's cursor and takes pointer events from all but the
+ * handle, so nothing under the pointer competes.
+ */
+export function holdDragCursor(handle: HTMLElement): () => void {
+  const root = document.documentElement;
+  root.style.setProperty(POINTER_DRAG_CURSOR_VARIABLE, getComputedStyle(handle).cursor || "default");
+  root.setAttribute(POINTER_DRAG_ATTRIBUTE, "");
+  handle.setAttribute(`${POINTER_DRAG_ATTRIBUTE}-handle`, "");
+  return () => {
+    root.removeAttribute(POINTER_DRAG_ATTRIBUTE);
+    root.style.removeProperty(POINTER_DRAG_CURSOR_VARIABLE);
+    handle.removeAttribute(`${POINTER_DRAG_ATTRIBUTE}-handle`);
+  };
+}
+
+/**
+ * The pointer lifecycle of a drag handle: pointer capture, window listeners, the root class and the
+ * cursor. Call `cancel` when the owner unmounts.
  */
 export function createPointerDrag(options: PointerDragOptions) {
   let cleanup: (() => void) | undefined;
@@ -32,6 +56,7 @@ export function createPointerDrag(options: PointerDragOptions) {
     options.onStart();
     setIsDragging(true);
     document.documentElement.classList.add(options.rootClass);
+    const releaseCursor = holdDragCursor(handle);
 
     const move = (moveEvent: PointerEvent) => {
       if (moveEvent.pointerId !== event.pointerId) return;
@@ -47,6 +72,7 @@ export function createPointerDrag(options: PointerDragOptions) {
       window.removeEventListener("pointercancel", cancel);
       window.removeEventListener("blur", cancel);
       document.documentElement.classList.remove(options.rootClass);
+      releaseCursor();
       setIsDragging(false);
       cleanup = undefined;
       if (handle.hasPointerCapture?.(event.pointerId)) handle.releasePointerCapture(event.pointerId);

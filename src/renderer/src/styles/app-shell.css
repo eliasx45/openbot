@@ -858,6 +858,24 @@ html.panel-resizing {
   user-select: none;
 }
 
+/* A handle that drags owns the cursor of the whole window (`holdDragCursor`, fork FEATURES #73). No
+   element under the pointer sets its own cursor or hover fill, and no window-drag strip takes the
+   moves: the pointer events go to the handle, which holds the pointer capture. */
+html[data-pointer-drag],
+html[data-pointer-drag] * {
+  cursor: var(--pointer-drag-cursor, default) !important;
+  -webkit-app-region: no-drag !important;
+  user-select: none;
+}
+
+html[data-pointer-drag] body * {
+  pointer-events: none !important;
+}
+
+html[data-pointer-drag] [data-pointer-drag-handle] {
+  pointer-events: auto !important;
+}
+
 .right-panel-resizer {
   position: absolute;
   top: 0;

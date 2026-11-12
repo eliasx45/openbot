@@ -57,6 +57,7 @@
     "./components/SwapLabel": "./src/components/SwapLabel.tsx",
     "./components/TypingDots": "./src/components/TypingDots.tsx",
     "./components/createBoundedDragPreview": "./src/components/createBoundedDragPreview.ts",
+    "./components/createPointerDrag": "./src/components/createPointerDrag.ts",
     "./components/createScrollFades": "./src/components/createScrollFades.ts",
     "./components/createVerticalDragPreview": "./src/components/createVerticalDragPreview.ts",
     "./components/provider-model-options": "./src/components/provider-model-options.ts",
