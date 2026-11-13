@@ -8,6 +8,7 @@ import type {
   AgentRuntimeSnapshot,
   BrowserTab,
   BrowserTakeoverRequest,
+  ConversationMessage,
   ConversationMessageSender,
   LocalBrowserSecretResponse,
   RespondToApprovalInput,
@@ -19,6 +20,7 @@ import { type DynamicRecord, isOneOf } from "@openbot/contracts/runtime-values";
 import { normalizeTwoStepKey, twoStepKeySecret } from "@openbot/contracts/two-step-code";
 import {
   type ConversationUiBlock,
+  isSecretFormField,
   normalizeConversationUiBlock,
   UI_BLOCK_LIMITS,
   UI_BLOCK_TEXT_ACTION_ID,
@@ -2298,27 +2300,95 @@ export class AttentionRegistry {
   ): void {
     const snapshot = this.#conversation.ensureSnapshot(pending.agentId, pending.publicThreadId);
     const message = snapshot.messages.find((candidate) => candidate.id === pending.messageId);
-    if (!message?.questionPrompt || message.questionPrompt.resolution !== null) return;
-    message.questionPrompt.resolution = structuredClone(resolution);
-    message.text = questionPromptText(message.questionPrompt.questions, resolution);
-    if (message.uiBlock && uiBlockState) {
-      // The read drops a secret form value; storing the read result keeps it out of the database.
-      const vault = message.uiBlock.vault && vaultSaved ? { ...message.uiBlock.vault, saved: vaultSaved } : undefined;
-      const frozen = normalizeConversationUiBlock({
-        ...message.uiBlock,
-        state: uiBlockState,
-        ...(vault ? { vault } : {}),
+    if (!message?.questionPrompt) {
+      // The card then shows as waiting until a user message closes it (`closeStaleCardsForUserMessage`).
+      logger.warn("The card to close is not in its chat, so it stays open there.", {
+        agentId: pending.agentId,
+        threadId: pending.publicThreadId,
+        turnId: pending.turnId,
+        messageId: pending.messageId,
+        resolution: resolution.status,
+        found: message !== undefined,
       });
-      message.uiBlock.state = frozen?.state ?? {
-        status: uiBlockState.status === "answered" ? "closed" : uiBlockState.status,
-      };
-      if (frozen?.vault) message.uiBlock.vault = frozen.vault;
+      return;
     }
+    if (message.questionPrompt.resolution !== null) return;
+    resolvePromptMessage(message, resolution, uiBlockState, vaultSaved);
     this.#conversation.emitConversation(snapshot, "prompt.resolved", {
       turnId: pending.turnId,
       requestId: pending.id,
       status: resolution.status,
     });
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md, "A message closes the open card"). The user wrote in this chat. A card
+   * there that still shows as waiting, but that no live request holds, can never be answered: its turn
+   * ended, or the write that closed it was lost. It closes as the user's own skip does, so no card shows
+   * as waiting forever (13 Nov 2026: two routine-run cards stayed open after the agent went on). Only
+   * `ask_ui` cards close here. A form with a secret field (`request_api_key`, `request_vault_item`) and
+   * a question without a block, which can be an MCP elicitation, stay as they are.
+   */
+  closeStaleCardsForUserMessage(agentId: string, publicThreadId: string): void {
+    const live = new Set<string>();
+    for (const pending of this.#prompts.values()) if (pending.agentId === agentId) live.add(pending.messageId);
+    const snapshot = this.#conversation.ensureSnapshot(agentId, publicThreadId);
+    const closed: string[] = [];
+    for (const message of snapshot.messages) {
+      const block = message.uiBlock;
+      if (
+        message.itemType !== "question_prompt" ||
+        message.questionPrompt?.resolution !== null ||
+        !block ||
+        block.state.status !== "pending" ||
+        live.has(message.id) ||
+        block.vault ||
+        block.apiKey ||
+        (block.spec.type === "form" && block.spec.fields.some(isSecretFormField))
+      )
+        continue;
+      resolvePromptMessage(
+        message,
+        { status: "cancelled" },
+        answeredUiBlockState(block.spec, null, undefined, undefined),
+      );
+      closed.push(message.id);
+    }
+    if (closed.length === 0) return;
+    logger.warn("A user message closed cards that no live request held.", {
+      agentId,
+      threadId: publicThreadId,
+      messageIds: closed,
+    });
+    this.#conversation.emitConversation(snapshot, "prompt.resolved", { status: "cancelled", messageIds: closed });
+  }
+}
+
+/**
+ * Stores how a card ended on its message. `uiBlockState` freezes the message's UI block, when it has
+ * one. `vaultSaved` names the item that the user saved from a Vault request.
+ */
+function resolvePromptMessage(
+  message: ConversationMessage,
+  resolution: AgentPromptResolution,
+  uiBlockState?: UiBlockState,
+  vaultSaved?: UiVaultSavedItem,
+): void {
+  if (!message.questionPrompt) return;
+  message.questionPrompt.resolution = structuredClone(resolution);
+  message.text = questionPromptText(message.questionPrompt.questions, resolution);
+  if (message.uiBlock && uiBlockState) {
+    // The read drops a secret form value; storing the read result keeps it out of the database.
+    const vault = message.uiBlock.vault && vaultSaved ? { ...message.uiBlock.vault, saved: vaultSaved } : undefined;
+    const frozen = normalizeConversationUiBlock({
+      ...message.uiBlock,
+      state: uiBlockState,
+      ...(vault ? { vault } : {}),
+    });
+    message.uiBlock.state = frozen?.state ?? {
+      status: uiBlockState.status === "answered" ? "closed" : uiBlockState.status,
+    };
+    if (frozen?.vault) message.uiBlock.vault = frozen.vault;
   }
 }
 

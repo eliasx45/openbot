@@ -1077,8 +1077,17 @@ export class ConversationRuntime {
       restorePreviousState,
       () => {
         if (!published) return;
-        this.#keepSnapshot(agentId, published);
-        this.publishConversation(published);
+        // A caller can hold the chat across this transaction: a sent message does while it releases a
+        // routine run's card, which moves the run from needs-attention to running here. A new object
+        // would leave that caller a stale copy, and its next write would store every message of that
+        // copy again, such as the card as still pending (13 Nov 2026). The chat keeps its object.
+        const current = this.#snapshots.get(agentId);
+        const kept =
+          current && current !== published && current.threadId === published.threadId
+            ? copySnapshotContents(current, published)
+            : published;
+        this.#keepSnapshot(agentId, kept);
+        this.publishConversation(kept);
       },
     );
   }

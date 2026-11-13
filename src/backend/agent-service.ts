@@ -6487,6 +6487,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     const waitingTurnId = snapshot.activeTurnId;
     if (targetThreadId && waitingTurnId && waitingTurnId !== this.#stoppedTurn(agent.id, task?.taskId ?? null))
       this.#attention.releaseForUserMessage(agent.id, targetThreadId, waitingTurnId);
+    // Fork: a card of this chat that still shows as waiting but that nothing can answer closes now.
+    if (targetThreadId) this.#attention.closeStaleCardsForUserMessage(agent.id, targetThreadId);
     if (!task) {
       this.#emit({ type: "agents-changed", agents: this.listAgents() });
       this.#conversation.emitConversation(snapshot);
