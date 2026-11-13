@@ -208,7 +208,7 @@ export function agentAccountSetup(agent: AgentSummary) {
     backupModels: agent.backupModels
       ? { automatic: agent.backupModels.automatic, order: agent.backupModels.order.map(choice) }
       : null,
-    // Set while a usage limit or a provider error keeps the agent on a backup model: the model it goes back to.
+    // Set while a usage limit keeps the agent on a backup model: the model it goes back to.
     usageLimitReturn: agent.usageLimitReturn
       ? {
           ...choice(agent.usageLimitReturn),

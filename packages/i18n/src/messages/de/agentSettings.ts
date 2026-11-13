@@ -84,7 +84,7 @@ export const messages = {
   "agentSettings.backupModels.intro":
     "Wenn {model} sein Nutzungslimit erreicht, bevor {name} zu schreiben beginnt, fragt {name} dich, welches Modell verwendet werden soll.",
   "agentSettings.backupModels.introAutomatic":
-    "Wenn {model} sein Nutzungslimit erreicht, wechselt {name} zum ersten verfügbaren Modell in der Reihenfolge. {name} wechselt auch, wenn {model} mit einem Anbieterfehler scheitert, bevor {name} zu schreiben beginnt.",
+    "Wenn {model} sein Nutzungslimit erreicht, wechselt {name} zum ersten verfügbaren Modell in der Reihenfolge. Nur ein Nutzungslimit löst den Wechsel aus, kein Netzwerk- oder Anbieterfehler.",
   "agentSettings.backupModels.ask": "Vor dem Wechsel fragen",
   "agentSettings.backupModels.order": "Reihenfolge",
   "agentSettings.backupModels.listLabel": "Ersatzmodelle in Reihenfolge",
@@ -97,7 +97,7 @@ export const messages = {
   "agentSettings.backupModels.unavailable": "Gerade nicht verfügbar · übersprungen",
   "agentSettings.backupModels.withAccount": "{model} · {account}",
   "agentSettings.backupModels.note":
-    "Stoppt ein Nutzungslimit {name} nach Beginn der Arbeit, setzt {name} dieselbe Arbeit mit dem ersten verfügbaren Modell der Reihenfolge fort. Wenn das Limit endet oder 10 Minuten nach einem Anbieterfehler, kehrt {name} zu {model} zurück.",
+    "Stoppt ein Nutzungslimit {name} nach Beginn der Arbeit, setzt {name} dieselbe Arbeit mit dem ersten verfügbaren Modell der Reihenfolge fort. Wenn das Limit endet, kehrt {name} zu {model} zurück.",
   "agentSettings.groups.brain": "Gehirn",
   "agentSettings.groups.knows": "Wissen",
   "agentSettings.groups.does": "Aufgaben",

@@ -354,7 +354,7 @@ export const messages = {
   "mobile.agent.backupModels.intro":
     "Cuando {model} alcanza su límite de uso antes de que {name} empiece a escribir, {name} te pregunta qué modelo usar.",
   "mobile.agent.backupModels.introAutomatic":
-    "Cuando {model} alcanza su límite de uso, {name} cambia al primer modelo disponible del orden. {name} también cambia cuando {model} falla con un error del proveedor antes de que {name} empiece a escribir.",
+    "Cuando {model} alcanza su límite de uso, {name} cambia al primer modelo disponible del orden. Solo un límite de uso hace que cambie: un error de red o del proveedor no.",
   "mobile.agent.backupModels.ask": "Preguntar antes de cambiar",
   "mobile.agent.backupModels.order": "Orden",
   "mobile.agent.backupModels.empty": "Sin orden definido. {name} ofrece cada modelo disponible.",
@@ -368,7 +368,7 @@ export const messages = {
   "mobile.agent.backupModels.unavailable": "No disponible ahora · omitido",
   "mobile.agent.backupModels.withAccount": "{model} · {account}",
   "mobile.agent.backupModels.note":
-    "Si un límite de uso detiene a {name} después de empezar a trabajar, {name} continúa el mismo trabajo con el primer modelo disponible del orden. Vuelve a {model} cuando termina el límite, o 10 minutos después de un error del proveedor.",
+    "Si un límite de uso detiene a {name} después de empezar a trabajar, {name} continúa el mismo trabajo con el primer modelo disponible del orden. Vuelve a {model} cuando termina el límite.",
   "mobile.agent.busyMessage.label": "Mientras trabaja",
   "mobile.agent.busyMessage.footer":
     "Qué ocurre con un mensaje que envías mientras el agente trabaja. En cola lo guarda hasta que termina el turno. Orientar se lo da al agente durante el turno.",

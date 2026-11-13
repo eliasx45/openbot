@@ -75,7 +75,7 @@ export const messages = {
   "agentSettings.backupModels.valueCount": { one: "{mode} · {count}", other: "{mode} · {count}" },
   "agentSettings.backupModels.intro": "如果 {model} 在 {name} 开始输出之前就用完了额度，{name} 会询问你要用哪个模型。",
   "agentSettings.backupModels.introAutomatic":
-    "如果 {model} 用完了额度，{name} 会按顺序切换到第一个可用模型。如果 {model} 在 {name} 开始输出之前出现服务商错误，{name} 也会切换。",
+    "如果 {model} 用完了额度，{name} 会按顺序切换到第一个可用模型。只有用完额度才会切换，网络错误或服务商错误不会。",
   "agentSettings.backupModels.ask": "切换前询问",
   "agentSettings.backupModels.order": "顺序",
   "agentSettings.backupModels.listLabel": "备用模型（按顺序）",
@@ -88,7 +88,7 @@ export const messages = {
   "agentSettings.backupModels.unavailable": "当前不可用 · 已跳过",
   "agentSettings.backupModels.withAccount": "{model} · {account}",
   "agentSettings.backupModels.note":
-    "{name} 开始工作后若因用量上限停止，会用顺序中第一个可用的模型继续同一项工作。额度重置后会回到 {model}；出现服务商错误时，则在 10 分钟后回到 {model}。",
+    "{name} 开始工作后若因用量上限停止，会用顺序中第一个可用的模型继续同一项工作。额度重置后会回到 {model}。",
   "agentSettings.groups.brain": "核心",
   "agentSettings.groups.knows": "已知",
   "agentSettings.groups.does": "行为",

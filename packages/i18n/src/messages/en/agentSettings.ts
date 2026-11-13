@@ -84,7 +84,7 @@ export const messages = defineMessages("agentSettings", {
   "agentSettings.backupModels.intro":
     "When {model} reaches its usage limit before {name} starts to write, {name} asks you which model to use.",
   "agentSettings.backupModels.introAutomatic":
-    "When {model} reaches its usage limit, {name} switches to the first available model in the order. {name} also switches when {model} fails with a provider error before {name} starts to write.",
+    "When {model} reaches its usage limit, {name} switches to the first available model in the order. Only a usage limit switches it: a network or provider error does not.",
   "agentSettings.backupModels.ask": "Ask before switching",
   "agentSettings.backupModels.order": "Order",
   "agentSettings.backupModels.listLabel": "Backup models, in order",
@@ -97,7 +97,7 @@ export const messages = defineMessages("agentSettings", {
   "agentSettings.backupModels.unavailable": "Not available now · skipped",
   "agentSettings.backupModels.withAccount": "{model} · {account}",
   "agentSettings.backupModels.note":
-    "When a usage limit stops {name} after it starts to work, {name} continues the same work on the first available model in the order. It goes back to {model} when the limit ends, or 10 minutes after a provider error.",
+    "When a usage limit stops {name} after it starts to work, {name} continues the same work on the first available model in the order. It goes back to {model} when the limit ends.",
   "agentSettings.groups.brain": "Brain",
   "agentSettings.groups.knows": "Knows",
   "agentSettings.groups.does": "Does",

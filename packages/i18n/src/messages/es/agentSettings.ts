@@ -83,7 +83,7 @@ export const messages = {
   "agentSettings.backupModels.intro":
     "Cuando {model} alcanza su límite de uso antes de que {name} empiece a escribir, {name} te pregunta qué modelo usar.",
   "agentSettings.backupModels.introAutomatic":
-    "Cuando {model} alcanza su límite de uso, {name} cambia al primer modelo disponible del orden. {name} también cambia cuando {model} falla con un error del proveedor antes de que {name} empiece a escribir.",
+    "Cuando {model} alcanza su límite de uso, {name} cambia al primer modelo disponible del orden. Solo un límite de uso hace que cambie: un error de red o del proveedor no.",
   "agentSettings.backupModels.ask": "Preguntar antes de cambiar",
   "agentSettings.backupModels.order": "Orden",
   "agentSettings.backupModels.listLabel": "Modelos de respaldo, en orden",
@@ -96,7 +96,7 @@ export const messages = {
   "agentSettings.backupModels.unavailable": "No disponible ahora · omitido",
   "agentSettings.backupModels.withAccount": "{model} · {account}",
   "agentSettings.backupModels.note":
-    "Si un límite de uso detiene a {name} después de empezar a trabajar, {name} continúa el mismo trabajo con el primer modelo disponible del orden. Vuelve a {model} cuando termina el límite, o 10 minutos después de un error del proveedor.",
+    "Si un límite de uso detiene a {name} después de empezar a trabajar, {name} continúa el mismo trabajo con el primer modelo disponible del orden. Vuelve a {model} cuando termina el límite.",
   "agentSettings.groups.brain": "Cerebro",
   "agentSettings.groups.knows": "Sabe",
   "agentSettings.groups.does": "Hace",

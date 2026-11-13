@@ -84,7 +84,7 @@ export const messages = {
   "agentSettings.backupModels.intro":
     "Als {model} de gebruikslimiet bereikt voordat {name} begint te schrijven, vraagt {name} je welk model het moet gebruiken.",
   "agentSettings.backupModels.introAutomatic":
-    "Als {model} de gebruikslimiet bereikt, schakelt {name} over op het eerste beschikbare model in de volgorde. {name} schakelt ook over als {model} een fout van de aanbieder geeft voordat {name} begint te schrijven.",
+    "Als {model} de gebruikslimiet bereikt, schakelt {name} over op het eerste beschikbare model in de volgorde. Alleen een gebruikslimiet laat het overschakelen, een netwerk- of aanbiedersfout niet.",
   "agentSettings.backupModels.ask": "Vragen voor overschakelen",
   "agentSettings.backupModels.order": "Volgorde",
   "agentSettings.backupModels.listLabel": "Reservemodellen, op volgorde",
@@ -97,7 +97,7 @@ export const messages = {
   "agentSettings.backupModels.unavailable": "Nu niet beschikbaar · overgeslagen",
   "agentSettings.backupModels.withAccount": "{model} · {account}",
   "agentSettings.backupModels.note":
-    "Als een gebruikslimiet {name} stopt nadat het werk is begonnen, gaat {name} met hetzelfde werk verder op het eerste beschikbare model in de volgorde. Het gaat terug naar {model} als de limiet afloopt, of 10 minuten na een fout van de aanbieder.",
+    "Als een gebruikslimiet {name} stopt nadat het werk is begonnen, gaat {name} met hetzelfde werk verder op het eerste beschikbare model in de volgorde. Het gaat terug naar {model} als de limiet afloopt.",
   "agentSettings.groups.brain": "Brein",
   "agentSettings.groups.knows": "Weet",
   "agentSettings.groups.does": "Doet",

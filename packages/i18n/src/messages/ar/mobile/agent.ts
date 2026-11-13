@@ -386,7 +386,7 @@ export const messages = {
   "mobile.agent.backupModels.intro":
     "عندما يبلغ {model} حد استخدامه قبل أن يبدأ {name} الكتابة، يسألك {name} عن النموذج الذي يستخدمه.",
   "mobile.agent.backupModels.introAutomatic":
-    "عندما يبلغ {model} حد الاستخدام، ينتقل {name} إلى أول نموذج متاح في الترتيب. وينتقل {name} أيضًا عندما يفشل {model} بخطأ من المزوّد قبل أن يبدأ {name} بالكتابة.",
+    "عندما يبلغ {model} حد الاستخدام، ينتقل {name} إلى أول نموذج متاح في الترتيب. لا ينتقل {name} إلا عند بلوغ حد الاستخدام: خطأ الشبكة أو خطأ المزوّد لا ينقله.",
   "mobile.agent.backupModels.ask": "السؤال قبل التبديل",
   "mobile.agent.backupModels.order": "الترتيب",
   "mobile.agent.backupModels.empty": "لم يُحدَّد ترتيب. يعرض {name} كل نموذج متاح.",
@@ -400,7 +400,7 @@ export const messages = {
   "mobile.agent.backupModels.unavailable": "غير متاح الآن · مُتخطى",
   "mobile.agent.backupModels.withAccount": "{model} · {account}",
   "mobile.agent.backupModels.note":
-    "عندما يوقف حدّ الاستخدام {name} بعد أن يبدأ العمل، يتابع {name} العمل نفسه على أول نموذج متاح في الترتيب. يعود إلى {model} عند انتهاء الحد، أو بعد 10 دقائق من خطأ المزوّد.",
+    "عندما يوقف حدّ الاستخدام {name} بعد أن يبدأ العمل، يتابع {name} العمل نفسه على أول نموذج متاح في الترتيب. ويعود إلى {model} عند انتهاء الحد.",
   "mobile.agent.busyMessage.label": "أثناء العمل",
   "mobile.agent.busyMessage.footer":
     "ما تفعله الرسالة عندما ترسلها أثناء عمل الوكيل. «قائمة الانتظار» تحتفظ بها حتى ينتهي الدور. «توجيه» تعطيها للوكيل أثناء الدور.",

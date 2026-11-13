@@ -356,7 +356,7 @@ export const messages = {
   "mobile.agent.backupModels.intro":
     "{name} が書き始める前に {model} が使用量の上限に達した場合、{name} はどのモデルを使うかを確認します。",
   "mobile.agent.backupModels.introAutomatic":
-    "{model} が使用量の上限に達した場合、{name} は順番の中で最初に使えるモデルに切り替えます。{name} が書き始める前に {model} がプロバイダーのエラーで失敗した場合も切り替えます。",
+    "{model} が使用量の上限に達した場合、{name} は順番の中で最初に使えるモデルに切り替えます。切り替えるのは使用量の上限に達したときだけで、ネットワークやプロバイダーのエラーでは切り替えません。",
   "mobile.agent.backupModels.ask": "切り替える前に確認",
   "mobile.agent.backupModels.order": "順番",
   "mobile.agent.backupModels.empty": "順番は設定されていません。{name} は使えるモデルをすべて表示します。",
@@ -370,7 +370,7 @@ export const messages = {
   "mobile.agent.backupModels.unavailable": "現在使用できません · スキップ",
   "mobile.agent.backupModels.withAccount": "{model} · {account}",
   "mobile.agent.backupModels.note":
-    "作業の開始後に利用上限で {name} が止まると、{name} は順序の中で最初に使えるモデルで同じ作業を続けます。上限が解除されると、またはプロバイダーのエラーから 10 分後に {model} に戻ります。",
+    "作業の開始後に利用上限で {name} が止まると、{name} は順序の中で最初に使えるモデルで同じ作業を続けます。上限が解除されると {model} に戻ります。",
   "mobile.agent.busyMessage.label": "作業中",
   "mobile.agent.busyMessage.footer":
     "エージェントの作業中に送信したメッセージの扱いです。「キュー」ではターンが終わるまで保持します。「方向を修正」ではターン中にエージェントに渡します。",

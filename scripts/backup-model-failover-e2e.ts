@@ -1,15 +1,20 @@
-// Checks that a provider error moves an agent set to switch without asking to its next backup model,
-// and that read_agent shows the move (#2834). Runs the real agent service on a temporary profile. Claude is the real `ClaudeAgentClient`,
+// Checks that a usage limit, and only a usage limit, moves an agent set to switch without asking to
+// its next backup model, and that read_agent shows the move (#2834). Fork #81 (docs/fork/FEATURES.md,
+// "Backup models switch only at a usage limit"): an outage, a network drop and a short rate limit fail
+// as with no backup model. Runs the real agent service on a temporary profile. Claude is the real `ClaudeAgentClient`,
 // which the Claude Agent SDK connects to a stand-in `claude` executable. The stand-in answers each
-// message on its current model, and fails it with the CLI's report of an Anthropic overload (529)
-// when that model is in `failing.json`. A message with `act-then-fail` writes text before it fails.
-// Checks:
+// message on its current model, and fails it with the text in `error.txt` (by default the CLI's report
+// of an Anthropic overload, 529) when that model is in `failing.json`. A message with `act-then-fail`
+// writes text before it fails. Checks:
 //   1. A turn that wrote text before the error does not move: it fails with its error, as before.
 //   2. An agent with no backup models fails with its error, as before.
-//   3. A turn that did nothing yet runs again on the backup model, with a note and no error. The
-//      stand-in, as Claude Code, does not run a uuid again, and history import keeps one request.
-//   4. read_agent shows the backup model, and the model to go back to with the provider error as cause.
-//   5. After a restart, the agent goes back to its own model, with a note.
+//   3. An outage (529), a network drop and a short rate limit (429) do not move an agent with backup
+//      models: the turn fails with its error on its own model, as with no backup (fork #81).
+//   4. A spent quota on a turn that did nothing yet runs again on the backup model, with a note and
+//      no error. The stand-in, as Claude Code, does not run a uuid again, and history import keeps
+//      one request.
+//   5. read_agent shows the backup model, and the model to go back to with "provider-error" as cause.
+//   6. After a restart, the agent goes back to its own model, with a note.
 // Also checks continuation after a usage limit interrupts partial work: on a backup, or with no
 // ready backup on the same model when its limit ends (#6660).
 // `bun run test:backup-model-failover`. Writes .openbot-build/backup-model-failover-e2e/report.json.
@@ -45,6 +50,7 @@ const userData = join(root, "user-data");
 const home = join(root, "home");
 const turnLog = join(root, "claude-turns.jsonl");
 const failingFile = join(root, "failing.json");
+const errorFile = join(root, "error.txt");
 const claudeExecutable = join(root, "claude");
 const codexExecutable = join(root, "codex");
 const codexLog = join(root, "codex-turns.jsonl");
@@ -55,6 +61,14 @@ const BACKUP: AgentModelId = PRIMARY === "claude-sonnet-5-5" ? "claude-opus-5-5"
 // The text the Claude CLI writes in an outage. It names no HTTP status phrase, only the 529 and its type.
 const PROVIDER_ERROR =
   'API Error: 529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"},"request_id":"req_e2e"}';
+/** Fork #81: errors that do not move an agent to a backup model. */
+const NETWORK_ERROR =
+  "API Error: Connection dropped (ECONNRESET). A VPN, firewall, or security software can cause this. Check those or switch networks, then try again.";
+const RATE_LIMIT_ERROR =
+  'API Error: 429 {"type":"error","error":{"type":"rate_limit_error","message":"This request would exceed the rate limit for your organization of 50,000 input tokens per minute."}}';
+/** A spent quota that names no plan window, so the usage-limit gate does not hold it: it moves the agent. */
+const QUOTA_ERROR =
+  "API Error: 429 Your organization's daily usage quota is exhausted. Your limit will reset in 2 days.";
 
 // Before the service modules load: the stores and the CLI search read these.
 process.env.HOME = home;
@@ -130,7 +144,8 @@ const turn = (message) => {
   }
   if (fails) {
     if (acts) assistant("Partial answer.");
-    result({ is_error: true, result: ${JSON.stringify(PROVIDER_ERROR)} });
+    const text = fs.existsSync(${JSON.stringify(errorFile)}) ? fs.readFileSync(${JSON.stringify(errorFile)}, "utf8") : ${JSON.stringify(PROVIDER_ERROR)};
+    result({ is_error: true, result: text });
     return;
   }
   const caseId = /case:([a-z-]+)/.exec(input)?.[1];
@@ -422,6 +437,7 @@ function turns(): { model: string; failed: boolean; input: string }[] {
 }
 
 const failing = (models: string[]) => writeFileSync(failingFile, JSON.stringify(models));
+const failWith = (text: string) => writeFileSync(errorFile, text);
 
 function readLog<T>(path: string): T[] {
   try {
@@ -650,7 +666,33 @@ try {
     return outcome;
   });
 
-  await check("a provider error moves the agent to its backup model", async () => {
+  for (const [name, text] of [
+    ["an outage (529)", PROVIDER_ERROR],
+    ["a network drop", NETWORK_ERROR],
+    ["a short rate limit (429)", RATE_LIMIT_ERROR],
+  ] as const) {
+    await check(`${name} does not move an agent with backup models`, async () => {
+      failWith(text);
+      const since = events.length;
+      const before = turns().length;
+      const outcome = await send(mover.id, "work");
+      assert.equal(outcome.status, "failed", "The turn fails, as with no backup.");
+      assert.deepEqual(
+        turns()
+          .slice(before)
+          .map((turn) => turn.model),
+        [PRIMARY],
+        "The message ran only on the own model.",
+      );
+      assert.equal(agentOf(mover.id).model, PRIMARY, "The agent stays on its own model.");
+      assert.equal(agentOf(mover.id).usageLimitReturn, undefined, "Nothing to go back to.");
+      assert.ok(errorsFor(mover.id, since).length > 0, "The error shows.");
+      return outcome;
+    });
+  }
+
+  await check("a usage limit moves the agent to its backup model", async () => {
+    failWith(QUOTA_ERROR);
     const since = events.length;
     const before = turns().length;
     const outcome = await send(mover.id, "work");
@@ -664,23 +706,23 @@ try {
     const agent = agentOf(mover.id);
     assert.equal(agent.model, BACKUP, "The agent is on the backup model.");
     assert.equal(agent.usageLimitReturn?.model, PRIMARY, "The agent keeps its own model to go back to.");
-    assert.equal(agent.usageLimitReturn?.cause, "provider-error", "The return names the provider error.");
+    assert.equal(agent.usageLimitReturn?.cause, "provider-error", "The return names the spent quota.");
     assert.deepEqual(errorsFor(mover.id, since), [], "No error shows for the moved turn.");
     const notes = await markers(mover.id, MODEL_SWITCH_ITEM_TYPES["provider-error"]);
-    assert.deepEqual(notes, [sourceText("status.agent.modelSwitchedForError", { model: modelName(BACKUP) })]);
+    assert.deepEqual(notes, [sourceText("status.agent.modelSwitchedForLimit", { model: modelName(BACKUP) })]);
     // The same Claude process took the message, so it ran again with a new uuid (#6676).
     await verifyHistoryKeepsRequests(mover.id);
     return { ran, notes };
   });
 
   // `agent-profile-accounts-e2e.ts` checks that update_profile sets and clears the order.
-  await check("read_agent shows that a provider error moved the agent", async () => {
+  await check("read_agent shows that a usage limit moved the agent", async () => {
     const read = await callTool("read_agent", { agentId: mover.id });
     assert.ok(read.success, read.text);
     const setup = JSON.parse(read.text);
     assert.equal(setup.model, BACKUP, "read_agent shows the backup model.");
     assert.equal(setup.usageLimitReturn?.model, PRIMARY, "read_agent names the model to go back to.");
-    assert.equal(setup.usageLimitReturn?.cause, "provider-error", "read_agent names the provider error.");
+    assert.equal(setup.usageLimitReturn?.cause, "provider-error", "read_agent names the spent quota.");
     return { model: setup.model, usageLimitReturn: setup.usageLimitReturn };
   });
 
@@ -703,7 +745,7 @@ try {
     assert.equal(agent.model, PRIMARY, "The agent is back on its own model.");
     assert.equal(agent.usageLimitReturn, undefined, "Nothing is left to go back to.");
     const notes = await markers(mover.id, MODEL_SWITCH_ITEM_TYPES["provider-error-ended"]);
-    assert.deepEqual(notes, [sourceText("status.agent.modelReturnedAfterError", { model: modelName(PRIMARY) })]);
+    assert.deepEqual(notes, [sourceText("status.agent.modelReturnedAfterLimit", { model: modelName(PRIMARY) })]);
     return { notes };
   });
 

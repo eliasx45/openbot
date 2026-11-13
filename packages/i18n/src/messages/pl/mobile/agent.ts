@@ -381,7 +381,7 @@ export const messages = {
   "mobile.agent.backupModels.intro":
     "Gdy {model} osiągnie limit użycia, zanim {name} zacznie pisać, {name} zapyta cię, którego modelu użyć.",
   "mobile.agent.backupModels.introAutomatic":
-    "Gdy {model} osiągnie limit użycia, {name} przełączy się na pierwszy dostępny model w kolejności. {name} przełączy się też, gdy {model} zawiedzie z powodu błędu dostawcy, zanim {name} zacznie pisać.",
+    "Gdy {model} osiągnie limit użycia, {name} przełączy się na pierwszy dostępny model w kolejności. Przełącza się tylko po osiągnięciu limitu użycia, nie po błędzie sieci ani dostawcy.",
   "mobile.agent.backupModels.ask": "Pytaj przed przełączeniem",
   "mobile.agent.backupModels.order": "Kolejność",
   "mobile.agent.backupModels.empty": "Nie ustawiono kolejności. {name} proponuje każdy dostępny model.",
@@ -395,7 +395,7 @@ export const messages = {
   "mobile.agent.backupModels.unavailable": "Chwilowo niedostępny · pominięto",
   "mobile.agent.backupModels.withAccount": "{model} · {account}",
   "mobile.agent.backupModels.note":
-    "Gdy limit użycia zatrzyma agenta {name} po rozpoczęciu pracy, {name} kontynuuje tę samą pracę na pierwszym dostępnym modelu z kolejności. Wraca do modelu {model}, gdy limit się skończy, lub 10 minut po błędzie dostawcy.",
+    "Gdy limit użycia zatrzyma agenta {name} po rozpoczęciu pracy, {name} kontynuuje tę samą pracę na pierwszym dostępnym modelu z kolejności. Wraca do modelu {model}, gdy limit się skończy.",
   "mobile.agent.busyMessage.label": "Podczas pracy",
   "mobile.agent.busyMessage.footer":
     "Co dzieje się z wiadomością wysłaną, gdy agent pracuje. Kolejka trzyma ją do końca tury. Pokieruj przekazuje ją agentowi w trakcie tury.",

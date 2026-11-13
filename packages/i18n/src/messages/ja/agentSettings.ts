@@ -78,7 +78,7 @@ export const messages = {
   "agentSettings.backupModels.intro":
     "{name} が書き始める前に {model} が使用量の上限に達した場合、{name} はどのモデルを使うかを確認します。",
   "agentSettings.backupModels.introAutomatic":
-    "{model} が使用量の上限に達した場合、{name} は順番の中で最初に使えるモデルに切り替えます。{name} が書き始める前に {model} がプロバイダーのエラーで失敗した場合も切り替えます。",
+    "{model} が使用量の上限に達した場合、{name} は順番の中で最初に使えるモデルに切り替えます。切り替えるのは使用量の上限に達したときだけで、ネットワークやプロバイダーのエラーでは切り替えません。",
   "agentSettings.backupModels.ask": "切り替える前に確認",
   "agentSettings.backupModels.order": "順番",
   "agentSettings.backupModels.listLabel": "バックアップモデル（順番）",
@@ -91,7 +91,7 @@ export const messages = {
   "agentSettings.backupModels.unavailable": "現在使用できません · スキップ",
   "agentSettings.backupModels.withAccount": "{model} · {account}",
   "agentSettings.backupModels.note":
-    "作業の開始後に利用上限で {name} が止まると、{name} は順序の中で最初に使えるモデルで同じ作業を続けます。上限が解除されると、またはプロバイダーのエラーから 10 分後に {model} に戻ります。",
+    "作業の開始後に利用上限で {name} が止まると、{name} は順序の中で最初に使えるモデルで同じ作業を続けます。上限が解除されると {model} に戻ります。",
   "agentSettings.groups.brain": "頭脳",
   "agentSettings.groups.knows": "知識",
   "agentSettings.groups.does": "実行",

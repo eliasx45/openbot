@@ -6,7 +6,8 @@
 //      on the same model, and its answer ends the request. No error shows.
 //   2. A second empty run of the same results shows a plain error, and the results fail.
 //   3. A person's message that gets an empty turn shows the error and does not run again.
-//   4. With backup models, an empty lead turn runs again on the backup model, with no error.
+//   4. With backup models, an empty lead turn runs once more on the same model, as with no backup:
+//      only a usage limit moves an agent to a backup model (fork #81). No error shows.
 //   5. A teammate update that wants no answer can end empty: it completes with no error.
 // `bun run test:codex-empty-lead-turn`. Writes .openbot-build/codex-empty-lead-turn-e2e/report.json.
 import assert from "node:assert/strict";
@@ -119,7 +120,7 @@ const decide = (text, model) => {
   if (result) {
     const mode = result[1];
     const run = nextRun(mode);
-    const empty = mode === "empty-always" || (mode === "empty-once" && run === 1) || (mode === "empty-on-primary" && model === PRIMARY);
+    const empty = mode === "empty-always" || (mode.startsWith("empty-once") && run === 1) || (mode === "empty-on-primary" && model === PRIMARY);
     return { kind: "result", mode, calls: [], empty, reply: "Team done." };
   }
   const named = /<<CALLS([\\s\\S]*?)CALLS>>/.exec(text);
@@ -388,7 +389,7 @@ try {
     return { status: delivery.status, error: delivery.error };
   });
 
-  await check("with backup models, an empty lead turn runs again on the backup model", async () => {
+  await check("with backup models, an empty lead turn runs again on the same model", async () => {
     const backupLead = await createAgent("Backup lead");
     await runCauseEffect(
       agents.updateAgent({
@@ -402,12 +403,12 @@ try {
         },
       }),
     );
-    const outcome = await askTeam(backupLead.id, [alpha.id, beta.id], "empty-on-primary");
+    const outcome = await askTeam(backupLead.id, [alpha.id, beta.id], "empty-once-backup");
     assert.deepEqual(
       outcome.turns.map((turn) => [turn.model, turn.empty]),
       [
         [PRIMARY, true],
-        [BACKUP, false],
+        [PRIMARY, false],
       ],
       JSON.stringify(outcome),
     );

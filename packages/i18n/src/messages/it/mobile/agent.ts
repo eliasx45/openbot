@@ -353,7 +353,7 @@ export const messages = {
   "mobile.agent.backupModels.intro":
     "Quando {model} raggiunge il limite di utilizzo prima che {name} inizi a scrivere, {name} ti chiede quale modello usare.",
   "mobile.agent.backupModels.introAutomatic":
-    "Quando {model} raggiunge il limite di utilizzo, {name} passa al primo modello disponibile nell'ordine. {name} cambia modello anche quando {model} fallisce per un errore del provider prima che {name} inizi a scrivere.",
+    "Quando {model} raggiunge il limite di utilizzo, {name} passa al primo modello disponibile nell'ordine. Cambia modello solo per un limite di utilizzo, non per un errore di rete o del provider.",
   "mobile.agent.backupModels.ask": "Chiedi prima di cambiare",
   "mobile.agent.backupModels.order": "Ordine",
   "mobile.agent.backupModels.empty": "Nessun ordine impostato. {name} propone ogni modello disponibile.",
@@ -367,7 +367,7 @@ export const messages = {
   "mobile.agent.backupModels.unavailable": "Non disponibile ora · saltato",
   "mobile.agent.backupModels.withAccount": "{model} · {account}",
   "mobile.agent.backupModels.note":
-    "Se un limite di utilizzo ferma {name} dopo l'inizio del lavoro, {name} continua lo stesso lavoro con il primo modello disponibile nell'ordine. Torna a {model} quando il limite termina, o 10 minuti dopo un errore del provider.",
+    "Se un limite di utilizzo ferma {name} dopo l'inizio del lavoro, {name} continua lo stesso lavoro con il primo modello disponibile nell'ordine. Torna a {model} quando il limite termina.",
   "mobile.agent.busyMessage.label": "Durante il lavoro",
   "mobile.agent.busyMessage.footer":
     "Cosa fa un messaggio inviato mentre l'agente lavora. Coda lo tiene fino alla fine del turno. Indirizza lo consegna all'agente durante il turno.",

@@ -83,7 +83,7 @@ export const messages = {
   "agentSettings.backupModels.intro":
     "Quando {model} atinge o limite de uso antes de {name} começar a escrever, {name} pergunta qual modelo você quer usar.",
   "agentSettings.backupModels.introAutomatic":
-    "Quando {model} atinge o limite de uso, {name} troca para o primeiro modelo disponível na ordem. {name} também troca quando {model} falha por um erro do provedor antes de {name} começar a escrever.",
+    "Quando {model} atinge o limite de uso, {name} troca para o primeiro modelo disponível na ordem. Só um limite de uso faz a troca: um erro de rede ou do provedor não.",
   "agentSettings.backupModels.ask": "Perguntar antes de trocar",
   "agentSettings.backupModels.order": "Ordem",
   "agentSettings.backupModels.listLabel": "Modelos de reserva, em ordem",
@@ -96,7 +96,7 @@ export const messages = {
   "agentSettings.backupModels.unavailable": "Indisponível agora · ignorado",
   "agentSettings.backupModels.withAccount": "{model} · {account}",
   "agentSettings.backupModels.note":
-    "Quando um limite de uso para {name} depois de começar a trabalhar, {name} continua o mesmo trabalho no primeiro modelo disponível da ordem. Volta para {model} quando o limite termina, ou 10 minutos após um erro do provedor.",
+    "Quando um limite de uso para {name} depois de começar a trabalhar, {name} continua o mesmo trabalho no primeiro modelo disponível da ordem. Volta para {model} quando o limite termina.",
   "agentSettings.groups.brain": "Cérebro",
   "agentSettings.groups.knows": "Sabe",
   "agentSettings.groups.does": "Faz",

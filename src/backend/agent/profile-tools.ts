@@ -119,7 +119,7 @@ export const updateProfileToolSchema = z
         automatic: z
           .boolean()
           .describe(
-            "true: when a usage limit holds a message, or a provider error fails a turn before it did work, the agent moves at once to the first ready model in order. false: it asks in the chat first.",
+            "true: when a usage limit holds a message, the agent moves at once to the first ready model in order. Only a usage limit moves it: a network error, timeout, outage, rate limit, billing or sign-in error does not. false: it asks in the chat first.",
           ),
         order: z
           .array(

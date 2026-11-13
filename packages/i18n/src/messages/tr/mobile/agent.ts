@@ -365,7 +365,7 @@ export const messages = {
   "mobile.agent.backupModels.intro":
     "{model}, {name} yazmaya başlamadan önce kullanım sınırına ulaşırsa {name} hangi modelin kullanılacağını size sorar.",
   "mobile.agent.backupModels.introAutomatic":
-    "{model} kullanım sınırına ulaşırsa {name} sıradaki ilk uygun modele geçer. {name} yazmaya başlamadan önce {model} bir sağlayıcı hatasıyla başarısız olursa da {name} geçiş yapar.",
+    "{model} kullanım sınırına ulaşırsa {name} sıradaki ilk uygun modele geçer. {name} yalnızca kullanım sınırında geçiş yapar; ağ veya sağlayıcı hatası geçiş yaptırmaz.",
   "mobile.agent.backupModels.ask": "Değiştirmeden önce sor",
   "mobile.agent.backupModels.order": "Sıra",
   "mobile.agent.backupModels.empty": "Sıra ayarlanmadı. {name} uygun her modeli sunar.",
@@ -379,7 +379,7 @@ export const messages = {
   "mobile.agent.backupModels.unavailable": "Şu an uygun değil · atlandı",
   "mobile.agent.backupModels.withAccount": "{model} · {account}",
   "mobile.agent.backupModels.note":
-    "Bir kullanım sınırı {name} işe başladıktan sonra onu durdurursa, {name} aynı işe sıradaki ilk kullanılabilir modelle devam eder. Sınır bittiğinde veya bir sağlayıcı hatasından 10 dakika sonra {model} modeline geri döner.",
+    "Bir kullanım sınırı {name} işe başladıktan sonra onu durdurursa, {name} aynı işe sıradaki ilk kullanılabilir modelle devam eder. Sınır bittiğinde {model} modeline geri döner.",
   "mobile.agent.busyMessage.label": "Çalışırken",
   "mobile.agent.busyMessage.footer":
     "Ajan çalışırken gönderdiğiniz bir mesajın ne olacağı. Kuyruk, mesajı tur bitene kadar tutar. Yönlendir, mesajı tur sırasında ajana verir.",

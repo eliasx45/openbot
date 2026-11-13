@@ -104,7 +104,7 @@ export const messages = {
   "agentSettings.backupModels.intro":
     "Gdy {model} osiągnie limit użycia, zanim {name} zacznie pisać, {name} zapyta cię, którego modelu użyć.",
   "agentSettings.backupModels.introAutomatic":
-    "Gdy {model} osiągnie limit użycia, {name} przełączy się na pierwszy dostępny model w kolejności. {name} przełączy się też, gdy {model} zawiedzie z powodu błędu dostawcy, zanim {name} zacznie pisać.",
+    "Gdy {model} osiągnie limit użycia, {name} przełączy się na pierwszy dostępny model w kolejności. Przełącza się tylko po osiągnięciu limitu użycia, nie po błędzie sieci ani dostawcy.",
   "agentSettings.backupModels.ask": "Pytaj przed przełączeniem",
   "agentSettings.backupModels.order": "Kolejność",
   "agentSettings.backupModels.listLabel": "Modele zapasowe w kolejności",
@@ -117,7 +117,7 @@ export const messages = {
   "agentSettings.backupModels.unavailable": "Chwilowo niedostępny · pominięto",
   "agentSettings.backupModels.withAccount": "{model} · {account}",
   "agentSettings.backupModels.note":
-    "Gdy limit użycia zatrzyma agenta {name} po rozpoczęciu pracy, {name} kontynuuje tę samą pracę na pierwszym dostępnym modelu z kolejności. Wraca do modelu {model}, gdy limit się skończy, lub 10 minut po błędzie dostawcy.",
+    "Gdy limit użycia zatrzyma agenta {name} po rozpoczęciu pracy, {name} kontynuuje tę samą pracę na pierwszym dostępnym modelu z kolejności. Wraca do modelu {model}, gdy limit się skończy.",
   "agentSettings.groups.brain": "Mózg",
   "agentSettings.groups.knows": "Wie",
   "agentSettings.groups.does": "Robi",

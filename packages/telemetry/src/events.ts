@@ -228,13 +228,22 @@ export function classifyFailure(error: unknown): CauseCode {
   if (typeof message !== "string") return "unknown";
   if (/\binvalid upload request\b/iu.test(message)) return "invalid_upload_request";
   // The limit and outage rules come first, so a text that names a limit and a size, such as "rate
-  // limit: too many tokens per minute", keeps the cause that a backup model can pass.
+  // limit: too many tokens per minute", keeps its limit cause.
   if (
     /\b(?:401 unauthorized|invalid[ _]api[ _]key|api key not valid|API_KEY_INVALID|not authenticated|UNAUTHENTICATED|authentication failed|authentication_error|token (?:has )?expired|sign in again|log in again)\b/iu.test(
       message,
     )
   )
     return "authentication";
+  // Fork #81: a spent plan window is a usage limit also when its text names a 429 or "too many
+  // requests", as OpenCode Go's `429: {"type":"GoUsageLimitError",…}` does. A short throttle names
+  // a rate limit and no plan window.
+  if (
+    /\b(?:usage limit|hit your (?:(?:session|weekly|usage|plan|opus|sonnet|\d+-hour) )*limit|free[ _-]usage[ _-]exhausted|(?:daily|weekly|monthly) limit exhausted)\b/iu.test(
+      message,
+    )
+  )
+    return "usage_limit";
   // Google's 429 is RESOURCE_EXHAUSTED.
   if (
     /\b(?:rate[ _-]?limit(?:ed|ing|_error|_exceeded)?|too many requests|RESOURCE_EXHAUSTED|resource has been exhausted)\b/iu.test(

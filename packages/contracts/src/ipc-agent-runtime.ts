@@ -255,7 +255,7 @@ export interface AgentRuntimeSnapshot {
    */
   usageLimitedModels?: AgentModelChoice[];
   /**
-   * Each provider account and model that a provider error holds for a while, so that a switch to a
+   * Each provider account and model that a spent quota holds for a while, so that a switch to a
    * backup model passes over it. Absent from a released Team API snapshot, as `usageLimits` is.
    */
   failedModels?: AgentModelChoice[];

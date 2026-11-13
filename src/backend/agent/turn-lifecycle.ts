@@ -109,22 +109,35 @@ const ENDED_TURN_LIMIT = 256;
 /** How long before a turn's start its usage records can be, as in host analytics. */
 const TURN_USAGE_MARGIN_MS = 60 * 60 * 1_000;
 /**
- * The provider errors that move an agent set to switch without asking to its next backup model. Each
- * one can pass on another provider, account or model; a request the model refuses fails on each.
- * A usage limit that the usage-limit gate does not hold comes here too, such as a spent Gemini quota (#4368).
- * A model that gave only its reasoning and no answer can answer on another model (#6594). As for each
- * cause, a turn that ran a tool step does not run again, so the tool does not run two times.
+ * Fork (docs/fork/FEATURES.md #81, "Backup models switch only at a usage limit"): the one turn failure
+ * that moves an agent to its next backup model. A spent plan or quota that the usage-limit gate does
+ * not hold comes here, such as a spent Gemini quota (#4368). Elias, 13 Nov 2026: "only when limit
+ * reached is when it should switch". A network drop, a timeout, an outage, a short rate limit, a
+ * billing or sign-in problem and a turn with no answer fail as they do with no backup model: the CLI
+ * retries, the error shows, or the network wait resumes the turn. As before, a turn that ran a tool
+ * step does not run again, so the tool does not run two times.
  */
-const FAILOVER_CAUSES: ReadonlySet<CauseCode> = new Set([
-  "billing",
-  "usage_limit",
-  "provider_unavailable",
-  "rate_limit",
-  "authentication",
-  "network",
-  "timeout",
-  "empty_answer",
-]);
+const FAILOVER_CAUSES: ReadonlySet<CauseCode> = new Set(["usage_limit"]);
+
+/** Fork #81: whether a turn failure with this cause may move the agent to a backup model. */
+export function forkSwitchesToBackup(causeCode: CauseCode): boolean {
+  return FAILOVER_CAUSES.has(causeCode);
+}
+
+/**
+ * Fork #81: the cause of a provider text that reads as spent usage (`isUsageLimitDiagnostic`). A
+ * spent plan or quota is a usage limit and can move the agent to a backup model. A spent credit
+ * balance or a payment problem is billing, and a per-minute or per-second quota is a short rate
+ * limit: neither moves it. The text cause wins when it already reads as one of these, so a Gemini
+ * 429 (`RESOURCE_EXHAUSTED`) that says its daily quota is spent is a usage limit, and one that names
+ * a per-minute quota stays a rate limit.
+ */
+export function forkUsageLimitCause(causeCode: CauseCode, message: string): CauseCode {
+  if (causeCode === "usage_limit" || causeCode === "billing") return causeCode;
+  if (/\b(?:credits?|balance|billing|funds|payment)\b/iu.test(message)) return "billing";
+  if (/per[ _-]?(?:minute|second)|\bper (?:min|sec)\b|\b(?:RPM|TPM|RPS)\b/iu.test(message)) return "rate_limit";
+  return "usage_limit";
+}
 
 /**
  * The provider errors during a turn's own compaction that end the turn but can pass when it continues:
@@ -823,10 +836,10 @@ export class TurnLifecycle {
    */
   #mayHoldError(agentId: string, turnId: string, causeCode: CauseCode): boolean {
     return (
-      this.#hooks.mayFailOver(agentId) ||
-      (causeCode === "usage_limit" &&
-        this.#carriesWork(agentId, turnId, this.#runningTurns.get(turnId)) &&
-        this.#hooks.mayContinueOnBackup(agentId))
+      forkSwitchesToBackup(causeCode) &&
+      (this.#hooks.mayFailOver(agentId) ||
+        (this.#carriesWork(agentId, turnId, this.#runningTurns.get(turnId)) &&
+          this.#hooks.mayContinueOnBackup(agentId)))
     );
   }
 
@@ -1313,23 +1326,24 @@ export class TurnLifecycle {
           if (planLimit && notification.method === "error" && errorTurnId && this.#runningTurns.has(errorTurnId)) {
             this.#limitedTurns.set(errorTurnId, this.#limitedTurns.get(errorTurnId) ?? null);
           }
+          const limitCause = forkUsageLimitCause(causeCode, message);
           const context = {
             turnId: errorTurnId,
             provider: source.provider,
             model: agentId && errorTurnId ? this.#hooks.turnModel(agentId, errorTurnId) : null,
-            causeCode,
+            causeCode: limitCause,
             severity: notification.method === "warning" ? ("warning" as const) : ("error" as const),
           };
           yield* this.#providers.refreshUsageAfterLimit(source);
-          // A spent balance or quota that the gate does not hold moves to a backup model as a provider
-          // error does (#4616). The end of the turn reports it.
+          // A spent quota that the gate does not hold moves to a backup model (#4616). A spent balance
+          // or a short rate limit does not (fork #81). The end of the turn reports it.
           if (
             notification.method === "error" &&
             agentId &&
             errorTurnId !== null &&
             this.#runningTurns.has(errorTurnId) &&
             !this.#limitedTurns.has(errorTurnId) &&
-            this.#mayHoldError(agentId, errorTurnId, causeCode)
+            this.#mayHoldError(agentId, errorTurnId, limitCause)
           ) {
             this.#failoverTurns.set(errorTurnId, { message, context, quiet: true });
             return;
@@ -1362,9 +1376,7 @@ export class TurnLifecycle {
           errorTurnId !== null &&
           this.#runningTurns.has(errorTurnId) &&
           this.#observedCompactions.get(threadId) === errorTurnId &&
-          COMPACTION_RETRY_CAUSES.has(context.causeCode) &&
-          // A turn that did no work yet runs again on a backup model, as before.
-          !(this.#runningTurns.get(errorTurnId)?.acted === false && this.#hooks.mayFailOver(agentId))
+          COMPACTION_RETRY_CAUSES.has(context.causeCode)
         ) {
           logger.warn("A provider compaction failed.", {
             provider: source.provider,
@@ -1374,15 +1386,15 @@ export class TurnLifecycle {
           this.#holdCompactionFailure(errorTurnId, context, false);
           return;
         }
-        // A provider error moves an agent set to switch without asking to its next backup model. The
-        // error waits for the end of the turn: a turn that did nothing yet runs again there instead.
-        // A turn with no answer waits also with no backup: teammate results can run again (#7225).
+        // A usage limit moves an agent set to switch without asking to its next backup model (fork
+        // #81: only a usage limit). The error waits for the end of the turn: a turn that did nothing
+        // yet runs again there instead. A turn with no answer waits also with no backup: teammate
+        // results can run again on the same model (#7225), but it never moves to a backup.
         if (
           notification.method === "error" &&
           agentId &&
           errorTurnId !== null &&
           this.#runningTurns.has(errorTurnId) &&
-          FAILOVER_CAUSES.has(context.causeCode) &&
           ((context.causeCode === "empty_answer" &&
             !(threadId && this.#compaction.isCompactionTurn(threadId, errorTurnId))) ||
             this.#mayHoldError(agentId, errorTurnId, context.causeCode))
@@ -1653,7 +1665,8 @@ export class TurnLifecycle {
       const requeue = repeatable && (!channelTurn || continuing);
       // The limit belongs to the model the turn ran on, which the agent may have left since.
       const model = this.#hooks.turnModel(agentId, turnId);
-      // The same for a provider error, when the agent moves to a backup model. Only the agent's own
+      // The same for a usage limit that the gate does not hold, when the agent moves to a backup model
+      // (fork #81: no other provider error moves it). Only the agent's own
       // chat moves it: a task or a channel task fails as before. A message runs again once for each
       // provider account and model that failed it, so a move that does not happen cannot run it on
       // the same one again. A turn that a spent quota ended after work started continues on a backup,
@@ -1661,6 +1674,7 @@ export class TurnLifecycle {
       const failedKey = this.#usageLimits.failureKey(agentId, model);
       const failedOver =
         (mayRunAgain || mayContinue) &&
+        forkSwitchesToBackup(failover.context.causeCode) &&
         failedKey !== null &&
         deliveries.length > 0 &&
         !taskTurn &&
@@ -1669,7 +1683,7 @@ export class TurnLifecycle {
         ((mayRunAgain && this.#hooks.mayFailOver(agentId)) ||
           (mayContinue && this.#hooks.mayContinueOnBackup(agentId)));
       // Teammate results start a lead's turn, and nothing else wakes the team when that turn gives no
-      // answer (#7225). With no backup to take it, the turn runs once more on the same model. It did
+      // answer (#7225). The turn runs once more on the same model, also with backup models (fork #81). It did
       // no step, so it repeats nothing. A second empty run shows the error.
       const runsAgainHere =
         !failedOver &&
@@ -1766,7 +1780,14 @@ export class TurnLifecycle {
         return;
       }
       // A thread turn does not run again, but the agent leaves the failing model before its next turn (#5220).
-      if (failover && mayRunAgain && taskTurn && failedKey !== null && this.#hooks.mayFailOver(agentId))
+      if (
+        failover &&
+        mayRunAgain &&
+        taskTurn &&
+        failedKey !== null &&
+        forkSwitchesToBackup(failover.context.causeCode) &&
+        this.#hooks.mayFailOver(agentId)
+      )
         this.#markFailed(agentId, model, failover);
       // The turn did work that no backup continues, or nothing waits to run again: the error shows as
       // it does with no backup.

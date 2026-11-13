@@ -355,7 +355,7 @@ export const messages = {
   "mobile.agent.backupModels.intro":
     "Als {model} de gebruikslimiet bereikt voordat {name} begint te schrijven, vraagt {name} je welk model het moet gebruiken.",
   "mobile.agent.backupModels.introAutomatic":
-    "Als {model} de gebruikslimiet bereikt, schakelt {name} over op het eerste beschikbare model in de volgorde. {name} schakelt ook over als {model} een fout van de aanbieder geeft voordat {name} begint te schrijven.",
+    "Als {model} de gebruikslimiet bereikt, schakelt {name} over op het eerste beschikbare model in de volgorde. Alleen een gebruikslimiet laat het overschakelen, een netwerk- of aanbiedersfout niet.",
   "mobile.agent.backupModels.ask": "Vragen voor overschakelen",
   "mobile.agent.backupModels.order": "Volgorde",
   "mobile.agent.backupModels.empty": "Geen volgorde ingesteld. {name} biedt elk beschikbaar model aan.",
@@ -369,7 +369,7 @@ export const messages = {
   "mobile.agent.backupModels.unavailable": "Nu niet beschikbaar · overgeslagen",
   "mobile.agent.backupModels.withAccount": "{model} · {account}",
   "mobile.agent.backupModels.note":
-    "Als een gebruikslimiet {name} stopt nadat het werk is begonnen, gaat {name} met hetzelfde werk verder op het eerste beschikbare model in de volgorde. Het gaat terug naar {model} als de limiet afloopt, of 10 minuten na een fout van de aanbieder.",
+    "Als een gebruikslimiet {name} stopt nadat het werk is begonnen, gaat {name} met hetzelfde werk verder op het eerste beschikbare model in de volgorde. Het gaat terug naar {model} als de limiet afloopt.",
   "mobile.agent.busyMessage.label": "Tijdens werk",
   "mobile.agent.busyMessage.footer":
     "Wat een bericht doet als je het stuurt terwijl de agent werkt. Wachtrij bewaart het tot de beurt eindigt. Bijsturen geeft het tijdens de beurt aan de agent.",

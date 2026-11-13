@@ -1375,18 +1375,28 @@ When the list is automatic, `UsageLimitGate` and `AgentService.#usageLimitMove` 
 first ready model in the order that no hold covers. `usageLimitReturn` keeps the model the agent
 left, and the agent goes back to it when its hold ends. A model the user picks drops the return.
 
-Two holds move an agent:
+Only a usage limit moves an agent (fork #81, Elias: "only when limit reached is when it should
+switch"). Two holds do:
 
 - A plan usage limit holds the queue of every agent on that provider account and model until the
   reset. A usage reset that the user starts also ends it (see [Usage reset credits](#usage-reset-credits)).
-- A provider error holds nothing. `TurnLifecycle` checks the turn's error with `classifyFailure`.
-  The causes are `billing`, `provider_unavailable`, `rate_limit`, `authentication`, `network` and
-  `timeout`. When the turn did no work yet (`!acted`) and the agent has a ready backup, the turn's
-  messages go back to the queue and `UsageLimitGate.failed` passes over that model for 10 minutes.
+- A spent quota that names no plan window, such as a spent Gemini quota, holds nothing in the
+  gate. `TurnLifecycle` reads its cause with `forkUsageLimitCause`: a spent quota is `usage_limit`, a
+  spent credit balance or payment problem is `billing`, and a per-minute or per-second quota is
+  `rate_limit`. Only `usage_limit` (`forkSwitchesToBackup`) moves the agent. When the turn did no
+  work yet (`!acted`) and the agent has a ready backup, the turn's messages go back to the queue and
+  `UsageLimitGate.failed` passes over that model for 10 minutes, or until the reset the error names.
   The next drain moves the agent, and the turn runs again on the backup with no error banner. The
   hold also ends when a turn on the model completes. A restart clears the holds, so the first drain
-  after it goes back. The return is marked `cause: "provider-error"`, so the notes read
-  `model-switch:provider-error` and `model-switch:provider-error-ended`.
+  after it goes back. The return is marked `cause: "provider-error"` (a name from before fork #81),
+  so the notes are `model-switch:provider-error` and `model-switch:provider-error-ended`; their
+  text reads as a usage limit.
+
+A network drop, a timeout, an outage (`provider_unavailable`), a short rate limit (`rate_limit`), a
+billing or sign-in error and a turn with no answer (`empty_answer`) never move the agent: the turn
+fails as with no backup, and the network wait ("Agents ride out a network drop") resumes a dropped
+one. `classifyFailure` reads a plan-window text as `usage_limit` also when it names a 429 or "too
+many requests"; a short throttle names a rate limit and no plan window.
 
 A turn that wrote text or ran a tool fails with its error, as with no backup. Tasks, channel tasks,
 a refused `turn/start`, and a provider that fails to start do not fail over. A message runs again at

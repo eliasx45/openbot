@@ -2601,9 +2601,9 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
       },
     });
     if (status === "failed" && error) {
-      // A sign-in failure moves the turn to a backup model, as an invalid key does, and so do spent
-      // usage credits. The shared classifier does not find these causes in the CLI text, so the
-      // client names them.
+      // A sign-in failure and spent usage credits get their own cause. The shared classifier does not
+      // find these causes in the CLI text, so the client names them. Neither moves the turn to a
+      // backup model: only a usage limit does (fork #81).
       const signInFailed = turn.authenticationFailed || CLAUDE_NOT_LOGGED_IN.test(String(error));
       const balanceSpent = turn.balanceSpent && isBalanceDiagnostic(String(error));
       this.emit("notification", {
@@ -3047,8 +3047,8 @@ const CLAUDE_SANDBOX_UNAVAILABLE = /Sandbox required but unavailable: (.+?)\.? S
  * API's "Your credit balance is too low to access the Anthropic API" (Claude Code 2.1.309). A Claude
  * plan does not pay for API key requests, and a plan subscriber read it as a fault (#5550). Only a
  * turn on a key gets the key text: a gateway or a plan's extra usage can send the same words. The
- * key text keeps "credit balance is too low", so `isUsageLimitDiagnostic` still moves the turn to a
- * backup model (#4616).
+ * key text keeps "credit balance is too low", so `isUsageLimitDiagnostic` still reads it (#4616). As a
+ * spent balance it is billing and does not move the turn to a backup model (fork #81).
  */
 const CLAUDE_API_CREDIT_EMPTY = /\bcredit balance (?:is )?too low\b/iu;
 

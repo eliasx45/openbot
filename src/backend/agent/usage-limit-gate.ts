@@ -19,9 +19,10 @@ const USAGE_LIMIT_RECHECK_MS = 15 * 60_000;
 const RESET_GRACE_MS = 30_000;
 
 /**
- * How long a model that failed a turn with a provider error is passed over, so an agent on a backup
- * does not go back to a model that still fails at once. An error that names a later reset, such as
- * a spent Gemini quota, holds the model until that reset (#4583).
+ * How long a model whose spent quota failed a turn is passed over, so an agent on a backup does not
+ * go back to a model that still fails at once. Fork #81: only a usage limit marks a model failed; a
+ * network error or an outage never does. An error that names a later reset, such as a spent Gemini
+ * quota, holds the model until that reset (#4583).
  */
 const PROVIDER_FAILURE_HOLD_MS = 10 * 60_000;
 

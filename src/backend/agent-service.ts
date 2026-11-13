@@ -3454,8 +3454,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
   }
 
   /**
-   * `move` is "return" for the move back to the model a usage limit or a provider error made the
-   * agent leave, "provider-error" for the move away from a model that failed a turn, and "next-turn"
+   * `move` is "return" for the move back to the model a usage limit made the agent leave,
+   * "provider-error" for the move away from a model whose spent quota failed a turn (fork #81: no
+   * other provider error moves it), and "next-turn"
    * for a queued `pendingRuntime` that applies before the next turn. `queueWhileBusy` is set for a
    * change that a user or an agent asks for: while work runs, a handover is stored as
    * `pendingRuntime` instead of refused.
@@ -3679,7 +3680,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     }
     if (requestedProvider && (input.provider || input.model))
       yield* lifecycleStep("check provider switch", () => this.#providers.requireProviderOn(requestedProvider));
-    // Leaving a model at its usage limit or after a provider error keeps the model to go back to:
+    // Leaving a model at its usage limit keeps the model to go back to:
     // the first one left, when the agent moves on from one backup to the next.
     const previousChoice = previous ? agentModelChoice(previous) : undefined;
     const nextChoice: AgentModelChoice | undefined =
@@ -3804,9 +3805,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
   }, Effect.uninterruptible);
 
   /**
-   * The model a usage limit or a provider error moves this agent to now, or null. An agent goes back
-   * to the model it left once no limit or provider error holds that model. An agent held by a limit,
-   * or whose model failed a turn with a provider error, set to switch without asking and with queued
+   * The model a usage limit moves this agent to now, or null. An agent goes back to the model it
+   * left once no limit holds that model. An agent held by a limit, or whose model failed a turn with
+   * a spent quota that the gate does not hold (fork #81: only that), set to switch without asking and with queued
    * work or channel work that waits for it, moves to its first backup model that is ready. An agent
    * set to ask moves too when its next queued work is a continuation of work that a limit stopped:
    * the turn already started, so there is no moment to ask. Only an agent with no started work
@@ -4390,7 +4391,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
   }
 
   /**
-   * A note in the agent's chat that it left its model for a usage limit or a provider error, or went back to it. Each
+   * A note in the agent's chat that it left its model for a usage limit, or went back to it. Each
    * channel whose work waits for the agent gets the same note.
    */
   #appendModelSwitchMarker(agent: AgentSummary, reason: ModelSwitchReason): void {
@@ -7046,8 +7047,10 @@ const RUNTIME_UPDATE_KEYS: ReadonlySet<string> = new Set([
 const MODEL_SWITCH_TEXT = {
   "usage-limit": "status.agent.modelSwitchedForLimit",
   "usage-limit-ended": "status.agent.modelReturnedAfterLimit",
-  "provider-error": "status.agent.modelSwitchedForError",
-  "provider-error-ended": "status.agent.modelReturnedAfterError",
+  // Fork #81: only a spent quota that the gate does not hold moves the agent this way now, so its
+  // notes read as a usage limit. The names stay: stored notes and returns keep them.
+  "provider-error": "status.agent.modelSwitchedForLimit",
+  "provider-error-ended": "status.agent.modelReturnedAfterLimit",
 } as const;
 
 function agentModelChoice(agent: AgentSummary): AgentModelChoice {

@@ -346,7 +346,7 @@ export const messages = defineMessages("mobile.agent", {
   "mobile.agent.backupModels.intro":
     "When {model} reaches its usage limit before {name} starts to write, {name} asks you which model to use.",
   "mobile.agent.backupModels.introAutomatic":
-    "When {model} reaches its usage limit, {name} switches to the first available model in the order. {name} also switches when {model} fails with a provider error before {name} starts to write.",
+    "When {model} reaches its usage limit, {name} switches to the first available model in the order. Only a usage limit switches it: a network or provider error does not.",
   "mobile.agent.backupModels.ask": "Ask before switching",
   "mobile.agent.backupModels.order": "Order",
   "mobile.agent.backupModels.empty": "No order set. {name} offers each available model.",
@@ -360,7 +360,7 @@ export const messages = defineMessages("mobile.agent", {
   "mobile.agent.backupModels.unavailable": "Not available now · skipped",
   "mobile.agent.backupModels.withAccount": "{model} · {account}",
   "mobile.agent.backupModels.note":
-    "When a usage limit stops {name} after it starts to work, {name} continues the same work on the first available model in the order. It goes back to {model} when the limit ends, or 10 minutes after a provider error.",
+    "When a usage limit stops {name} after it starts to work, {name} continues the same work on the first available model in the order. It goes back to {model} when the limit ends.",
   "mobile.agent.busyMessage.label": "While working",
   "mobile.agent.busyMessage.footer":
     "What a message does when you send it while the agent works. Queue keeps it until the turn ends. Steer gives it to the agent during the turn.",

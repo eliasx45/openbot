@@ -774,8 +774,8 @@ step stopped the whole team (#7225). Codex ends such a turn as completed. `TurnL
 with the `empty_answer` cause, as an ACP turn with no answer fails, unless the turn wants no answer
 (a quiet teammate update or routine run), compacted, showed a plan, continues a plan, or was stopped
 by the user. The error waits for the end
-of the turn, also with no backup model. A backup model then runs the turn again, as for a provider
-error. With no backup, a turn that only teammate results started runs once more on the same model;
+of the turn, also with no backup model. It never moves to a backup model (fork #81: only a usage
+limit does). A turn that only teammate results started runs once more on the same model;
 the turn did no step, so it repeats nothing. A second empty run, or an empty turn from the person,
 shows the error. `scripts/codex-empty-lead-turn-e2e.ts` checks these paths.
 
@@ -871,7 +871,7 @@ and account), the same choices that the settings page offers. OpenBot checks eac
 account against the lists before it writes, and the agent service checks the primary account; an
 account change, like a provider change, waits until the agent is idle. These changes apply at once,
 as the other profile fields do. `read_agent` and the `update_profile` result return the account,
-the backup models and `usageLimitReturn`, the model that the agent left for a usage limit or a provider error (`cause: "provider-error"`). A spent credit balance
+the backup models and `usageLimitReturn`, the model that the agent left for a usage limit (`cause: "provider-error"` for a spent quota that the plan gate does not hold). A spent credit balance
 that names no reset sets no `usageLimitReturn`, so the agent does not go back to it by itself. An unknown
 model or an unsupported effort is an error that names the valid values; OpenBot checks them before
 it creates the agent. Without a provider and a model, the new agent starts on the calling agent's

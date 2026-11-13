@@ -349,7 +349,7 @@ export const messages = {
   "mobile.agent.backupModels.intro":
     "כש-{model} מגיע למגבלת השימוש לפני ש-{name} מתחיל לכתוב, {name} שואל אותך באיזה מודל להשתמש.",
   "mobile.agent.backupModels.introAutomatic":
-    "כש-{model} מגיע למגבלת השימוש, {name} עובר למודל הזמין הראשון לפי הסדר. {name} עובר גם כש-{model} נכשל בשגיאת ספק לפני ש-{name} מתחיל לכתוב.",
+    "כש-{model} מגיע למגבלת השימוש שלו, {name} עובר למודל הזמין הראשון לפי הסדר. רק מגבלת שימוש מעבירה אותו: שגיאת רשת או שגיאת ספק לא.",
   "mobile.agent.backupModels.ask": "לשאול לפני המעבר",
   "mobile.agent.backupModels.order": "סדר",
   "mobile.agent.backupModels.empty": "לא נקבע סדר. {name} מציע כל מודל זמין.",
@@ -363,7 +363,7 @@ export const messages = {
   "mobile.agent.backupModels.unavailable": "לא זמין כעת · מדולג",
   "mobile.agent.backupModels.withAccount": "{model} · {account}",
   "mobile.agent.backupModels.note":
-    "כשמגבלת שימוש עוצרת את {name} אחרי שהתחיל לעבוד, {name} ממשיך את אותה עבודה במודל הזמין הראשון לפי הסדר. הוא חוזר ל-{model} כשהמגבלה מסתיימת, או 10 דקות אחרי שגיאת ספק.",
+    "כשמגבלת שימוש עוצרת את {name} אחרי שהתחיל לעבוד, {name} ממשיך באותה עבודה במודל הזמין הראשון לפי הסדר. הוא חוזר ל-{model} כשהמגבלה מסתיימת.",
   "mobile.agent.busyMessage.label": "בזמן עבודה",
   "mobile.agent.busyMessage.footer":
     "מה קורה להודעה שנשלחת כשהסוכן עובד. תור שומר אותה עד סוף התור. הכוונה מוסרת אותה לסוכן במהלך התור.",

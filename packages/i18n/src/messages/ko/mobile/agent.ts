@@ -349,7 +349,7 @@ export const messages = {
   "mobile.agent.backupModels.intro":
     "{name}이(가) 글을 쓰기 시작하기 전에 {model}의 사용 한도에 도달하면, 어떤 모델을 사용할지 {name}이(가) 물어봐요.",
   "mobile.agent.backupModels.introAutomatic":
-    "{model}의 사용 한도에 도달하면 {name}이(가) 순서상 사용 가능한 첫 번째 모델로 전환해요. {name}이(가) 글을 쓰기 시작하기 전에 {model}이(가) 제공자 오류로 실패해도 전환해요.",
+    "{model}의 사용 한도에 도달하면 {name}이(가) 순서상 사용 가능한 첫 번째 모델로 전환해요. 사용 한도에 도달했을 때만 전환하고, 네트워크 오류나 제공자 오류로는 전환하지 않아요.",
   "mobile.agent.backupModels.ask": "전환 전에 묻기",
   "mobile.agent.backupModels.order": "순서",
   "mobile.agent.backupModels.empty": "설정된 순서가 없어요. {name}이(가) 사용 가능한 모든 모델을 제안해요.",
@@ -363,7 +363,7 @@ export const messages = {
   "mobile.agent.backupModels.unavailable": "지금 사용할 수 없음 · 건너뜀",
   "mobile.agent.backupModels.withAccount": "{model} · {account}",
   "mobile.agent.backupModels.note":
-    "작업을 시작한 뒤 사용 한도로 {name}이(가) 멈추면, 순서에서 처음으로 사용 가능한 모델로 같은 작업을 이어가요. 한도가 끝나거나 제공자 오류 후 10분이 지나면 {model}(으)로 돌아가요.",
+    "작업을 시작한 뒤 사용 한도로 {name}이(가) 멈추면, 순서에서 처음으로 사용 가능한 모델로 같은 작업을 이어가요. 한도가 끝나면 {model}(으)로 돌아가요.",
   "mobile.agent.busyMessage.label": "작업 중일 때",
   "mobile.agent.busyMessage.footer":
     "에이전트가 작업하는 중에 메시지를 보낼 때의 동작이에요. 대기열은 턴이 끝날 때까지 메시지를 보관해요. 방향 지시는 턴이 진행되는 동안 에이전트에게 메시지를 전달해요.",

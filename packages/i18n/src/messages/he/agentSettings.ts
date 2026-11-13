@@ -88,7 +88,7 @@ export const messages = {
   "agentSettings.backupModels.intro":
     "כש-{model} מגיע למגבלת השימוש שלו לפני ש-{name} מתחיל לכתוב, {name} שואל אותך באיזה מודל להשתמש.",
   "agentSettings.backupModels.introAutomatic":
-    "כש-{model} מגיע למגבלת השימוש שלו, {name} עובר למודל הזמין הראשון לפי הסדר. {name} עובר גם כש-{model} נכשל בשגיאת ספק לפני ש-{name} מתחיל לכתוב.",
+    "כש-{model} מגיע למגבלת השימוש שלו, {name} עובר למודל הזמין הראשון לפי הסדר. רק מגבלת שימוש מעבירה אותו: שגיאת רשת או שגיאת ספק לא.",
   "agentSettings.backupModels.ask": "לשאול לפני המעבר",
   "agentSettings.backupModels.order": "סדר",
   "agentSettings.backupModels.listLabel": "מודלי גיבוי, לפי הסדר",
@@ -101,7 +101,7 @@ export const messages = {
   "agentSettings.backupModels.unavailable": "אינו זמין כעת · מדולג",
   "agentSettings.backupModels.withAccount": "{model} · {account}",
   "agentSettings.backupModels.note":
-    "כשמגבלת שימוש עוצרת את {name} אחרי שהתחיל לעבוד, {name} ממשיך באותה עבודה במודל הזמין הראשון לפי הסדר. הוא חוזר ל-{model} כשהמגבלה מסתיימת, או 10 דקות אחרי שגיאת ספק.",
+    "כשמגבלת שימוש עוצרת את {name} אחרי שהתחיל לעבוד, {name} ממשיך באותה עבודה במודל הזמין הראשון לפי הסדר. הוא חוזר ל-{model} כשהמגבלה מסתיימת.",
   "agentSettings.groups.brain": "מוח",
   "agentSettings.groups.knows": "יודע",
   "agentSettings.groups.does": "עושה",
