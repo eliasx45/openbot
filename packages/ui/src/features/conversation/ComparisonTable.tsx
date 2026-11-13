@@ -4,7 +4,12 @@ import { firstTextDirection } from "../../content-direction";
 import { useText } from "../../text";
 import type { ComparisonTableBlock } from "./DataTable";
 
-export function ComparisonTable(props: { table: ComparisonTableBlock; renderCell?: (text: string) => JSX.Element }) {
+export function ComparisonTable(props: {
+  table: ComparisonTableBlock;
+  renderCell?: (text: string) => JSX.Element;
+  /** Fork: the reply's id, so the selection actions open for text selected in the cells. */
+  selectionMessageId?: string | undefined;
+}) {
   const { t } = useText();
   return (
     <section
@@ -14,6 +19,7 @@ export function ComparisonTable(props: { table: ComparisonTableBlock; renderCell
     >
       <table
         class="message-data-table message-comparison-table"
+        data-selection-message-id={props.selectionMessageId}
         style={`--message-data-table-columns: ${props.table.headers.length}`}
         dir={firstTextDirection([...props.table.headers, ...props.table.rows.flat()])}
       >

@@ -62,10 +62,7 @@ export function messageTextSelection(selection: Selection | null): MessageTextSe
   const endBlock = messageTextBlock(range.endContainer);
   if (!startBlock || startBlock !== endBlock) return null;
   const messageId = startBlock.dataset.selectionMessageId ?? fileSelectionQuoteId(startBlock, range);
-  const text = selection
-    .toString()
-    .replace(/\u00a0/gu, " ")
-    .trim();
+  const text = (tableSelectionText(range) ?? selection.toString()).replace(/\u00a0/gu, " ").trim();
   if (!messageId || !text || rangeIntersectsEditableContent(range, startBlock)) return null;
   return { messageId, text, range: range.cloneRange() };
 }
@@ -762,6 +759,40 @@ function fileSelectionQuoteId(block: HTMLElement, range: Range): string | undefi
   const leading = selected.slice(0, selected.length - selected.trimStart().length);
   const start = lineBreaks(before.toString()) + lineBreaks(leading) + 1;
   return fileQuoteId({ ...target, lines: { start, end: start + lineBreaks(selected.trim()) } });
+}
+
+/**
+ * Fork: the text of a selection across several cells of one table, row by row: the selected part of
+ * each cell joined with " · ", a line per row. Null for a selection inside one cell or outside a table,
+ * whose plain text is already right.
+ */
+export function tableSelectionText(range: Range): string | null {
+  const table = enclosingTable(range.startContainer);
+  if (!table || enclosingTable(range.endContainer) !== table) return null;
+  const lines: string[] = [];
+  let cells = 0;
+  for (const row of Array.from(table.rows)) {
+    const parts: string[] = [];
+    for (const cell of Array.from(row.cells)) {
+      if (!range.intersectsNode(cell)) continue;
+      const part = cell.ownerDocument.createRange();
+      part.selectNodeContents(cell);
+      if (range.compareBoundaryPoints(Range.START_TO_START, part) > 0)
+        part.setStart(range.startContainer, range.startOffset);
+      if (range.compareBoundaryPoints(Range.END_TO_END, part) < 0) part.setEnd(range.endContainer, range.endOffset);
+      const text = part.toString().replace(/\s+/gu, " ").trim();
+      if (!text) continue;
+      parts.push(text);
+      cells += 1;
+    }
+    if (parts.length > 0) lines.push(parts.join(" · "));
+  }
+  return cells > 1 ? lines.join("\n") : null;
+}
+
+function enclosingTable(node: Node): HTMLTableElement | null {
+  const element = node instanceof Element ? node : node.parentElement;
+  return element?.closest("table") ?? null;
 }
 
 function lineBreaks(value: string): number {
