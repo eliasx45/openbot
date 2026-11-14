@@ -7,6 +7,7 @@ import {
   type MessageReaction,
 } from "@openbot/contracts/ipc";
 import type { ConversationUiBlock } from "@openbot/contracts/ui-blocks";
+import { feedbackApproval } from "@openbot/team-client/feedback-approval";
 import { Button } from "@openbot/ui";
 import type { AgentMessage, ChatActionMarkerModel, MessageKind } from "@openbot/ui/data";
 import { ChannelActivityIndicator, type ChannelWorker } from "@openbot/ui/features/channels/ChannelActivityIndicator";
@@ -29,7 +30,6 @@ import { ChatSearch } from "@openbot/ui/features/conversation/ChatSearch";
 import { ChatVisual } from "@openbot/ui/features/conversation/ChatVisual";
 import { ContextCompactionMarker, type ContextCompactionView } from "@openbot/ui/features/conversation/ContextUsage";
 import { dayMarkerLabel } from "@openbot/ui/features/conversation/chat-day-markers";
-import { feedbackApproval } from "@openbot/ui/features/conversation/feedback-approval";
 import { LiveWorkDock } from "@openbot/ui/features/conversation/LiveWork";
 import { markdownPlainText } from "@openbot/ui/features/conversation/MarkdownMessageText";
 import { ReplyReturnButton, ScrollToLatestButton } from "@openbot/ui/features/conversation/MessageNavigation";
@@ -1264,8 +1264,9 @@ export function ConversationTimeline() {
                                           suggestion(),
                                           Boolean(props.activeTurnId),
                                         )}
-                                        onSave={sendCardMessage}
-                                        onSaveSkill={() => saveSkillSuggestion(message()?.id ?? initialMessage.id)}
+                                        onSave={(reply) =>
+                                          saveSkillSuggestion(message()?.id ?? initialMessage.id, reply)
+                                        }
                                         onOpenSkill={skillOpener()}
                                       />
                                     )}

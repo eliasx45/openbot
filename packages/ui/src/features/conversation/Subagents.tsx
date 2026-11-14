@@ -31,6 +31,7 @@ import { useText } from "@openbot/ui/text";
 import { prefersReducedMotion } from "@openbot/ui/utils";
 import type { JSX } from "@solidjs/web";
 import { createEffect, createMemo, createSignal, createUniqueId, For, Match, Show, Switch } from "solid-js";
+import { ActivityShine } from "./ActivityShine";
 import { TaskList } from "./TaskList";
 
 const STATE_LABEL = {
@@ -243,6 +244,9 @@ export function LiveLine(props: { subagent: ConversationSubagent }) {
       <Show when={shown()}>{(step) => <StepGlyph kind={step().kind} class="subagents-live-glyph" />}</Show>
       <span class={["subagents-live-text", { "agent-activity-label": props.subagent.status === "running" }]}>
         {text()}
+        <Show when={props.subagent.status === "running"}>
+          <ActivityShine text={text()} />
+        </Show>
       </span>
     </span>
   );
@@ -627,6 +631,9 @@ export function SubagentPanel(props: SubagentPanelProps) {
                           title={step().text}
                         >
                           {readableStep(step().kind, step().text)}
+                          <Show when={live()}>
+                            <ActivityShine text={readableStep(step().kind, step().text)} />
+                          </Show>
                         </span>
                       </li>
                     );

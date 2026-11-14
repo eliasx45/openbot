@@ -173,6 +173,11 @@ export interface ChannelTask {
    * reports their result runs. Absent otherwise. Only this computer sets it; the Team API drops it.
    */
   waitingFor?: "subagents";
+  /**
+   * On a page only, for a `waiting` task: the dependencies whose results one of its earlier turns
+   * already had. Never stored. Absent from a host without channel-seen-subtasks-v1.
+   */
+  seenDependencies?: string[];
 }
 
 export interface ChannelMessage {
@@ -225,6 +230,15 @@ export interface ChannelSummary extends Channel {
   threads?: ChannelThread[];
 }
 
+/**
+ * Why a queued task that has an owner does not start. `agent-busy`: the owner works on a task in
+ * another channel, and an agent does one channel task at a time. `channel-full`: the channel already
+ * runs `CHANNEL_PARALLEL_LIMIT` tasks.
+ */
+export type ChannelTaskWait =
+  | { taskId: string; agentId: string; reason: "agent-busy"; channelId: string; channelName: string }
+  | { taskId: string; agentId: string; reason: "channel-full" };
+
 export interface ChannelPage {
   channel: Channel;
   messages: ChannelMessage[];
@@ -234,6 +248,8 @@ export interface ChannelPage {
   /** As in `ConversationPageInfo`: the unloaded length, for the scroll rail. Absent from a remote host. */
   olderCount?: number;
   oldestAt?: string;
+  /** The queued tasks that wait for other work. Absent when none waits, and from a remote host. */
+  waits?: ChannelTaskWait[];
 }
 
 export type ChannelCommand =
@@ -443,7 +459,8 @@ export function isChannelTask(value: unknown): value is ChannelTask {
     isOneOf(["queued", "running", "waiting", "paused", "completed", "failed", "cancelled"] as const, value.state) &&
     sequence(value.revision) &&
     sequence(value.assignmentCount) &&
-    (value.error === null || isBoundedString(value.error, INPUT_LIMITS.messageText))
+    (value.error === null || isBoundedString(value.error, INPUT_LIMITS.messageText)) &&
+    (value.seenDependencies === undefined || identifiers(value.seenDependencies))
   );
 }
 
@@ -481,7 +498,11 @@ export function decodeChannelPage(value: unknown): ChannelPage {
     !Array.isArray(value.tasks) ||
     !value.tasks.every(isChannelTask) ||
     !(value.olderCursor === null || sequence(value.olderCursor)) ||
-    !sequence(value.throughSequence)
+    !sequence(value.throughSequence) ||
+    !(
+      value.waits === undefined ||
+      (Array.isArray(value.waits) && value.waits.length <= value.tasks.length && value.waits.every(isChannelTaskWait))
+    )
   ) {
     throw new Error("Invalid channel conversation response.");
   }
@@ -492,7 +513,18 @@ export function decodeChannelPage(value: unknown): ChannelPage {
     olderCursor: value.olderCursor,
     throughSequence: value.throughSequence,
     ...optionalHistoryExtent(value),
+    ...(value.waits === undefined ? {} : { waits: value.waits }),
   };
+}
+
+function isChannelTaskWait(value: unknown): value is ChannelTaskWait {
+  if (!isDynamicRecord(value) || !isIdentifier(value.taskId) || !isIdentifier(value.agentId)) return false;
+  if (value.reason === "channel-full") return true;
+  return (
+    value.reason === "agent-busy" &&
+    isIdentifier(value.channelId) &&
+    isBoundedString(value.channelName, INPUT_LIMITS.agentName)
+  );
 }
 
 export function decodeChannelSummaries(value: unknown): ChannelSummary[] {

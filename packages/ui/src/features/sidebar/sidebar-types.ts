@@ -48,6 +48,8 @@ export interface SidebarFileDropChat {
  *   back to their place when they are read.
  * - `unread-first`: each section shows its unread chats first, then the others, both by last
  *   activity. Chats do not drag in this order, because the order is not manual.
+ *
+ * Neither unread order moves a muted agent (`mutedAgentIds`): it stays in its place with its badge.
  */
 export type SidebarChatOrder = "manual" | "unread-group" | "unread-first";
 

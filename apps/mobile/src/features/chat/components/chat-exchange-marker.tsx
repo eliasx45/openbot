@@ -12,6 +12,7 @@ import type { ChatMessage, ExchangeGroup, ExchangeMarker } from "@/features/chat
 import type { MobileAgent } from "@/features/workspace/context/mobile-workspace-context";
 import { haptics } from "@/shared/lib/haptics";
 import { useText } from "@/shared/lib/text";
+import { useKeptOpen } from "./use-kept-open";
 
 type RoutingMarker = Extract<ChatMessage, { kind: "channel-routing" }>;
 
@@ -45,7 +46,7 @@ export function ChatExchangeMarker({
   muted,
 }: MarkerContext & { message: ExchangeMarker | RoutingMarker }) {
   const { t } = useText();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useKeptOpen(`marker:${message.id}`, false);
   const label =
     message.kind === "channel-routing"
       ? message.event.action === "assigned"
@@ -195,7 +196,7 @@ export function ChatHandoffMarker({
  */
 export function ChatExchangeGroup({ group, agents, agentsById, muted }: MarkerContext & { group: ExchangeGroup }) {
   const { t } = useText();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useKeptOpen(`group:${group.id}`, false);
   const ids = [...new Set(group.exchanges.flatMap(({ exchange }) => exchangeAgentIds(exchange)))];
   const participants = ids.map((id) => agentsById.get(id));
   const count = group.exchanges.length;

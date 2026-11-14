@@ -53,7 +53,7 @@ export function UiBlockingBlock(props: UiBlockingBlockProps) {
         {(spec) => <UiChoiceBlock {...shared} spec={spec()} />}
       </Match>
       <Match when={props.spec.type === "form" && props.spec}>
-        {(spec) => <UiFormBlock {...shared} spec={spec()} footerFieldId={props.footerFieldId} />}
+        {(spec) => <UiFormBlock {...shared} spec={spec()} />}
       </Match>
     </Switch>
   );

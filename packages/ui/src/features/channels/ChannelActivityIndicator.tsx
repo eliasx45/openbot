@@ -6,6 +6,7 @@ import { Button } from "../../button";
 import type { AgentProfile } from "../../data";
 import { useText } from "../../text";
 import { AgentAvatar } from "../agents/AgentAvatar";
+import { ActivityShine } from "../conversation/ActivityShine";
 import { AgentActivityBody, agentActivityLabelKey, nextAgentActivityLabel } from "../conversation/AgentActivity";
 import type { AgentStep } from "../conversation/AgentSteps";
 import { agentActivityExitDuration } from "../conversation/activity-timing";
@@ -184,7 +185,12 @@ export function ChannelActivityIndicator(props: {
         </span>
         <Show
           when={props.workers.every((worker) => worker.queued)}
-          fallback={<span class="agent-activity-label">{shownLabel()}</span>}
+          fallback={
+            <span class="agent-activity-label">
+              {shownLabel()}
+              <ActivityShine text={shownLabel()} />
+            </span>
+          }
         >
           <span class="channel-activity-queued">{t("channel.activity.queuedLabel")}</span>
         </Show>
