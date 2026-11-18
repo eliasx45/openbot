@@ -16,6 +16,7 @@ import type {
   SetDiscordAccessInput,
   SetMessagingEnabledInput,
   SetWhatsAppOwnNumberInput,
+  SetWhatsAppStatusReactionsInput,
   SetWhatsAppWatchPlacementInput,
   SetWhatsAppWorkingMessageInput,
   StartWhatsAppLinkInput,
@@ -170,4 +171,9 @@ export function parseSetWhatsAppWatchPlacementInput(value: unknown): SetWhatsApp
   if (!isObject(value) || !isWhatsAppWatchPlacement(value.placement))
     throw new Error("A messaging request is invalid.");
   return { workspaceId: requireString(value.workspaceId, "Workspace id"), placement: value.placement };
+}
+
+export function parseSetWhatsAppStatusReactionsInput(value: unknown): SetWhatsAppStatusReactionsInput {
+  if (!isObject(value) || !isBoolean(value.statusReactions)) throw new Error("A messaging request is invalid.");
+  return { workspaceId: requireString(value.workspaceId, "Workspace id"), statusReactions: value.statusReactions };
 }

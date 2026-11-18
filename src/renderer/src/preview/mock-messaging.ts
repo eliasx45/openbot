@@ -166,6 +166,7 @@ export function createMockMessaging(orchestrator: () => string): MessagingDeskto
       ownNumber: input.ownNumber,
       workingMessage: before?.workingMessage ?? true,
       watchPlacement: before?.watchPlacement ?? "main",
+      statusReactions: before?.statusReactions ?? true,
       allowedSenders: before?.allowedSenders ?? [],
       pendingRequests: [],
     });
@@ -351,6 +352,9 @@ export function createMockMessaging(orchestrator: () => string): MessagingDeskto
     setWhatsAppWatchPlacement: async ({ workspaceId, placement }) => {
       accounts.set(workspaceId, { ...account(workspaceId), watchPlacement: placement });
     },
+    setWhatsAppStatusReactions: async ({ workspaceId, statusReactions }) => {
+      accounts.set(workspaceId, { ...account(workspaceId), statusReactions });
+    },
   };
   // The preview has one host, so a joined server's connections are the same ones.
   const overview = { slack: api.getSlackOverview, discord: api.getDiscordOverview, telegram: api.getTelegramOverview };
@@ -405,5 +409,6 @@ export function createMockMessaging(orchestrator: () => string): MessagingDeskto
     hostSetWhatsAppOwnNumber: (input) => api.setWhatsAppOwnNumber(input),
     hostSetWhatsAppWorkingMessage: (input) => api.setWhatsAppWorkingMessage(input),
     hostSetWhatsAppWatchPlacement: (input) => api.setWhatsAppWatchPlacement(input),
+    hostSetWhatsAppStatusReactions: (input) => api.setWhatsAppStatusReactions(input),
   };
 }

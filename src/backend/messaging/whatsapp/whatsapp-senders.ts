@@ -10,8 +10,8 @@ const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export interface WhatsAppSenderRules {
   /** The owner's personal number: only their own chat and the allowed senders count. */
   ownNumber: boolean;
-  /** Phone numbers in digits. */
-  contacts: ReadonlySet<string>;
+  /** Phone numbers in digits, each with the name that the user saved for it (empty when none). */
+  contacts: ReadonlyMap<string, string>;
   /** Group JIDs. */
   groups: ReadonlySet<string>;
   /**
@@ -28,6 +28,8 @@ export type SenderDecision =
   | { type: "pair" }
   /** Fork (#68): a watched contact's direct chat: read as information for the owner, never answered. */
   | { type: "watch"; number: string }
+  /** The message is saved for the chat's history, and nothing answers it. */
+  | { type: "save" }
   | { type: "ignore" };
 
 export interface SenderFacts {
@@ -57,9 +59,11 @@ export function senderDecision(rules: WhatsAppSenderRules, facts: SenderFacts): 
   // Fork (#68): before the owner's own messages, which in a watched chat are context too.
   const watched = !facts.isGroup && facts.chatNumber ? watchedNumber(rules, facts.chatNumber) : null;
   if (watched) return { type: "watch", number: watched };
-  // The owner's own messages in other chats are their personal conversations.
-  if (facts.fromMe) return { type: "ignore" };
-  if (facts.isGroup) return rules.groups.has(facts.chatJid) ? { type: "allow" } : { type: "ignore" };
+  const allowedGroup = facts.isGroup && rules.groups.has(facts.chatJid);
+  // The owner's own messages in other chats are their personal conversations. In an allowed group they
+  // are part of the conversation that agents read, so they are saved.
+  if (facts.fromMe) return allowedGroup ? { type: "save" } : { type: "ignore" };
+  if (facts.isGroup) return allowedGroup ? { type: "allow" } : { type: "ignore" };
   if (facts.authorNumber && allowsContact(rules, facts.authorNumber)) return { type: "allow" };
   if (rules.ownNumber || !facts.authorNumber) return { type: "ignore" };
   return { type: "pair" };

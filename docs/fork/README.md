@@ -17,6 +17,12 @@ git merge upstream/main
 
 Before committing the merge: `grep -n 'forkUpdatesAllowed &&' src/main/application-services.ts` must still find the updater gate (upstream's AGENTS.md allows no unit tests, so there is no test for it), then click the launcher.
 
+### Upstream merge 18 Nov 2026 (v0.73.0, 690 commits, up to 0dcec6b44)
+
+- 92 files conflicted; each kept upstream's change plus the fork's. The commit message lists the judgement calls.
+- Database: upstream froze each migration in `src/backend/migrations/` and removed `LATEST_SCHEMA_SQL` (#10806, #11633): a new install runs every migration from the version 8 baseline. The fork's thread child indexes stay out of the numbered migrations: `applyForkSchema` (in `openbot-database-schema.ts`) adds them after a full upgrade, and `repairForkVersion59` still repairs a database that the fork's old migration 59 took to version 59. Migrations 62 to 65 are upstream's. The parity test and `thread-event-compaction-migration.test.ts` leave out `FORK_SCHEMA_INDEX_NAMES`.
+- Fork behaviour re-applied on new upstream code: backup models switch only at a usage limit (FEATURES #81, against #8406, #10386, #11256, #11332); a refresh waits for background work also after an MCP change (FEATURES #46, against #10335); WhatsApp Watch on upstream's 90-day history, HD copy, held-message and `#allowSender` paths (#68); Claude Code MCP servers moved with upstream's MCP panel into Marketplace › Apps (#9, against #10423); one usage gauge in the rail (#44, upstream's "+N" ring not taken); ⌘↩ queue and closing stale cards on upstream's steer-before-question order for Claude (#57, #63).
+
 ### Upstream merge 12 Nov 2026 (v0.68.0+, 130 commits, #7462–#8247)
 
 - 29 files conflicted; each kept upstream's change plus the fork's. The commit message lists them.

@@ -126,6 +126,13 @@ const turn = (message) => {
       if (!fs.existsSync(${JSON.stringify(backgroundDone)})) return;
       clearInterval(timer);
       tasks(false);
+      // As Claude Code does, the end of the work starts a turn of its own that answers its result. Until it
+      // starts, upstream's holdsBackgroundWork (#10743, awaitsResultTurn) still holds the process.
+      const own = "msg_" + process.pid + "_" + (++requests);
+      write({ type: "assistant", message: { id: own, type: "message", role: "assistant", model: ${JSON.stringify(CLAUDE_MODEL)},
+        content: [{ type: "text", text: "Background work done." }], stop_reason: null, usage }, parent_tool_use_id: null, session_id: sessionId, uuid: randomUUID() });
+      write({ type: "result", subtype: "success", is_error: false, result: "Background work done.", session_id: sessionId, uuid: randomUUID(),
+        duration_ms: 1, duration_api_ms: 1, num_turns: 1, total_cost_usd: 0.01, usage, permission_denials: [] });
       fs.appendFileSync(${JSON.stringify(claudeExits)}, JSON.stringify({ pid: process.pid, backgroundEnded: true }) + "\\n");
     }, 25);
   }

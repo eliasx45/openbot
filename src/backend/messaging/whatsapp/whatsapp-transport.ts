@@ -6,6 +6,7 @@ import { Effect } from "effect";
 import type { InboundMessage, MessagingTransport, TransportSink } from "../messaging-types";
 import {
   freshUpsert,
+  sentAt,
   userJid,
   WHATSAPP_DIRECT_THREAD,
   type WhatsAppEvent,
@@ -14,6 +15,7 @@ import {
   whatsAppDedupKey,
   whatsAppInbound,
 } from "./whatsapp-events";
+import { WhatsAppSelfChatLimit } from "./whatsapp-loop-guard";
 import type { WhatsAppConnectionHandle, WhatsAppRuntime } from "./whatsapp-runtime";
 import type { WhatsAppSessionState } from "./whatsapp-session";
 import { WATCH_MESSAGE_PREFIX, WATCH_TIMING, type WatchedLine, watchedTurnText } from "./whatsapp-watch";
@@ -32,6 +34,8 @@ const STATES: Record<WhatsAppSessionState, MessagingConnectionState | null> = {
   connecting: "connecting",
   open: "connected",
   reconnecting: "reconnecting",
+  // The number shows as not working, with Reconnect. The next open socket sets it to connected.
+  failing: "error",
   logged_out: "invalid_token",
   // Another client took the session. The service keeps the state until the owner reconnects.
   replaced: "error",
@@ -92,6 +96,9 @@ export class WhatsAppTransport implements MessagingTransport {
   #reading: Promise<void> = Promise.resolve();
   #unsubscribe: Array<() => void> = [];
   #prune: ReturnType<typeof setInterval> | null = null;
+  readonly #selfChatLimit = new WhatsAppSelfChatLimit();
+  /** The owner was told once that another OpenBot posts in their own chat. */
+  #toldOtherOpenBot = false;
 
   constructor(options: WhatsAppTransportOptions) {
     this.#runtime = options.runtime;
@@ -109,7 +116,12 @@ export class WhatsAppTransport implements MessagingTransport {
         if (mapped) this.#sink?.state(mapped);
       }),
       session.onUpsert(({ messages, type }) => {
-        for (const message of messages) if (freshUpsert(type, message, session.openedAt)) this.#enqueue(message, true);
+        const upsertWindow = session.upsertWindow();
+        for (const message of messages) {
+          if (freshUpsert(type, message, upsertWindow)) this.#enqueue(message, true);
+          // History, or a message held too long to answer: it is only saved, so agents can still read it.
+          else if (type === "append") this.#enqueue(message, false, true);
+        }
       }),
     );
     store.prune();
@@ -149,9 +161,9 @@ export class WhatsAppTransport implements MessagingTransport {
     yield* this.#handle.session.stop();
   });
 
-  #enqueue(message: WAMessage, live: boolean): void {
+  #enqueue(message: WAMessage, live: boolean, historyOnly = false): void {
     this.#reading = this.#reading
-      .then(() => this.#read(message, live))
+      .then(() => this.#read(message, live, historyOnly))
       .catch((cause: unknown) => {
         // A failed read must not stop the reads after it.
         logger.warn("A WhatsApp message could not be read.", {
@@ -160,9 +172,12 @@ export class WhatsAppTransport implements MessagingTransport {
       });
   }
 
-  async #read(message: WAMessage, live: boolean): Promise<void> {
+  async #read(message: WAMessage, live: boolean, historyOnly: boolean): Promise<void> {
     const dedupKey = whatsAppDedupKey(message);
-    if (!dedupKey || this.#remember(dedupKey)) return;
+    if (!dedupKey) return;
+    // A message that is only saved is not marked as seen, so a later copy that can be answered is still
+    // read. A copy of a message that was read already is skipped: an old edit must not undo a newer one.
+    if (historyOnly ? this.#seen.has(dedupKey) : this.#remember(dedupKey)) return;
     const { session, store, chats } = this.#handle;
     let event: WhatsAppEvent | null;
     try {
@@ -179,6 +194,7 @@ export class WhatsAppTransport implements MessagingTransport {
           const pn = mapping ? await mapping.getPNForLID(lid).catch(() => null) : null;
           return pn ? (jidNormalizedUser(pn).split("@")[0]?.split(":")[0] ?? null) : null;
         },
+        historyOnly,
       });
     } catch (cause) {
       logger.warn("A WhatsApp message could not be read.", { cause: cause instanceof Error ? cause.name : "unknown" });
@@ -186,9 +202,24 @@ export class WhatsAppTransport implements MessagingTransport {
     }
     if (!event || !this.#sink) return;
     if (event.type === "pairing") return this.#pair(event);
+    if (event.type === "otherOpenBot") {
+      if (this.#toldOtherOpenBot) return;
+      this.#toldOtherOpenBot = await this.#tell(event.chatJid, "status.messaging.whatsappOtherOpenBot");
+      return;
+    }
     if (event.type === "action") {
       this.#sink.action(event.action);
       return;
+    }
+    // Fork (#68): a watched chat's message is never one of the owner's own chat, so it is not counted.
+    if (live && event.type === "message" && event.chatJid === userJid(this.#identity.number)) {
+      const limit = this.#selfChatLimit.check(sentAt(message) || Date.now(), event.message.text);
+      if (limit === "pause") {
+        logger.warn("The owner's own WhatsApp chat got too many requests; it gets no answers for a while.");
+        await this.#tell(event.chatJid, "status.messaging.whatsappPaused");
+        return;
+      }
+      if (limit === "paused") return;
     }
     if (live) store.journal({ dedupKey, payload: encodeJournal(message), receivedAt: Date.now() });
     if (event.type === "watch") {
@@ -335,6 +366,19 @@ export class WhatsAppTransport implements MessagingTransport {
       this.#handle.session
         .send(event.chatJid, { text: sourceText("status.messaging.whatsappPairingCode", { code: request.code }) })
         .pipe(Effect.catch(() => Effect.void)),
+    );
+  }
+
+  /**
+   * Posts a notice in the owner's own chat, and tells whether it was sent. It is an own post, so this
+   * OpenBot does not read it as a request.
+   */
+  #tell(chatJid: string, key: "status.messaging.whatsappOtherOpenBot" | "status.messaging.whatsappPaused") {
+    return Effect.runPromise(
+      this.#handle.session.send(chatJid, { text: sourceText(key) }).pipe(
+        Effect.as(true),
+        Effect.catch(() => Effect.succeed(false)),
+      ),
     );
   }
 

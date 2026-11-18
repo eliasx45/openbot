@@ -25,12 +25,10 @@ export function ConversationView(props: ConversationProps) {
   const scope = createConversationViewScope(props);
   const {
     agentReady,
-    browserPanelWidth,
     browserSidebarOpen,
     dropActive,
     filePreviewOpen,
     activeRightPanel,
-    settingsOpen,
     sidePanel,
     sidePanelOpen,
     handleChatSearchShortcut,
@@ -39,7 +37,7 @@ export function ConversationView(props: ConversationProps) {
     quoteSelection,
     setConversationPanelElement,
     setDropActive,
-    settingsPanelWidth,
+    sidePanelWidth,
     submitting,
     sideThreadOpen,
     fastModeConfirmationOpen,
@@ -47,12 +45,15 @@ export function ConversationView(props: ConversationProps) {
     cancelFastModeConfirmation,
   } = scope;
   const { t } = useText();
-  /** Each view of the side panel has the width of the browser panel, except Agent settings, which has its own. */
+  /**
+   * Each view of the docked side panel makes the same room at the end of the chat, so a change to another tab
+   * does not move the chat.
+   */
   const sidePanelUsesBrowserWidth = () => {
     const mode = activeRightPanel();
     if (mode === "browser") return browserSidebarOpen();
     if (mode === "file-preview") return filePreviewOpen();
-    return sidePanelOpen() && mode !== "settings";
+    return sidePanelOpen();
   };
   const folderCalls = agentFolderCalls();
   /**
@@ -96,7 +97,7 @@ export function ConversationView(props: ConversationProps) {
             "side-panel-maximized": sidePanelOpen() && sidePanel().maximized,
           },
         ]}
-        style={`--settings-panel-width: ${settingsPanelWidth()}px; --browser-panel-width: ${browserPanelWidth()}px; --side-panel-width: ${settingsOpen() ? settingsPanelWidth() : browserPanelWidth()}px`}
+        style={`--settings-panel-width: ${sidePanelWidth()}px; --browser-panel-width: ${sidePanelWidth()}px; --side-panel-width: ${sidePanelWidth()}px`}
         onDragEnter={(event) => {
           if (!props.globalOverlayOpen && event.dataTransfer?.types.includes("Files")) setDropActive(true);
         }}

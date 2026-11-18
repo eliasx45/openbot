@@ -21,7 +21,7 @@ const ICHIRO_LID = "555000111@lid";
 function rules(overrides: Partial<WhatsAppSenderRules> = {}): WhatsAppSenderRules {
   return {
     ownNumber: true,
-    contacts: new Set([FRIEND]),
+    contacts: new Map([[FRIEND, "Friend"]]),
     groups: new Set(["120363000000000001@g.us"]),
     watched: new Map([[ICHIRO, "Ichiro"]]),
     ...overrides,
@@ -72,7 +72,12 @@ describe("WhatsApp Watch: sender decision", () => {
   });
 
   it("lets watch win over allow, and never pairs a watched person on a dedicated number", () => {
-    const both = rules({ contacts: new Set([FRIEND, ICHIRO]) });
+    const both = rules({
+      contacts: new Map([
+        [FRIEND, "Friend"],
+        [ICHIRO, "Ichiro"],
+      ]),
+    });
     expect(senderDecision(both, direct(ICHIRO))).toEqual({ type: "watch", number: ICHIRO });
     expect(allowsContact(both, ICHIRO)).toBe(false);
     expect(senderDecision(rules({ ownNumber: false }), direct(ICHIRO))).toEqual({ type: "watch", number: ICHIRO });

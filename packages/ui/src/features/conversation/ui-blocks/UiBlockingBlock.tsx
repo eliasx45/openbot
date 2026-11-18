@@ -1,4 +1,4 @@
-import type { UiBlockSpec } from "@openbot/contracts/ui-blocks";
+import type { UiBlockResponse, UiBlockSpec } from "@openbot/contracts/ui-blocks";
 import type { JSX } from "@solidjs/web";
 import { Match, Switch } from "solid-js";
 import { UiChoiceBlock } from "./UiChoiceBlock";
@@ -6,9 +6,13 @@ import { UiConfirmBlock } from "./UiConfirmBlock";
 import { UiFormBlock } from "./UiFormBlock";
 import type { UiBlockProps } from "./ui-block-support";
 
-export interface UiBlockingBlockProps extends UiBlockProps<UiBlockSpec> {
+export interface UiBlockingBlockProps extends Omit<UiBlockProps<UiBlockSpec>, "onRespond"> {
+  /** Gets the response, and a confirm block's edited preview when the person changed it. */
+  onRespond: (response: UiBlockResponse, preview?: string) => void;
   /** Draws safe Markdown: a confirm block's preview, a hint. */
   renderMarkdown?: ((markdown: string) => JSX.Element) | undefined;
+  /** Lets a confirm block's preview be edited in the card (see `UiConfirmBlock`). */
+  canEditPreview?: boolean | undefined;
   /** Only for a form: the id of a choice field that the footer shows as a small select. */
   footerFieldId?: string | undefined;
 }
@@ -47,7 +51,14 @@ export function UiBlockingBlock(props: UiBlockingBlockProps) {
   return (
     <Switch>
       <Match when={props.spec.type === "confirm" && props.spec}>
-        {(spec) => <UiConfirmBlock {...shared} spec={spec()} renderPreview={props.renderMarkdown} />}
+        {(spec) => (
+          <UiConfirmBlock
+            {...shared}
+            spec={spec()}
+            renderPreview={props.renderMarkdown}
+            canEditPreview={props.canEditPreview}
+          />
+        )}
       </Match>
       <Match when={(props.spec.type === "choice" || props.spec.type === "quick_replies") && props.spec}>
         {(spec) => <UiChoiceBlock {...shared} spec={spec()} />}

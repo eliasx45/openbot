@@ -22,10 +22,12 @@ import {
   type SpeechVoice,
   VOICE_MODELS,
   VOICE_NOTE_VOICES,
+  VOICE_TURN_PAUSES,
   type VoiceLanguage,
   type VoiceModelId,
   type VoiceModelInfo,
   type VoiceNoteVoice,
+  type VoiceTurnPause,
   voiceNoteLanguage,
   WHISPER_LANGUAGES,
   type WhisperLanguage,
@@ -268,6 +270,8 @@ export function SettingsVoiceTab(props: SettingsVoiceTabProps) {
   });
 
   const speech = () => props.store.state.speech;
+  const pauseName = (pause: VoiceTurnPause) =>
+    t("settings.voice.pause.seconds", { seconds: format.number(pause / 1_000) });
   const voiceName = (voice: SpeechVoice) =>
     t(voice.startsWith("F") ? "settings.voice.speech.voice.female" : "settings.voice.speech.voice.male", {
       number: voice.slice(1),
@@ -500,6 +504,35 @@ export function SettingsVoiceTab(props: SettingsVoiceTabProps) {
                 <SelectTrigger size="sm" aria-label={t("settings.voice.language.section")}>
                   <SelectValue<VoiceLanguage>>
                     {(state) => <LanguageLabel language={state.selectedOption()} />}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent mount={props.selectMount} />
+              </Select>
+            </ItemActions>
+          </Item>
+          <Item data-settings-row="settings.voice.pause.title" class="settings-modal-row">
+            <ItemContent>
+              <ItemTitle>{t("settings.voice.pause.title")}</ItemTitle>
+              <ItemDescription>{t("settings.voice.pause.description")}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Select<VoiceTurnPause>
+                class="settings-modal-select"
+                options={[...VOICE_TURN_PAUSES]}
+                value={speech().settings?.turnPauseMs ?? null}
+                onChange={(next) => next && props.store.setTurnPause(next)}
+                disabled={!speech().settings}
+                placement="bottom-end"
+                itemComponent={(selectProps) => (
+                  <SelectItem item={selectProps.item}>{pauseName(selectProps.item.rawValue)}</SelectItem>
+                )}
+              >
+                <SelectTrigger size="sm" aria-label={t("settings.voice.pause.title")}>
+                  <SelectValue<VoiceTurnPause>>
+                    {(state) => {
+                      const pause = state.selectedOption();
+                      return pause && pauseName(pause);
+                    }}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent mount={props.selectMount} />

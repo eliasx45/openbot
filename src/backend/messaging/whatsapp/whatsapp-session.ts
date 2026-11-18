@@ -21,6 +21,7 @@ import {
 } from "@openbot/whatsapp/baileys";
 import { Effect } from "effect";
 import { MessagingAdapterError, WhatsAppRefusedError } from "../messaging-types";
+import type { WhatsAppUpsertWindow } from "./whatsapp-events";
 import { guardWatchedOutbound, isWatchedJid, WhatsAppWatchRefused } from "./whatsapp-watch";
 
 const logger = createOpenBotLogger("whatsapp");
@@ -62,6 +63,8 @@ export type WhatsAppSessionState =
   | "connecting"
   | "open"
   | "reconnecting"
+  /** Still reconnecting, but many attempts in a row failed: the number does not work now. */
+  | "failing"
   | "logged_out"
   | "replaced"
   /** A link could not reach WhatsApp before it showed a code. */
@@ -79,6 +82,11 @@ const BACKOFF_START_MS = 2_000;
 const BACKOFF_MAX_MS = 30_000;
 const BACKOFF_FACTOR = 1.8;
 const BACKOFF_JITTER = 0.25;
+/**
+ * After this many failed attempts in a row (about 4 minutes or more), the number shows as not working,
+ * so the owner sees it and can use Reconnect. The attempts continue, and an open socket clears it.
+ */
+const FAILING_AFTER_ATTEMPTS = 12;
 /** A connection that stayed up this long starts its backoff from the beginning again. */
 const STABLE_MS = 60_000;
 /** No frame for this long means a dead socket that did not close. */
@@ -195,6 +203,13 @@ export class WhatsAppSession {
   /** A QR code was shown in this session, so a 408 means that the codes ran out. */
   #codeShown = false;
   #openedAt = 0;
+  /**
+   * WhatsApp sent this number its history already: a socket opened with the account before. Only the
+   * first socket after a link gets the history; the store was linked when an earlier run started.
+   */
+  #historySent = false;
+  /** The value of `#historySent` when the socket last opened. */
+  #historySentAtOpen = false;
   #lastFrameAt = 0;
   #retryTimer: ReturnType<typeof setTimeout> | null = null;
   #watchdog: ReturnType<typeof setInterval> | null = null;
@@ -217,6 +232,11 @@ export class WhatsAppSession {
   /** When the socket last opened, in milliseconds; 0 before the first open. */
   get openedAt(): number {
     return this.#openedAt;
+  }
+
+  /** The facts that tell a message that WhatsApp held for this device from history, at this time. */
+  upsertWindow(): WhatsAppUpsertWindow {
+    return { openedAt: this.#openedAt, synced: this.#historySentAtOpen, now: this.#now() };
   }
 
   get store(): WhatsAppAuthStore {
@@ -260,6 +280,7 @@ export class WhatsAppSession {
   start(options: { codeLink?: boolean } = {}): void {
     if (this.#started) return;
     this.#started = true;
+    this.#historySent = this.#store.linked;
     this.#browserName = options.codeLink ? "Chrome" : "OpenBot";
     this.#attempt = 0;
     this.#setState("connecting");
@@ -361,7 +382,10 @@ export class WhatsAppSession {
     return metadata;
   });
 
-  /** The user JIDs, without a device, that WhatsApp has an account for, of the phone numbers in digits. */
+  /**
+   * The user JIDs, without a device, that WhatsApp has an account for, of the phone numbers in digits.
+   * Null when WhatsApp gave no answer, which does not say that a number has no account.
+   */
   readonly registered = Effect.fn("WhatsAppSession.registered")(function* (
     this: WhatsAppSession,
     numbers: readonly string[],
@@ -372,7 +396,8 @@ export class WhatsAppSession {
       try: () => socket.onWhatsApp(...numbers),
       catch: (cause) => new MessagingAdapterError({ cause }),
     });
-    return (found ?? []).filter((result) => result.exists).map((result) => jidNormalizedUser(result.jid));
+    if (!found) return null;
+    return found.filter((result) => result.exists).map((result) => jidNormalizedUser(result.jid));
   });
 
   readonly groups = Effect.fn("WhatsAppSession.groups")(function* (this: WhatsAppSession) {
@@ -451,6 +476,8 @@ export class WhatsAppSession {
     }
     if (update.connection === "open") {
       this.#openedAt = this.#now();
+      this.#historySentAtOpen = this.#historySent;
+      if (this.#store.linked) this.#historySent = true;
       this.#lastFrameAt = this.#openedAt;
       this.#startWatchdog();
       this.#setState("open");
@@ -490,9 +517,9 @@ export class WhatsAppSession {
       void this.#connect();
       return;
     }
-    this.#setState("reconnecting");
     const delay = backoffDelay(this.#attempt);
     this.#attempt += 1;
+    this.#setState(this.#attempt >= FAILING_AFTER_ATTEMPTS ? "failing" : "reconnecting");
     this.#retryTimer = setTimeout(() => {
       this.#retryTimer = null;
       void this.#connect();

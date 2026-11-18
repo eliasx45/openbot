@@ -10,8 +10,9 @@
 import { createContext, createEffect, createSignal, onCleanup, useContext } from "solid-js";
 import { createScrollFades } from "../../components/createScrollFades";
 import { createSidebarDragEngine } from "./createSidebarDragEngine";
+import { SIDEBAR_NO_LIST_FILTER } from "./sidebar-list-filter";
 import { createSidebarRowMotion } from "./sidebar-row-motion";
-import type { SidebarProps } from "./sidebar-types";
+import { type SidebarProps, sidebarChatOrderSortsSections } from "./sidebar-types";
 import { createSidebarAnnouncementStore } from "./stores/announcement-store";
 import { createSidebarDataStore } from "./stores/data-store";
 import { createSidebarDragStateStore } from "./stores/drag-state-store";
@@ -21,8 +22,6 @@ import { createSidebarPendingStore } from "./stores/pending-store";
 
 export function createSidebarScope(props: SidebarProps) {
   const layoutMutable = () => props.layoutMutable !== false;
-  /** A chat drags only in the manual orders. "Unread first" sorts each section itself. */
-  const chatsDraggable = () => layoutMutable() && props.chatOrder !== "unread-first";
   const scrollFades = createScrollFades({ stuck: ".sidebar-folder > header" });
 
   const { announce, announceError, reorderAnnouncement } = createSidebarAnnouncementStore();
@@ -35,6 +34,15 @@ export function createSidebarScope(props: SidebarProps) {
    * after a tap.
    */
   const [pointerInList, setPointerInList] = createSignal(false);
+  /** The agents whose side threads show under their rows. Only this window keeps them. */
+  const [threadsOpenIds, setThreadsOpenIds] = createSignal<ReadonlySet<string>>(new Set());
+  const agentThreadsOpen = (agentId: string) => threadsOpenIds().has(agentId);
+  const toggleAgentThreads = (agentId: string) =>
+    setThreadsOpenIds((current) => {
+      const next = new Set(current);
+      if (!next.delete(agentId)) next.add(agentId);
+      return next;
+    });
   const {
     assignedSectionId,
     chatIsUnread,
@@ -43,14 +51,19 @@ export function createSidebarScope(props: SidebarProps) {
     chatPinnedItems,
     customSectionById,
     directThreadByMember,
+    filterFolders,
     filteredAgents,
     filteredChats,
     filteredChatsBySection,
+    listFilter,
+    listFilterCount,
+    listFiltered,
     orderedPeople,
     personById,
     resolvedPinnedItems,
     sectionAcceptsChat,
     sectionCanNest,
+    sectionChatCount,
     sectionChildren,
     sectionIsCollapsed,
     sectionIsInside,
@@ -58,6 +71,8 @@ export function createSidebarScope(props: SidebarProps) {
     sectionParent,
     sectionPosition,
     sectionUnreadCount,
+    setListFilter,
+    shownPeople,
     unreadChats,
     userHiddenAgentList,
     userHiddenSince,
@@ -65,6 +80,13 @@ export function createSidebarScope(props: SidebarProps) {
     visibleSectionIds,
     waitingChats,
   } = createSidebarDataStore({ props, dragActive: () => dragActive(), pointerInList });
+  /**
+   * Nothing drags while a filter is set: a drop places a row among the rows that show, and the rows
+   * that the filter hides would lose their place. A chat drags only in the manual orders, because
+   * "Recent activity" and "Unread first" sort each section.
+   */
+  const layoutDraggable = () => layoutMutable() && !listFiltered();
+  const chatsDraggable = () => layoutDraggable() && !sidebarChatOrderSortsSections(props.chatOrder);
   const {
     cancelSectionEditor,
     closeDelete,
@@ -80,10 +102,18 @@ export function createSidebarScope(props: SidebarProps) {
     saveSectionEditor,
     sectionDeleteTarget,
     setSectionNameInput,
-    startCreateSection,
+    startCreateSection: startCreateSectionEditor,
     startRenameSection,
     updateSectionEditorName,
   } = createSidebarPendingStore({ customSectionById, props });
+  /**
+   * A new folder has no chats, so a filter hides it and its name editor. Thus a new folder clears the
+   * filter first.
+   */
+  const startCreateSection = (agentId?: string, parentId?: string) => {
+    setListFilter(SIDEBAR_NO_LIST_FILTER);
+    startCreateSectionEditor(agentId, parentId);
+  };
   let agentList: HTMLElement | undefined;
   const rowMotion = createSidebarRowMotion();
   const foldersSupported = () => props.foldersSupported === true && layoutMutable();
@@ -212,6 +242,7 @@ export function createSidebarScope(props: SidebarProps) {
    * store's writers are deliberately absent: only the engine may move a drag along.
    */
   return {
+    agentThreadsOpen,
     assignChatSection,
     cancelSectionEditor,
     closeDelete,
@@ -236,12 +267,17 @@ export function createSidebarScope(props: SidebarProps) {
     duplicateSection,
     emptyPinnedDropVisible: dragState.emptyPinnedDropVisible,
     endChatDragging,
+    filterFolders,
     filteredAgents,
     filteredChats,
     filteredChatsBySection,
     foldersSupported,
     handleListDragLeave,
+    layoutDraggable,
     layoutMutable,
+    listFilter,
+    listFilterCount,
+    listFiltered,
     movePersonByKeyboard,
     movePinnedItem,
     moveFolderTo,
@@ -258,6 +294,7 @@ export function createSidebarScope(props: SidebarProps) {
     scrollFades,
     sectionDeleteTarget,
     sectionCanNest,
+    sectionChatCount,
     sectionChildren,
     sectionDragClasses: dragState.sectionDragClasses,
     sectionIsCollapsed,
@@ -267,7 +304,9 @@ export function createSidebarScope(props: SidebarProps) {
     sectionSiblingIndex,
     sectionUnreadCount,
     setAgentListElement,
+    setListFilter,
     setSectionNameInput,
+    shownPeople,
     sidebarClickIsSuppressed,
     startChatDragging,
     startCreateSection,
@@ -276,6 +315,7 @@ export function createSidebarScope(props: SidebarProps) {
     startRenameSection,
     startSectionDragging,
     stopSidebarDragging,
+    toggleAgentThreads,
     unreadChats,
     updateSectionEditorName,
     updateSidebarNativeDrag,

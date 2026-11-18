@@ -25,7 +25,8 @@ describe("the routine editor in the settings pane", () => {
   });
 
   it("wraps the action buttons instead of widening the pane's content", () => {
-    expect(declarations(".agent-routine-editor-actions")).toMatch(/flex-wrap:\s*wrap/);
+    // Upstream (merge of 18 Nov 2026) stacks the action rows in a column, which also keeps them inside the pane.
+    expect(declarations(".agent-routine-editor-actions")).toMatch(/flex-wrap:\s*wrap|flex-direction:\s*column/);
     expect(declarations(".agent-routine-action-buttons")).toMatch(/flex-wrap:\s*wrap/);
     expect(declarations(".agent-routine-action-buttons")).not.toMatch(/flex-wrap:\s*nowrap/);
   });

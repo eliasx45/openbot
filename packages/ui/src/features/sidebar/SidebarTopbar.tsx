@@ -1,14 +1,15 @@
 /**
- * The server name, Search and New (fork), Back and Forward, the sidebar toggle, the server update, and the
- * marketplace button - plus the window drag region. A window with the page rail shows the server in the
- * rail, and its styles hide the name here. The styles also hide Back, Forward and the update in a compact
- * sidebar that has no room for them.
+ * The server name, Search, the filter and New (fork), Back and Forward, the sidebar toggle, the server update,
+ * the marketplace button, and an optional detail from the app - plus the window drag region. A window with the
+ * page rail shows the server in the rail, and its styles hide the name here. The styles also hide Back, Forward
+ * and the update in a compact sidebar that has no room for them.
  */
 
 import { ArrowLeft, ArrowRight, Button, CircleFadingArrowUp, IconButton, Puzzle } from "@openbot/ui";
 import { Show } from "solid-js";
 import { useText } from "../../text";
 import { ServerMenu } from "../servers/ServerMenu";
+import { SidebarFilterMenu } from "./SidebarFilterMenu";
 import { SearchIcon, SidebarToggleIcon } from "./SidebarIcons";
 import { SidebarNewMenu } from "./SidebarNewMenu";
 import { useSidebarScope } from "./sidebar-scope";
@@ -57,6 +58,8 @@ export function SidebarTopbar() {
           >
             <SearchIcon />
           </IconButton>
+          {/* Upstream's filter sits beside New in the search row, which the expanded fork sidebar does not show. */}
+          <SidebarFilterMenu />
           <SidebarNewMenu />
         </Show>
         <Show when={props.chatHistory}>
@@ -150,6 +153,7 @@ export function SidebarTopbar() {
           </Button>
         </Show>
       </div>
+      {props.topbarDetail}
     </div>
   );
 }

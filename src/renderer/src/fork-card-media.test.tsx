@@ -82,7 +82,8 @@ it("still answers, and an answered card keeps its media", () => {
   const onRespond = vi.fn();
   show({ status: "pending" }, onRespond);
   fireEvent.click(screen.getByRole("button", { name: "One smooth draw" }));
-  expect(onRespond).toHaveBeenCalledWith({ actionId: "smooth" });
+  // Upstream (merge of 18 Nov 2026): the second argument is the edited confirm preview, none here.
+  expect(onRespond).toHaveBeenCalledWith({ actionId: "smooth" }, undefined);
   document.body.innerHTML = "";
   show({ status: "answered", response: { actionId: "smooth" }, outcome: "One smooth draw" });
   expect(screen.getByLabelText("The gold line").tagName).toBe("VIDEO");

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
-import { migrateOpenBotDatabase } from "./openbot-database-schema";
+import { LATEST_SCHEMA_VERSION, migrateOpenBotDatabase } from "./openbot-database-schema";
 
 // Fork (docs/fork/FEATURES.md #43): the thread child indexes are no numbered migration any more
 // (`applyForkSchema`). Failure modes: an upgrade loses or changes a thread, turn, activity or provider session;
@@ -91,7 +91,9 @@ function plan(db: DatabaseSync, sql: string): string {
 }
 
 function expectHealthy(db: DatabaseSync): void {
-  expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 61 });
+  expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({
+    version: LATEST_SCHEMA_VERSION,
+  });
   expect(db.prepare("PRAGMA foreign_keys").get()).toEqual({ foreign_keys: 1 });
   expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   expect(db.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" });
@@ -192,21 +194,23 @@ describe("fork thread child indexes", () => {
     const db = databaseAt(58);
     seedThreads(db);
     const before = contents(db);
-    db.exec("INSERT INTO schema_migrations VALUES(62, 'now')");
+    db.exec(`INSERT INTO schema_migrations VALUES(${LATEST_SCHEMA_VERSION + 1}, 'now')`);
     expect(() => migrateOpenBotDatabase(db)).toThrow("newer than this application supports");
-    db.exec("DELETE FROM schema_migrations WHERE version = 62; DELETE FROM schema_migrations WHERE version = 20");
+    db.exec(
+      `DELETE FROM schema_migrations WHERE version = ${LATEST_SCHEMA_VERSION + 1}; DELETE FROM schema_migrations WHERE version = 20`,
+    );
     expect(() => migrateOpenBotDatabase(db)).toThrow("missing version 20");
     expect(contents(db)).toEqual(before);
     expect(indexColumns(db)).toEqual(NO_INDEXES);
   });
 
-  it("refuses to open a version 61 database in an older application", () => {
+  it("refuses to open a latest-version database in an older application", () => {
     const db = databaseAt(58);
     seedThreads(db);
     migrateOpenBotDatabase(db);
     const after = contents(db);
-    // An application one release older knows versions up to 61 at most: version 62 is newer than it supports.
-    db.exec("INSERT INTO schema_migrations VALUES(62, 'now')");
+    // An application one release older knows one version less at most: a newer version is more than it supports.
+    db.exec(`INSERT INTO schema_migrations VALUES(${LATEST_SCHEMA_VERSION + 1}, 'now')`);
     expect(() => migrateOpenBotDatabase(db)).toThrow("newer than this application supports");
     expect(contents(db)).toEqual(after);
     expect(indexColumns(db)).toEqual(INDEXES);

@@ -1,6 +1,7 @@
 import { Button, Check, Copy } from "@openbot/ui";
 import type { JSX } from "@solidjs/web";
 import { createSignal, For, onCleanup } from "solid-js";
+import { ScrollEdges } from "../../components/ScrollEdges";
 import { firstTextDirection } from "../../content-direction";
 import { useText } from "../../text";
 
@@ -81,7 +82,12 @@ export function DataTable(props: {
 
   return (
     <div class="message-data-table-frame">
-      <section class="message-data-table-scroll" aria-label={t("chat.table.data")} tabindex="0">
+      <ScrollEdges
+        axis="x"
+        class="message-table-frame"
+        viewClass="message-data-table-scroll"
+        label={t("chat.table.data")}
+      >
         <table
           ref={(element) => (table = element)}
           class="message-data-table"
@@ -114,7 +120,7 @@ export function DataTable(props: {
             </For>
           </tbody>
         </table>
-      </section>
+      </ScrollEdges>
       <div class="message-data-table-actions">
         {copyButton("markdown", t("chat.table.copyMarkdown"))}
         {copyButton("csv", t("chat.table.copyCsv"))}

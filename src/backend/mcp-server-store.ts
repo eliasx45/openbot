@@ -14,6 +14,7 @@ import { type DynamicRecord, isString } from "@openbot/contracts/runtime-values"
 import { sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger, type Logger } from "@openbot/logging";
 import { databaseRow, databaseRows, requiredNumberColumn, requiredStringColumn } from "./database/database-rows";
+import { withTransaction } from "./database/sqlite-transaction";
 import type { ClaudeCodeMcpMirror } from "./fork-claude-code-mcp";
 import { registerMcpSecretValues } from "./mcp-redaction";
 import type { OpenBotDatabase } from "./openbot-database";
@@ -140,8 +141,7 @@ export class McpServerStore {
     if (!isMcpServerConfig(normalized)) throw new McpServerError(sourceText("error.backend.mcpServerInvalid"));
 
     const db = this.database.connection;
-    db.exec("BEGIN IMMEDIATE");
-    try {
+    return withTransaction(db, () => {
       const existing = normalized.id ? this.get(normalized.id) : null;
       if (normalized.id && !existing) throw new McpServerError(sourceText("error.backend.mcpServerGone"));
       if (!existing && this.count() >= INPUT_LIMITS.mcpServers)
@@ -185,13 +185,8 @@ export class McpServerStore {
         now,
         now,
       );
-      db.exec("COMMIT");
       return stored;
-    } catch (error) {
-      // SQLite may have rolled back already, and a second ROLLBACK would replace the error that did it.
-      if (db.isTransaction) db.exec("ROLLBACK");
-      throw error;
-    }
+    });
   }
 
   remove(mcpServerId: string): void {
@@ -239,8 +234,7 @@ export class McpServerStore {
   migrateCatalogRows(now = new Date().toISOString()): number {
     const db = this.database.connection;
     let converted = 0;
-    db.exec("BEGIN IMMEDIATE");
-    try {
+    return withTransaction(db, () => {
       const rows = databaseRows(
         db.prepare("SELECT mcp_server_id, name, transport, command, args_json FROM projection_mcp_servers").all(),
       );
@@ -268,13 +262,8 @@ export class McpServerStore {
         ).run(bridge.url, now, requiredStringColumn(row, "mcp_server_id"));
         converted += 1;
       }
-      db.exec("COMMIT");
       return converted;
-    } catch (error) {
-      // SQLite may have rolled back already, and a second ROLLBACK would replace the error that did it.
-      if (db.isTransaction) db.exec("ROLLBACK");
-      throw error;
-    }
+    });
   }
 
   private read(mcpServerId: string): StoredServer | null {
@@ -342,7 +331,7 @@ type ReportRow = (row: DynamicRecord, message: string, reason: string) => void;
  *
  * Startup reads this table, so one row must not stop the app (#3643). A list column that cannot be
  * read, or a column past a bound of `isMcpServerConfig`, is read as empty and the server as turned
- * off: the user still sees it in Server settings and corrects or removes it there. The row is not
+ * off: the user still sees it in the Marketplace and corrects or removes it there. The row is not
  * changed until the user saves it or turns it on. A row whose text cannot be read at all, or whose id
  * or name is past a bound, has nothing to show, and is left out.
  */
@@ -387,7 +376,7 @@ function readServer(row: DynamicRecord, report: ReportRow): StoredServer | null 
     return null;
   }
   // The renderer decodes the whole list with `isMcpServerConfig`, so a row past one of its bounds -
-  // from an earlier build or an import - would hide every server from Server settings. Each column
+  // from an earlier build or an import - would hide every server from the Marketplace. Each column
   // is checked alone; only the id and the name cannot be shown empty.
   const bare: McpServerConfig = {
     ...config,
