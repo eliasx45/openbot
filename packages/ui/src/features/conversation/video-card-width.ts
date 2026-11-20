@@ -2,14 +2,19 @@
  * Fork: the width of a video card in a chat. The person drags the corner of any video card, every
  * video card follows, and the width is kept for the next start (Elias, 8 Nov 2026: "resize it
  * (within limits so i dont have to go full screen to see more details").
+ *
+ * Since 20 Nov 2026 a reply's players stand in a grid that fills the chat column, and this width is
+ * the smallest width of a tile: a drag snaps to the nearest number of tiles per row.
  */
 
 import { createSignal } from "solid-js";
 
 export const VIDEO_CARD_MIN_WIDTH = 280;
 export const VIDEO_CARD_MAX_WIDTH = 1100;
-const DEFAULT_WIDTH = 560;
-const STORAGE_KEY = "openbot.videoCardWidth";
+/** Two tiles in a chat column of about 900-1350 px, three above. */
+const DEFAULT_WIDTH = 440;
+/** A new key: a width kept under the old one was set while the grip had no effect. */
+const STORAGE_KEY = "openbot.videoTileWidth";
 
 function clamp(width: number): number {
   return Math.round(Math.min(VIDEO_CARD_MAX_WIDTH, Math.max(VIDEO_CARD_MIN_WIDTH, width)));
@@ -59,7 +64,11 @@ export function startVideoCardResize(event: PointerEvent & { currentTarget: HTML
   const startWidth = card?.getBoundingClientRect().width ?? width();
   handle.setPointerCapture(event.pointerId);
   const direction = handle.dataset.side === "left" ? -1 : 1;
-  const move = (next: PointerEvent) => setWidth(clamp(startWidth + direction * (next.clientX - startX)));
+  const grid = card?.parentElement;
+  const move = (next: PointerEvent) => {
+    const wanted = clamp(startWidth + direction * (next.clientX - startX));
+    setWidth(grid && card?.dataset.player === "video" ? snapToTiles(grid, wanted) : wanted);
+  };
   const end = () => {
     handle.removeEventListener("pointermove", move);
     handle.removeEventListener("pointerup", end);
@@ -73,6 +82,18 @@ export function startVideoCardResize(event: PointerEvent & { currentTarget: HTML
   handle.addEventListener("pointermove", move);
   handle.addEventListener("pointerup", end);
   handle.addEventListener("pointercancel", end);
+}
+
+/**
+ * The tile width that puts the number of tiles nearest to `wanted` in a row of `grid`. Tiles stretch
+ * to fill the row, so a width between two counts would show no change until the next count.
+ */
+function snapToTiles(grid: HTMLElement, wanted: number): number {
+  const gap = Number.parseFloat(getComputedStyle(grid).columnGap) || 0;
+  const row = grid.getBoundingClientRect().width;
+  const tiles = Math.max(1, Math.round((row + gap) / (wanted + gap)));
+  if (tiles === 1) return VIDEO_CARD_MAX_WIDTH;
+  return clamp(Math.floor((row + gap) / tiles - gap));
 }
 
 /** Double-click on the corner: back to the default width. */

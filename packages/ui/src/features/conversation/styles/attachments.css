@@ -386,9 +386,15 @@
 }
 
 /*
- * A video has no card: only the player, as a generated video. Its details show on hover, and a right
- * click gives its actions. Fork: the player is as wide as the person dragged it (the width above, not
- * upstream's fixed 480 px), and the grip stays.
+ * A video has no card: only the player, as a generated video, with its name under it. Its details
+ * show on hover, and a right click gives its actions.
+ *
+ * Fork (Elias, 20 Nov 2026: "why vid previews this small and i cant make them bigger"): a reply with
+ * videos takes the whole chat column. One video fills it; several make a grid of large tiles, each at
+ * least `--video-card-width` wide (default 440 px: two tiles in a 1150 px column). The grip sets that
+ * width, so it changes how many tiles share a row. Before, the bubble had a width but a ghost bubble's
+ * content kept `width: fit-content`, so every player shrank to its smallest size (about 100 px) and
+ * the grip changed a width that nothing used.
  */
 .message-attachments-group:has(.message-attachment[data-player="video"]),
 .message-attachments:has(.message-attachment[data-player="video"]) {
@@ -396,14 +402,74 @@
 }
 
 .message-entry .ui-bubble:has(.message-attachment[data-player="video"]) {
-  width: min(100%, calc(var(--video-card-width, 560px) + 2 * var(--openbot-space-3)));
+  width: 100%;
   max-width: 100%;
 }
 
-/* The player is all that shows. The row comes back while a download runs or after it fails. */
+/* A reply with only files is a ghost bubble, whose content is as wide as its content. */
+.message-entry .ui-bubble:has(.message-attachment[data-player="video"]) > .ui-bubble-content {
+  width: 100%;
+}
+
+.message-attachments:has(> .message-attachment[data-player="video"]) {
+  --video-tile-gap: var(--openbot-space-3);
+
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--video-card-width, 440px)), 1fr));
+  align-items: start;
+  gap: var(--video-tile-gap);
+}
+
+/* Other files in the same message keep their compact card, on a row of their own. */
+.message-attachments:has(> .message-attachment[data-player="video"]) > .message-attachment:not([data-player="video"]) {
+  grid-column: 1 / -1;
+  width: min(100%, 360px);
+}
+
+/* The player and its name show. The row comes back while a download runs or after it fails. */
 .message-attachment[data-player="video"]:not([data-download])
-> :not(.attachment-media-player, .attachment-video-resize) {
+> :not(.attachment-media-player, .attachment-video-resize, .attachment-video-caption) {
   display: none;
+}
+
+.attachment-video-caption {
+  display: flex;
+  min-width: 0;
+  grid-column: 1 / -1;
+  align-items: baseline;
+  gap: var(--openbot-space-2);
+  padding-inline: var(--openbot-space-1);
+}
+
+.message-attachment .attachment-video-caption > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-md);
+  font-weight: 560;
+  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-attachment .attachment-video-caption > small {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.message-attachment[data-download] .attachment-video-caption {
+  display: none;
+}
+
+/* In the grid, the grip is the gap at the tile's free side, so it never covers the next tile. */
+.message-attachments > .message-attachment[data-player="video"] > .attachment-video-resize {
+  right: calc(-1 * var(--video-tile-gap, var(--openbot-space-3)));
+  bottom: 0;
+  width: var(--video-tile-gap, var(--openbot-space-3));
+}
+
+/* Only the tile under the pointer shows its grip, not every tile of the bubble. */
+.message-attachment[data-player="video"]:not(:hover) .attachment-video-resize:not(:active) {
+  opacity: 0;
 }
 
 .message-attachment[data-player="video"],
@@ -420,8 +486,8 @@
   display: none;
 }
 
-/* An upright video keeps its shape and stays as high as a wide one is wide. */
+/* A video keeps its shape and is never higher than most of the window: an upright one gets narrower. */
 .message-attachment[data-player="video"] .attachment-media-player {
-  max-width: calc(var(--video-card-width, 560px) * (var(--media-generation-ratio)));
+  max-width: min(100%, calc(min(72vh, 900px) * (var(--media-generation-ratio))));
   border-radius: var(--openbot-radius-lg);
 }

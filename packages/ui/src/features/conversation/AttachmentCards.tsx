@@ -103,6 +103,8 @@ export function AttachmentCards(props: {
     (Boolean(imageUrl(attachment)) || (mediaKind(attachment) === "video" && canLoadMedia(attachment)));
   const showsVideo = (attachment: AttachmentSummary) =>
     mediaKind(attachment) === "video" && showsPlayer(attachment) && !unplayable().has(attachment.id);
+  // Fork: the grip sets how many video tiles share a row, so it shows only when there are several.
+  const videoTiles = () => props.attachments.filter(showsVideo).length;
   const download = (attachment: AttachmentSummary) => props.downloads?.state(attachment.id);
   const downloading = (attachment: AttachmentSummary) => {
     const state = download(attachment);
@@ -201,11 +203,20 @@ export function AttachmentCards(props: {
               data-status={isMissing(attachment) ? "missing" : undefined}
               data-download={download(attachment)?.phase}
               onPointerEnter={(event) => {
-                if (mediaKind(attachment) === "video") setGripSide(videoCardFreeSide(event.currentTarget));
+                // A tile of the grid fills its column, so its grip stays on the right, in the gap.
+                if (mediaKind(attachment) === "video" && !showsVideo(attachment))
+                  setGripSide(videoCardFreeSide(event.currentTarget));
               }}
             >
               {/* A video shows as a generated video does: only the player. Its row shows during a download. */}
-              <Show when={showsVideo(attachment)}>{player()}</Show>
+              <Show when={showsVideo(attachment)}>
+                {player()}
+                {/* Fork: the name stays under the picture, so a grid of previews can be told apart. */}
+                <div class="attachment-video-caption">
+                  <span title={attachment.name}>{attachment.name}</span>
+                  <small>{status(attachment)}</small>
+                </div>
+              </Show>
               <Button
                 variant="ghost"
                 type="button"
@@ -326,8 +337,15 @@ export function AttachmentCards(props: {
                 </LabelTooltip>
               </Show>
               <Show when={showsPlayer(attachment) && !showsVideo(attachment)}>{player()}</Show>
-              {/* Fork: drag the corner to size every video card (Elias, 8 Nov 2026). */}
-              <Show when={mediaKind(attachment) === "video" && !isMissing(attachment)}>
+              {/* Fork: drag the edge to size every video card (Elias, 8 Nov 2026). In a grid of players it
+                  sets the tile width, so the number of tiles in a row; one player already fills the column. */}
+              <Show
+                when={
+                  mediaKind(attachment) === "video" &&
+                  !isMissing(attachment) &&
+                  (!showsVideo(attachment) || videoTiles() > 1)
+                }
+              >
                 <span
                   class="attachment-video-resize"
                   data-side={gripSide()}
