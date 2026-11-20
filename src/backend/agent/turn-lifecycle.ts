@@ -28,7 +28,7 @@ import { sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger, redactText } from "@openbot/logging";
 import { type CauseCode, classifyFailure, isCauseCode } from "@openbot/telemetry";
 import { userErrorMessage } from "@openbot/user-errors";
-import { Cause, Deferred, Effect, Exit, Schema, Scope } from "effect";
+import { Cause, Deferred, Effect, Exit, Result, Schema, Scope } from "effect";
 import type { AgentClient } from "../agent-client";
 import type { AgentStore } from "../agent-store";
 import type { BrowserOperationError } from "../browser-effects";
@@ -558,6 +558,8 @@ export class TurnLifecycle {
   readonly #quietStops = new Set<string>();
   /** Quiet turns that called the no-update tool again after it told them to end (#9375). */
   readonly #quietRepeats = new Set<string>();
+  /** Fork (docs/fork/FEATURES.md #83): quiet turns that OpenBot did not stop, because their session holds background work. */
+  readonly #quietKeptForBackground = new Set<string>();
   /** Running turns whose agent reported that its routine run failed, with the reason. The completion takes it. */
   readonly #reportedFailures = new Map<string, string>();
   /**
@@ -736,6 +738,7 @@ export class TurnLifecycle {
     this.#quietEndTimers.clear();
     this.#quietStops.clear();
     this.#quietRepeats.clear();
+    this.#quietKeptForBackground.clear();
     this.#reportedFailures.clear();
     this.#endedTurns.clear();
     this.#refusedRetries.clear();
@@ -1518,7 +1521,7 @@ export class TurnLifecycle {
       // Fork (docs/fork/FEATURES.md, "Stopped subagents continue").
       case FORK_BACKGROUND_STOPPED_METHOD: {
         if (!threadId || !agentId || !isRecord(params) || !Array.isArray(params.subagents)) return;
-        const cause = params.cause === "crashed" ? "crashed" : "closed";
+        const cause = params.cause === "crashed" || params.cause === "interrupted" ? params.cause : "closed";
         const subagents = params.subagents.filter(isRecord).flatMap((subagent) => {
           const id = getString(subagent, "id");
           return id
@@ -2055,16 +2058,55 @@ export class TurnLifecycle {
         wait(Math.min(quietFor - silentFor, QUIET_END_MAX_MS - sinceCall));
         return;
       }
-      this.#quietStops.add(turnId);
-      logger.info(
-        repeated
-          ? "A quiet turn called the no-update tool again; OpenBot ends it."
-          : silentFor < quietFor
-            ? "A quiet turn did not end in time after its no-update call; OpenBot ends it."
-            : "A quiet turn sent nothing after its no-update call; OpenBot ends it.",
-        { agentId, turnId, provider: client.provider },
+      const end = () => {
+        this.#quietStops.add(turnId);
+        logger.info(
+          repeated
+            ? "A quiet turn called the no-update tool again; OpenBot ends it."
+            : silentFor < quietFor
+              ? "A quiet turn did not end in time after its no-update call; OpenBot ends it."
+              : "A quiet turn sent nothing after its no-update call; OpenBot ends it.",
+          { agentId, turnId, provider: client.provider },
+        );
+        // Fork (docs/fork/FEATURES.md #83): the stop is OpenBot's, not the user's.
+        Effect.runFork(
+          client
+            .request("turn/interrupt", { threadId, turnId, forkAppStop: true }, decodeRecordResponse)
+            .pipe(Effect.ignore),
+        );
+      };
+      if (!client.holdsBackgroundWork) {
+        end();
+        return;
+      }
+      // Fork (docs/fork/FEATURES.md #83): a Claude stop ends every background subagent of the session
+      // (the CLI kills its non-durable tasks on each `interrupt`), and Codex ends background terminals.
+      // Zita, 20 Nov 2026: a teammate update's second no-update call stopped her turn at 18:21:23 and
+      // killed 8 subagents; the CLI told her "stopped by the user". While the session holds background
+      // work, the turn ends by itself. A failed check stops the turn as before: a provider without the
+      // check (a Codex app-server that lacks `thread/backgroundTerminals/list`) must not loop on.
+      const decide = (held: boolean) => {
+        if (!this.#runningTurns.has(turnId) || this.#quietStops.has(turnId) || this.#quietEndTimers.has(turnId)) return;
+        if (!held) {
+          end();
+          return;
+        }
+        if (!this.#quietKeptForBackground.has(turnId)) {
+          this.#quietKeptForBackground.add(turnId);
+          logger.info("A quiet turn holds background work; OpenBot lets the turn end by itself.", {
+            agentId,
+            turnId,
+            provider: client.provider,
+          });
+        }
+        wait(QUIET_END_MS);
+      };
+      Effect.runFork(
+        Effect.result(client.holdsBackgroundWork(threadId)).pipe(
+          Effect.map((background) => Result.isSuccess(background) && background.success),
+          Effect.tap((held) => Effect.sync(() => decide(held))),
+        ),
       );
-      Effect.runFork(client.request("turn/interrupt", { threadId, turnId }, decodeRecordResponse).pipe(Effect.ignore));
     };
     const wait = (ms: number) => {
       const timer = setTimeout(check, ms);
@@ -2080,6 +2122,7 @@ export class TurnLifecycle {
     this.#quietEndTimers.delete(turnId);
     this.#quietStops.delete(turnId);
     this.#quietRepeats.delete(turnId);
+    this.#quietKeptForBackground.delete(turnId);
   }
 
   /** Whether the channel shows the answers of this running channel routine turn as steps (#7166). */

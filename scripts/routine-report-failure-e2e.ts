@@ -104,7 +104,9 @@ const replyCalls = (...items: FakeCall[]) => `<<REPLY${JSON.stringify(items)}REP
  * the `empty_answer` cause, as Grok does when the model sends only its reasoning. `QUIET-HANG` sends
  * nothing after its calls until a `turn/interrupt`, as Grok does while it tries such a reply again
  * (#8629). `QUIET-LOOP` calls \`routine_no_update\` again after each result until a \`turn/interrupt\`, as
- * Kimi does (#9375). An input with
+ * Kimi does (#9375). With \`BG-HELD\` too, its thread holds a background terminal
+ * (\`thread/backgroundTerminals/list\`; other threads get "Method not found", as before) and the turn ends
+ * by itself after 10 calls (fork #83: OpenBot must not stop it). An input with
  * `TEAMMATE-QUIET` and no calls calls `routine_no_update`. A turn that reads a teammate's answer
  * makes the calls in `<<REPLY[...]REPLY>>` when its input names them. An input with `TEAMMATE-REQUEST`
  * and no calls calls `routine_no_update`, sends the result to the teammate who asked, then calls
@@ -128,6 +130,8 @@ let turns = 0;
 const waiting = new Map();
 /** Turn id -> each turn that calls \`routine_no_update\` again until it is stopped. */
 const looping = new Map();
+/** Threads whose turn said \`BG-HELD\`: they hold a background terminal (fork #83). */
+const heldThreads = new Set();
 process.stdout.on("error", (error) => {
   if (error.code === "EPIPE") process.exit(0);
   throw error;
@@ -154,6 +158,10 @@ const finish = (turn) => {
 const callNext = (turn) => {
   if (turn.stopped) return;
   if (turn.quietLoop && turn.calls.length === 0) {
+    if (turn.held && turn.loops >= 10) {
+      looping.delete(turn.turnId);
+      return finish(turn);
+    }
     looping.set(turn.turnId, turn);
     turn.calls.push({ tool: "routine_no_update", arguments: {} });
     if (turn.loops++ > 0) return setTimeout(() => callNext(turn), 200);
@@ -188,6 +196,7 @@ const answer = (message) => {
       const turnId = "turn-" + (++turns);
       const text = (params.input || []).map((item) => item.text || "").join("\\n");
       log({ method: "turn/start", threadId: params.threadId, turnId, text });
+      if (text.includes("BG-HELD")) heldThreads.add(params.threadId);
       write({ id: message.id, result: { turn: { id: turnId, status: "inProgress", items: [] } } });
       write({ method: "turn/started", params: { threadId: params.threadId, turn: { id: turnId } } });
       // Only the task of a routine prompt: the prompt can quote earlier chat messages before it.
@@ -207,8 +216,11 @@ const answer = (message) => {
           write({ method: "item/completed", params: { threadId: params.threadId, turnId, item: { type: "agentMessage", id, text: noteText, phase: "commentary" } } });
       }
       const reply = next ? "Relay report <<CALLS" + next[1] + "CALLS>>" : textOnly ? "The result went to the teammate." : turnCalls.length ? ${JSON.stringify(FAILED_ANSWER)} : "All good.";
-      return callNext({ threadId: params.threadId, turnId, calls: turnCalls, reply, providerFail: task.includes("PROVIDER-FAIL"), silentFail: task.includes("SILENT-FAIL"), emptyAnswer: task.includes("EMPTY-ANSWER"), quietHang: task.includes("QUIET-HANG"), quietLoop: task.includes("QUIET-LOOP"), noFinal: task.includes("NO-FINAL"), loops: 0 });
+      return callNext({ threadId: params.threadId, turnId, calls: turnCalls, reply, providerFail: task.includes("PROVIDER-FAIL"), silentFail: task.includes("SILENT-FAIL"), emptyAnswer: task.includes("EMPTY-ANSWER"), quietHang: task.includes("QUIET-HANG"), quietLoop: task.includes("QUIET-LOOP"), held: task.includes("BG-HELD"), noFinal: task.includes("NO-FINAL"), loops: 0 });
     }
+    case "thread/backgroundTerminals/list":
+      if (!heldThreads.has(params.threadId)) break;
+      return write({ id: message.id, result: { data: [{ id: "terminal-1" }], nextCursor: null } });
     case "turn/interrupt": {
       log({ method: "turn/interrupt", threadId: params.threadId, turnId: params.turnId });
       const loop = looping.get(params.turnId);
@@ -216,9 +228,8 @@ const answer = (message) => {
       write({ id: message.id, result: {} });
       return write({ method: "turn/completed", params: { threadId: params.threadId, turn: { id: params.turnId, status: "interrupted" } } });
     }
-    default:
-      return write({ id: message.id, error: { code: -32601, message: "Method not found: " + message.method } });
   }
+  return write({ id: message.id, error: { code: -32601, message: "Method not found: " + message.method } });
 };
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (chunk) => {
@@ -448,6 +459,7 @@ try {
   const quietEmpty = createRoutine(checker.id, "Quiet empty", `Check quietly. EMPTY-ANSWER ${calls(noUpdate)}`);
   const quietHang = createRoutine(checker.id, "Quiet hang", `Check quietly. QUIET-HANG ${calls(noUpdate)}`);
   const quietLoop = createRoutine(checker.id, "Quiet loop", "Check quietly. QUIET-LOOP");
+  const quietLoopHeld = createRoutine(checker.id, "Quiet loop held", "Check quietly. QUIET-LOOP BG-HELD");
   const empty = createRoutine(checker.id, "Empty check", "Check the logs. EMPTY-ANSWER");
   const failedThenQuiet = createRoutine(
     checker.id,
@@ -857,6 +869,28 @@ try {
       Date.now() - quietLoopStarted < 15_000 &&
       fakeEntries().some((entry) => entry.method === "turn/interrupt" && entry.turnId === quietLoopRun.delivery.turnId),
     { run: quietLoopRun.run, calls: quietLoopCalls.length, ms: Date.now() - quietLoopStarted },
+  );
+  // Fork (docs/fork/FEATURES.md #83): the same loop in a session that holds background work (a Claude
+  // subagent, a Codex background terminal) is not stopped, because the stop would end that work. The
+  // turn ends by itself (here after 10 calls, about 2 s) and the run is still quiet.
+  const quietHeldRun = await settledRun(
+    "Quiet loop held",
+    await runCauseEffect(
+      agents.runRoutineFromAutomation({ agentId: checker.id, routineId: quietLoopHeld.id, payload: "" }),
+    ),
+    20_000,
+  );
+  const quietHeldCalls = toolResults(quietHeldRun.delivery.turnId, "routine_no_update");
+  pass(
+    "A quiet turn whose session holds background work is not stopped: it ends by itself, quiet (fork #83)",
+    quietHeldRun.run.status === "succeeded" &&
+      !quietHeldRun.run.error &&
+      quietHeldRun.delivery.status === "completed" &&
+      quietHeldCalls.length >= 10 &&
+      !fakeEntries().some(
+        (entry) => entry.method === "turn/interrupt" && entry.turnId === quietHeldRun.delivery.turnId,
+      ),
+    { run: quietHeldRun.run, calls: quietHeldCalls.length },
   );
   const emptyRun = await settledRun(
     "Empty check",

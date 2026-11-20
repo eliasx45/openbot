@@ -41,7 +41,8 @@ export const FORK_RESTART_RESUME_ROUTINE_ID = "fork-restart-resume";
 /**
  * Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): a client's notification that background
  * subagents of a session stopped because its process ended while OpenBot ran. `cause` is "closed"
- * (OpenBot closed the process) or "crashed" (the process ended by itself).
+ * (OpenBot closed the process), "crashed" (the process ended by itself) or "interrupted" (OpenBot
+ * stopped the turn itself, and the CLI ended the subagents with it: #83).
  */
 export const FORK_BACKGROUND_STOPPED_METHOD = "openbot/fork-background-stopped";
 /**
@@ -118,7 +119,7 @@ export interface RestartResumeEntry {
   /** "process": the subagents stopped while OpenBot ran. Absent for a note of a restart. */
   trigger?: "restart" | "process";
   /** For "process": whether OpenBot closed the process or it crashed. */
-  cause?: "closed" | "crashed";
+  cause?: "closed" | "crashed" | "interrupted";
   /** For "process": the provider session the subagents ran in. The wake runs only there. */
   externalSessionId?: string;
 }
@@ -395,7 +396,7 @@ export class ForkRestartResume {
     threadId: string;
     externalSessionId: string;
     turnId: string | null;
-    cause: "closed" | "crashed";
+    cause: "closed" | "crashed" | "interrupted";
     subagents: ReadonlyArray<{ id: string; title: string; providerAgentId: string | null }>;
   }): void {
     // Before start, at boot or while OpenBot quits: the restart resume notes the subagents instead.
@@ -696,7 +697,7 @@ export function restartResumeText(input: {
   kind: RestartResumeKind;
   /** "process": the subagents stopped while OpenBot ran, because their Claude process ended. */
   trigger?: "restart" | "process";
-  cause?: "closed" | "crashed";
+  cause?: "closed" | "crashed" | "interrupted";
   interruptedAt: string;
   timezone: string | undefined;
   attempt: number;
@@ -713,7 +714,9 @@ export function restartResumeText(input: {
       : null;
   const process = input.trigger === "process";
   const what = process
-    ? `Your background subagents were stopped at ${at}: their Claude process ${input.cause === "crashed" ? "crashed" : "was closed by OpenBot (a settings, account or tool change)"} while OpenBot kept running — this is not a message from the user.`
+    ? input.cause === "interrupted"
+      ? `Your background subagents were stopped at ${at}: OpenBot ended your turn by itself (not the user), and Claude Code ends background subagents with the turn. Claude Code's "[Request interrupted by user]" and "stopped by the user or by the app connected to this session" notes mean OpenBot here — the user did NOT stop your work and wants it to go on.`
+      : `Your background subagents were stopped at ${at}: their Claude process ${input.cause === "crashed" ? "crashed" : "was closed by OpenBot (a settings, account or tool change)"} while OpenBot kept running — this is not a message from the user.`
     : input.kind === "subagents"
       ? `Your background subagents were stopped at ${at} by an OpenBot restart while you waited for them — this is not a message from the user.`
       : input.kind === "goal"

@@ -15,6 +15,9 @@
 // - account-switch (fork #72): the agent runs on a second Claude account; it moves back to the
 //   default account and its next message stops the account's process. The subagent shows stopped and
 //   the agent no longer shows as working. Before, it stayed "running" until a restart (Adrian, 11 Nov).
+// - app-stop-wakes (fork #83): OpenBot itself stops the turn (`turn/interrupt` with `forkAppStop`, as the
+//   quiet end of a no-update turn does); the CLI ends the background subagents with it. The agent gets
+//   the wake, and it says that OpenBot, not the user, stopped them (Zita, 20 Nov 2026).
 // `bun scripts/subagent-stop-resume-e2e.ts`. Writes .openbot-build/subagent-stop-resume-e2e/report.json.
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
@@ -316,7 +319,13 @@ interface Profile {
   stop: () => Promise<void>;
 }
 
-const clientFactory: AgentClientFactory = (_provider, cli) => new ClaudeStandIn(cli);
+/** Every client the service made, so a case can send a request to the one that runs a session. */
+const clients: ClaudeStandIn[] = [];
+const clientFactory: AgentClientFactory = (_provider, cli) => {
+  const client = new ClaudeStandIn(cli);
+  clients.push(client);
+  return client;
+};
 
 /** Runs one case on its own temporary profile and service, where only Claude is on. */
 async function runCase(
@@ -672,7 +681,43 @@ try {
     accounts,
   );
 
-  report.passed = report.cases.length === 10 && report.cases.every((entry) => entry.passed);
+  await runCase("app-stop-wakes", async (profile, details) => {
+    const agent = await createAgent(profile.agents, "App stop lead");
+    const { threadId, sessionId } = await startBackground(profile, agent.id, 9);
+    let client: ClaudeStandIn | undefined;
+    for (const candidate of clients)
+      if (
+        candidate.running &&
+        (await Effect.runPromise(Effect.orElseSucceed(candidate.holdsBackgroundWork(sessionId), () => false)))
+      )
+        client = candidate;
+    assert.ok(client, "A client runs the session with its background subagent.");
+    await Effect.runPromise(
+      client.request(
+        "turn/interrupt",
+        { threadId: sessionId, turnId: "turn-app-stop", forkAppStop: true },
+        (value) => value,
+      ),
+    );
+    const wake = await waitFor("the wake in the same session", () => wakes(sessionId, "agent-bg-9")[0], 30_000);
+    details.wake = wake.text.slice(0, 600);
+    assert.match(wake.text, /OpenBot ended your turn by itself \(not the user\)/u, "The wake names OpenBot.");
+    assert.match(wake.text, /the user did NOT stop your work/u);
+    assert.match(wake.text, /SendMessage/u, "The wake says to continue it with SendMessage.");
+    await waitFor("the wake turn to end", () => idle(profile.agents, agent.id));
+    const note = liveNotes()[0];
+    details.note = note ? { state: note.state, ...(note.cause ? { cause: note.cause } : {}) } : null;
+    assert.equal(note?.cause, "interrupted");
+    details.subagentStatus =
+      profile
+        .sqlite()
+        .prepare("SELECT message_json FROM projection_thread_messages WHERE thread_id = ? AND item_type = 'subagents'")
+        .all(threadId)
+        .flatMap((one) => JSON.parse(String(one.message_json)).subagents ?? [])
+        .find((subagent: { title: string }) => subagent.title === "Background work 9")?.status ?? null;
+  });
+
+  report.passed = report.cases.length === 11 && report.cases.every((entry) => entry.passed);
 } finally {
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(OUT, "report.json"), `${JSON.stringify(report, null, 2)}\n`);

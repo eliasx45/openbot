@@ -1291,6 +1291,10 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
           stopped.stopRequested = true;
           yield* this.#closeIfStopIgnored(runtime, stopped);
         }
+        // Fork (docs/fork/FEATURES.md #83): the CLI ends every background subagent on `interrupt` and
+        // tells the agent "stopped by the user". When OpenBot stops the turn itself, report them as
+        // stopped by OpenBot, so "Stopped subagents continue" (#47) wakes the agent with the truth.
+        if (isDynamicRecord(params) && params.forkAppStop === true) this.#stopSubagentsOf(runtime, "interrupted");
         yield* providerCall(() => runtime.query.interrupt()).pipe(
           // The close of a CLI that did not answer the stop rejects the stop request, but the close ends the turn.
           Effect.catch((failure) =>
@@ -2296,8 +2300,9 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
    * Ends the subagents of a process that ends. Fork (docs/fork/FEATURES.md, "Stopped subagents
    * continue"): while the client runs, the background ones that still worked are reported, so the
    * agent can continue them. `stop` (OpenBot quits) does not come here: the restart resume does that.
+   * "interrupted" (#83): OpenBot itself stopped the turn, and the CLI ends the subagents with it.
    */
-  #stopSubagentsOf(runtime: ThreadRuntime, cause: "closed" | "crashed"): void {
+  #stopSubagentsOf(runtime: ThreadRuntime, cause: "closed" | "crashed" | "interrupted"): void {
     const background = this.#running && !runtime.forkClosedForStop ? runningBackgroundSubagents(runtime.subagents) : [];
     for (const change of stopSubagents(runtime.subagents, new Date().toISOString()))
       this.#emitSubagents(runtime, change);
