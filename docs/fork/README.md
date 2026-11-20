@@ -55,7 +55,7 @@ bunx electron-builder --dir --mac --arm64 --publish never \
 
 ## The Dock launcher
 
-Click **OpenBot Launcher** in the Dock (`scripts/fork/app.sh`, installed by `scripts/fork/install-dock-app.sh` to `~/Applications/OpenBot Launcher.app`, pinned once).
+Click **OpenBot** in the Dock: one icon. `scripts/fork/app.sh` wraps a small starter into every install (`scripts/fork/launcher.swift` becomes `Contents/MacOS/OpenBot`; Electron's binary moves to `OpenBot-app`, signed with the same Developer ID, identifier `app.openbot.desktop` and entitlements, so its designated requirement equals the app's and macOS grants stay). The starter checks `app.sh --stale`: `ready` → it `execv`s into Electron in the same process; `stale` → the window below runs `app.sh --update`, then OpenBot reopens itself. "Open Without Updating" skips a build; no build in the first 5 minutes after a restart (login item). (Before 20 Nov 2026: a separate `~/Applications/OpenBot Launcher.app`, so the Dock showed the launcher's pin and the running app; the first install with the starter unpins it and moves it to the Trash via `scripts/fork/install-dock-app.sh`.)
 
 - `main` unchanged since the last install (`build/fork-launcher/built-commit`): opens OpenBot at once.
 - `main` changed: a small window builds it (Stop, closing the window or ⌘Q stop the whole build), moves the new bundle to `/Applications/OpenBot.app` and opens it. One build at a time (a `mkdir` lock).

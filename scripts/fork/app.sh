@@ -9,9 +9,16 @@
 # (a lock). A running OpenBot is never quit or replaced: the build waits as the next install, and
 # the next click (with OpenBot quit) installs it without building again.
 #
-# Usage: scripts/fork/app.sh [--status | --build]
+# The installed app starts with a small starter (scripts/fork/launcher.swift, wrapped in at install):
+# it becomes OpenBot when `--stale` says `ready`, else it shows a progress window around `--update`.
+# So the Dock pins OpenBot.app itself and shows one icon (scripts/fork/install-dock-app.sh).
+#
+# Usage: scripts/fork/app.sh [--status | --stale | --build | --update]
 #   --status   print `running`, `stale` or `ready` and exit
+#   --stale    print `stale` or `ready` (the starter: it is itself the running app)
 #   --build    build main now and keep it as the next install (even while OpenBot runs); no install
+#   --update   build when needed and install, without opening (the starter's window runs this;
+#              OPENBOT_STARTER_PID names the starter, which doesn't count as a running OpenBot)
 # Exit status 130 when the build was stopped (SIGTERM / SIGINT / SIGHUP), 1 when it failed.
 set -u
 # Started from the Dock, PATH lacks Homebrew (bun, node 26: the build needs node >= 24, and an
@@ -30,8 +37,11 @@ staged="$state/OpenBot.app"
 staged_commit="$state/staged-commit"
 mkdir -p "$state"
 
-# The Electron main process only (its helpers and agents run from the bundle too).
-running() { pgrep -f "^$app/Contents/MacOS/OpenBot( |\$)" >/dev/null 2>&1; }
+# The Electron main process only (its helpers and agents run from the bundle too): `OpenBot-app`
+# behind the starter, `OpenBot` before it. The starter that runs --update isn't counted.
+running() {
+    pgrep -f "^$app/Contents/MacOS/OpenBot(-app)?( |\$)" 2>/dev/null | grep -vx "${OPENBOT_STARTER_PID:-none}" | grep -q .
+}
 head_commit() { git -C "$root" rev-parse main 2>/dev/null; }
 stale() {
     [ -d "$app" ] && [ -f "$stamp" ] || return 0
@@ -48,7 +58,12 @@ case "${1:-}" in
     if running; then echo running; elif stale; then echo stale; else echo ready; fi
     exit 0
     ;;
+--stale)
+    if stale; then echo stale; else echo ready; fi
+    exit 0
+    ;;
 --build) mode=build ;;
+--update) mode=update ;;
 esac
 
 build_pid=""
@@ -268,17 +283,44 @@ backup_official() {
     [ -f "$copy" ] || [ ! -f "$db" ] || sqlite3 "$db" ".backup '$copy'"
 }
 
+# The starter (scripts/fork/launcher.swift) becomes the bundle's main executable `OpenBot`;
+# Electron's binary moves to `OpenBot-app` (already there in a patched copy). Electron's binary is
+# signed with the bundle's identifier and entitlements, so its designated requirement is the
+# bundle's and macOS privacy grants stay. Compiled once per change of launcher.swift.
+starter="$state/OpenBotStarter"
+wrap() {
+    set -e
+    if [ ! -x "$starter" ] || [ "$root/scripts/fork/launcher.swift" -nt "$starter" ]; then
+        swiftc -O -o "$starter" "$root/scripts/fork/launcher.swift" -framework AppKit
+    fi
+    macos="$1/Contents/MacOS"
+    [ -f "$macos/OpenBot-app" ] || mv "$macos/OpenBot" "$macos/OpenBot-app"
+    cp "$starter" "$macos/OpenBot"
+    plist="$1/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Delete :OpenBotRoot" "$plist" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :OpenBotRoot string $root" "$plist"
+    id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$plist")
+    codesign --force --sign "$identity" --timestamp=none --options runtime --entitlements "$entitlements" \
+        --identifier "$id" "$macos/OpenBot-app"
+    sign "$1"
+    codesign --verify --deep --strict "$1"
+    inner=$(codesign -d -r- "$macos/OpenBot-app" 2>&1 | sed -n 's/^designated => //p')
+    outer=$(codesign -d -r- "$1" 2>&1 | sed -n 's/^designated => //p')
+    [ -n "$inner" ] && [ "$inner" = "$outer" ] || { echo "OpenBot-app's signature differs from the app's" >&2; return 1; }
+}
+
 # Moves the staged build in. Moved, not copied: only one OpenBot build exists.
 install_staged() {
     if running; then
         echo "OpenBot was opened during the build: quit it and click again to install" >>"$log"
         return 1
     fi
+    (wrap "$staged") >>"$log" 2>&1 || { echo "wrapping the starter in failed: not installed" >>"$log"; return 1; }
     backup_official >>"$log" 2>&1 || { echo "backup of the official app failed: not installed" >>"$log"; return 1; }
     old="$state/replaced.app"
     rm -rf "$old"
     if [ -d "$app" ] && ! mv "$app" "$old"; then
-        echo "can't move $app (allow OpenBot Launcher in System Settings > Privacy & Security > App Management)" >>"$log"
+        echo "can't move $app (allow OpenBot in System Settings > Privacy & Security > App Management)" >>"$log"
         return 1
     fi
     if mv "$staged" "$app"; then
@@ -286,12 +328,31 @@ install_staged() {
         rm -f "$staged_commit"
         rm -rf "$old"
         echo "installed $app" >>"$log"
+        # One Dock icon: drop the old separate launcher's pin once the starter is in (no-op after).
+        if [ -d "$HOME/Applications/OpenBot Launcher.app" ]; then
+            sh "$root/scripts/fork/install-dock-app.sh" >>"$log" 2>&1 || true
+        fi
     else
         [ -d "$old" ] && mv "$old" "$app"
         echo "install failed: $staged is still there" >>"$log"
         return 1
     fi
 }
+
+if [ "$mode" = update ]; then
+    take_lock
+    status=0
+    if stale && ! staged_ready; then
+        build
+        status=$?
+    fi
+    if [ "$status" -eq 0 ] && staged_ready; then
+        install_staged
+        status=$?
+    fi
+    rm -rf "$lock"
+    exit "$status"
+fi
 
 if [ "$mode" = build ]; then
     take_lock

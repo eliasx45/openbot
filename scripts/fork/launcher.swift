@@ -1,18 +1,44 @@
-// OpenBot (fork) Dock launcher. scripts/fork/install-dock-app.sh compiles it into
-// ~/Applications/OpenBot Launcher.app. Click: opens /Applications/OpenBot.app, building
-// and installing it first only when local main has new commits (scripts/fork/app.sh). While it
-// builds, a small window shows progress; Stop, closing the window, Cmd-Q or Quit from the Dock stop
-// the build. A running OpenBot is never quit or replaced.
+// OpenBot (fork) starter: the main executable of the OpenBot.app that scripts/fork/app.sh installs,
+// so the Dock pins one app and shows one icon. app.sh renames Electron's binary to `OpenBot-app`
+// (signed with the same Developer ID and identifier, so macOS privacy grants stay), puts this one
+// in its place as `OpenBot`, and writes the repo path into Info.plist (`OpenBotRoot`). (Before: a
+// separate OpenBot Launcher.app opened OpenBot.app, so the Dock showed both icons.)
 //
-// The launcher doesn't stay running: OpenBot is a real app bundle with its own privacy
-// permissions, so app.sh `open`s it and the launcher quits. A build made while OpenBot ran
-// (app.sh --build) is installed by the next click without building again.
+// Launch: when local main has no new commit since the install, it becomes OpenBot in the same
+// process (execv), so macOS sees one app. When main moved, a small window shows the build
+// (`app.sh --update`); Stop, closing the window, Cmd-Q or Quit from the Dock stop
+// it, and "Open Without Updating" opens the installed version. After the install OpenBot reopens
+// itself. No build in the first 5 minutes after a restart (OpenBot is a login item).
+// OPENBOT_SKIP_BUILD=1 skips the check (that relaunch, or when the repo isn't there).
 
 import AppKit
+import Darwin
 
+let macos = (Bundle.main.executablePath.map { ($0 as NSString).deletingLastPathComponent }) ?? ""
+let real = macos + "/OpenBot-app"
 let root = Bundle.main.object(forInfoDictionaryKey: "OpenBotRoot") as? String ?? ""
 let script = root + "/scripts/fork/app.sh"
 let log = root + "/build/fork-launcher/build.log"
+let bundlePath = Bundle.main.bundlePath
+
+/// Becomes OpenBot in this process (same pid, same Dock icon). Only before AppKit starts.
+func becomeApp() -> Never {
+    var args = CommandLine.arguments
+    args[0] = real
+    let cargs = args.map { strdup($0) } + [nil]
+    execv(real, cargs)
+    // execv only returns on failure.
+    fputs("OpenBot starter: couldn't start \(real): \(String(cString: strerror(errno)))\n", stderr)
+    exit(1)
+}
+
+/// Seconds since the Mac started.
+func uptime() -> Double {
+    var boot = timeval()
+    var size = MemoryLayout<timeval>.size
+    guard sysctlbyname("kern.boottime", &boot, &size, nil, 0) == 0 else { return .infinity }
+    return Date().timeIntervalSince1970 - Double(boot.tv_sec)
+}
 
 /// Runs app.sh with `args` and returns its trimmed output (empty on failure).
 func run(_ args: [String]) -> String {
@@ -41,28 +67,34 @@ func lastLogLine() -> String {
     return ""
 }
 
-final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate {
+/// Opens OpenBot.app again once this process has quit (the new bundle, or the installed one).
+func reopenAfterExit() {
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: "/bin/sh")
+    p.arguments = ["-c", "while kill -0 \(getpid()) 2>/dev/null; do sleep 0.1; done; open --env OPENBOT_SKIP_BUILD=1 \"$0\"", bundlePath]
+    p.standardOutput = FileHandle.nullDevice
+    p.standardError = FileHandle.nullDevice
+    try? p.run()
+}
+
+let skip = ProcessInfo.processInfo.environment["OPENBOT_SKIP_BUILD"] != nil
+if skip || root.isEmpty || !FileManager.default.fileExists(atPath: script) || uptime() < 300 || run(["--stale"]) != "stale" {
+    becomeApp()
+}
+
+final class Builder: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var window: NSWindow?
     var detail = NSTextField(labelWithString: "Only what changed since the last build.")
     var build: Process?
     var timer: Timer?
-    var stopping = false
+    /// What to do once the build process has ended after Stop: quit, or open the installed version.
+    var afterStop: (() -> Void)?
 
     func applicationDidFinishLaunching(_ note: Notification) {
-        if run(["--status"]) == "stale" {
-            startBuild()
-        } else {
-            // running or ready: app.sh opens (or brings forward) OpenBot.
-            _ = run([])
-            NSApp.terminate(nil)
-        }
-    }
-
-    func startBuild() {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 130), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         w.title = "OpenBot"
         w.delegate = self
-        let title = NSTextField(labelWithString: "Building OpenBot from main…")
+        let title = NSTextField(labelWithString: "Updating OpenBot from main…")
         title.font = .boldSystemFont(ofSize: 14)
         detail.textColor = .secondaryLabelColor
         detail.lineBreakMode = .byTruncatingTail
@@ -72,8 +104,10 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate {
         spinner.startAnimation(nil)
         let stop = NSButton(title: "Stop", target: self, action: #selector(stopPressed))
         stop.keyEquivalent = "\u{1b}"
+        let skipButton = NSButton(title: "Open Without Updating", target: self, action: #selector(openInstalledPressed))
         let top = NSStackView(views: [spinner, title])
-        let stack = NSStackView(views: [top, detail, stop])
+        let buttons = NSStackView(views: [stop, skipButton])
+        let stack = NSStackView(views: [top, detail, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
@@ -95,8 +129,12 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        // Builds, installs and opens OpenBot.
-        p.arguments = [script]
+        // Builds main into the next install, then moves it into /Applications; doesn't open it.
+        // OPENBOT_STARTER_PID: app.sh doesn't count this process as a running OpenBot.
+        p.arguments = [script, "--update"]
+        var env = ProcessInfo.processInfo.environment
+        env["OPENBOT_STARTER_PID"] = String(getpid())
+        p.environment = env
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         p.terminationHandler = { [weak self] proc in
@@ -119,7 +157,13 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func buildEnded(status: Int32) {
         timer?.invalidate()
         build = nil
-        if stopping || status == 0 {
+        if let then = afterStop {
+            then()
+            NSApp.terminate(nil)
+            return
+        }
+        if status == 0 {
+            reopenAfterExit()
             NSApp.terminate(nil)
             return
         }
@@ -130,31 +174,38 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window?.orderOut(nil)
         let alert = NSAlert()
         alert.messageText = message
-        alert.informativeText = "The build log has the details."
+        alert.informativeText = "The installed version still works. The build log has the details."
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Open Installed Version")
         alert.addButton(withTitle: "Show Log")
-        if alert.runModal() == .alertSecondButtonReturn {
-            NSWorkspace.shared.open(URL(fileURLWithPath: log))
+        alert.addButton(withTitle: "Quit")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: reopenAfterExit()
+        case .alertSecondButtonReturn: NSWorkspace.shared.open(URL(fileURLWithPath: log))
+        default: break
         }
         NSApp.terminate(nil)
     }
 
-    /// Stop the build (app.sh stops it and everything it started), then quit.
-    func stopBuild() {
-        guard let p = build, p.isRunning else { return }
-        stopping = true
+    /// Stop the build (app.sh stops it and everything it started); `then` runs once it has ended.
+    func stopBuild(then: @escaping () -> Void) {
+        guard let p = build, p.isRunning else {
+            then()
+            NSApp.terminate(nil)
+            return
+        }
+        afterStop = then
         detail.stringValue = "Stopping…"
         p.terminate()
     }
 
-    @objc func stopPressed() {
-        if build?.isRunning == true { stopBuild() } else { NSApp.terminate(nil) }
-    }
+    @objc func stopPressed() { stopBuild {} }
+
+    @objc func openInstalledPressed() { stopBuild { reopenAfterExit() } }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if build?.isRunning == true {
-            stopBuild()
+            stopBuild {}
             return false
         }
         return true
@@ -163,7 +214,7 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if build?.isRunning == true {
             // Cmd-Q or Quit from the Dock: stop the build first; buildEnded() quits.
-            stopBuild()
+            stopBuild {}
             return .terminateCancel
         }
         return .terminateNow
@@ -173,14 +224,14 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate {
 }
 
 let app = NSApplication.shared
-let delegate = Launcher()
+let delegate = Builder()
 app.delegate = delegate
 app.setActivationPolicy(.regular)
 // A menu with Quit, so Cmd-Q stops the build too.
 let menu = NSMenu()
 let appItem = NSMenuItem()
 appItem.submenu = NSMenu()
-appItem.submenu?.addItem(withTitle: "Quit OpenBot Launcher", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+appItem.submenu?.addItem(withTitle: "Quit OpenBot", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 menu.addItem(appItem)
 app.mainMenu = menu
 app.run()
