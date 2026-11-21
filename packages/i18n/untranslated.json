@@ -199,6 +199,7 @@
   "browser.chrome.someSites": ["ar", "de", "es", "fr", "he", "it", "ja", "ko", "nl", "pl", "pt", "ru", "tr", "zh"],
   "browser.chrome.syncedAt": ["ar", "de", "es", "fr", "he", "it", "ja", "ko", "nl", "pl", "pt", "ru", "tr", "zh"],
   "browser.chrome.unavailable": ["ar", "de", "es", "fr", "he", "it", "ja", "ko", "nl", "pl", "pt", "ru", "tr", "zh"],
+  "browser.chrome.unsupported": ["ar", "de", "es", "fr", "he", "it", "ja", "ko", "nl", "pl", "pt", "ru", "tr", "zh"],
   "browser.chrome.useSignIn": ["ar", "de", "es", "fr", "he", "it", "ja", "ko", "nl", "pl", "pt", "ru", "tr", "zh"],
   "browser.secret.saveBlockedRole": ["de", "es", "fr", "it", "ja", "ko", "pl", "pt", "ru", "tr"],
   "browser.secret.saveBlockedVersion": ["de", "es", "fr", "it", "ja", "ko", "pl", "pt", "ru", "tr"],

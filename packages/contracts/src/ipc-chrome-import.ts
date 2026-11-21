@@ -20,6 +20,8 @@ export interface ChromeProfileSummary {
 export interface ChromeProfileList {
   /** False when Chrome is not on this computer. */
   available: boolean;
+  /** False on Windows and Linux: the import reads macOS browser folders and the macOS Keychain. */
+  supported: boolean;
   profiles: ChromeProfileSummary[];
 }
 
@@ -107,6 +109,8 @@ export function decodeChromeProfileList(value: unknown): ChromeProfileList {
   if (typeof list.available !== "boolean" || !Array.isArray(list.profiles)) throw new Error("Invalid Chrome profiles.");
   return {
     available: list.available,
+    // A list from a build before `supported` came from a Mac, the only platform it ran on.
+    supported: typeof list.supported === "boolean" ? list.supported : true,
     profiles: list.profiles.map((entry) => {
       const profile = record(entry, "Chrome profile");
       return {

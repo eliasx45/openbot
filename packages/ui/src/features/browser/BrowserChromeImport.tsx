@@ -196,7 +196,14 @@ export function BrowserChromeImport(props: BrowserChromeImportProps) {
         <section class="browser-chrome-import-sheet" aria-label={t("browser.chrome.import")}>
           <Show when={draft.list} fallback={<Text variant="caption">{t("browser.chrome.loading")}</Text>}>
             {(list) => (
-              <Show when={list().available} fallback={<Text variant="caption">{t("browser.chrome.unavailable")}</Text>}>
+              <Show
+                when={list().available}
+                fallback={
+                  <Text variant="caption">
+                    {t(list().supported ? "browser.chrome.unavailable" : "browser.chrome.unsupported")}
+                  </Text>
+                }
+              >
                 <Text variant="caption" class="browser-chrome-import-label">
                   {t("browser.chrome.profilesLabel")}
                 </Text>

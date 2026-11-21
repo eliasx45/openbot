@@ -2385,7 +2385,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       },
       listBrowserTabProfiles: async () => [],
       // Fork (FEATURES.md 32): the preview has no Chrome.
-      listChromeProfiles: async () => ({ available: false, profiles: [] }),
+      listChromeProfiles: async () => ({ available: false, supported: true, profiles: [] }),
       listChromeSites: async () => [],
       importChromeProfiles: async () => ({ profiles: [] }),
       listChromeLinks: async () => [],

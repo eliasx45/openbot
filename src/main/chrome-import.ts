@@ -130,6 +130,8 @@ export interface ChromeImportDependencies {
   confirmUser?: () => Promise<void>;
   /** ~/Library/Application Support. Tests replace it. */
   appSupport?: string;
+  /** `process.platform`. Tests replace it. */
+  platform?: NodeJS.Platform;
 }
 
 export interface ChromeImportService {
@@ -268,6 +270,7 @@ function emptyCounts(): ChromeSyncCounts {
 
 export function createChromeImportService(deps: ChromeImportDependencies): ChromeImportService {
   const appSupport = deps.appSupport ?? APP_SUPPORT;
+  const platform = deps.platform ?? process.platform;
   const browserRoot = (browser: ChromiumBrowser) => join(appSupport, ...browser.folder);
   const linksDir = join(deps.dataDir, "links");
   const choicesFile = join(deps.dataDir, "agent-profiles.json");
@@ -406,9 +409,12 @@ export function createChromeImportService(deps: ChromeImportDependencies): Chrom
   }
 
   function listProfiles(): ChromeProfileList {
+    // The import reads macOS folders and the macOS Keychain; elsewhere it finds nothing to read.
+    if (platform !== "darwin") return { available: false, supported: false, profiles: [] };
     const profiles = chromeProfiles();
     return {
       available: profiles.length > 0,
+      supported: true,
       profiles: profiles.map((profile) => ({
         ...profile,
         cookies:
