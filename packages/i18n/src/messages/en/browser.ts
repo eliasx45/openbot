@@ -219,6 +219,7 @@ export const messages = defineMessages("browser", {
   "browser.proxies.change": "Change proxy",
   "browser.chrome.import": "Import from your browser",
   "browser.chrome.unavailable": "No Chrome, Brave, Arc, Edge, Chromium or Vivaldi profile is on this computer.",
+  "browser.chrome.unsupported": "Importing browser sign-ins works only on macOS.",
   "browser.chrome.loading": "Reading your browser profiles…",
   "browser.chrome.search": "Search {count} browser profiles",
   "browser.chrome.noAccount": "No Google account",
