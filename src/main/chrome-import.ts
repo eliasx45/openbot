@@ -141,6 +141,11 @@ export interface ChromeImportService {
   /** Copies Chrome's cookies of the site of a tab into its profile, then reloads the tab. */
   signInTab(tabId: string): Promise<ChromeSignInResult>;
   /**
+   * On a login wall of a site the linked browser has, copies that site's sign-in from it and reloads,
+   * once per tab and site every few minutes. True when it found something new and reloaded.
+   */
+  autoSignIn(tabId: string): Promise<boolean>;
+  /**
    * The site a tab could take from Chrome, or null. The tab's profile is linked, or one profile of
    * its agent is linked and holds an imported sign-in of that site.
    */
@@ -151,6 +156,27 @@ export interface ChromeImportService {
   setAgentChoices(input: AgentBrowserProfileChoices): AgentBrowserProfileChoices;
   /** Stops following the profiles and writes the pending notes. */
   dispose(): void;
+}
+
+/** How long a tab waits before it takes a site's sign-in from Chrome on its own again. */
+const AUTO_SIGN_IN_GAP_MS = 5 * 60_000;
+
+/**
+ * True for the address of a sign-in page: a host such as `accounts.` or `login.`, or a path such as
+ * `/login` or `/signin`. A guess from the address only; a wrong guess costs one cookie read.
+ */
+export function isSignInUrl(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+  const host = parsed.hostname.toLowerCase();
+  if (/^(accounts|login|signin|auth|sso|id)\./u.test(host)) return true;
+  const path = parsed.pathname.toLowerCase();
+  return /(^|\/)(log-?in|sign-?in|sign_in|servicelogin|accountchooser|session\/new|auth\/login)(\/|$|\.)/u.test(path);
 }
 
 /** The registrable part of a host, close enough for cookie hosts: `accounts.google.com` → `google.com`. */
@@ -515,9 +541,19 @@ export function createChromeImportService(deps: ChromeImportDependencies): Chrom
     return details;
   }
 
-  async function syncProfile(profileId: string, onlySite: string | null): Promise<ChromeSyncCounts> {
+  /**
+   * `chromeWins`: for a site the tab shows a login wall of, Chrome's copy wins over a newer OpenBot
+   * change. That change is the site signing OpenBot out, not a sign-in to keep.
+   */
+  async function syncProfile(
+    profileId: string,
+    onlySite: string | null,
+    chromeWins = false,
+  ): Promise<ChromeSyncCounts> {
     const previous = running.get(profileId);
-    const next = (previous ?? Promise.resolve()).catch(() => undefined).then(() => syncNow(profileId, onlySite));
+    const next = (previous ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(() => syncNow(profileId, onlySite, chromeWins));
     running.set(profileId, next);
     try {
       return await next;
@@ -526,7 +562,7 @@ export function createChromeImportService(deps: ChromeImportDependencies): Chrom
     }
   }
 
-  async function syncNow(profileId: string, onlySite: string | null): Promise<ChromeSyncCounts> {
+  async function syncNow(profileId: string, onlySite: string | null, chromeWins: boolean): Promise<ChromeSyncCounts> {
     const link = readLink(profileId);
     if (!link) throw new Error(sourceText("error.backend.chromeImportNotLinked"));
     if (!deps.profileExists(profileId)) throw new Error(sourceText("error.backend.browserProfileNotFound"));
@@ -556,7 +592,7 @@ export function createChromeImportService(deps: ChromeImportDependencies): Chrom
           continue;
         }
         // OpenBot changed (or removed) it after Chrome's last change: OpenBot's copy is newer.
-        if (localChange > cookie.updatedAt) {
+        if (!chromeWins && localChange > cookie.updatedAt) {
           counts.kept += 1;
           continue;
         }
@@ -735,15 +771,50 @@ export function createChromeImportService(deps: ChromeImportDependencies): Chrom
     return counts;
   }
 
+  function copySite(source: { site: string; profileId: string; own: boolean }, tabId: string) {
+    return source.own
+      ? syncProfile(source.profileId, source.site, true)
+      : copySiteToTab(source.profileId, source.site, tabId);
+  }
+
   async function signInTab(tabId: string): Promise<ChromeSignInResult> {
     const source = signInSource(tabId);
     if (!source) throw new Error(sourceText("error.backend.chromeImportNotLinked"));
-    const { site, profileId } = source;
-    const counts = source.own ? await syncProfile(profileId, site) : await copySiteToTab(profileId, site, tabId);
+    const { site } = source;
+    const counts = await copySite(source, tabId);
     if (counts.added + counts.updated + counts.unchanged === 0)
       throw new Error(sourceText("error.backend.chromeImportNoSignIn", { site }));
     await deps.reloadTab(tabId);
     return { site, counts };
+  }
+
+  /** When each tab last took each site from Chrome on its own, by `<tabId> <site>`. */
+  const autoTried = new Map<string, number>();
+  let autoOff = false;
+
+  async function autoSignIn(tabId: string): Promise<boolean> {
+    const tab = deps.tab(tabId);
+    if (!tab || !isSignInUrl(tab.url)) return false;
+    const source = signInSource(tabId);
+    if (!source) return false;
+    const key = `${tabId} ${source.site}`;
+    const now = Date.now();
+    if (now - (autoTried.get(key) ?? 0) < AUTO_SIGN_IN_GAP_MS) return false;
+    autoTried.set(key, now);
+    for (const [entry, at] of autoTried) if (now - at >= AUTO_SIGN_IN_GAP_MS) autoTried.delete(entry);
+    if (autoOff) return false;
+    let counts: ChromeSyncCounts;
+    try {
+      counts = await copySite(source, tabId);
+    } catch (error) {
+      // A Keychain refusal or a missing Chrome profile: no question pops up again by itself this run.
+      autoOff = true;
+      throw error;
+    }
+    // Nothing new in Chrome: a reload would show the same wall, so the card stays for the user.
+    if (counts.added + counts.updated === 0) return false;
+    await deps.reloadTab(tabId);
+    return true;
   }
 
   function readChoices(): Map<string, string[]> {
@@ -775,6 +846,7 @@ export function createChromeImportService(deps: ChromeImportDependencies): Chrom
     links,
     resync: (profileId) => syncProfile(profileId, null),
     signInTab,
+    autoSignIn,
     signInSite,
     profileWithSite,
     agentChoices,

@@ -55,7 +55,7 @@ import {
   browserProxyConnection,
   createBrowserProfileService,
 } from "./browser-profile-service";
-import { type ChromeImportService, createChromeImportService } from "./chrome-import";
+import { type ChromeImportService, createChromeImportService, isSignInUrl } from "./chrome-import";
 import { createCrmPreferenceStore, crmSettingsStore } from "./crm-preference-store";
 import { feedbackFacts, feedbackSender } from "./feedback";
 import { HostReleaseService, readInstallationMode } from "./host-release-service";
@@ -3336,6 +3336,19 @@ export async function createApplicationServices({
   });
   agentExtraProfiles = (agentId) => chromeImport.agentChoices(agentId);
   linkedProfileWithSite = (profileIds, url) => chromeImport.profileWithSite(profileIds, url);
+  // A tab that lands on a login wall of a site the linked browser has takes that sign-in on its own,
+  // so a session that went stale since the import does not need the card's button (Elias, 22 Nov 2026).
+  const lastTabUrls = new Map<string, string>();
+  browser.onChanged((tabs) => {
+    const open = new Set<string>();
+    for (const tab of tabs) {
+      open.add(tab.id);
+      if (lastTabUrls.get(tab.id) === tab.url) continue;
+      lastTabUrls.set(tab.id, tab.url);
+      if (isSignInUrl(tab.url)) void chromeImport.autoSignIn(tab.id).catch(() => undefined);
+    }
+    for (const tabId of lastTabUrls.keys()) if (!open.has(tabId)) lastTabUrls.delete(tabId);
+  });
   teardown.push(TEARDOWN_ORDER.browser - 0.5, "the Chrome import notes", () => chromeImport.dispose());
   const iphonePhoto = createIphonePhotoService({ testImage: process.env.OPENBOT_FORK_IPHONE_PHOTO_TEST_IMAGE });
   teardown.push(TEARDOWN_ORDER.browser - 0.5, "the iPhone photo helper", () => iphonePhoto.dispose());
