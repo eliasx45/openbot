@@ -176,6 +176,14 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
     if (dragPoint) scheduleSidebarDragTarget(dragPoint);
   }
 
+  /**
+   * Fork #91: ignores the clicks on the list for a moment after a menu action, so that the second click
+   * of a fast double click on a menu item does not open the row or the folder under the closed menu.
+   */
+  function suppressSidebarClicks(ms: number): void {
+    suppressSidebarClickUntil = Math.max(suppressSidebarClickUntil, Date.now() + ms);
+  }
+
   function sidebarClickIsSuppressed(event: MouseEvent): boolean {
     if (Date.now() >= suppressSidebarClickUntil) return false;
     event.preventDefault();
@@ -532,6 +540,7 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
     startPersonDragging,
     startSectionDragging,
     stopSidebarDragging,
+    suppressSidebarClicks,
     updateSidebarNativeDrag,
   };
 }

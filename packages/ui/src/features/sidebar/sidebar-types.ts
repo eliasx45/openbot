@@ -179,7 +179,10 @@ export interface SidebarProps {
    * menu of the other agents offers Mark unread.
    */
   unreadAgentIds?: ReadonlySet<string> | undefined;
-  /** Marks the chat and the side threads of an agent read. Without it, the agent menu shows no read item. */
+  /**
+   * Marks the chat and the side threads of an agent read. Without it, the agent menu shows no read item.
+   * A folder's Mark read calls it once for each unread agent in the folder and the folders in it.
+   */
   onMarkAgentRead?: ((agentId: string) => void) | undefined;
   /** Marks the newest reply of an agent unread. Without it, the agent menu shows no unread item. */
   onMarkAgentUnread?: ((agentId: string) => void) | undefined;

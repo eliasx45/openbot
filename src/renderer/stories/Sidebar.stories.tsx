@@ -184,6 +184,7 @@ function InteractiveSidebar(props: Parameters<typeof Sidebar>[0]) {
   const [readAgentIds, setReadAgentIds] = createSignal<ReadonlySet<string>>(new Set());
   const [mutedAgentIds, setMutedAgentIds] = createSignal<ReadonlySet<string>>(new Set());
   const onHideAgent = untrack(() => props.onHideAgent);
+  const onMarkAgentRead = untrack(() => props.onMarkAgentRead);
   const onRestoreAgent = untrack(() => props.onRestoreAgent);
   return (
     <Sidebar
@@ -200,6 +201,18 @@ function InteractiveSidebar(props: Parameters<typeof Sidebar>[0]) {
         props.onSelectAgent(agentId);
       }}
       userHiddenAgents={hiddenAgents()}
+      unreadAgentIds={
+        onMarkAgentRead
+          ? new Set([...(props.unreadAgentIds ?? [])].filter((agentId) => !readAgentIds().has(agentId)))
+          : props.unreadAgentIds
+      }
+      onMarkAgentRead={
+        onMarkAgentRead &&
+        ((agentId) => {
+          setReadAgentIds((current) => new Set(current).add(agentId));
+          onMarkAgentRead(agentId);
+        })
+      }
       mutedAgentIds={mutedAgentIds()}
       onSetAgentMuted={(agentId, muted) =>
         setMutedAgentIds((current) => {
@@ -652,6 +665,31 @@ export const FoldersClosed: Story = {
     pinnedItems: [],
     foldersSupported: true,
     collapsedSectionIds: [folderIds.acme, folderIds.internal],
+  },
+  decorators: [(Story) => <div style={{ width: "280px", height: "100vh" }}>{Story()}</div>],
+};
+
+/**
+ * Fork #91: a folder's menu starts with Mark read while an agent in it, or in a folder in it, is
+ * unread. "Clients" is closed: its badge counts the replies in Acme Robotics, Launch and Northwind.
+ * "Internal" has an unread agent that the Clients Mark read leaves.
+ */
+export const FoldersMarkRead: Story = {
+  args: {
+    agents: folderAgents,
+    layout: folderLayout,
+    pinnedItems: [],
+    foldersSupported: true,
+    collapsedSectionIds: [folderIds.clients],
+    agentStates: {
+      chief: { kind: "working" },
+      research: { kind: "unread", count: 3 },
+      "stress-agent-2": { kind: "unread", count: 12 },
+      "stress-agent-4": { kind: "unread", count: 4 },
+      "stress-agent-5": { kind: "unread", count: 2 },
+    },
+    unreadAgentIds: new Set(["research", "stress-agent-2", "stress-agent-3", "stress-agent-4", "stress-agent-5"]),
+    onMarkAgentRead: fn(),
   },
   decorators: [(Story) => <div style={{ width: "280px", height: "100vh" }}>{Story()}</div>],
 };

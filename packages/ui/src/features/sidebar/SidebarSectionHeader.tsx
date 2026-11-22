@@ -7,6 +7,9 @@
  * indent. A folder header ends with a folder icon, and the unassigned section with a chevron. While
  * a folder or the unassigned section is closed, its header shows how many chats it hides and how
  * many messages in them are unread, so a chat that arrives in it does not go unseen (#7982).
+ *
+ * Fork (docs/fork/FEATURES.md #91): the menu starts with Mark read while an agent in the folder, or in
+ * a folder in it, has unread replies.
  */
 
 import { SIDEBAR_FOLDER_LEVELS } from "@openbot/contracts/ipc";
@@ -15,6 +18,7 @@ import {
   ArrowUp,
   Badge,
   buttonVariants,
+  CheckCheck,
   ChevronDown,
   ChevronRight,
   ContextMenu,
@@ -26,10 +30,50 @@ import {
   Pencil,
   Trash2,
 } from "@openbot/ui";
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, For, Show, untrack } from "solid-js";
 import { useText } from "../../text";
 import { SidebarSectionEditor } from "./SidebarSectionEditor";
 import { useSidebarScope } from "./sidebar-scope";
+
+/**
+ * How long the list ignores clicks after Mark read: the item closes the menu, and a fast second click
+ * would otherwise open the folder or the chat under it. macOS counts two clicks in 0.5 s as one double
+ * click by default.
+ */
+const MENU_DOUBLE_CLICK_MS = 500;
+
+/**
+ * Mark read in a folder's menu: marks each unread agent in the folder and in the folders in it read,
+ * through the agent menu's Mark read (its own chat and its side threads).
+ *
+ * The menu mounts this at each opening, and it decides there whether it shows. The marks clear the
+ * unread set while the menu plays its close motion; an item that went away then would move Rename up
+ * under the pointer, and a fast second click would rename the folder. The item also marks once per
+ * opening, because the reads are still on their way at a second click, and it makes the list ignore
+ * that click when it lands on the row or folder under the closed menu.
+ */
+function SectionMarkReadItem(itemProps: { sectionId: string }) {
+  const { props, sectionUnreadAgentIds, suppressSidebarClicks } = useSidebarScope();
+  const { t } = useText();
+  const shown = untrack(() => sectionUnreadAgentIds(itemProps.sectionId).length > 0);
+  let marked = false;
+  const markRead = (markAgentRead: (agentId: string) => void) => {
+    if (marked) return;
+    marked = true;
+    suppressSidebarClicks(MENU_DOUBLE_CLICK_MS);
+    for (const agentId of sectionUnreadAgentIds(itemProps.sectionId)) markAgentRead(agentId);
+  };
+  return (
+    <Show when={shown && props.onMarkAgentRead}>
+      {(markAgentRead) => (
+        <ContextMenu.Item onSelect={() => markRead(markAgentRead())}>
+          <CheckCheck class="agent-context-icon size-4" aria-hidden="true" />
+          <span>{t("sidebar.agentMenu.markRead")}</span>
+        </ContextMenu.Item>
+      )}
+    </Show>
+  );
+}
 
 export function SidebarSectionHeader(headerProps: { sectionId: string; name: string; depth?: number }) {
   const {
@@ -158,6 +202,7 @@ export function SidebarSectionHeader(headerProps: { sectionId: string; name: str
           <Show when={layoutMutable()}>
             <ContextMenu.Portal>
               <ContextMenu.Content class="agent-context-menu" aria-label={t("sidebar.section.actions")}>
+                <SectionMarkReadItem sectionId={headerProps.sectionId} />
                 <Show when={custom()}>
                   <ContextMenu.Item onSelectAfterClose={() => startRenameSection(headerProps.sectionId)}>
                     <Pencil class="agent-context-icon size-4" aria-hidden="true" />

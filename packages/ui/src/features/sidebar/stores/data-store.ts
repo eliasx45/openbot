@@ -547,6 +547,17 @@ export function createSidebarDataStore(deps: {
     return count;
   }
 
+  /**
+   * The agents with unread replies, in their own chat or in side threads (`unreadAgentIds`), among the
+   * chats that a folder and the folders in it show: the chats that its badge counts. The folder menu's
+   * Mark read marks each of them read, as the agent menu's Mark read does.
+   */
+  function sectionUnreadAgentIds(sectionId: string): string[] {
+    const unread = props.unreadAgentIds;
+    if (!unread || unread.size === 0) return [];
+    return sectionChatIdsDeep(sectionId).filter((chatId) => unread.has(chatId));
+  }
+
   function sectionIsCollapsed(sectionId: string): boolean {
     return collapsedSectionIds().has(sectionId);
   }
@@ -677,6 +688,7 @@ export function createSidebarDataStore(deps: {
     sectionParent,
     sectionLabel,
     sectionPosition,
+    sectionUnreadAgentIds,
     sectionUnreadCount,
     setListFilter,
     shownPeople,
