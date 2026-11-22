@@ -136,6 +136,7 @@
     "./features/conversation/SpeakingBar": "./src/features/conversation/SpeakingBar.tsx",
     "./features/conversation/VoicePill": "./src/features/conversation/VoicePill.tsx",
     "./features/conversation/VideoGeneration": "./src/features/conversation/VideoGeneration.tsx",
+    "./features/conversation/playback-speed": "./src/features/conversation/playback-speed.ts",
     "./features/conversation/VoicePlayer": "./src/features/conversation/VoicePlayer.tsx",
     "./features/conversation/branch-points": "./src/features/conversation/branch-points.ts",
     "./features/conversation/threads/AgentThreadView": "./src/features/conversation/threads/AgentThreadView.tsx",

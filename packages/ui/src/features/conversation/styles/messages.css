@@ -2242,3 +2242,65 @@ button.chat-action-target:active,
 .media-stage-details .image-generation-spec:nth-child(2)::before {
   content: none;
 }
+
+/* Fork: − · 1× · + for the speed. In the title line it sits just before the size; in the bar (full
+   screen, file preview) just after the time. The readout has a fixed width, so the line does not move. */
+.media-speed {
+  display: inline-flex;
+  min-inline-size: 0;
+  flex: none;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  align-items: center;
+  align-self: center;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.media-stage-details .media-speed {
+  margin-block: -3px;
+  margin-inline-end: 10px;
+  pointer-events: auto;
+}
+
+.media-speed .ui-button {
+  height: 22px;
+  border-radius: var(--openbot-radius-sm);
+  color: inherit;
+}
+
+.media-speed .ui-button.media-speed-step {
+  width: 22px;
+}
+
+.media-speed .ui-button.media-speed-step > svg {
+  width: 14px;
+  height: 14px;
+}
+
+.media-speed .ui-button.media-speed-value {
+  width: 5.5ch;
+  justify-content: center;
+  padding: 0;
+  font-size: var(--openbot-text-sm);
+  font-weight: 560;
+}
+
+.media-speed .ui-button:hover:not(:disabled) {
+  background: var(--openbot-media-control-hover);
+  color: var(--openbot-media-control-text);
+}
+
+.media-speed .ui-button:disabled {
+  opacity: 0.35;
+}
+
+.media-generation-bar .media-speed {
+  color: var(--openbot-media-control-text);
+}
+
+/* The title line is beside the player, not in it: the bar stays while the pointer is on the speed. */
+.media-generation-stage:has(> .media-stage-details .media-speed:hover) .media-generation-bar {
+  opacity: 1;
+}

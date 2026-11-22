@@ -1,7 +1,8 @@
 import { Button, Maximize2, Minimize2, Pause, Play, SeekSlider, Spinner, Volume2, VolumeX } from "@openbot/ui";
 import type { JSX } from "@solidjs/web";
-import { createStore, onCleanup, Show } from "solid-js";
+import { createSignal, createStore, onCleanup, Show } from "solid-js";
 import { useText } from "../../text";
+import { PlaybackSpeedControl } from "./PlaybackSpeedControl";
 
 /** How far an arrow key moves the position, in seconds. */
 const SEEK_STEP_SECONDS = 0.5;
@@ -30,6 +31,11 @@ export interface VideoPlayerProps {
    * in the document and plays on.
    */
   fullControls?: boolean | undefined;
+  /**
+   * Fork: where − · 1× · + shows. "bar": always in the bar. "stage": the frame around the player shows
+   * it in its title line, so the bar shows it only in full screen, where that line is hidden.
+   */
+  speed?: "bar" | "stage" | undefined;
   /** Buttons at the end of the bar, such as Download. */
   children?: JSX.Element;
 }
@@ -59,6 +65,7 @@ export function VideoPlayer(props: VideoPlayerProps) {
     buffering: false,
   });
   let video: HTMLVideoElement | undefined;
+  const [videoElement, setVideoElement] = createSignal<HTMLVideoElement>();
   let frame: HTMLDivElement | undefined;
 
   const clock = (seconds: number) => {
@@ -127,6 +134,7 @@ export function VideoPlayer(props: VideoPlayerProps) {
           <video
             ref={(element) => {
               video = element;
+              setVideoElement(element);
               props.ref?.(element);
             }}
             src={url()}
@@ -236,6 +244,9 @@ export function VideoPlayer(props: VideoPlayerProps) {
         <span class="media-generation-time" aria-hidden="true">
           {t("chat.video.time", { elapsed: clock(elapsed()), duration: clock(length()) })}
         </span>
+        <Show when={props.speed === "bar" || (props.speed === "stage" && player.fullScreen)}>
+          <PlaybackSpeedControl video={videoElement()} />
+        </Show>
         <Show when={props.fullControls}>
           <Button
             variant="ghost"

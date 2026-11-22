@@ -29,6 +29,7 @@ export function MediaFilePreview(props: {
   /** The details of a video, on hover, and its actions, on a right click. */
   menu?: VideoStageMenu | undefined;
 }) {
+  const [video, setVideo] = createSignal<HTMLVideoElement>();
   const [size, setSize] = createSignal<MediaSize | null>(untrack(() => rememberedMediaSize(props.attachmentId)));
   const { t } = useText();
   // The dimensions come last, when the video gave them, as on a generated video.
@@ -63,7 +64,7 @@ export function MediaFilePreview(props: {
       </Show>
       <Show when={props.kind === "video"}>
         {/* The same player as a generated video, not the controls of the browser. */}
-        <VideoStage class={props.class} ratio={ratio()} menu={menu()}>
+        <VideoStage class={props.class} ratio={ratio()} menu={menu()} speedVideo={menu() ? video() : undefined}>
           <VideoPlayer
             src={props.src}
             label={props.name}
@@ -74,6 +75,8 @@ export function MediaFilePreview(props: {
             onPlay={props.onPlay}
             onError={props.onError}
             fullControls
+            speed={menu() ? "stage" : "bar"}
+            ref={setVideo}
             onMetadata={(video) => {
               const next = { width: video.videoWidth, height: video.videoHeight };
               if (next.width <= 0 || next.height <= 0) return;

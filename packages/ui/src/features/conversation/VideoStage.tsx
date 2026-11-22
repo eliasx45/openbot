@@ -1,7 +1,7 @@
 import { ContextMenu } from "@openbot/ui";
 import type { JSX } from "@solidjs/web";
 import { For, Show } from "solid-js";
-import { MediaGenerationSpecs } from "./media-generation-frame";
+import { PlaybackSpeedControl } from "./PlaybackSpeedControl";
 
 interface VideoStageAction {
   label: string;
@@ -25,6 +25,8 @@ export function VideoStage(props: {
   ratio: string;
   /** Absent, a right click does nothing, as while the video is made. */
   menu?: VideoStageMenu | undefined;
+  /** Fork: the video whose speed − · 1× · + sets, in the details line, right after the name. */
+  speedVideo?: HTMLVideoElement | undefined;
   children: JSX.Element;
 }) {
   let stage: HTMLDivElement | undefined;
@@ -42,7 +44,16 @@ export function VideoStage(props: {
       >
         {props.children}
         <Show when={props.menu}>
-          {(menu) => <MediaGenerationSpecs class="media-stage-details" values={menu().details} />}
+          {(menu) => {
+            const values = () => menu().details.filter((value): value is string => Boolean(value));
+            return (
+              <span class="media-stage-details">
+                <Show when={values()[0]}>{(name) => <span class="image-generation-spec">{name()}</span>}</Show>
+                <Show when={props.speedVideo}>{(video) => <PlaybackSpeedControl video={video()} />}</Show>
+                <For each={values().slice(1)}>{(value) => <span class="image-generation-spec">{value}</span>}</For>
+              </span>
+            );
+          }}
         </Show>
       </ContextMenu.Trigger>
       <Show when={props.menu}>

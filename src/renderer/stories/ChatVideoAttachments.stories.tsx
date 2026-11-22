@@ -113,3 +113,9 @@ export const VideoWithFiles: Story = {
     ],
   },
 };
+
+/** Fork: a narrow chat column (a video about 600 px wide): − · 1× · + stays left of the size and the name gets shorter. */
+export const OneVideoNarrow: Story = {
+  name: "One video, narrow chat",
+  args: { width: "632px" },
+};

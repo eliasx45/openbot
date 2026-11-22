@@ -1,5 +1,5 @@
 import type { AttachmentSummary, ImageGenerationAspectRatio } from "@openbot/contracts/ipc";
-import { createEffect, createStore, Show, untrack } from "solid-js";
+import { createEffect, createSignal, createStore, Show, untrack } from "solid-js";
 import { useText } from "../../text";
 import type { AttachmentMediaSource } from "./AttachmentCards";
 import {
@@ -54,6 +54,7 @@ export function VideoGeneration(props: VideoGenerationProps) {
     failed: false,
   });
   let video: HTMLVideoElement | undefined;
+  const [videoElement, setVideoElement] = createSignal<HTMLVideoElement>();
 
   const sourceUrl = () => {
     const attachment = props.attachment;
@@ -158,7 +159,7 @@ export function VideoGeneration(props: VideoGenerationProps) {
       aria-live={generating() ? "polite" : undefined}
       aria-busy={generating() ? "true" : undefined}
     >
-      <VideoStage ratio={stageRatio()} menu={menu()}>
+      <VideoStage ratio={stageRatio()} menu={menu()} speedVideo={videoElement()}>
         <Show when={generating()}>
           <MediaGenerationCanvas />
           <MediaGenerationSpecs class="media-generation-chip" values={[lengthText(), props.resolution]} />
@@ -191,8 +192,10 @@ export function VideoGeneration(props: VideoGenerationProps) {
             }
             ref={(element) => {
               video = element;
+              setVideoElement(element);
             }}
             fullControls
+            speed="stage"
           />
         </Show>
       </VideoStage>
