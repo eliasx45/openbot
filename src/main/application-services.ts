@@ -243,6 +243,10 @@ import {
   createClaudeUserSetupPreferenceStore,
 } from "./claude-user-setup-preference-store";
 import { createComputerIdle } from "./computer-idle";
+import {
+  type ComputerUseChromeProfileStore,
+  createComputerUseChromeProfileStore,
+} from "./computer-use-chrome-profile-store";
 import { ComputerUseHighlightController } from "./computer-use-highlight-window";
 import { applicationBundlePath, applicationIconName } from "./computer-use-permission-app";
 import { ComputerUsePermissionHelpWindowController } from "./computer-use-permission-help-window";
@@ -530,6 +534,8 @@ const CLAUDE_COMPACT_WINDOW_PREFERENCE_FILE = "openbot-claude-compact-window-v1.
 const PROVIDER_ENVIRONMENT_PREFERENCE_FILE = "openbot-provider-environment-v1.json";
 const MODEL_VISIBILITY_PREFERENCE_FILE = "openbot-model-visibility-v1.json";
 const REMOTE_SESSION_REUSE_PREFERENCE_FILE = "openbot-remote-session-reuse-preference-v1.json";
+/** Fork #88: whether agents may use the user's own Chrome profile through Computer Use. */
+const COMPUTER_USE_CHROME_PROFILE_FILE = "openbot-computer-use-chrome-profile-v1.json";
 const EXTERNAL_LINK_PREFERENCE_FILE = "openbot-external-link-preference-v1.json";
 const REMOTE_NETWORK_ROUTE_PREFERENCE_FILE = "openbot-remote-network-route-v1.json";
 const REMOTE_CONTROL_POLICY_FILE = "openbot-remote-control-policy-v1.json";
@@ -803,6 +809,7 @@ export interface ApplicationServices {
   providerEnvironment: ProviderEnvironmentControl;
   modelVisibility: ModelVisibility;
   remoteSessionReuse: RemoteSessionReusePreferenceStore;
+  computerUseChromeProfile: ComputerUseChromeProfileStore;
   externalLinkPreference: ExternalLinkPreferenceStore;
   externalLinks: ExternalLinkOpener;
   /** Opens a web page in the program that the user chose in Settings. */
@@ -1708,6 +1715,9 @@ export async function createApplicationServices({
   const remoteSessionReuse = createRemoteSessionReusePreferenceStore(
     join(app.getPath("userData"), REMOTE_SESSION_REUSE_PREFERENCE_FILE),
   );
+  const computerUseChromeProfile = createComputerUseChromeProfileStore(
+    join(app.getPath("userData"), COMPUTER_USE_CHROME_PROFILE_FILE),
+  );
   const remoteNetworkRoute = createRemoteNetworkRoutePreferenceStore(
     join(app.getPath("userData"), REMOTE_NETWORK_ROUTE_PREFERENCE_FILE),
   );
@@ -1750,6 +1760,7 @@ export async function createApplicationServices({
       claudeCompactWindow.load(),
       providerEnvironment.load(),
       remoteSessionReuse.load(),
+      computerUseChromeProfile.load(),
       externalLinkPreference.load(),
       remoteNetworkRoute.load(),
       remoteControlPolicy.load(),
@@ -2197,6 +2208,7 @@ export async function createApplicationServices({
       Effect.runFork(appendRemoteDiagnosticLog(join(app.getPath("userData"), "logs", "remote"), "cua-driver", message));
     },
     quitting,
+    existingChromeProfile: () => computerUseChromeProfile.get().existingProfile,
   });
   // After the agent service, whose provider processes hold the `cua-driver mcp` children that talk
   // to this daemon: stopping it first would leave them reading a socket nothing answers, and a
@@ -2456,6 +2468,8 @@ export async function createApplicationServices({
     // An agent display of its own is X11, where the driver records video.
     computerUseOnWayland: agentsShareDisplay && cuaDriverDrivesWayland(process.platform),
     computerUseInputRefused: () => agentsShareDisplay && cuaDriver.waylandInputRefused(),
+    // The grant of the running daemon, not the saved switch: a change applies at the next start.
+    computerUseChromeProfile: () => agentsShareDisplay && cuaDriver.existingChromeProfileGranted(),
     requestTimeoutMs: 30_000,
     offProviders: providerUse.off(),
     providerAccounts,
@@ -4984,6 +4998,7 @@ export async function createApplicationServices({
     providerEnvironment: providerEnvironmentSetting,
     modelVisibility,
     remoteSessionReuse,
+    computerUseChromeProfile,
     externalLinkPreference,
     externalLinks,
     openLink,

@@ -14,7 +14,12 @@ const permissionsRequired: ComputerUseState = {
   message: null,
 };
 
-function MockedSetup(props: { state?: ComputerUseState; error?: Error; loading?: boolean }) {
+function MockedSetup(props: {
+  state?: ComputerUseState;
+  error?: Error;
+  loading?: boolean;
+  variant?: "settings" | "compact";
+}) {
   const previousApi = window.openbot;
   const mock = createMockOpenBot();
   mock.api.computerUse.getState = props.loading
@@ -31,7 +36,7 @@ function MockedSetup(props: { state?: ComputerUseState; error?: Error; loading?:
   });
   return (
     <main class="foundation-story foundation-interaction-stage">
-      <ComputerUseSetup variant="compact" />
+      <ComputerUseSetup variant={props.variant ?? "compact"} />
     </main>
   );
 }
@@ -98,4 +103,14 @@ export const ReadyWithoutPermissions: Story = {
 
 export const Failure: Story = {
   render: () => <MockedSetup error={new Error("OpenBot could not check Computer Use.")} />,
+};
+
+/** Settings > Computer Use with the "Let agents use my Chrome profile" switch (fork #88). */
+export const SettingsChromeProfile: Story = {
+  render: () => (
+    <MockedSetup
+      variant="settings"
+      state={{ status: "ready", permissions: permissions(["screen-recording", "accessibility"]), message: null }}
+    />
+  ),
 };

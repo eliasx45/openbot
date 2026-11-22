@@ -265,6 +265,7 @@ import {
 } from "./browser-dock-decoding";
 import { clipboardFiles } from "./clipboard-files";
 import {
+  decodeComputerUseChromeProfile,
   decodeComputerUseHighlightPlacement,
   decodeComputerUsePermissionApp,
   decodeComputerUseState,
@@ -917,6 +918,8 @@ const openbotApi: OpenBotDesktopApi = {
     startPermissionAppDrag: decodeVoid,
     revealPermissionApp: decodeVoid,
     highlightPlacement: decodeComputerUseHighlightPlacement,
+    getChromeProfile: decodeComputerUseChromeProfile,
+    setChromeProfile: decodeComputerUseChromeProfile,
   }),
   macAutomation: bridgeGroup(IPC_ENDPOINTS.macAutomation, {
     request: decodeMacAutomationResults,

@@ -1,4 +1,4 @@
-import type { ComputerUseState, MacPermissionId } from "@openbot/contracts/ipc";
+import type { ComputerUseChromeProfile, ComputerUseState, MacPermissionId } from "@openbot/contracts/ipc";
 import type { AppTextKey } from "@openbot/i18n";
 import {
   Alert,
@@ -23,6 +23,7 @@ import {
   RefreshCw,
   SettingsSection,
   Skeleton,
+  SwitchField,
   TriangleAlert,
 } from "@openbot/ui";
 import { useText } from "@openbot/ui/text";
@@ -267,6 +268,14 @@ export function ComputerUseSetup(props: ComputerUseSetupProps) {
         </Alert>
       </Show>
 
+      {/*
+       * Fork #88. Only in Settings, and only where a driver can run: the compact card of the setup
+       * flow asks for the grants and nothing else.
+       */}
+      <Show when={props.variant === "settings" && state() !== null && !unavailable()}>
+        <ChromeProfileSetting restarting={restarting()} restartError={restartError()} onRestart={restart} />
+      </Show>
+
       <Show when={error() && showPermissions()}>
         <Alert tone="danger" class="computer-use-alert" role="alert">
           <AlertIcon>
@@ -362,5 +371,110 @@ function PermissionGroup(props: {
         }}
       </For>
     </ItemGroup>
+  );
+}
+
+/**
+ * "Let agents use my Chrome profile" (fork #88).
+ *
+ * The switch is locked while a save runs, so a fast second click never answers the first one. A
+ * save shows "Saved" at once. The driver takes the grant only when it starts, so while the running
+ * driver has the other choice, the row offers the same idle restart as the Accessibility alert.
+ */
+function ChromeProfileSetting(props: {
+  restarting: boolean;
+  restartError: string | null;
+  onRestart: () => Promise<void>;
+}) {
+  const { t, errorMessage } = useText();
+  const [value, setValue] = createSignal<ComputerUseChromeProfile | null>(null);
+  const [saving, setSaving] = createSignal(false);
+  const [saved, setSaved] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  let disposed = false;
+  onCleanup(() => {
+    disposed = true;
+  });
+
+  onSettled(() => {
+    void computerUsePort()
+      .computerUse.getChromeProfile()
+      .then((next) => {
+        if (!disposed) setValue(next);
+      })
+      .catch((cause: unknown) => {
+        if (!disposed) setError(errorMessage(cause, t("computerUse.chromeProfile.saveFailed")));
+      });
+  });
+
+  async function change(enabled: boolean): Promise<void> {
+    if (saving()) return;
+    setSaving(true);
+    setSaved(false);
+    setError(null);
+    try {
+      const next = await computerUsePort().computerUse.setChromeProfile({ enabled });
+      if (disposed) return;
+      setValue(next);
+      setSaved(true);
+    } catch (cause) {
+      if (!disposed) setError(errorMessage(cause, t("computerUse.chromeProfile.saveFailed")));
+    } finally {
+      if (!disposed) setSaving(false);
+    }
+  }
+
+  return (
+    <SettingsSection
+      data-settings-row="computerUse.chromeProfile.title"
+      title={t("computerUse.chromeProfile.sectionTitle")}
+    >
+      <ItemGroup class="settings-modal-card">
+        <SwitchField
+          checked={value()?.enabled === true}
+          disabled={value() === null || saving()}
+          onChange={(checked) => void change(checked)}
+          label={t("computerUse.chromeProfile.title")}
+          description={t("computerUse.chromeProfile.description")}
+        />
+      </ItemGroup>
+      <Show when={saved() || value()?.restartNeeded}>
+        <Alert tone="success" class="computer-use-alert" role="status">
+          <AlertIcon>
+            <CircleCheck />
+          </AlertIcon>
+          <AlertContent>
+            <AlertTitle>{t("computerUse.chromeProfile.saved")}</AlertTitle>
+            <Show when={value()?.restartNeeded}>
+              <AlertDescription>{props.restartError ?? t("computerUse.chromeProfile.restartNeeded")}</AlertDescription>
+            </Show>
+          </AlertContent>
+          <Show when={value()?.restartNeeded}>
+            <AlertActions>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                loading={props.restarting}
+                onClick={() => void props.onRestart()}
+              >
+                <RefreshCw aria-hidden="true" />
+                {t("computerUse.restartRequired.action")}
+              </Button>
+            </AlertActions>
+          </Show>
+        </Alert>
+      </Show>
+      <Show when={error()}>
+        <Alert tone="danger" class="computer-use-alert" role="alert">
+          <AlertIcon>
+            <TriangleAlert />
+          </AlertIcon>
+          <AlertContent>
+            <AlertDescription>{error()}</AlertDescription>
+          </AlertContent>
+        </Alert>
+      </Show>
+    </SettingsSection>
   );
 }

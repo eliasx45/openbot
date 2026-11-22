@@ -248,6 +248,16 @@ export function cuaDriverCommandAlias(input: CuaDriverCommandAliasInput): string
   return join(input.userDataPath, "cua-driver", "cua-driver");
 }
 
+/**
+ * The arguments of the daemon. With `existingProfile`, the daemon may attach an agent to the user's
+ * own signed-in Chrome (fork #88): the driver guide puts `--grant existing-profile` on `serve` for a
+ * long-running service, and the agents' `mcp --socket` proxies only connect to it. Without it, the
+ * arguments are the ones OpenBot always used.
+ */
+export function cuaDriverServeArgs(socketPath: string, existingProfile: boolean): string[] {
+  return ["serve", "--socket", socketPath, "--no-overlay", ...(existingProfile ? ["--grant", "existing-profile"] : [])];
+}
+
 export interface CuaDriverRuntimeOptions {
   /** The resolved executable, or `null` when this computer has none. */
   executable: string | null;
@@ -293,6 +303,11 @@ export interface CuaDriverRuntimeOptions {
    * before anything holds this runtime, counts too.
    */
   quitting?: () => boolean;
+  /**
+   * The user lets agents use their own Chrome profile (fork #88). Read at each start of the daemon,
+   * because the driver takes the grant only on its command line.
+   */
+  existingChromeProfile?: () => boolean;
 }
 
 export class CuaDriverRuntime {
@@ -319,6 +334,8 @@ export class CuaDriverRuntime {
    * (#10658). The check cannot see this, so the answer stays until OpenBot restarts.
    */
   #restartRequired = false;
+  /** The running daemon was started with `--grant existing-profile`. */
+  #existingProfileGranted = false;
 
   constructor(options: CuaDriverRuntimeOptions) {
     this.#options = options;
@@ -345,6 +362,11 @@ export class CuaDriverRuntime {
 
   running(): boolean {
     return this.#child !== null && this.#child.exitCode === null;
+  }
+
+  /** The running daemon can attach an agent to the user's own Chrome profile (fork #88). */
+  existingChromeProfileGranted(): boolean {
+    return this.running() && this.#existingProfileGranted;
   }
 
   /** The address the daemon listens on and every client connects to. */
@@ -598,9 +620,10 @@ export class CuaDriverRuntime {
     yield* this.#stopOrphanedDaemon(socketPath);
     yield* this.#removeSocket();
     this.#command = yield* this.#linkCommandAlias(executable);
+    const existingProfile = this.#options.existingChromeProfile?.() === true;
     // OpenBot owns the cursor on every display, including displays connected after startup.
     const child = yield* cuaSync(() =>
-      this.#spawn(executable, ["serve", "--socket", socketPath, "--no-overlay"], {
+      this.#spawn(executable, cuaDriverServeArgs(socketPath, existingProfile), {
         cwd: dirname(executable),
         env: {
           ...process.env,
@@ -617,6 +640,7 @@ export class CuaDriverRuntime {
       }),
     );
     this.#child = child;
+    this.#existingProfileGranted = existingProfile;
     this.#pipeDiagnostics(child);
     // `spawn` reports a missing or unreadable executable through this event, after it returns. An
     // unhandled `error` event on a child process throws in the main process, and Computer Use is

@@ -2,10 +2,11 @@
 
 import { createOpenBotLogger, toLogValue } from "@openbot/logging";
 import { runCauseEffect } from "../../backend/effect-boundary";
+import type { ComputerUseChromeProfileStore } from "../computer-use-chrome-profile-store";
 import type { ComputerUsePermissionHelpWindowController } from "../computer-use-permission-help-window";
 import type { CuaDriverRuntime } from "../cua-driver-runtime";
 import { MAC_PERMISSION_URLS } from "../mac-permission-urls";
-import { parseMacPermission } from "./app-inputs";
+import { parseComputerUseChromeProfileChange, parseMacPermission } from "./app-inputs";
 import { eventHandler, handler, type IpcGroupHandlers, payloadHandler } from "./define-ipc-group";
 
 const logger = createOpenBotLogger("computer-use");
@@ -13,7 +14,8 @@ const logger = createOpenBotLogger("computer-use");
 // Only the methods these endpoints call. Naming that much lets a test pass a double without an
 // assertion, and keeps the group from reaching further into either owner than it needs to.
 export interface ComputerUseIpcDependencies {
-  cuaDriver: Pick<CuaDriverRuntime, "state">;
+  cuaDriver: Pick<CuaDriverRuntime, "state" | "running" | "existingChromeProfileGranted">;
+  chromeProfile: ComputerUseChromeProfileStore;
   openExternal: (url: string) => Promise<void>;
   permissionHelp: Pick<
     ComputerUsePermissionHelpWindowController,
@@ -22,7 +24,7 @@ export interface ComputerUseIpcDependencies {
 }
 
 /**
- * Six endpoints. Two of them answer with the whole state.
+ * Eight endpoints. Two of them answer with the whole state.
  *
  * Opening a pane returns the state again rather than nothing, because the user grants the
  * permission in System Settings and comes back: re-reading on the way out is what lets the panel
@@ -34,13 +36,26 @@ export interface ComputerUseIpcDependencies {
  *
  * Only macOS has a pane to open. On Windows and Linux the state reports no permissions, so the
  * panel draws no row that could call any of this.
+ *
+ * The Chrome profile switch (fork #88) is stored here and read when the driver starts, so a change
+ * is not applied to a running driver: restarting it would replace every agent's provider session.
+ * The answer says when the running driver has the other choice, and the panel offers the restart.
+ * It is local only: it drives the Chrome of this computer.
  */
 export function computerUseIpcHandlers({
   cuaDriver,
+  chromeProfile,
   openExternal,
   permissionHelp,
 }: ComputerUseIpcDependencies): Pick<IpcGroupHandlers, "computerUse"> {
   const state = () => runCauseEffect(cuaDriver.state());
+  const chromeProfileAnswer = () => {
+    const enabled = chromeProfile.get().existingProfile;
+    return {
+      enabled,
+      restartNeeded: cuaDriver.running() && cuaDriver.existingChromeProfileGranted() !== enabled,
+    };
+  };
   return {
     computerUse: {
       getState: handler(state),
@@ -63,6 +78,11 @@ export function computerUseIpcHandlers({
       startPermissionAppDrag: eventHandler((event) => runCauseEffect(permissionHelp.startDrag(event.sender))),
       revealPermissionApp: eventHandler(async (event) => {
         permissionHelp.reveal(event.sender.id);
+      }),
+      getChromeProfile: handler(async () => chromeProfileAnswer()),
+      setChromeProfile: payloadHandler(parseComputerUseChromeProfileChange, async ({ enabled }) => {
+        await runCauseEffect(chromeProfile.set({ existingProfile: enabled }));
+        return chromeProfileAnswer();
       }),
     },
   };

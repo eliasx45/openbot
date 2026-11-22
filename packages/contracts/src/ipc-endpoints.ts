@@ -181,6 +181,8 @@ import type {
   ChatWindowTarget,
   CompanySignInScimToken,
   CompanySignInSettings,
+  ComputerUseChromeProfile,
+  ComputerUseChromeProfileChange,
   ComputerUseHighlightPlacement,
   ComputerUsePermissionApp,
   ComputerUseState,
@@ -1154,6 +1156,11 @@ export const IPC_ENDPOINTS = {
     startPermissionAppDrag: request<undefined, void>()("computer-use:start-permission-app-drag"),
     revealPermissionApp: request<undefined, void>()("computer-use:reveal-permission-app"),
     highlightPlacement: event<ComputerUseHighlightPlacement>()("computer-use:highlight-placement"),
+    /** Whether agents may use the user's own Chrome profile (fork #88). Applies at the next start. */
+    getChromeProfile: request<undefined, ComputerUseChromeProfile>()("computer-use:get-chrome-profile"),
+    setChromeProfile: request<ComputerUseChromeProfileChange, ComputerUseChromeProfile>()(
+      "computer-use:set-chrome-profile",
+    ),
   },
   macAutomation: {
     /** Sends one harmless Apple Event to each app, so macOS shows its Automation prompts now. */

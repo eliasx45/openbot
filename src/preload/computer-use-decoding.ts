@@ -5,6 +5,7 @@
 
 import {
   COMPUTER_USE_STATUSES,
+  type ComputerUseChromeProfile,
   type ComputerUseCoveredArea,
   type ComputerUseCursorPoint,
   type ComputerUseHighlightPlacement,
@@ -97,4 +98,11 @@ function decodeComputerUsePermission(value: unknown): ComputerUsePermission {
     throw new Error("Invalid Computer Use permission.");
   }
   return { id: value.id, granted: value.granted };
+}
+
+export function decodeComputerUseChromeProfile(value: unknown): ComputerUseChromeProfile {
+  if (!isDynamicRecord(value) || typeof value.enabled !== "boolean" || typeof value.restartNeeded !== "boolean") {
+    throw new Error("Invalid Computer Use Chrome profile setting.");
+  }
+  return { enabled: value.enabled, restartNeeded: value.restartNeeded };
 }

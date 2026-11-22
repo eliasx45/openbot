@@ -907,6 +907,7 @@ function registerIpcHandlers({
   providerEnvironment,
   modelVisibility,
   remoteSessionReuse,
+  computerUseChromeProfile,
   externalLinkPreference,
   externalLinks,
   openLink,
@@ -1024,6 +1025,7 @@ function registerIpcHandlers({
     ...browserDockIpcHandlers({ browserDock }),
     ...computerUseIpcHandlers({
       cuaDriver,
+      chromeProfile: computerUseChromeProfile,
       openExternal: (url) => shell.openExternal(url),
       permissionHelp: computerUsePermissionHelp,
     }),

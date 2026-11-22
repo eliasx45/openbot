@@ -616,6 +616,8 @@ export interface AgentServiceOptions {
   computerUseOnWayland?: boolean;
   /** The Computer Use driver refuses keys and clicks on this Wayland desktop (#9703). Read at each start of a session. */
   computerUseInputRefused?: () => boolean;
+  /** The running driver may attach agents to the user's own Chrome profile (fork #88). Read at each start of a session. */
+  computerUseChromeProfile?: () => boolean;
   /** When an idle Codex session is unloaded, and how many idle sessions one app server keeps. Tests make it short. */
   codexIdleSessions?: { releaseAfterMs: number; idleLimit: number };
 }
@@ -1656,6 +1658,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       ...(options.agentCursorDrawn ? { agentCursorDrawn: true } : {}),
       ...(options.computerUseOnWayland ? { computerUseOnWayland: true } : {}),
       ...(options.computerUseInputRefused ? { computerUseInputRefused: options.computerUseInputRefused } : {}),
+      ...(options.computerUseChromeProfile ? { computerUseChromeProfile: options.computerUseChromeProfile } : {}),
       ...(options.responseStyle ? { responseStyle: options.responseStyle } : {}),
       memoryReview: () => this.#memoryReview.running(),
       skillRevision: () => options.skillLearning?.() === "automatic",

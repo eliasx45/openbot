@@ -546,6 +546,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
   let serverAudit: ServerAuditEntry[] = clone(STORY_SERVER_AUDIT_ENTRIES);
   const agentMemoryLimitListeners = new Set<(preference: AgentMemoryLimitPreference) => void>();
   let remoteSessionReuse: RemoteSessionReusePreference = { ...DEFAULT_REMOTE_SESSION_REUSE_PREFERENCE };
+  let chromeProfileEnabled = false;
   let externalLinks: ExternalLinkPreference = clone(DEFAULT_EXTERNAL_LINK_PREFERENCE);
   // The preview computer has Tailscale, so the private route shows what it finds.
   let remoteNetworkRoute: RemoteNetworkRouteState = { route: DEFAULT_REMOTE_NETWORK_ROUTE, tailscaleConnected: true };
@@ -1517,6 +1518,13 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       // The rim is drawn over another application's window, which the preview has none of, so this
       // subscribes to a stream that never carries anything.
       onHighlightPlacement: () => () => undefined,
+      // Fork #88. The preview's driver was started with the switch off, so turning it on asks for
+      // the restart that a real driver needs.
+      getChromeProfile: async () => ({ enabled: chromeProfileEnabled, restartNeeded: chromeProfileEnabled }),
+      setChromeProfile: async ({ enabled }) => {
+        chromeProfileEnabled = enabled;
+        return { enabled, restartNeeded: enabled };
+      },
     },
     openExternal: async () => undefined,
     // A preview user who has used OpenBot for a while, so the social toast can show.

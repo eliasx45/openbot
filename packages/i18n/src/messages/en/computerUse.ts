@@ -24,6 +24,13 @@ export const messages = defineMessages("computerUse", {
   "computerUse.restartRequired.description":
     "macOS still blocks clicks and typing. If this comes back after a restart, remove OpenBot from Accessibility and add it again.",
   "computerUse.restartRequired.action": "Restart OpenBot",
+  "computerUse.chromeProfile.sectionTitle": "Your Chrome",
+  "computerUse.chromeProfile.title": "Let agents use my Chrome profile",
+  "computerUse.chromeProfile.description":
+    "Agents can work in your signed-in Chrome. Chrome asks you to allow the connection once, and again after Chrome or OpenBot restarts, after 30 minutes with no agent in Chrome, or after 8 hours. While this is on, an agent, or another app on this computer, can reach every site that this profile is signed in to.",
+  "computerUse.chromeProfile.saved": "Saved",
+  "computerUse.chromeProfile.saveFailed": "The setting could not be saved.",
+  "computerUse.chromeProfile.restartNeeded": "Restart OpenBot to apply this change.",
   "computerUse.compact.title": "Enable Computer Use",
   "computerUse.compact.description": "Let OpenBot see and interact with apps on this computer.",
   "computerUse.granted": "Granted",

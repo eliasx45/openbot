@@ -507,6 +507,22 @@ export interface ComputerUseState {
 }
 
 /**
+ * Whether agents may attach Computer Use to the user's own signed-in Chrome profile (fork #88).
+ *
+ * Off by default. The driver reads the grant once, when it starts, so a change applies at the next
+ * start of OpenBot: `restartNeeded` is true while the running driver has the other choice.
+ */
+export interface ComputerUseChromeProfile {
+  enabled: boolean;
+  restartNeeded: boolean;
+}
+
+/** What the panel sends. `restartNeeded` is main's answer, never the renderer's. */
+export interface ComputerUseChromeProfileChange {
+  enabled: boolean;
+}
+
+/**
  * The application the user drags into a System Settings list, as the help window draws it.
  *
  * macOS grants a permission to an application bundle, and the list in System Settings does not

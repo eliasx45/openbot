@@ -17,6 +17,7 @@ import type {
   BusyMessageModePreference,
   ChatBackgroundColor,
   ChatWindowTarget,
+  ComputerUseChromeProfileChange,
   DeleteHostedSiteInput,
   DynamicIslandAction,
   DynamicIslandPreference,
@@ -390,6 +391,11 @@ export function parseDynamicIslandInputRegion(input: unknown): AgentDockInputRec
 export function parseAgentDockDragPhase(input: unknown): AgentDockDragPhase {
   if (isAgentDockDragPhase(input)) return input;
   throw new Error("Agent dock drag phase is invalid.");
+}
+
+export function parseComputerUseChromeProfileChange(input: unknown): ComputerUseChromeProfileChange {
+  if (!isDynamicRecord(input) || !isBoolean(input.enabled)) throw new Error("The Chrome profile setting is required.");
+  return { enabled: input.enabled };
 }
 
 export function parseMacPermission(input: unknown): MacPermissionId {

@@ -225,6 +225,8 @@ export interface ThreadLifecycleOptions {
   computerUseOnWayland?: boolean;
   /** The Computer Use driver refuses keys and clicks on this Wayland desktop, read at each start and resume of a session. */
   computerUseInputRefused?: () => boolean;
+  /** The running driver may attach agents to the user's own Chrome profile (fork #88), read at each start and resume of a session. */
+  computerUseChromeProfile?: () => boolean;
   /** How the agents talk while they work, read at each start and resume of a session. */
   responseStyle?: () => ResponseStyle;
   /** The background memory review runs, read at each start and resume of a session. Omitted, it does not. */
@@ -276,6 +278,7 @@ export class ThreadLifecycle {
   readonly #agentCursorDrawn: boolean;
   readonly #computerUseOnWayland: boolean;
   readonly #computerUseInputRefused: () => boolean;
+  readonly #computerUseChromeProfile: () => boolean;
   readonly #responseStyle: () => ResponseStyle;
   readonly #memoryReview: () => boolean;
   readonly #skillRevision: () => boolean;
@@ -339,6 +342,7 @@ export class ThreadLifecycle {
     this.#agentCursorDrawn = options.agentCursorDrawn ?? false;
     this.#computerUseOnWayland = options.computerUseOnWayland ?? false;
     this.#computerUseInputRefused = options.computerUseInputRefused ?? (() => false);
+    this.#computerUseChromeProfile = options.computerUseChromeProfile ?? (() => false);
     this.#responseStyle = options.responseStyle ?? (() => DEFAULT_RESPONSE_STYLE);
     this.#memoryReview = options.memoryReview ?? (() => false);
     this.#skillRevision = options.skillRevision ?? (() => false);
@@ -1510,6 +1514,7 @@ export class ThreadLifecycle {
       agentCursorDrawn: this.#agentCursorDrawn,
       computerUseOnWayland: this.#computerUseOnWayland,
       computerUseInputRefused: this.#computerUseInputRefused(),
+      computerUseChromeProfile: this.#computerUseChromeProfile(),
       responseStyle: this.#responseStyle(),
       memoryReview: this.#memoryReview(),
       skillRevision: this.#skillRevision(),
