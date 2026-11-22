@@ -220,6 +220,14 @@ const ACP_BACKGROUND_POLL_MS = 2_000;
 const ACP_BACKGROUND_WATCH_MS = 30 * 60_000;
 
 /**
+ * Fork: how long OpenBot looks for the sessions of the subagents that a call started, and how often
+ * (`AcpFlavor.subagentSessions`). Antigravity 1.5.14 writes a subagent's folder within a second of
+ * the call's end, and the subagent's first approval came about 5 s later in a probe.
+ */
+const ACP_SUBAGENT_SESSION_WAIT_MS = 15_000;
+const ACP_SUBAGENT_SESSION_POLL_MS = 250;
+
+/**
  * How often OpenBot asks `session/list` whether a session that keeps its process for running work
  * (`AcpThread.workHold`) changed. Each change keeps the process `ACP_BACKGROUND_WATCH_MS` more.
  */
@@ -824,6 +832,13 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
    * started such work. Each turn end sets a new entry, which ends the watch before it.
    */
   readonly #selfWakes = new WeakMap<AcpThread, { left: number; until: number }>();
+  /**
+   * Fork: the subagent sessions that OpenBot resumed for their approvals (`AcpFlavor.subagentSessions`),
+   * with the thread of the agent that started them. A subagent of a subagent has the same thread.
+   */
+  readonly #subagentSessions = new Map<string, string>();
+  /** Fork: the subagent calls whose sessions OpenBot already looked for, as `<sessionId>\0<toolCallId>`. */
+  readonly #subagentCalls = new Set<string>();
 
   constructor(
     cli: AgentCliInfo,
@@ -3530,8 +3545,17 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       background.push(notification.update);
       return;
     }
+    // Fork: a subagent's own work stays out of the parent's chat, as before OpenBot resumed its session.
+    // Only the subagents that it starts in turn are followed.
+    const subagentOwner = this.#subagentSessions.get(notification.sessionId);
+    if (subagentOwner !== undefined) {
+      const owner = this.#threads.get(subagentOwner);
+      if (owner) this.#followSubagentSessions(owner, notification);
+      return;
+    }
     const thread = this.#threads.get(notification.sessionId);
     if (!thread) return;
+    this.#followSubagentSessions(thread, notification);
     const update = notification.update;
     const active = thread.activeTurn;
     if (active && !this.#flavor.modelRetryUpdate?.(update)) {
@@ -4232,6 +4256,78 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       .filter((subagent) => subagent.background && subagent.status === "running");
   }
 
+  /**
+   * Fork (`AcpFlavor.subagentSessions`): after a call that starts subagents completes, resumes their
+   * sessions on the connection of `owner`, so the agent sends their approvals. Those approvals then go
+   * to `owner`, with its access level and in its chat.
+   */
+  #followSubagentSessions(owner: AcpThread, notification: SessionNotification): void {
+    const sessions = this.#flavor.subagentSessions;
+    const update = notification.update;
+    if (!sessions || (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update")) return;
+    if (update.status !== "completed" || !sessions.tools.test(update.name ?? update.title ?? "")) return;
+    const call = `${notification.sessionId}\u0000${update.toolCallId}`;
+    if (this.#subagentCalls.has(call)) return;
+    this.#subagentCalls.add(call);
+    // `start_subagent` can start several, one for each entry of its `Subagents` list.
+    const list = isRecord(update.rawInput) ? update.rawInput.Subagents : undefined;
+    const expected = Array.isArray(list) && list.length > 0 ? list.length : 1;
+    const report = (error: unknown) =>
+      Effect.sync(() => this.emit("diagnostic", this.#redact(`Subagent session resume failed: ${String(error)}`)));
+    Effect.runFork(
+      this.#resumeSubagentSessions(owner, notification.sessionId, update.toolCallId, expected).pipe(
+        Effect.catch(report),
+        Effect.catchDefect(report),
+        Effect.forkIn(this.#scope),
+      ),
+    );
+  }
+
+  readonly #resumeSubagentSessions = Effect.fn("AcpAgentClient.resumeSubagentSessions")(function* (
+    this: AcpAgentClient,
+    owner: AcpThread,
+    parentId: string,
+    toolCallId: string,
+    expected: number,
+  ) {
+    const sessions = this.#flavor.subagentSessions;
+    if (!sessions) return;
+    const deadline = Date.now() + ACP_SUBAGENT_SESSION_WAIT_MS;
+    let found = 0;
+    while (found < expected && Date.now() < deadline) {
+      const children = yield* providerSync(() =>
+        sessions
+          .children(this.options.argv, parentId, toolCallId)
+          .filter((id) => !this.#subagentSessions.has(id) && !this.#threads.get(id)),
+      );
+      for (const child of children) {
+        // The parent's session closed or opened again elsewhere: nobody would answer for the subagent.
+        if (this.#threads.get(owner.id) !== owner) return;
+        this.#subagentSessions.set(child, owner.id);
+        found += 1;
+        const connection = yield* providerSync(() => this.#sessionConnection(owner));
+        const request = { sessionId: child, ...owner.restore };
+        const resume = this.#supportsSessionResume;
+        const opened = yield* Effect.result(
+          providerCall(() => (resume ? connection.resumeSession(request) : connection.loadSession(request))).pipe(
+            this.#backgroundTimeout(resume ? "session/resume" : "session/load"),
+          ),
+        );
+        if (Result.isFailure(opened)) {
+          this.#subagentSessions.delete(child);
+          this.emit("diagnostic", this.#redact(`Subagent session resume failed: ${String(opened.failure)}`));
+        }
+      }
+      if (found < expected) yield* Effect.sleep(ACP_SUBAGENT_SESSION_POLL_MS);
+    }
+  });
+
+  /** Fork: the thread that answers for a subagent session that OpenBot resumed (`#subagentSessions`). */
+  #subagentOwner(sessionId: string): AcpThread | undefined {
+    const owner = this.#subagentSessions.get(sessionId);
+    return owner === undefined ? undefined : this.#threads.get(owner);
+  }
+
   /** The session's `updatedAt` on the first `session/list` page, which lists the latest first. */
   readonly #sessionUpdatedAt = Effect.fn("AcpAgentClient.sessionUpdatedAt")(function* (
     this: AcpAgentClient,
@@ -4763,11 +4859,15 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       return { outcome: { outcome: "cancelled" } };
     }
     if (this.#historyReplays.has(params.sessionId)) return { outcome: { outcome: "cancelled" } };
-    const thread = this.#threads.get(params.sessionId);
+    const own = this.#threads.get(params.sessionId);
+    // Fork: a subagent's approval goes to the agent that started it, and gets that agent's access level,
+    // never more (`AcpFlavor.subagentSessions`). It is not part of that agent's turn: the call that
+    // started the subagent ended the turn at once, and a later turn's end must not refuse it.
+    const thread = own ?? this.#subagentOwner(params.sessionId);
     // The user stopped this Antigravity session, and its harness can still run until the resume.
     // A tool that it asks for now must not run.
     if (thread?.needsResume && !thread.activeTurn) return { outcome: { outcome: "cancelled" } };
-    const turn = thread?.activeTurn;
+    const turn = own ? thread?.activeTurn : undefined;
     const turnId = turn?.id ?? randomUUID();
     const kind =
       params.toolCall.kind === "execute"
@@ -4785,11 +4885,9 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     if (
       kind === "permissions" &&
       thread &&
-      turn &&
-      !turn.stopped &&
-      !turn.completing &&
+      (turn ? !turn.stopped && !turn.completing : !own) &&
       ((this.options.confine && callsBridgeTool(thread, params.toolCall.title)) ||
-        (turn.quietNoUpdate && callsNoUpdateTool(thread, params.toolCall.title)))
+        (turn?.quietNoUpdate && callsNoUpdateTool(thread, params.toolCall.title)))
     ) {
       const option = params.options.find((candidate) => candidate.kind === "allow_once");
       if (option) return { outcome: { outcome: "selected", optionId: option.optionId } };
@@ -4801,7 +4899,7 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       this.#serverRequests.call(
         `item/${kind === "command" ? "commandExecution" : kind === "file-change" ? "fileChange" : "permissions"}/requestApproval`,
         {
-          threadId: params.sessionId,
+          threadId: thread?.id ?? params.sessionId,
           turnId,
           command: params.toolCall.kind === "execute" ? printableInput(params.toolCall.rawInput) : null,
           reason: params.toolCall.title ?? null,
@@ -4855,7 +4953,10 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     const own = this.#flavor.userQuestions;
     const isOwn = own?.method === method.replace(/^_/u, "");
     if (sessionId && this.#historyReplays.has(sessionId)) return own && isOwn ? own.reply([], {}) : {};
-    const thread = sessionId ? this.#threads.get(sessionId) : undefined;
+    // Fork: a subagent's question goes to the chat of the agent that started it (`#subagentSessions`).
+    const subagentOwner = sessionId && !this.#threads.get(sessionId) ? this.#subagentOwner(sessionId) : undefined;
+    const thread = subagentOwner ?? (sessionId ? this.#threads.get(sessionId) : undefined);
+    const turn = subagentOwner ? undefined : thread?.activeTurn;
     const asked = isOwn
       ? getArray(params, "questions")
           .filter(isRecord)
@@ -4866,12 +4967,12 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
           }))
       : null;
     const result = yield* this.#waitForUser(
-      thread?.activeTurn,
+      turn,
       this.#serverRequests.call("item/tool/requestUserInput", {
         ...params,
         ...(asked ? { questions: asked } : {}),
-        threadId: sessionId,
-        turnId: thread?.activeTurn?.id ?? randomUUID(),
+        threadId: thread?.id ?? sessionId,
+        turnId: turn?.id ?? randomUUID(),
         sourceMethod: method,
       }),
     ).pipe(toProviderClientOperationError);

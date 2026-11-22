@@ -273,6 +273,51 @@ function antigravityOwnMcpServerNames(cwd: string, argv: readonly string[]): str
   });
 }
 
+/** How far back a subagent's folder can have changed when OpenBot looks for it, from the call's end. */
+const ANTIGRAVITY_SUBAGENT_WINDOW_MS = 10 * 60_000;
+
+/**
+ * Fork: the subagent sessions that the call `toolCallId` of session `parentId` started. Antigravity
+ * 1.5.14 answers `invoke_subagent` with no output over ACP and leaves its subagents out of
+ * `session/list`. Each subagent is a conversation in `brain/<id>`, and its first message, in
+ * `.system_generated/messages/<message>.json`, names the parent as `sender` and the call as
+ * `sourceMetadata.tool`. Only folders that changed in the last minutes are read. A folder that
+ * cannot be read is skipped.
+ */
+export function antigravitySubagentSessions(argv: readonly string[], parentId: string, toolCallId: string): string[] {
+  const home = flagValue(argv, GEMINI_DIR_FLAG);
+  const appData = flagValue(argv, APP_DATA_DIR_FLAG);
+  if (!home || !appData) return [];
+  const brain = join(home, appData, "brain");
+  const since = Date.now() - ANTIGRAVITY_SUBAGENT_WINDOW_MS;
+  let names: string[];
+  try {
+    names = readdirSync(brain);
+  } catch {
+    return [];
+  }
+  return names.filter((id) => {
+    if (id === parentId) return false;
+    const messages = join(brain, id, ".system_generated", "messages");
+    try {
+      if (statSync(join(brain, id)).mtimeMs < since) return false;
+      return readdirSync(messages).some((file) => {
+        if (!file.endsWith(".json") || file === "read.json") return false;
+        const message = JSON.parse(readFileSync(join(messages, file), "utf8"));
+        const tool = getRecord(getRecord(message, "sourceMetadata"), "tool");
+        return (
+          getString(message, "recipient") === id &&
+          getString(message, "sender") === parentId &&
+          getString(tool, "conversationId") === parentId &&
+          getString(getRecord(tool, "toolCall"), "id") === toolCallId
+        );
+      });
+    } catch {
+      return false;
+    }
+  });
+}
+
 /** The CLI 1.5.6 answer for a failure of its own, such as a refused tool schema. It names no cause. */
 const GEMINI_TERMINATED_ANSWER = /^\s*(?:\u26A0 )?Agent execution terminated due to error\.?\s*$/u;
 /** The Antigravity CLI 1.5.6 log line of each prompt, before it builds the toolbox for the prompt. */
@@ -584,6 +629,10 @@ export const ANTIGRAVITY_ACP_FLAVOR: AcpFlavor = {
   // although `sessionMeta` turns it off. The end of that work wakes the model with no prompt open, as
   // for a command. Its results and approvals did not show (#8993).
   selfWakeTools: /\b(?:start|invoke)_subagent\b|^(?:Run(?:ning)? )?schedule\??$/u,
+  // Fork: 1.5.14 relays the approvals of a subagent only to a client that opened the subagent's
+  // session. No client opened it, so each command of a `self` subagent waited for an answer that
+  // never came and failed after 60 s, also for an agent at Full access.
+  subagentSessions: { tools: /\b(?:start|invoke)_subagent\b/u, children: antigravitySubagentSessions },
   // Antigravity 1.3.0 sends `usage_update` but has no ACP method or command that compacts.
   contextCompaction: "handoff",
   // Antigravity 1.4.4 starts a `localharness_external` of about 100 MB for each session and keeps it

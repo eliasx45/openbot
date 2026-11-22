@@ -257,6 +257,7 @@
     "test:acp-instructions-once": "bun scripts/acp-instructions-once-e2e.ts",
     "test:acp-audio-input": "bun scripts/acp-audio-input-e2e.ts",
     "test:antigravity-steer": "bun scripts/antigravity-steer-e2e.ts",
+    "test:antigravity-subagent-permissions": "bun scripts/antigravity-subagent-permissions-e2e.ts",
     "test:devin-steer": "bun scripts/devin-steer-e2e.ts",
     "test:grok-steer": "bun scripts/grok-steer-e2e.ts",
     "test:opencode-steer": "bun scripts/opencode-steer-e2e.ts",

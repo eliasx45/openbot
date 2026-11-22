@@ -310,6 +310,17 @@ export interface AcpFlavor {
    * prompt when `session/list` shows that the session changed after the turn.
    */
   selfWakeTools?: RegExp;
+  /**
+   * Fork: subagents that run as sessions of their own in the agent's process, which the agent does not
+   * name over ACP. It asks for their approvals only on a connection that opened their session, so
+   * OpenBot resumes each one on the parent's connection and answers for it as for the parent.
+   * `tools` matches the name of a call that starts subagents; `children` names the sessions that the
+   * call `toolCallId` of session `parentId` started.
+   */
+  subagentSessions?: {
+    tools: RegExp;
+    children(argv: readonly string[], parentId: string, toolCallId: string): string[];
+  };
   /** Each answer message has its own `messageId`, so text of a new ID is a new message, not more text. */
   messagePerId?: true;
   /**
