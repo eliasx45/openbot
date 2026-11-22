@@ -32,7 +32,10 @@
   height: 100%;
   margin: 0;
   grid-template-columns: var(--left-panel-width, 280px) 0 minmax(0, 1fr);
-  overflow: hidden;
+  /* Fork (docs/fork/FEATURES.md #89): never a scroll container, as the chat pane in usage.css. Not a
+   * scroll container, it needs its own zero minimum height to keep the window height. */
+  min-height: 0;
+  overflow: clip;
   border: 0;
   border-radius: 0;
   background: var(--openbot-bg-canvas);

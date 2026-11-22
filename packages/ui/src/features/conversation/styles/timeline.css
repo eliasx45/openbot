@@ -1,4 +1,11 @@
+/*
+ * Fork (docs/fork/FEATURES.md #89): the transcript is the containing block of everything it scrolls.
+ * Static, it let the working line's `.sr-only` status (absolute) escape its clip to the end of the
+ * chat. That made the pane around the chat scrollable, so a jump that centres a late message also
+ * scrolled the pane: the header left the screen and a gap opened under the message box.
+ */
 .conversation-scroll {
+  position: relative;
   min-height: 0;
   flex: 1;
   overflow-anchor: none;

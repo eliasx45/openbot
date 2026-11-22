@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@openbot/contracts/ipc";
+import type { AgentEvent, ConversationMessage } from "@openbot/contracts/ipc";
 import type { ServerView } from "@openbot/ui/features/servers/ServerMenu";
 import { onCleanup } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
@@ -329,4 +329,65 @@ export const AgentsWaitingForInput: Story = {
 
 export const CompactAgentsWaitingForInput: Story = {
   render: () => <WaitingForInputPlayground compact />,
+};
+
+const LONG_CHAT_TURN_ID = "story-long-chat-turn";
+
+/** 40 messages after Chief's own, so the chat scrolls far past the screen. */
+function longChatHistory(): ConversationMessage[] {
+  const start = Date.UTC(2026, 7, 19, 9, 0);
+  return Array.from({ length: 40 }, (_, index): ConversationMessage => {
+    const user = index % 2 === 0;
+    return {
+      id: `long-chat-${index + 1}`,
+      author: user ? "user" : "assistant",
+      source: user ? "user" : "assistant",
+      text: user
+        ? `Step ${index / 2 + 1}: check the next part of the launch plan and tell me what is still open.`
+        : `Part ${(index + 1) / 2} of the launch plan is checked. The owners and dates are set, and two links still point to the old pricing page, so I noted them for the next pass.`,
+      createdAt: new Date(start + index * 60_000).toISOString(),
+      status: "completed",
+    };
+  });
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md #89): Chief works in a long chat, so the working line shows under the
+ * last message. `scripts/chat-pane-shift-e2e.ts` checks that a jump to a late message moves only the
+ * transcript, never the pane with the header and the message box.
+ */
+function LongChatWorkingPlayground() {
+  useStoredLayoutValue(LEFT_PANEL_COLLAPSED_STORAGE_KEY, "false");
+  return (
+    <OpenBotPlayground
+      dependencies={{
+        createMock: (options) => {
+          const mock = createMockOpenBot(options);
+          mock.updateConversationSnapshot("chief", (snapshot) => {
+            snapshot.messages = [...snapshot.messages, ...longChatHistory()];
+            snapshot.activeTurnId = LONG_CHAT_TURN_ID;
+          });
+          const subscribe = mock.api.agent.onEvent;
+          mock.api.agent.onEvent = (listener) => {
+            const unsubscribe = subscribe(listener);
+            queueMicrotask(() =>
+              mock.emitAgentEvent({
+                type: "turn-started",
+                agentId: "chief",
+                threadId: mock.readConversationSnapshot("chief").threadId ?? "thread-chief",
+                turnId: LONG_CHAT_TURN_ID,
+              }),
+            );
+            return unsubscribe;
+          };
+          return mock;
+        },
+        renderApp: () => <App />,
+      }}
+    />
+  );
+}
+
+export const AgentWorksInLongChat: Story = {
+  render: () => <LongChatWorkingPlayground />,
 };
