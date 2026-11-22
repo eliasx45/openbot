@@ -32,6 +32,7 @@
 
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
+import { agentProviderName, isAgentProvider } from "@openbot/contracts/agent-providers";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type { ConversationMessage, ConversationSubagent, QueueDelivery } from "@openbot/contracts/ipc";
 import { isDynamicRecord } from "@openbot/contracts/runtime-values";
@@ -71,6 +72,8 @@ const SETTLE_WAIT_MS = () => envNumber("OPENBOT_FORK_RESTART_RESUME_SETTLE_WAIT_
 const RETRY_MS = 3_000;
 const KEEP_MS = 24 * 60 * 60_000;
 const REQUEST_LIMIT = 4_000;
+/** Fork (#92): the longest task of one stopped subagent that a wake repeats. */
+const SUBAGENT_TASK_LIMIT = 400;
 /** The longest text of the finished subagents' answers in one wake. */
 const FINISHED_RESULTS_LIMIT = 6_000;
 /** At most this many wakes for stopped subagents per agent per hour, so a crash loop ends. */
@@ -87,6 +90,8 @@ export interface RestartResumeSubagent {
   /** The id `SendMessage` takes, when known. */
   providerAgentId: string | null;
   background: boolean;
+  /** Fork (docs/fork/FEATURES.md #92): the subagent's task, for a provider whose agent starts it again. */
+  prompt?: string | null;
   /**
    * Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): the final answer of a subagent whose
    * transcript shows it finished just before the stop (its "done" was lost with the process). It is
@@ -397,7 +402,7 @@ export class ForkRestartResume {
     externalSessionId: string;
     turnId: string | null;
     cause: "closed" | "crashed" | "interrupted";
-    subagents: ReadonlyArray<{ id: string; title: string; providerAgentId: string | null }>;
+    subagents: ReadonlyArray<{ id: string; title: string; providerAgentId: string | null; prompt?: string | null }>;
   }): void {
     // Before start, at boot or while OpenBot quits: the restart resume notes the subagents instead.
     if (this.#startedAt === 0 || !this.#hooks.isRunning() || input.subagents.length === 0) return;
@@ -406,7 +411,12 @@ export class ForkRestartResume {
     if (!agent || agent.threadId !== input.threadId) return;
     const title = input.subagents.map((subagent) => subagent.title || "subagent").join("”, “");
     if (!this.enabled()) {
-      this.#hooks.line(input.agentId, sourceText("status.agent.subagentResumeOff", { title }));
+      this.#hooks.line(
+        input.agentId,
+        agent.provider === "claude"
+          ? sourceText("status.agent.subagentResumeOff", { title })
+          : sourceText("status.agent.processSubagentResumeOff", { title, provider: providerName(agent.provider) }),
+      );
       return;
     }
     const now = new Date();
@@ -417,6 +427,7 @@ export class ForkRestartResume {
       title: subagent.title,
       providerAgentId: subagent.providerAgentId,
       background: true,
+      ...(subagent.prompt ? { prompt: subagent.prompt.slice(0, SUBAGENT_TASK_LIMIT) } : {}),
     }));
     // The same subagents stopped again before their wake ran: one wake for both.
     if (earlier?.state === "pending") {
@@ -464,7 +475,10 @@ export class ForkRestartResume {
         agentId: entry.agentId,
         requestId: entry.key,
         requestText: entry.requestText || title,
-        note: sourceText("status.agent.subagentResumeWait"),
+        note:
+          agent.provider === "claude"
+            ? sourceText("status.agent.subagentResumeWait")
+            : sourceText("status.agent.processSubagentResumeWait", { provider: providerName(agent.provider) }),
       });
       this.#notBefore.set(entry.key, now.getTime() + GRACE_MS());
       this.#startPump();
@@ -485,14 +499,28 @@ export class ForkRestartResume {
   ): void {
     this.#skip(entry, reason);
     const title = entry.subagents.map((subagent) => subagent.title || "subagent").join("”, “");
-    const text =
-      line === "status.agent.subagentResumeLimit"
-        ? sourceText(line, { title, count: String(LIVE_WAKES_PER_HOUR) })
-        : line === "status.agent.subagentResumeNotReady"
-          ? sourceText(line, { title, provider: extra.provider ?? "the provider" })
-          : sourceText(line, { title });
+    const agent = this.#hooks.agent(entry.agentId);
     // An agent that is gone has no chat to write in.
-    if (this.#hooks.agent(entry.agentId)) this.#hooks.line(entry.agentId, text);
+    if (!agent) return;
+    // Fork (#92): the lines name the Claude process; another provider's name its own.
+    const provider = providerName(agent.provider);
+    const text =
+      agent.provider !== "claude"
+        ? line === "status.agent.subagentResumeLimit"
+          ? sourceText("status.agent.processSubagentResumeLimit", {
+              title,
+              provider,
+              count: String(LIVE_WAKES_PER_HOUR),
+            })
+          : line === "status.agent.subagentResumeNotReady"
+            ? sourceText("status.agent.processSubagentResumeNotReady", { title, provider })
+            : sourceText("status.agent.processSubagentResumeTookOver", { title, provider })
+        : line === "status.agent.subagentResumeLimit"
+          ? sourceText(line, { title, count: String(LIVE_WAKES_PER_HOUR) })
+          : line === "status.agent.subagentResumeNotReady"
+            ? sourceText(line, { title, provider: extra.provider ?? "the provider" })
+            : sourceText(line, { title });
+    this.#hooks.line(entry.agentId, text);
   }
 
   /** Whether this wait is a wake that waits for its turn; a routine run does not wake it. */
@@ -585,14 +613,18 @@ export class ForkRestartResume {
     if (this.#hooks.laneBusy(entry.agentId)) return tookOver("another turn runs");
     const session = this.#hooks.session(entry.agentId, entry.threadId);
     // `SendMessage` finds a subagent only in the session it ran in: a context reset, an account or
-    // provider change gives the chat a new one.
-    if (live && session?.externalSessionId !== entry.externalSessionId) {
+    // provider change gives the chat a new one. Fork (#92): another provider's agent is told what
+    // stopped in the session that the chat has now, or in a new one that the wake starts: a refresh
+    // after an MCP change gives an Antigravity chat a new session.
+    const sameSessionOnly = agent.provider === "claude";
+    if (live && sameSessionOnly && session?.externalSessionId !== entry.externalSessionId) {
       this.#skipLive(entry, "the provider session changed", "status.agent.subagentResumeSessionChanged");
       return "skipped";
     }
-    if (!session) return skip("provider session gone", sourceText("status.agent.restartResumeSessionGone"));
+    if (!session && (!live || sameSessionOnly))
+      return skip("provider session gone", sourceText("status.agent.restartResumeSessionGone"));
     let subagents = entry.subagents;
-    if (agent.provider === "claude" && subagents.some((subagent) => !subagent.providerAgentId)) {
+    if (session && agent.provider === "claude" && subagents.some((subagent) => !subagent.providerAgentId)) {
       const ids = await this.#hooks.subagentIds(entry.agentId, session.externalSessionId).catch(() => new Map());
       subagents = subagents.map((subagent) => ({
         ...subagent,
@@ -603,7 +635,7 @@ export class ForkRestartResume {
     // A subagent whose transcript ends with its final answer finished just before the stop: its
     // answer is handed over, and it is not continued (it would only repeat that it is done).
     const known = subagents.flatMap((subagent) => (subagent.providerAgentId ? [subagent.providerAgentId] : []));
-    if (agent.provider === "claude" && known.length > 0) {
+    if (session && agent.provider === "claude" && known.length > 0) {
       const outcomes = await this.#hooks
         .subagentOutcomes(entry.agentId, session.externalSessionId, known)
         .catch(() => new Map<string, { finished: true; result: string }>());
@@ -638,9 +670,10 @@ export class ForkRestartResume {
         interruptedAt: entry.interruptedAt,
         timezone: this.#hooks.timezone(),
         attempt: entry.attempt,
-        subagents: agent.provider === "claude" ? subagents : [],
+        subagents: agent.provider === "claude" || agent.provider === "antigravity" ? subagents : [],
         requestText: entry.requestText,
         now: new Date(now).toISOString(),
+        provider: agent.provider,
       }),
     });
     this.#log(entry);
@@ -705,7 +738,10 @@ export function restartResumeText(input: {
   requestText: string;
   /** When the wake is built; a long gap since `interruptedAt` adds the time-sensitive check. */
   now?: string;
+  /** Fork (#92): the agent's provider. Antigravity's subagents are continued with its own tools. */
+  provider?: string;
 }): string {
+  if (input.provider === "antigravity") return antigravityResumeText(input);
   const at = localTime(input.interruptedAt, input.timezone);
   const downMs = input.now ? Date.parse(input.now) - Date.parse(input.interruptedAt) : 0;
   const longDowntime =
@@ -762,6 +798,44 @@ export function restartResumeText(input: {
     .join("\n");
 }
 
+/**
+ * Fork (docs/fork/FEATURES.md #92): the wake of an Antigravity agent whose subagents stopped. They
+ * ran in the process of the agent's session, are conversations of their own (`brain/<id>`), and
+ * report with `send_message`. A subagent that a process stop ended does not restart by itself (lab
+ * `RE-antigravity-restart-resume`, run R1). A `send_message` from its parent's own conversation
+ * continues it once a client opened both again (run R2), but OpenBot does not do that: a refresh
+ * gives the chat a new session, because a resume keeps the MCP servers that the session had (run R3),
+ * and its report would go to the old conversation. So the agent starts the work that is left again.
+ */
+function antigravityResumeText(input: Parameters<typeof restartResumeText>[0]): string {
+  const at = localTime(input.interruptedAt, input.timezone);
+  const process = input.trigger === "process";
+  const what = process
+    ? `Your subagents were stopped at ${at}: ${input.cause === "crashed" ? "the Antigravity process they ran in ended by itself" : "OpenBot closed the Antigravity process they ran in (a settings, MCP or account change)"} while OpenBot kept running — this is not a message from the user. A stopped subagent does not report back, so do not wait for it.`
+    : `Your subagents were stopped at ${at} by an OpenBot restart — this is not a message from the user. A stopped subagent does not report back, so do not wait for it.`;
+  const named = input.subagents.filter((subagent) => subagent.title || subagent.providerAgentId);
+  const task = (subagent: RestartResumeSubagent) =>
+    subagent.prompt ? ` (task: ${subagent.prompt.replace(/\s+/gu, " ").trim()})` : "";
+  const name = (subagent: RestartResumeSubagent) =>
+    `${subagent.providerAgentId ?? "(conversation ID unknown)"} — ${subagent.title || "(no role)"}${task(subagent)}`;
+  return [
+    `[OpenBot: 🔄 restart] ${what}`,
+    input.attempt > 1 ? "The subagents stopped again after the first try. This is the last automatic try." : null,
+    named.length > 0 ? `These subagents were stopped mid-task: ${named.map(name).join("; ")}.` : null,
+    "Before you redo anything, check what already happened (files, git, messages already sent). Never repeat sends, posts, payments or other outward actions.",
+    named.length > 0
+      ? "They cannot be continued from here. For each one, check what it already did, then start a new subagent with invoke_subagent only for the work that is left, and tell it what is already done."
+      : null,
+    named.length > 0
+      ? "Then tell the user in one line what you did, and end your turn: the subagents' reports come back to you as before."
+      : "Then continue your work.",
+    input.requestText ? "The request it continues:" : null,
+    input.requestText || null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
+}
+
 /** "45 minutes", "9 hours", "2 days". */
 function downtimeText(ms: number): string {
   const hours = ms / 3_600_000;
@@ -802,6 +876,7 @@ function subagentNote(subagent: ConversationSubagent): RestartResumeSubagent {
     title: subagent.title,
     providerAgentId: subagent.providerAgentId ?? null,
     background: subagent.background === true,
+    ...(subagent.prompt ? { prompt: subagent.prompt.slice(0, SUBAGENT_TASK_LIMIT) } : {}),
   };
 }
 
@@ -837,4 +912,9 @@ function envNumber(name: string, fallback: number): number {
   return Number.isFinite(value) && value >= 0 && process.env[name] !== "" && process.env[name] !== undefined
     ? value
     : fallback;
+}
+
+/** Fork (#92): the name that the chat's lines give a provider. */
+function providerName(provider: string): string {
+  return isAgentProvider(provider) ? agentProviderName(provider) : provider;
 }

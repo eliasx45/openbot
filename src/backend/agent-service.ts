@@ -277,6 +277,7 @@ import { SIDE_QUESTION_CHAT_MESSAGES, sideQuestionPrompt } from "./agent/side-qu
 import type { AgentSidebar } from "./agent/sidebar-tools";
 import type { SkillLearner } from "./agent/skill-learning";
 import type { LocalSkillTools } from "./agent/skill-tools";
+import { SUBAGENTS_UPDATED_METHOD } from "./agent/subagent-updates";
 import {
   agentProviderAccount,
   isRequestTimeout,
@@ -825,6 +826,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         emitError: (code, error) => this.#emitError(code, error),
         // Read late: the threads are built further down this constructor.
         refreshAllAgentRuntimes: () => this.#threads.refreshAllAgentRuntimes(),
+        refreshAgentRuntimesForMcpSet: () => this.#threads.refreshAgentRuntimesForMcpSet(),
       },
     });
     this.#mediaCatalog = new WorkflowMediaCatalogCache({
@@ -1196,6 +1198,13 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
               const agentId = threadId ? this.#conversation.agentForThread(threadId) : undefined;
               if (agentId) this.#emit({ type: "agent-session-settings-changed", agentId });
               return;
+            }
+            // Fork (docs/fork/FEATURES.md #92): a refresh that waits for background subagents is
+            // applied once they end, and once the turn that holds it ends.
+            if (notification.method === SUBAGENTS_UPDATED_METHOD || notification.method === "turn/completed") {
+              const threadId = getString(notification.params, "threadId");
+              const agentId = threadId ? this.#conversation.agentForThread(threadId) : undefined;
+              if (agentId && this.#threads.refreshWaitsForBackground(agentId)) this.#applyWaitingRefresh(agentId);
             }
             // Fork: keep the commands the agent's ACP CLI listed, for the `$` list.
             if (notification.method === "openbot/agentCommands/updated") {
@@ -1670,6 +1679,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       hooks: {
         logRecovery: (agentId, provider, outcome) =>
           logger.warn("Recovered an unavailable provider session.", { agentId, provider, outcome }),
+        // Fork (docs/fork/FEATURES.md #92): a refresh that waits for background subagents.
+        refreshWaitsForBackground: (agentId, wait) => this.#noteRefreshWait(agentId, wait),
         logReleaseFailure: (provider, error) =>
           logger.warn("Could not close a replaced provider session.", { provider, error }),
         reportMcpDrops: (provider, drops) => this.#mcp.reportDrops(provider, drops),
@@ -3150,7 +3161,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
    * and the public thread is untouched.
    */
   notifyComputerUseChanged(): Effect.Effect<void, AgentLifecycleFailed> {
-    return this.#mcp.changed().pipe(
+    return this.#mcp.changed(true).pipe(
       Effect.asVoid,
       Effect.mapError(
         (failure) => new AgentLifecycleFailed({ operation: "refresh computer use", cause: failure.cause }),
@@ -3174,7 +3185,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     this: AgentService,
   ) {
     yield* this.#mcp
-      .changed()
+      .changed(true)
       .pipe(
         Effect.mapError(
           (failure) => new AgentLifecycleFailed({ operation: "refresh GitHub tools", cause: failure.cause }),
@@ -5161,6 +5172,44 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       isRunning: () => this.#initialized && !this.#stopping,
       log: (message, details) => logger.info(message, details),
     };
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md #92): a refresh waits for the agent's background subagents. The chat
+   * says so, and at the wait's limit the refresh is applied anyway.
+   */
+  #noteRefreshWait(agentId: string, wait: { subagents: number; until: number | null; mcp: boolean }): void {
+    // A client that counts no subagents and sets no limit (Claude, #46) waits as before, with no note.
+    if (wait.until === null || wait.subagents === 0) return;
+    const params = { count: wait.subagents, minutes: Math.max(1, Math.round((wait.until - Date.now()) / 60_000)) };
+    this.#forkLine(
+      agentId,
+      wait.mcp
+        ? sourceText("status.agent.refreshWaitsMcp", params)
+        : sourceText("status.agent.refreshWaitsSettings", params),
+    );
+    Effect.runFork(
+      Effect.sleep(Math.max(0, wait.until - Date.now())).pipe(
+        Effect.andThen(Effect.sync(() => this.#applyWaitingRefresh(agentId))),
+        Effect.forkIn(this.#scope),
+      ),
+    );
+  }
+
+  /** Fork (#92): applies a refresh that waited for background subagents, when it still waits. */
+  #applyWaitingRefresh(agentId: string): void {
+    const agent = this.#store.list().find((candidate) => candidate.id === agentId);
+    if (!agent || this.#stopping || !this.#threads.refreshWaitsForBackground(agentId)) return;
+    Effect.runFork(
+      this.#threads.applyPendingRuntimeRefresh(agent).pipe(
+        Effect.catchCause((cause) =>
+          Effect.sync(() =>
+            logger.warn("A refresh that waited for subagents failed.", { error: toLogValue(Cause.squash(cause)) }),
+          ),
+        ),
+        Effect.forkIn(this.#scope),
+      ),
+    );
   }
 
   /** Fork: a status line of goal mode in the agent's own chat. Held while a turn runs (it would write over it). */

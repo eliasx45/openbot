@@ -1530,6 +1530,8 @@ export class TurnLifecycle {
                   id,
                   title: getString(subagent, "title") ?? "",
                   providerAgentId: getString(subagent, "providerAgentId"),
+                  // Fork (#92): an Antigravity agent starts a stopped subagent again from its task.
+                  prompt: getString(subagent, "prompt"),
                 },
               ]
             : [];

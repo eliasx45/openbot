@@ -123,6 +123,24 @@ const NO_CODEX_OWN_SERVERS: CodexOwnServers = { disabled: {}, transports: {}, re
  */
 const RUNTIME_RELOADED_ON_RESUME: ReadonlySet<AgentProvider> = new Set(["claude"]);
 
+/**
+ * Fork (docs/fork/FEATURES.md #92): background work that holds a refresh back: how many subagents
+ * run, and how long their client lets them hold it (null: until they end).
+ */
+interface BackgroundHold {
+  subagents: number;
+  limitMs: number | null;
+}
+
+/** Two holds of one refresh: the subagents add up, and the longer limit counts (null wins). */
+function addBackgroundHold(total: BackgroundHold | null, next: BackgroundHold): BackgroundHold {
+  if (!total) return next;
+  return {
+    subagents: total.subagents + next.subagents,
+    limitMs: total.limitMs === null || next.limitMs === null ? null : Math.max(total.limitMs, next.limitMs),
+  };
+}
+
 /** Per server key, the `tools` table Codex saved for it: each tool's approval. */
 type CodexToolApprovals = Array<[string, DynamicRecord]>;
 /** The start of the title that `#nameSession` gives a session in the provider's own thread list. */
@@ -185,6 +203,13 @@ export interface ThreadLifecycleHooks {
   reportMcpDrops(provider: AgentProvider, drops: readonly McpServerDrop[]): void;
   /** An earlier session whose work steps could not be read. The handoff goes without them. */
   logHandoffReadFailure(provider: AgentProvider, error: unknown): void;
+  /**
+   * Fork (docs/fork/FEATURES.md #92): a refresh of this agent waits for background subagents. Called
+   * once for each wait. `until` is when it closes the session anyway (`AgentClient.backgroundHoldLimitMs`),
+   * or null when it waits for the work to end. The caller shows a note and calls
+   * `applyPendingRuntimeRefresh` again when the work changes and at `until`.
+   */
+  refreshWaitsForBackground?(agentId: string, wait: { subagents: number; until: number | null; mcp: boolean }): void;
 }
 
 export interface ThreadLifecycleOptions {
@@ -306,6 +331,16 @@ export class ThreadLifecycle {
    */
   readonly #mcpRuntimeRefreshes = new Set<string>();
   /**
+   * Fork (docs/fork/FEATURES.md #92): the refreshes that wait for background work, by agent: since
+   * when, and until when at most (null: until the work ends).
+   */
+  readonly #backgroundWaits = new Map<string, { since: number; until: number | null }>();
+  /**
+   * Fork (docs/fork/FEATURES.md #92): the MCP set (`#mcpGivenFingerprint`) that each session of this
+   * run was opened with. An MCP change that leaves an agent's set as it is does not close its sessions.
+   */
+  readonly #sessionMcpSets = new Map<string, string>();
+  /**
    * How many starts of each agent are in flight: a provider session, or a turn on one.
    *
    * Neither is visible to the checks `applyPendingRuntimeRefresh` makes. A session that is starting
@@ -366,6 +401,11 @@ export class ThreadLifecycle {
     return this.#pendingRuntimeRefreshes.has(agentId);
   }
 
+  /** Fork (docs/fork/FEATURES.md #92): a refresh of this agent waits for its background subagents. */
+  refreshWaitsForBackground(agentId: string): boolean {
+    return this.#backgroundWaits.has(agentId) && this.#pendingRuntimeRefreshes.has(agentId);
+  }
+
   readonly refreshAgentRuntime = Effect.fn("ThreadLifecycle.refreshAgentRuntime")(function* (
     this: ThreadLifecycle,
     agentId: string,
@@ -395,6 +435,67 @@ export class ThreadLifecycle {
       yield* this.applyPendingRuntimeRefresh(agent);
     }
   }, Effect.uninterruptible).bind(this);
+
+  /**
+   * Fork (docs/fork/FEATURES.md #92): as `refreshAllAgentRuntimes`, after a saved, removed, turned on
+   * or turned off MCP server. An agent whose open sessions were all given the set it gets now (the
+   * change is to a server it cannot use) keeps them: its process and its subagents go on. A session
+   * with no record of its set, one that no client holds, or an agent with a refresh already waiting
+   * is refreshed as before. A sign-in change keeps `refreshAllAgentRuntimes`: the set's rows do not
+   * show it.
+   */
+  readonly refreshAgentRuntimesForMcpSet = Effect.fn("ThreadLifecycle.refreshAgentRuntimesForMcpSet")(function* (
+    this: ThreadLifecycle,
+  ) {
+    for (const agent of this.#store.list()) {
+      if (!this.#pendingRuntimeRefreshes.has(agent.id) && this.#hasCurrentMcpSet(agent)) continue;
+      this.#pendingRuntimeRefreshes.add(agent.id);
+      this.#mcpRuntimeRefreshes.add(agent.id);
+      yield* this.applyPendingRuntimeRefresh(agent);
+    }
+  }, Effect.uninterruptible).bind(this);
+
+  /** Fork (#92): every active session of the agent is open in a client and was given the agent's MCP set of now. */
+  #hasCurrentMcpSet(agent: AgentSummary): boolean {
+    const threadIds = this.#store.database.activeProviderSessionThreads(agent.id);
+    if (threadIds.length === 0) return false;
+    for (const threadId of threadIds)
+      for (const session of this.#store.database.listProviderSessions(threadId)) {
+        if (session.state !== "active") continue;
+        const given = this.#sessionMcpSets.get(session.externalSessionId);
+        if (!given || !this.#conversation.loadedClientFor(session.externalSessionId)) return false;
+        const publicThreadId = this.#conversation.publicThreadId(agent.id, session.externalSessionId);
+        const now = this.#mcpGivenFingerprint(
+          this.#agentMcpServers(this.#sessionAgent(agent, publicThreadId)),
+          this.#toolRuntimes(),
+        );
+        if (given !== now) return false;
+      }
+    return true;
+  }
+
+  /**
+   * Fork (#92): every value of the MCP set that a session is given, also the built-in Computer Use and
+   * GitHub entries, unlike `#mcpSetFingerprint`: within one run of OpenBot a change to them is a change
+   * the session must get.
+   */
+  #mcpGivenFingerprint(configs: readonly McpServerConfig[], toolRuntimes: McpToolRuntimes): string {
+    const { binDirectories, commandAliases } = toolRuntimes;
+    return createHash("sha256")
+      .update(
+        JSON.stringify([
+          mcpFingerprintValues(configs),
+          configs
+            .map((config) =>
+              JSON.stringify([config.id, config.name, config.transport, config.command, config.args, config.url]),
+            )
+            .sort(),
+          this.#mcpProxiedServerIds(configs),
+          [binDirectories, commandAliases],
+        ]),
+      )
+      .digest("hex");
+  }
 
   consumePendingHandoff(threadId: string): string | undefined {
     return this.#pendingHandoffs.get(threadId);
@@ -527,6 +628,8 @@ export class ThreadLifecycle {
     this.#pendingHandoffs.clear();
     this.#pendingRuntimeRefreshes.clear();
     this.#mcpRuntimeRefreshes.clear();
+    this.#backgroundWaits.clear();
+    this.#sessionMcpSets.clear();
     this.#pendingStarts.clear();
     this.#pendingMainStarts.clear();
   }
@@ -887,6 +990,8 @@ export class ThreadLifecycle {
     this.#sessionStarts.set(key, count);
     logger.info("Started a provider session.", { provider: client.provider, reason: startReason, count });
     const externalThreadId = response.thread.id;
+    // Fork (#92): the set read before the request, as `mcpSet`.
+    this.#sessionMcpSets.set(externalThreadId, this.#mcpGivenFingerprint(mcpServers, toolRuntimes));
     const prepared = yield* Effect.result(
       Effect.gen({ self: this }, function* () {
         if (client.provider === "codex") {
@@ -1677,6 +1782,11 @@ export class ThreadLifecycle {
     if (releasing) yield* Deferred.await(releasing);
     this.#conversation.bindThread(externalThreadId, agent.id);
     const givenContext = yield* this.#turnContextKey(agent, client);
+    // Fork (#92): read before the request, so a change while the provider answers reads as stale.
+    const mcpSet = this.#mcpGivenFingerprint(
+      this.#agentMcpServers(this.#sessionAgent(agent, this.#conversation.publicThreadId(agent.id, externalThreadId))),
+      this.#toolRuntimes(),
+    );
     const params = yield* this.threadParams(agent, client, externalThreadId);
     const resumed = yield* Effect.result(
       client.request("thread/resume", params, decodeRecordResponse).pipe(toThreadOperationFailed),
@@ -1689,6 +1799,7 @@ export class ThreadLifecycle {
         .pipe(toThreadOperationFailed);
       response = yield* client.request("thread/resume", params, decodeRecordResponse).pipe(toThreadOperationFailed);
     } else response = resumed.success;
+    this.#sessionMcpSets.set(externalThreadId, mcpSet);
     this.#rememberTurnContext(client, externalThreadId, givenContext);
     this.#conversation.markThreadLoaded(externalThreadId, client);
     yield* this.#nameSession(client, externalThreadId, agent, getString(getRecord(response, "thread"), "name"));
@@ -1855,6 +1966,10 @@ export class ThreadLifecycle {
     const unconfirmed = this.#mailbox.startingDeliveriesForAgent(agent.id);
     if (unconfirmed.some(({ delivery }) => !startingDeliveryIds.has(delivery.id))) return;
     let deferred = false;
+    // Fork (docs/fork/FEATURES.md #92): the background work that holds the refresh back this time.
+    let held: BackgroundHold | null = null;
+    const wait = this.#backgroundWaits.get(agent.id);
+    const waitedOut = wait?.until != null && Date.now() >= wait.until;
     // Every thread of this agent, not only `agent.threadId`: a channel turn runs on an execution
     // thread of its own, and its provider session holds the same stale runtime as the agent's.
     const threadIds = this.#store.database.activeProviderSessionThreads(agent.id);
@@ -1866,15 +1981,60 @@ export class ThreadLifecycle {
       // a skill or setting change waits for them in the same way (#8484). Fork (docs/fork/FEATURES.md,
       // "A refresh waits for background subagents"): an MCP change waits too, for every provider
       // (upstream closes the session at once after an MCP change).
-      if (this.#activeTurnOf(agent.id, threadId) || (yield* this.#runsBackgroundWork(threadId))) deferred = true;
-      else yield* this.#refreshThreadRuntime(threadId, reloadProvider);
+      if (this.#activeTurnOf(agent.id, threadId)) {
+        deferred = true;
+        continue;
+      }
+      const background = yield* this.#backgroundHold(threadId);
+      // Fork (#92): a client with a limit holds the refresh for that long at most. The close then
+      // reports its subagents as stopped, and the agent gets a notice.
+      if (background && !(waitedOut && background.limitMs !== null)) {
+        deferred = true;
+        held = addBackgroundHold(held, background);
+      } else yield* this.#refreshThreadRuntime(threadId, reloadProvider);
     }
+    if (held && !wait) {
+      const now = Date.now();
+      const until = held.limitMs === null ? null : now + held.limitMs;
+      this.#backgroundWaits.set(agent.id, { since: now, until });
+      this.#hooks.refreshWaitsForBackground?.(agent.id, {
+        subagents: held.subagents,
+        until,
+        mcp: this.#mcpRuntimeRefreshes.has(agent.id),
+      });
+    }
+    // A wait stays while a turn holds the refresh too, so a turn in between does not start the limit again.
     if (!deferred) {
       this.#pendingRuntimeRefreshes.delete(agent.id);
       this.#mcpRuntimeRefreshes.delete(agent.id);
+      this.#backgroundWaits.delete(agent.id);
       this.#store.clearSessionSettingReset(agent.id, settingsIdentity);
     }
   }, Effect.uninterruptible).bind(this);
+
+  /**
+   * Fork (docs/fork/FEATURES.md #92): the background work of this thread's loaded sessions, with how
+   * many subagents run and how long their client lets them hold a refresh (null: no limit). Null when
+   * none holds work. A failed check holds the refresh, with no limit, as `#runsBackgroundWork` does.
+   */
+  readonly #backgroundHold = Effect.fn("ThreadLifecycle.backgroundHold")(function* (
+    this: ThreadLifecycle,
+    threadId: string,
+  ) {
+    let hold: BackgroundHold | null = null;
+    for (const session of this.#store.database.listProviderSessions(threadId)) {
+      if (session.state !== "active") continue;
+      const client = this.#conversation.openClientFor(session.externalSessionId);
+      if (!client?.holdsBackgroundWork) continue;
+      const background = yield* Effect.result(client.holdsBackgroundWork(session.externalSessionId));
+      if (Result.isSuccess(background) && !background.success) continue;
+      hold = addBackgroundHold(hold, {
+        subagents: client.runningBackgroundSubagents?.(session.externalSessionId) ?? 0,
+        limitMs: Result.isFailure(background) ? null : (client.backgroundHoldLimitMs ?? null),
+      });
+    }
+    return hold;
+  });
 
   /**
    * Whether a Claude session of the agent's own chat runs background subagents or commands. A new
@@ -1965,6 +2125,7 @@ export class ThreadLifecycle {
     reloadProvider: AgentProvider | null = null,
   ) {
     const sessions = this.#store.database.listProviderSessions(threadId).filter((one) => one.state === "active");
+    for (const session of sessions) this.#sessionMcpSets.delete(session.externalSessionId);
     if (reloadProvider && sessions.length > 0 && sessions.every((one) => one.provider === reloadProvider)) {
       for (const session of sessions) {
         yield* this.#releaseProviderSession(session.externalSessionId, undefined, true);

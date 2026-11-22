@@ -72,6 +72,11 @@ export interface McpGatewayHooks {
   emitError(code: string, error: unknown): void;
   /** Marks every agent's provider session for refresh. Read late: the threads are built after this. */
   refreshAllAgentRuntimes(): Effect.Effect<void, McpGatewayFailed>;
+  /**
+   * Fork (docs/fork/FEATURES.md #92): as `refreshAllAgentRuntimes`, after a change to the saved rows,
+   * for the agents whose set it changes. Absent: every agent.
+   */
+  refreshAgentRuntimesForMcpSet?(): Effect.Effect<void, McpGatewayFailed>;
 }
 
 /**
@@ -352,11 +357,17 @@ export class McpGateway {
    * removed server stays callable and an added one is invisible until the app restarts. The public
    * thread and its history are untouched - only the private provider session is replaced.
    */
-  readonly changed = Effect.fn("McpGateway.changed")(function* (this: McpGateway) {
+  readonly changed = Effect.fn("McpGateway.changed")(function* (
+    this: McpGateway,
+    // Fork (#92): a change outside the saved rows (Computer Use, GitHub) refreshes every agent.
+    allAgents = false,
+  ) {
     // A user who edits a server and does not fix it has to be told again. Without this the first
     // report of a run would be the only one, and an edit that changed nothing would look like a fix.
     this.#reportedDrops.clear();
-    yield* this.#hooks.refreshAllAgentRuntimes();
+    yield* this.#hooks.refreshAgentRuntimesForMcpSet && !allAgents
+      ? this.#hooks.refreshAgentRuntimesForMcpSet()
+      : this.#hooks.refreshAllAgentRuntimes();
     return this.list();
   });
 

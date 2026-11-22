@@ -11,9 +11,24 @@
 // sends one more line of text. `spawn-two` starts two subagents with one `start_subagent` call, whose
 // folders sort in the other order than the list; each only reports its task. `spawn-idle` starts one
 // that does nothing, and `kill` stops it with `manage_subagents`.
-import { mkdirSync, writeFileSync } from "node:fs";
+// Fork (FEATURES.md #92): `spawn-hold-two` starts two subagents that each run one step and then wait
+// until the test writes `finish-<their task>` in `FAKE_CONTROL`, so they run while the test changes
+// an MCP server. The process logs its start and its SIGTERM, and answers `--version` as the CLI does,
+// for a test that runs the whole agent service.
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type AcpPeer, type AcpRequest, logEntry, serveFakeAcpAgent } from "../acp-agent";
+
+if (process.argv.includes("--version")) {
+  process.stdout.write("1.5.14\n");
+  process.exit(0);
+}
+logEntry({ event: "start", text: String(process.pid) });
+process.on("SIGTERM", () => {
+  logEntry({ event: "sigterm", text: String(process.pid) });
+  process.exit(0);
+});
+const control = process.env.FAKE_CONTROL ?? ".";
 
 const MODELS = { availableModels: [{ modelId: "gemini-fake", name: "Gemini Fake" }], currentModelId: "gemini-fake" };
 const flag = (name: string) => process.argv.find((arg) => arg.startsWith(name))?.slice(name.length);
@@ -22,7 +37,7 @@ const SHELL_PROMPT = "Run `pwd && echo shell-ok`.";
 let sessions = 0;
 let calls = 0;
 /** What each subagent does once its session is opened: its parent, and its task. */
-const children = new Map<string, { parent: string; work: "shell" | "report" | "idle"; prompt: string }>();
+const children = new Map<string, { parent: string; work: "shell" | "report" | "idle" | "hold"; prompt: string }>();
 let idleChild = "";
 
 function promptText(request: AcpRequest): string {
@@ -68,6 +83,20 @@ function runChild(peer: AcpPeer, child: string): void {
     report(peer, child, task.parent, `Done: ${task.prompt}`);
     return;
   }
+  if (task.work === "hold") {
+    const step = { toolCallId: `${child}-hold`, title: `work on ${task.prompt}`, kind: "execute" as const };
+    peer.update(child, { sessionUpdate: "tool_call", ...step, status: "in_progress", rawInput: {} });
+    logEntry({ event: "child-running", sessionId: child, text: task.prompt });
+    const finish = join(control, `finish-${task.prompt}`);
+    const wait = setInterval(() => {
+      if (!existsSync(finish)) return;
+      clearInterval(wait);
+      peer.update(child, { sessionUpdate: "tool_call_update", toolCallId: step.toolCallId, status: "completed" });
+      report(peer, child, task.parent, `Done: ${task.prompt}`);
+      logEntry({ event: "child-done", sessionId: child, text: task.prompt });
+    }, 25);
+    return;
+  }
   const rawInput = { CommandLine: "pwd && echo shell-ok" };
   const toolCall = { toolCallId: `${child}-cmd`, title: "pwd && echo shell-ok", kind: "execute" as const };
   peer.update(child, { sessionUpdate: "tool_call", ...toolCall, status: "in_progress", rawInput });
@@ -108,8 +137,10 @@ function open(request: AcpRequest, peer: AcpPeer, method: string): void {
 function spawn(peer: AcpPeer, sessionId: string, text: string): void {
   calls += 1;
   const toolCallId = `call_${process.pid}_${calls}`;
-  if (text === "spawn-two") {
-    const list = ["Index the clips.", "Sort the shelf."].map((Prompt, index) => ({
+  if (text === "spawn-two" || text === "spawn-hold-two") {
+    const hold = text === "spawn-hold-two";
+    const tasks = hold ? ["harvest-left", "harvest-right"] : ["Index the clips.", "Sort the shelf."];
+    const list = tasks.map((Prompt, index) => ({
       TypeName: "self",
       Role: `Worker ${index + 1}`,
       Prompt,
@@ -120,7 +151,7 @@ function spawn(peer: AcpPeer, sessionId: string, text: string): void {
     // `z-…` holds the first task and `a-…` the second, so the folder order is not the list order.
     for (const [index, entry] of list.entries()) {
       const child = `${index === 0 ? "z" : "a"}-child-${process.pid}-${calls}`;
-      children.set(child, { parent: sessionId, work: "report", prompt: entry.Prompt });
+      children.set(child, { parent: sessionId, work: hold ? "hold" : "report", prompt: entry.Prompt });
       writeFirstMessage(child, sessionId, toolCallId, entry.Prompt);
     }
     peer.update(sessionId, { sessionUpdate: "tool_call_update", ...call, status: "completed", rawInput });

@@ -113,6 +113,14 @@ export interface AgentClient {
    */
   holdsBackgroundWork?(externalThreadId: string): Effect.Effect<boolean, ProviderClientOperationError>;
   /**
+   * Fork (docs/fork/FEATURES.md #92): how long the background work of `holdsBackgroundWork` may hold
+   * back a refresh, from its first wait. After it, the refresh closes the session anyway, and its
+   * subagents stop with a notice to the agent. Absent: the refresh waits for the work to end (#46).
+   */
+  readonly backgroundHoldLimitMs?: number;
+  /** Fork (docs/fork/FEATURES.md #92): how many background subagents run in the session, for the chat's note. */
+  runningBackgroundSubagents?(externalThreadId: string): number;
+  /**
    * Fork (docs/fork/FEATURES.md #72, "A replaced process ends its subagents"): reports the background
    * subagents that still run as stopped, because OpenBot is about to stop this process while it keeps
    * running (an account switch, a sign-out, a refresh). `stop()` alone reports nothing: at quit the

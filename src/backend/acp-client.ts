@@ -82,6 +82,7 @@ import {
 } from "./agent-client";
 import { type AgentCliInfo, cliPathEnvironment, compareReleases, isVersion } from "./cli";
 import { runCauseEffect } from "./effect-boundary";
+import { FORK_BACKGROUND_STOPPED_METHOD } from "./fork-restart-resume";
 import { IdleThreadPool } from "./idle-thread-pool";
 import { type DynamicToolNamespace, LocalMcpBridge, type LocalMcpSession } from "./local-mcp-bridge";
 import {
@@ -230,6 +231,15 @@ const ACP_BACKGROUND_WATCH_MS = 30 * 60_000;
  * the call's end, and the subagent's first approval came about 5 s later in a probe.
  */
 const ACP_SUBAGENT_SESSION_WAIT_MS = 15_000;
+
+/**
+ * Fork (FEATURES.md #92): how long running subagents with sessions of their own hold back a refresh
+ * that would close their process (an MCP or settings change). Antigravity 1.5.14 ends a subagent only
+ * when it reports (`send_message`) or is killed, so a subagent that never reports would hold the change
+ * for good. The same 30 minutes as `ACP_BACKGROUND_WATCH_MS`, the time a session already stays open
+ * for its background work with no sign of it. Test switch: `OPENBOT_ACP_SUBAGENT_HOLD_LIMIT_MS`.
+ */
+const ACP_SUBAGENT_HOLD_LIMIT_MS = 30 * 60_000;
 const ACP_SUBAGENT_SESSION_POLL_MS = 250;
 
 /**
@@ -1168,6 +1178,36 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     });
   }
 
+  /**
+   * Fork (FEATURES.md #92): a session whose subagents run as sessions of their own
+   * (`AcpFlavor.subagentSessions`, Antigravity) holds its process while one of them runs: the
+   * subagents run in the parent's process, and a release for a refresh ended them with no word to
+   * the agent. A running turn holds the session through `ThreadLifecycle` already.
+   */
+  readonly backgroundHoldLimitMs =
+    Number(process.env.OPENBOT_ACP_SUBAGENT_HOLD_LIMIT_MS) > 0
+      ? Number(process.env.OPENBOT_ACP_SUBAGENT_HOLD_LIMIT_MS)
+      : ACP_SUBAGENT_HOLD_LIMIT_MS;
+
+  readonly holdsBackgroundWork = (threadId: string): Effect.Effect<boolean, ProviderClientOperationError> =>
+    Effect.sync(() => this.#runningSessionSubagents(threadId).length > 0);
+
+  /** Fork (FEATURES.md #92): how many subagents of the session run, for the note of a refresh that waits. */
+  runningBackgroundSubagents(threadId: string): number {
+    return this.#runningSessionSubagents(threadId).length;
+  }
+
+  /**
+   * Fork (FEATURES.md #72, #92): OpenBot stops this client while it keeps running. The subagents that
+   * run as sessions of their own end with it: each card shows "stopped", and the agent gets a notice.
+   */
+  endBackgroundWork(): void {
+    for (const threadId of [...this.#threads.ids()]) {
+      this.#reportStoppedSessionSubagents(threadId, "closed");
+      this.#stopThreadSubagents(threadId);
+    }
+  }
+
   releaseIdleThreads(): Effect.Effect<void, ProviderClientOperationError> {
     return this.#threads.releaseIdle();
   }
@@ -1243,6 +1283,8 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     this: AcpAgentClient,
     thread: AcpThread,
   ): Effect.fn.Return<void, ProviderClientOperationError> {
+    // Fork (FEATURES.md #92): the subagents that run in this session's process end with it.
+    this.#reportStoppedSessionSubagents(thread.id, "closed");
     this.#stopThreadSubagents(thread.id);
     thread.mcp.close();
     yield* thread.relays;
@@ -1756,7 +1798,12 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
   ): Effect.fn.Return<AcpConnection, ProviderClientOperationError> {
     const transport: AcpConnection = this.#newTransport(() => {
       const thread = owner();
-      if (thread?.transport === transport) thread.needsResume = true;
+      if (thread?.transport !== transport) return;
+      thread.needsResume = true;
+      // Fork (FEATURES.md #92): its subagents ran in this process and ended with it. Before, their
+      // cards showed "running" with nothing behind them, and the agent waited for their reports.
+      this.#reportStoppedSessionSubagents(thread.id, "crashed");
+      this.#stopThreadSubagents(thread.id);
     });
     this.#openingSessionProcesses.add(transport);
     const startTimeout = this.#startTimeout(
@@ -4255,6 +4302,53 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
   #heldByBackgroundSubagent(thread: AcpThread): boolean {
     const since = Date.now() - ACP_WORK_HOLD_MAX_MS;
     return this.#runningBackgroundSubagents(thread).some((subagent) => Date.parse(subagent.startedAt) > since);
+  }
+
+  /**
+   * Fork (FEATURES.md #92): the running subagents of a session that run as sessions of their own
+   * (`AcpFlavor.subagentSessions`), each with its turn and the session that OpenBot resumed for it.
+   * A nested subagent shows in its top card; the first session linked to a card is the top one.
+   */
+  #runningSessionSubagents(threadId: string) {
+    // By id, not through `#threads`: a session that closes has left the pool already.
+    if (!this.#flavor.subagentSessions) return [];
+    const sessions = new Map<string, string>();
+    for (const [session, card] of this.#subagents.aliases) if (!sessions.has(card)) sessions.set(card, session);
+    return [...this.#subagentThreads]
+      .filter(([, owner]) => owner === threadId)
+      .flatMap(([turnId]) =>
+        (this.#subagents.turns.get(turnId)?.subagents ?? [])
+          .filter((subagent) => subagent.background && subagent.status === "running")
+          .map((subagent) => ({ turnId, subagent, session: sessions.get(subagent.id) ?? null })),
+      );
+  }
+
+  /**
+   * Fork (FEATURES.md #92): the process of this session ends while OpenBot runs, and the subagents
+   * that run in it stop. The agent gets a notice (`ForkRestartResume.captureStopped`), so it does not
+   * wait for their reports. OpenBot's own quit (`stop`) does not come here: the restart resume reads
+   * the subagents that still ran at the next start.
+   */
+  #reportStoppedSessionSubagents(threadId: string, cause: "closed" | "crashed"): void {
+    if (!this.running) return;
+    const running = this.#runningSessionSubagents(threadId);
+    for (const turnId of new Set(running.map((entry) => entry.turnId)))
+      this.emit("notification", {
+        method: FORK_BACKGROUND_STOPPED_METHOD,
+        params: {
+          threadId,
+          cause,
+          turnId,
+          subagents: running
+            .filter((entry) => entry.turnId === turnId)
+            .map(({ subagent, session }) => ({
+              id: subagent.id,
+              title: subagent.title,
+              providerAgentId: session,
+              prompt: subagent.prompt,
+            })),
+        },
+      });
   }
 
   #runningBackgroundSubagents(thread: AcpThread) {

@@ -185,5 +185,25 @@ export const messages = defineMessages("status.agent", {
     "⏹ Background subagent “{title}” stopped when its Claude process ended. It was not continued: {provider} did not start again in time. Write “continue the subagent” to continue it.",
   "status.agent.subagentResumeOff":
     "⏹ Background subagent “{title}” stopped when its Claude process ended. It was not continued, because /autoresume is off.",
+  // Fork: the same lines for a provider other than Claude, such as Antigravity (docs/fork/FEATURES.md #92).
+  "status.agent.processSubagentResumeWait":
+    "🔄 A background subagent stopped when its {provider} process ended. The agent is told in a few seconds. Cancel keeps it stopped.",
+  "status.agent.processSubagentResumeTookOver":
+    "⏹ Background subagent “{title}” stopped when its {provider} process ended. The agent was not told, because a new message came first. Write “continue the subagent” to continue it.",
+  "status.agent.processSubagentResumeLimit":
+    "⏹ Background subagent “{title}” stopped when its {provider} process ended. The agent was not told: subagents of this agent stopped {count} times in the last hour. Write “continue the subagent” to continue it.",
+  "status.agent.processSubagentResumeNotReady":
+    "⏹ Background subagent “{title}” stopped when its {provider} process ended. The agent was not told: {provider} did not start again in time. Write “continue the subagent” to continue it.",
+  "status.agent.processSubagentResumeOff":
+    "⏹ Background subagent “{title}” stopped when its {provider} process ended. The agent was not told, because /autoresume is off.",
+  // Fork: a refresh waits for background subagents (docs/fork/FEATURES.md #92).
+  "status.agent.refreshWaitsMcp": {
+    one: "⏳ The MCP change applies when its subagent finishes (at the latest in {minutes} min).",
+    other: "⏳ The MCP change applies when its {count} subagents finish (at the latest in {minutes} min).",
+  },
+  "status.agent.refreshWaitsSettings": {
+    one: "⏳ The settings change applies when its subagent finishes (at the latest in {minutes} min).",
+    other: "⏳ The settings change applies when its {count} subagents finish (at the latest in {minutes} min).",
+  },
   "status.agent.importedChatTitle": "Imported chat",
 });
