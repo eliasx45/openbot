@@ -530,4 +530,6 @@ export const messages = {
   "error.provider.hermesInstallFailed": "Hermes Agent לא הותקן. יש לנסות שוב, או להשתמש במדריך ההתקנה.",
   "error.provider.hermesNeedsGitCurl": "Hermes Agent צריך את git ואת curl. יש להתקין אותם ואז לנסות שוב.",
   "error.provider.registryRemoveBusy": "יש להמתין לסיום התקנת הסוכן והעבודה הפעילה של ACP לפני הסרתו.",
+  "error.provider.subagentSessionNotFound":
+    "OpenBot לא מצא סשן עבור תת-הסוכן הזה, ולכן לא יכול היה לענות לבקשות האישור שלו או להציג את עבודתו.",
 } as const satisfies PartialTranslation<typeof source>;

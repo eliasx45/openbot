@@ -41,13 +41,18 @@ import {
 import { AcpConnection, type AcpConnectionOptions } from "./acp-connection";
 import type { AcpCustomEndpoint, AcpFlavor, AcpMcpServerFailure } from "./acp-flavor";
 import {
+  failUnlinkedSessionSubagents,
   foldAcpSubagentTool,
   foldOpenCodeChildUpdate,
+  foldSessionSubagentCall,
+  foldSessionSubagentUpdate,
+  linkSessionSubagent,
   markOpenCodeBackground,
   noteOpenCodeLaunch,
   OPENCODE_CHILD_SESSION_UPDATES,
   OPENCODE_CHILD_UPDATE_METHOD,
   type OpenCodeLaunches,
+  stopSessionSubagents,
 } from "./agent/acp-subagent-updates";
 import {
   BACKGROUND_WAKE_NOTE,
@@ -3546,11 +3551,14 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       return;
     }
     // Fork: a subagent's own work stays out of the parent's chat, as before OpenBot resumed its session.
-    // Only the subagents that it starts in turn are followed.
+    // The subagents that it starts in turn are followed, and its work shows in its card (#90).
     const subagentOwner = this.#subagentSessions.get(notification.sessionId);
     if (subagentOwner !== undefined) {
       const owner = this.#threads.get(subagentOwner);
-      if (owner) this.#followSubagentSessions(owner, notification);
+      if (owner) {
+        this.#followSubagentSessions(owner, notification);
+        this.#foldSubagentSessionUpdate(owner, notification);
+      }
       return;
     }
     const thread = this.#threads.get(notification.sessionId);
@@ -4298,12 +4306,15 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       const children = yield* providerSync(() =>
         sessions
           .children(this.options.argv, parentId, toolCallId)
-          .filter((id) => !this.#subagentSessions.has(id) && !this.#threads.get(id)),
+          .filter(({ id }) => !this.#subagentSessions.has(id) && !this.#threads.get(id)),
       );
-      for (const child of children) {
+      for (const session of children) {
         // The parent's session closed or opened again elsewhere: nobody would answer for the subagent.
         if (this.#threads.get(owner.id) !== owner) return;
+        const child = session.id;
         this.#subagentSessions.set(child, owner.id);
+        // Fork (FEATURES.md #90): before the resume, so the subagent's first update finds its card.
+        linkSessionSubagent(this.#subagents, toolCallId, parentId, session);
         found += 1;
         const connection = yield* providerSync(() => this.#sessionConnection(owner));
         const request = { sessionId: child, ...owner.restore };
@@ -4315,11 +4326,21 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
         );
         if (Result.isFailure(opened)) {
           this.#subagentSessions.delete(child);
+          this.#subagents.aliases.delete(child);
           this.emit("diagnostic", this.#redact(`Subagent session resume failed: ${String(opened.failure)}`));
         }
       }
       if (found < expected) yield* Effect.sleep(ACP_SUBAGENT_SESSION_POLL_MS);
     }
+    // Fork (FEATURES.md #90): a card with no open session would show "running" with nothing behind it.
+    this.#emitSubagents(
+      failUnlinkedSessionSubagents(
+        this.#subagents,
+        toolCallId,
+        new Date().toISOString(),
+        sourceText("error.provider.subagentSessionNotFound"),
+      ),
+    );
   });
 
   /** Fork: the thread that answers for a subagent session that OpenBot resumed (`#subagentSessions`). */
@@ -4482,6 +4503,50 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       noteOpenCodeLaunch(this.#openCodeLaunches, call);
       if (call.status === "completed") this.#emitSubagents(markOpenCodeBackground(this.#subagents, call.rawOutput));
     }
+    // Fork (FEATURES.md #90): subagents that run as sessions of their own get a card from the call
+    // that starts them. Their sessions fill it (`#foldSubagentSessionUpdate`).
+    const sessions = this.#flavor.subagentSessions;
+    if (sessions) {
+      const now = new Date().toISOString();
+      if (sessions.tools.test(call.name)) {
+        this.#subagentThreads.set(turn.id, thread.id);
+        this.#emitSubagents(
+          foldSessionSubagentCall(
+            this.#subagents,
+            turn.id,
+            call,
+            sessions.launches(call.rawInput),
+            now,
+            this.#subagentParentModel(thread),
+          ),
+        );
+      } else if (call.status === "completed")
+        for (const change of stopSessionSubagents(this.#subagents, sessions.stops(call.name, call.rawInput), now))
+          this.#emitSubagents(change);
+    }
+  }
+
+  /**
+   * Fork (FEATURES.md #90): an update of a subagent session that OpenBot resumed for `owner`
+   * (`#subagentSessions`) goes to the subagent's card, not to the chat. The subagent's work keeps
+   * the parent's turn, and the hold of the parent's session for running work, alive.
+   */
+  #foldSubagentSessionUpdate(owner: AcpThread, notification: SessionNotification): void {
+    const sessions = this.#flavor.subagentSessions;
+    if (!sessions) return;
+    const now = Date.now();
+    if (owner.activeTurn) owner.activeTurn.lastActivityAt = now;
+    if (owner.workHold) owner.workHold.changedAt = now;
+    this.#emitSubagents(
+      foldSessionSubagentUpdate(
+        this.#subagents,
+        notification.sessionId,
+        owner.id,
+        notification.update,
+        (name, input) => sessions.report(name, input),
+        new Date(now).toISOString(),
+      ),
+    );
   }
 
   /**

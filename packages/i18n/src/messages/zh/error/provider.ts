@@ -498,4 +498,6 @@ export const messages = {
   "error.provider.hermesInstallFailed": "Hermes Agent 未能安装。请重试，或使用安装指南。",
   "error.provider.hermesNeedsGitCurl": "Hermes Agent 需要 git 和 curl。请先安装它们，然后重试。",
   "error.provider.registryRemoveBusy": "请等待助手安装与正在进行的 ACP 工作结束，再移除它。",
+  "error.provider.subagentSessionNotFound":
+    "OpenBot 未找到此子代理的会话，因此无法回应它的审批请求，也无法显示它的工作。",
 } as const satisfies PartialTranslation<typeof source>;

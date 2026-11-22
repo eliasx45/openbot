@@ -286,3 +286,100 @@ export const DockWithoutModels: Story = {
 
 /** Fork #78: the "N working" dock, open: each row names its model and effort. */
 export const DockWithModels: Story = { render: () => <Dock subagents={WITH_MODELS} models={true} /> };
+
+/*
+ * Fork (docs/fork/FEATURES.md #90): Antigravity (Gemini) subagents, as the cards that the ACP client
+ * makes from `invoke_subagent` calls and the subagents' own sessions: the `Role` is the title,
+ * `self` the type, and the steps are the subagent's tool calls and text. A subagent works on after
+ * the turn (`background`) and ends when it reports to its parent with `send_message`.
+ */
+const HARVEST = steps("harvest", [
+  ["read", "/Users/elias/.agents/skills/editing-harvest/SKILL.md"],
+  ["read", "/Users/elias/Developer/motion-kit/shelf/README.md"],
+  ["command", 'ffprobe -v error -show_entries stream=width,height,r_frame_rate "khizar-TL.mp4"'],
+  ["thinking", "The loop repeats every 216 frames. I extract one loop and compare the frame cadence."],
+  ["command", "python3 - khizar-TL.mp4 build/ <<'PY' … PY"],
+]);
+
+function geminiSubagent(
+  id: string,
+  title: string,
+  shown: number,
+  status: ConversationSubagent["status"],
+  startedSecondsAgo: number,
+  extra: Partial<ConversationSubagent> = {},
+): ConversationSubagent {
+  return {
+    ...subagent(id, title, HARVEST, shown, status, { agentType: "self", startedSecondsAgo, endedSecondsAgo: 2 }),
+    prompt: `Use the editing-harvest skill, harvester part (steps 1–4). Slug: ${id}.`,
+    background: true,
+    model: "gemini-4-neon",
+    ...extra,
+  };
+}
+
+const GEMINI_RUNNING: ConversationSubagent[] = [
+  geminiSubagent("khizar-TL", "Khizar TL Quadrant Harvester", 5, "running", 70),
+  geminiSubagent("khizar-TR", "Khizar TR Quadrant Harvester", 3, "running", 68),
+  geminiSubagent("khizar-BL", "Khizar BL Quadrant Harvester", 4, "running", 67),
+  geminiSubagent("khizar-BR", "Khizar BR Quadrant Harvester", 2, "running", 65),
+  geminiSubagent("sfx-bench", "Blind SFX Skill Benchmark Agent", 1, "running", 14),
+];
+
+const GEMINI_ENDED: ConversationSubagent[] = [
+  geminiSubagent("khizar-TL", "Khizar TL Quadrant Harvester", 5, "completed", 300, {
+    steps: [
+      ...HARVEST,
+      { id: "khizar-TL:result", kind: "text", text: "khizar-TL harvested: 4 components on the shelf." },
+    ],
+  }),
+  geminiSubagent("khizar-TR", "Khizar TR Quadrant Harvester", 3, "running", 298),
+  geminiSubagent("khizar-BL", "Khizar BL Quadrant Harvester", 4, "stopped", 297),
+  geminiSubagent("sfx-bench", "Blind SFX Skill Benchmark Agent", 0, "failed", 120, {
+    error: "OpenBot found no session for this subagent, so it could not answer its approvals or show its work.",
+  }),
+];
+
+const GEMINI_MODELS = subagentModelNames([{ id: "gemini-4-neon", name: "Gemini 4 Neon" }]);
+
+/** Fork #90: five Antigravity subagents that work in the background after the turn. */
+export const GeminiRunning: Story = { args: { subagents: GEMINI_RUNNING, modelNames: GEMINI_MODELS } };
+
+/** Fork #90: one reported, one works, one was stopped, and one had no session to follow. */
+export const GeminiEnded: Story = {
+  args: { subagents: GEMINI_ENDED, modelNames: GEMINI_MODELS, selectedId: "khizar-TL" },
+};
+
+/** Fork #90: the side panel of an Antigravity subagent: its task, its steps and its report. */
+export const GeminiPanel: Story = {
+  render: () => (
+    <div style={{ position: "relative", width: "420px", height: "640px", display: "flex" }}>
+      <SubagentPanel
+        subagent={GEMINI_ENDED[0]}
+        agentName="Vegapunk"
+        onClosePanel={() => undefined}
+        modelNames={GEMINI_MODELS}
+      />
+    </div>
+  ),
+};
+
+/** Fork #90: the "N working" dock with the Antigravity subagents. */
+export const GeminiDock: Story = { render: () => <GeminiDockStory /> };
+
+function GeminiDockStory() {
+  onSettled(() => focusLiveWork("chief"));
+  return (
+    <main
+      style={{ width: "min(760px, 100vw)", height: "420px", padding: "var(--openbot-space-4)", position: "relative" }}
+    >
+      <LiveWorkDock
+        items={dockItems(GEMINI_RUNNING)}
+        agentName={() => "Vegapunk"}
+        onOpenSubagent={() => undefined}
+        onReveal={() => undefined}
+        modelNames={GEMINI_MODELS}
+      />
+    </main>
+  );
+}

@@ -565,4 +565,6 @@ export const messages = {
   "error.provider.hermesNeedsGitCurl": "Hermes Agent нужны git и curl. Установите их и попробуйте ещё раз.",
   "error.provider.registryRemoveBusy":
     "Дождитесь окончания установки агента и активной работы ACP, прежде чем удалять его.",
+  "error.provider.subagentSessionNotFound":
+    "OpenBot не нашёл сеанс этого субагента, поэтому не смог ответить на его запросы одобрения и показать его работу.",
 } as const satisfies PartialTranslation<typeof source>;

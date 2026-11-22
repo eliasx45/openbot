@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { RequestError } from "@agentclientprotocol/sdk";
 import { type SourceMessages, sourceText } from "@openbot/i18n/source";
 import type { CauseCode } from "@openbot/telemetry";
-import { type AcpFlavor, shownFailureDetail } from "./acp-flavor";
+import { type AcpFlavor, type AcpSubagentLaunch, type AcpSubagentSession, shownFailureDetail } from "./acp-flavor";
 import { GEMINI_INVALID_ARGUMENT, GEMINI_INVALID_CREDENTIALS } from "./agent/provider-diagnostics";
 import { getRecord, getString, isRecord } from "./protocol";
 
@@ -281,10 +281,14 @@ const ANTIGRAVITY_SUBAGENT_WINDOW_MS = 10 * 60_000;
  * 1.5.14 answers `invoke_subagent` with no output over ACP and leaves its subagents out of
  * `session/list`. Each subagent is a conversation in `brain/<id>`, and its first message, in
  * `.system_generated/messages/<message>.json`, names the parent as `sender` and the call as
- * `sourceMetadata.tool`. Only folders that changed in the last minutes are read. A folder that
- * cannot be read is skipped.
+ * `sourceMetadata.tool`, and holds the task as its `content`. Only folders that changed in the last
+ * minutes are read. A folder that cannot be read is skipped. OpenBot never writes there.
  */
-export function antigravitySubagentSessions(argv: readonly string[], parentId: string, toolCallId: string): string[] {
+export function antigravitySubagentSessions(
+  argv: readonly string[],
+  parentId: string,
+  toolCallId: string,
+): AcpSubagentSession[] {
   const home = flagValue(argv, GEMINI_DIR_FLAG);
   const appData = flagValue(argv, APP_DATA_DIR_FLAG);
   if (!home || !appData) return [];
@@ -296,26 +300,74 @@ export function antigravitySubagentSessions(argv: readonly string[], parentId: s
   } catch {
     return [];
   }
-  return names.filter((id) => {
-    if (id === parentId) return false;
+  return names.flatMap((id): AcpSubagentSession[] => {
+    if (id === parentId) return [];
     const messages = join(brain, id, ".system_generated", "messages");
     try {
-      if (statSync(join(brain, id)).mtimeMs < since) return false;
-      return readdirSync(messages).some((file) => {
-        if (!file.endsWith(".json") || file === "read.json") return false;
+      if (statSync(join(brain, id)).mtimeMs < since) return [];
+      for (const file of readdirSync(messages)) {
+        if (!file.endsWith(".json") || file === "read.json") continue;
         const message = JSON.parse(readFileSync(join(messages, file), "utf8"));
         const tool = getRecord(getRecord(message, "sourceMetadata"), "tool");
-        return (
+        if (
           getString(message, "recipient") === id &&
           getString(message, "sender") === parentId &&
           getString(tool, "conversationId") === parentId &&
           getString(getRecord(tool, "toolCall"), "id") === toolCallId
-        );
-      });
+        )
+          return [{ id, prompt: getString(message, "content") }];
+      }
+      return [];
     } catch {
-      return false;
+      return [];
     }
   });
+}
+
+/**
+ * Fork (FEATURES.md #90): the subagents that a call starts. 1.5.14 `invoke_subagent` names one, as
+ * `{ Role, Prompt, TypeName, Model, Workspace }` (`Model` is `inherit` for the parent's model);
+ * `start_subagent` names several in its `Subagents` list, read with the same fields.
+ */
+export function antigravitySubagentLaunches(input: unknown): AcpSubagentLaunch[] {
+  if (!isRecord(input)) return [];
+  const list =
+    Array.isArray(input.Subagents) && input.Subagents.length > 0 ? input.Subagents.filter(isRecord) : [input];
+  return list.map((entry) => {
+    const prompt = getString(entry, "Prompt")?.trim() || null;
+    const model = getString(entry, "Model")?.trim();
+    return {
+      title: getString(entry, "Role")?.trim() || prompt?.split("\n", 1)[0] || "",
+      prompt,
+      agentType: getString(entry, "TypeName")?.trim() || null,
+      model: model && model !== "inherit" ? model : null,
+    };
+  });
+}
+
+/**
+ * Fork (FEATURES.md #90): a subagent reports with `send_message` `{ Recipient, Message }`; its
+ * parent gets the message and wakes. 1.5.14 sends no other end of a subagent over ACP.
+ */
+export function antigravitySubagentReport(name: string, input: unknown): { to: string; text: string } | null {
+  if (!/\bsend_message\b/u.test(name)) return null;
+  const to = getString(input, "Recipient");
+  const text = getString(input, "Message");
+  return to && text ? { to, text } : null;
+}
+
+/** Fork (FEATURES.md #90): `manage_subagents` `{ Action: "kill", ConversationIds }` stops subagents. */
+export function antigravityStoppedSubagents(name: string, input: unknown): string[] {
+  if (!/\bmanage_subagents\b/u.test(name) || getString(input, "Action") !== "kill" || !isRecord(input)) return [];
+  let ids: unknown = input.ConversationIds;
+  if (typeof ids === "string") {
+    try {
+      ids = JSON.parse(ids);
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
 }
 
 /** The CLI 1.5.6 answer for a failure of its own, such as a refused tool schema. It names no cause. */
@@ -632,7 +684,14 @@ export const ANTIGRAVITY_ACP_FLAVOR: AcpFlavor = {
   // Fork: 1.5.14 relays the approvals of a subagent only to a client that opened the subagent's
   // session. No client opened it, so each command of a `self` subagent waited for an answer that
   // never came and failed after 60 s, also for an agent at Full access.
-  subagentSessions: { tools: /\b(?:start|invoke)_subagent\b/u, children: antigravitySubagentSessions },
+  // Fork (FEATURES.md #90): the subagents also show in the subagent panel, with their steps and report.
+  subagentSessions: {
+    tools: /\b(?:start|invoke)_subagent\b/u,
+    children: antigravitySubagentSessions,
+    launches: antigravitySubagentLaunches,
+    report: antigravitySubagentReport,
+    stops: antigravityStoppedSubagents,
+  },
   // Antigravity 1.3.0 sends `usage_update` but has no ACP method or command that compacts.
   contextCompaction: "handoff",
   // Antigravity 1.4.4 starts a `localharness_external` of about 100 MB for each session and keeps it

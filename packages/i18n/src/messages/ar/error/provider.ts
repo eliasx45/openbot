@@ -530,4 +530,6 @@ export const messages = {
   "error.provider.hermesInstallFailed": "لم يُثبَّت Hermes Agent. حاول مرة أخرى، أو استخدم دليل التثبيت.",
   "error.provider.hermesNeedsGitCurl": "يحتاج Hermes Agent إلى git وcurl. ثبّتهما، ثم حاول مرة أخرى.",
   "error.provider.registryRemoveBusy": "انتظر حتى ينتهي تثبيت الوكيل وعمل ACP النشط قبل إزالته.",
+  "error.provider.subagentSessionNotFound":
+    "لم يعثر OpenBot على جلسة لهذا الوكيل الفرعي، لذلك لم يتمكن من الرد على طلبات الموافقة الخاصة به أو عرض عمله.",
 } as const satisfies PartialTranslation<typeof source>;

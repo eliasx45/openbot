@@ -50,6 +50,20 @@ export interface AcpMcpServerFailure {
   readonly reason: string;
 }
 
+/** Fork: a subagent session that a call started (`AcpFlavor.subagentSessions`), with the task it got. */
+export interface AcpSubagentSession {
+  readonly id: string;
+  readonly prompt: string | null;
+}
+
+/** Fork (FEATURES.md #90): one subagent that a call starts, as its arguments name it. */
+export interface AcpSubagentLaunch {
+  readonly title: string;
+  readonly prompt: string | null;
+  readonly agentType: string | null;
+  readonly model: string | null;
+}
+
 /**
  * What one ACP agent does differently from the protocol. `AcpAgentClient` reads each hook at the
  * place that the agent's behavior changes; an absent hook is the protocol's own behavior. Add a hook
@@ -315,11 +329,17 @@ export interface AcpFlavor {
    * name over ACP. It asks for their approvals only on a connection that opened their session, so
    * OpenBot resumes each one on the parent's connection and answers for it as for the parent.
    * `tools` matches the name of a call that starts subagents; `children` names the sessions that the
-   * call `toolCallId` of session `parentId` started.
+   * call `toolCallId` of session `parentId` started, with the task that each one got.
+   * Fork (FEATURES.md #90): each subagent also shows in the subagent panel. `launches` reads the
+   * subagents that a call starts from its arguments; `report` reads a subagent's call that reports
+   * to the session `to`, which ends the subagent; `stops` names the subagent sessions that a call stops.
    */
   subagentSessions?: {
     tools: RegExp;
-    children(argv: readonly string[], parentId: string, toolCallId: string): string[];
+    children(argv: readonly string[], parentId: string, toolCallId: string): AcpSubagentSession[];
+    launches(input: unknown): AcpSubagentLaunch[];
+    report(name: string, input: unknown): { to: string; text: string } | null;
+    stops(name: string, input: unknown): string[];
   };
   /** Each answer message has its own `messageId`, so text of a new ID is a new message, not more text. */
   messagePerId?: true;

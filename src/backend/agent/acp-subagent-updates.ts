@@ -1,5 +1,6 @@
-import type { ConversationSubagentStepKind } from "@openbot/contracts/ipc";
+import type { ConversationSubagent, ConversationSubagentStepKind } from "@openbot/contracts/ipc";
 import { type DynamicRecord, isString } from "@openbot/contracts/runtime-values";
+import type { AcpSubagentLaunch } from "../acp-flavor";
 import { isRecord } from "../protocol";
 import {
   dropSubagent,
@@ -318,6 +319,22 @@ export function foldOpenCodeChildUpdate(
       ? subagentChange(state, state.turnOf.get(id))
       : null;
   }
+  return foldSubagentChunk(state, id, subagent, `${id}:`, update, now);
+}
+
+/**
+ * Applies an ACP text or thinking chunk of a subagent's own session to its card. Text and thinking
+ * stream; the list is sent when a step starts, not for each chunk. `prefix` keeps apart the streams
+ * of sessions that share one card.
+ */
+function foldSubagentChunk(
+  state: SubagentState,
+  id: string,
+  subagent: ConversationSubagent,
+  prefix: string,
+  update: DynamicRecord,
+  now: string,
+): SubagentChange | null {
   const kind =
     update.sessionUpdate === "agent_message_chunk"
       ? "text"
@@ -329,10 +346,10 @@ export function foldOpenCodeChildUpdate(
   const streams = state.streams.get(id) ?? new Map<string, string>();
   state.streams.set(id, streams);
   // Without a message id, a chunk continues the open step of its kind. A tool call closes it.
-  const prefix = `${id}:${kind}:`;
+  const kindPrefix = `${prefix}${kind}:`;
   const stepId = isString(update.messageId)
-    ? `${prefix}${update.messageId}`
-    : ([...streams.keys()].find((key) => key.startsWith(prefix)) ?? `${prefix}${now}`);
+    ? `${kindPrefix}${update.messageId}`
+    : ([...streams.keys()].find((key) => key.startsWith(kindPrefix)) ?? `${kindPrefix}${now}`);
   const previous = streams.get(stepId) ?? "";
   // A step shows only the start of its text, so a long stream stops growing.
   if (previous.length >= OPENCODE_STREAM_LIMIT) return null;
@@ -340,6 +357,179 @@ export function foldOpenCodeChildUpdate(
   const started = !subagent.steps.some((step) => step.id === stepId);
   const pushed = pushSubagentStep(subagent, { id: stepId, kind, text: previous + chunk });
   return pushed && started ? subagentChange(state, state.turnOf.get(id)) : null;
+}
+
+/** Fork (FEATURES.md #90): the card id of the `index`th of the `count` subagents that a call starts. */
+function sessionSubagentId(callId: string, index: number, count: number): string {
+  return count === 1 ? callId : `${callId}:${index}`;
+}
+
+/** Fork (FEATURES.md #90): the cards of the subagents that the call `callId` started. */
+function sessionSubagentCards(state: SubagentState, callId: string): ConversationSubagent[] {
+  return [...state.turns.values()]
+    .flatMap((turn) => turn.subagents)
+    .filter((subagent) => subagent.id === callId || subagent.id.startsWith(`${callId}:`));
+}
+
+/**
+ * Fork (FEATURES.md #90): applies a call that starts subagents that run as sessions of their own
+ * (`AcpFlavor.subagentSessions`), such as Antigravity's `invoke_subagent`. The call completes at once
+ * and each subagent works on after it, also after the turn, so each card is a background subagent
+ * that runs until it reports, is stopped, or its session ends. A failed call starts none.
+ */
+export function foldSessionSubagentCall(
+  state: SubagentState,
+  turnId: string,
+  call: AcpSubagentToolCall,
+  launches: readonly AcpSubagentLaunch[],
+  now: string,
+  parent?: SubagentModelPick,
+): SubagentChange | null {
+  let change: SubagentChange | null = null;
+  for (const [index, launch] of launches.entries()) {
+    const id = sessionSubagentId(call.id, index, launches.length);
+    const existing = subagentFor(state, id);
+    if (!existing) {
+      if (call.status === "failed") continue;
+      change =
+        startSubagent(state, turnId, {
+          id,
+          title: launch.title,
+          agentType: launch.agentType,
+          prompt: launch.prompt,
+          status: "running",
+          startedAt: now,
+          endedAt: null,
+          steps: [],
+          error: null,
+          background: true,
+          ...subagentModelFields({ model: launch.model }, parent),
+        }) ?? change;
+    } else if (
+      call.status === "failed" &&
+      endSubagent(existing, "failed", now, resultText(call.rawOutput, call.content) || null)
+    )
+      change = subagentChange(state, state.turnOf.get(id)) ?? change;
+  }
+  return change;
+}
+
+/**
+ * Fork (FEATURES.md #90): ties the session of a subagent that the call `callId` of session
+ * `parentId` started to its card: the card with the same task, else the first card of the call with
+ * no session. A subagent of a subagent shows its work in the card of its top subagent. Returns false
+ * when there is no card for it.
+ */
+export function linkSessionSubagent(
+  state: SubagentState,
+  callId: string,
+  parentId: string,
+  session: { id: string; prompt: string | null },
+): boolean {
+  const top = state.aliases.get(parentId);
+  if (top !== undefined) {
+    state.aliases.set(session.id, top);
+    return true;
+  }
+  const linked = new Set(state.aliases.values());
+  const free = sessionSubagentCards(state, callId).filter((card) => !linked.has(card.id));
+  const prompt = session.prompt?.trim();
+  const card = free.find((candidate) => prompt && candidate.prompt?.trim() === prompt) ?? free[0];
+  if (!card) return false;
+  state.aliases.set(session.id, card.id);
+  return true;
+}
+
+/**
+ * Fork (FEATURES.md #90): ends the cards of the call `callId` that got no session. OpenBot then can
+ * neither answer the subagent's approvals nor follow its work, and the agent's own approval wait
+ * fails its commands (FEATURES.md #84).
+ */
+export function failUnlinkedSessionSubagents(
+  state: SubagentState,
+  callId: string,
+  now: string,
+  error: string,
+): SubagentChange | null {
+  const linked = new Set(state.aliases.values());
+  let change: SubagentChange | null = null;
+  for (const card of sessionSubagentCards(state, callId))
+    if (!linked.has(card.id) && endSubagent(card, "failed", now, error))
+      change = subagentChange(state, state.turnOf.get(card.id)) ?? change;
+  return change;
+}
+
+/** Fork (FEATURES.md #90): ends the cards of the subagent sessions that the agent stopped. */
+export function stopSessionSubagents(
+  state: SubagentState,
+  sessionIds: readonly string[],
+  now: string,
+): SubagentChange[] {
+  const turnIds = new Set<string>();
+  for (const sessionId of sessionIds) {
+    const id = state.aliases.get(sessionId);
+    const card = id === undefined ? undefined : subagentFor(state, id);
+    if (id !== undefined && card && endSubagent(card, "stopped", now)) {
+      state.streams.delete(id);
+      const turnId = state.turnOf.get(id);
+      if (turnId) turnIds.add(turnId);
+    }
+  }
+  return [...turnIds].flatMap((turnId) => subagentChange(state, turnId) ?? []);
+}
+
+/** Fork (FEATURES.md #90): the argument that a step of a subagent session shows, before the call's title. */
+const SESSION_STEP_FIELDS = ["CommandLine", "Path", "AbsolutePath", "TargetFile", "Url", "Query", "command", "path"];
+
+/**
+ * Fork (FEATURES.md #90): applies an update of a subagent's own session, which OpenBot resumed on its
+ * parent's connection (`AcpFlavor.subagentSessions`), to the subagent's card: its tool calls, text
+ * and thinking are its steps. `report` reads a call that reports to a session; a report to `ownerId`,
+ * the session of the agent that started the subagent, ends the card with the report as its last
+ * step. A report of a nested subagent to its own parent is a step. A new tool call after the report
+ * runs the card again.
+ */
+export function foldSessionSubagentUpdate(
+  state: SubagentState,
+  sessionId: string,
+  ownerId: string,
+  update: unknown,
+  report: (name: string, input: unknown) => { to: string; text: string } | null,
+  now: string,
+): SubagentChange | null {
+  const id = state.aliases.get(sessionId);
+  const subagent = id === undefined ? undefined : subagentFor(state, id);
+  if (id === undefined || !subagent || !isRecord(update)) return null;
+  const turnId = state.turnOf.get(id);
+  if (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update")
+    return subagent.status === "running" ? foldSubagentChunk(state, id, subagent, `${sessionId}:`, update, now) : null;
+  if (!isString(update.toolCallId)) return null;
+  const title = isString(update.title) ? update.title : "";
+  const name = isString(update.name) ? update.name : title;
+  const input = isRecord(update.rawInput) ? update.rawInput : null;
+  const sent = report(name, input);
+  if (sent?.to === ownerId) {
+    if (update.status !== "completed" || subagent.status !== "running") return null;
+    state.streams.delete(id);
+    pushSubagentReport(subagent, sent.text);
+    endSubagent(subagent, "completed", now);
+    return subagentChange(state, turnId);
+  }
+  let reopened = false;
+  if (subagent.status !== "running") {
+    if (update.sessionUpdate !== "tool_call") return null;
+    subagent.status = "running";
+    subagent.endedAt = null;
+    subagent.error = null;
+    reopened = true;
+  }
+  const previous = subagent.steps.find((step) => step.id === update.toolCallId);
+  const kind = update.kind === undefined && previous ? previous.kind : acpStepKind(update.kind);
+  const text = firstString(input, SESSION_STEP_FIELDS) ?? (title || name || previous?.text || "");
+  if (!reopened && previous && previous.kind === kind && previous.text === text.trim()) return null;
+  state.streams.get(id)?.clear();
+  const pushed = pushSubagentStep(subagent, { id: update.toolCallId, kind, text });
+  return pushed || reopened ? subagentChange(state, turnId) : null;
 }
 
 /** The launch whose description is the child session's title, which it then leaves the list. */
