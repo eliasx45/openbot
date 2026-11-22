@@ -27,7 +27,7 @@ import { AccountUsageDetails, AccountUsageWindowList } from "@openbot/ui/feature
 import type { AccountUsageProviderRow } from "@openbot/ui/features/account/account-usage-view";
 import { useText } from "@openbot/ui/text";
 import { Dynamic, type JSX } from "@solidjs/web";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, onSettled, Show } from "solid-js";
 
 /** An item of the right-click menu of a rail button. */
 interface RailMenuItem {
@@ -156,6 +156,45 @@ export interface CustomAgentUsageRailRow {
 }
 
 /**
+ * Fork #86: when the provider columns of the usage card wrap onto more rows, CSS keeps the card as wide
+ * as the room it had, with an empty strip on the right. This box narrows the card to its widest row of
+ * columns, again after each size change.
+ */
+function UsageCardSummary(props: { children: JSX.Element }) {
+  let summary: HTMLDivElement | undefined;
+  const fit = () => {
+    const card = summary?.parentElement;
+    if (!summary || !card) return;
+    card.style.removeProperty("width");
+    // Sub-pixel edges, divided by the open motion's scale; offset* sizes round and can wrap the last column.
+    const box = card.getBoundingClientRect();
+    const scale = box.width / card.offsetWidth || 1;
+    let right = 0;
+    for (const child of summary.children) {
+      if (child instanceof HTMLElement && child.tagName !== "HEADER")
+        right = Math.max(right, (child.getBoundingClientRect().right - box.left) / scale);
+    }
+    const style = getComputedStyle(card);
+    const width =
+      Math.ceil(right + Number.parseFloat(style.paddingRight) + Number.parseFloat(style.borderRightWidth)) + 1;
+    if (right > 0 && width < card.offsetWidth) card.style.width = `${width}px`;
+  };
+  onSettled(() => {
+    const element = summary;
+    if (!element) return;
+    const observer = new ResizeObserver(fit);
+    observer.observe(element);
+    for (const child of element.children) observer.observe(child);
+    return () => observer.disconnect();
+  });
+  return (
+    <div class="window-rail-usage-summary" ref={(element) => (summary = element)}>
+      {props.children}
+    </div>
+  );
+}
+
+/**
  * Fork: one usage button for all providers, not one ring per provider (Elias, 6 Nov 2026: the stack
  * of rings was distracting). The button is a plain gauge icon with no rings. The hover card has one
  * column per provider (Claude, ChatGPT…), side by side; each column stacks the accounts of that
@@ -194,10 +233,7 @@ function UsageButton(props: {
     <RailButton
       label={label()}
       card={() => (
-        <div
-          class="window-rail-usage-summary"
-          style={{ "--rail-usage-columns": String(Math.max(1, groups().length + props.customAgents.length)) }}
-        >
+        <UsageCardSummary>
           <header class="account-usage-popover-header">
             <div class="account-usage-popover-heading">
               <Gauge aria-hidden="true" />
@@ -227,7 +263,7 @@ function UsageButton(props: {
               </div>
             )}
           </For>
-        </div>
+        </UsageCardSummary>
       )}
       onClick={props.onOpen}
     >

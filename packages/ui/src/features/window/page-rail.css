@@ -332,26 +332,56 @@
 }
 
 /* Fork: its hover card has one column per provider, side by side; each column stacks that
- * provider's accounts. Then the custom agents. One heading over all columns. */
+ * provider's accounts. Then the custom agents. One heading over all columns.
+ * Fork #86: every column is as wide as its longest name or limit line, so no label, percent or reset
+ * time is cut. The card grows up to the room the window has right of the rail, then the columns wrap
+ * onto more rows; when those are taller than the window, the card scrolls as a whole. */
 .account-usage-popover.window-rail-usage-card {
   width: max-content;
-  max-width: calc(100vw - var(--openbot-space-8));
+  max-width: var(--kb-popper-content-available-width, calc(100vw - var(--openbot-space-8)));
+  max-height: var(--kb-popper-content-available-height, calc(100vh - var(--openbot-space-8)));
 }
 
 .window-rail-usage-summary {
-  display: grid;
-  align-items: start;
+  display: flex;
+  min-height: 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: var(--openbot-space-2) var(--openbot-space-3);
-  grid-template-columns: repeat(var(--rail-usage-columns, 1), max-content);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.window-rail-usage-summary::-webkit-scrollbar {
+  display: none;
 }
 
 .window-rail-usage-summary > .account-usage-popover-header {
-  grid-column: 1 / -1;
+  flex: 0 0 100%;
 }
 
 .window-rail-usage-column {
   display: grid;
-  width: 240px;
+  flex: 0 0 auto;
+  min-width: 240px;
+  max-width: 100%;
+}
+
+/* The label column takes its longest label, never less, and the list does not clip its own width.
+ * An account name wraps only when it is wider than the card can grow. Nothing gets an ellipsis. */
+.window-rail-usage-card .account-usage-providers {
+  grid-template-columns: auto max-content minmax(var(--openbot-space-8), 1fr) max-content max-content;
+  overflow: visible;
+}
+
+.window-rail-usage-card :is(.account-usage-window-label, .account-usage-provider-name, .account-usage-provider-meta) {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.window-rail-usage-card :is(.account-usage-provider-name, .account-usage-provider-meta) {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .window-rail-usage-column .account-usage-popover-header {

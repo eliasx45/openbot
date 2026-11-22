@@ -97,6 +97,75 @@ const manyAccountRows = accountUsageProviderRows(
   ],
 );
 
+const emailAccount = (id: string, email: string) =>
+  ({ id, label: "", email, state: "connected", message: null }) as const;
+const resetIn = (usedPercent: number, minutes: number) => ({
+  usedPercent,
+  windowDurationMins: 300,
+  resetsAt: nowSeconds + minutes * 60,
+});
+const weekIn = (usedPercent: number, minutes: number) => ({
+  usedPercent,
+  windowDurationMins: 10_080,
+  resetsAt: nowSeconds + minutes * 60,
+});
+/** Antigravity's quota groups: four lines with long names, as Gemini reports them. */
+const geminiGroups = (used: number) => [
+  { name: "Gemini Pro", models: ["Gemini 3 Pro"], primary: resetIn(used, 297), secondary: weekIn(used + 9, 10_020) },
+  { name: "Gemini Flash", models: ["Gemini 3 Flash"], primary: resetIn(used + 4, 31), secondary: null },
+  { name: "Claude and GPT models", models: [], primary: null, secondary: weekIn(used + 20, 10_020) },
+];
+const fitProviders = (extra: { claude?: string[]; codex?: string[]; antigravity?: string[] } = {}) =>
+  (["claude", "codex", "antigravity"] as const).map((id) => ({
+    id,
+    state: "available",
+    accounts: [
+      emailAccount("default", id === "codex" ? "studio@example.com" : "elias@example.com"),
+      ...(extra[id] ?? []).map((email, index) => emailAccount(`${id[0]}${index}`, email)),
+    ],
+  }));
+
+/**
+ * Fork #86: long limit names (Gemini's four quota groups), a very long email, a provider with one line
+ * and resets such as "6d 23h". Every card is as wide as its text: no "…", no cut reset time.
+ */
+const fullTextRows = accountUsageProviderRows(
+  {
+    limits: [
+      { id: "claude", primary: resetIn(12, 297), secondary: weekIn(33, 10_020) },
+      { id: "codex", primary: null, secondary: weekIn(8, 10_020) },
+      { id: "antigravity", primary: resetIn(20, 297), secondary: null, groups: geminiGroups(20) },
+      { id: "antigravity", accountId: "a0", primary: resetIn(61, 31), secondary: null, groups: geminiGroups(61) },
+    ],
+  },
+  fitProviders({
+    claude: ["team@example.com"],
+    codex: ["work@example.com"],
+    antigravity: ["elias.blikko.motion.design.studio.long.address@workspace-example.com"],
+  }),
+);
+
+/** Fork #86: eight accounts over three providers, with the long lines of `fullTextRows`. */
+const fullTextManyRows = accountUsageProviderRows(
+  {
+    limits: [
+      { id: "claude", primary: resetIn(12, 297), secondary: weekIn(33, 10_020) },
+      { id: "claude", accountId: "c0", primary: resetIn(91, 31), secondary: weekIn(64, 3_000) },
+      { id: "claude", accountId: "c1", primary: resetIn(5, 200), secondary: weekIn(20, 9_000) },
+      { id: "codex", primary: null, secondary: weekIn(8, 10_020) },
+      { id: "codex", accountId: "c0", primary: resetIn(45, 120), secondary: weekIn(58, 7_000) },
+      { id: "codex", accountId: "c1", primary: resetIn(70, 40), secondary: weekIn(81, 2_000) },
+      { id: "antigravity", primary: resetIn(20, 297), secondary: null, groups: geminiGroups(20) },
+      { id: "antigravity", accountId: "a0", primary: resetIn(61, 31), secondary: null, groups: geminiGroups(61) },
+    ],
+  },
+  fitProviders({
+    claude: ["team-account@example.com", "client.production.account@agency-example.com"],
+    codex: ["work@example.com", "freelance.jobs@example.com"],
+    antigravity: ["elias.blikko.motion.design.studio.long.address@workspace-example.com"],
+  }),
+);
+
 /** An example answer. Each agent writes its own text, which the card shows as it is. */
 const customAgentUsage: CustomAgentUsageRailRow[] = [
   { id: "devin", name: "Devin", text: "Plan: Team\nACUs used this cycle: 42 of 250\nThe cycle resets in 12 days." },
@@ -225,6 +294,16 @@ export const SharedQuota: Story = {
  */
 export const ManyAccounts: Story = {
   args: { usageRows: manyAccountRows },
+};
+
+/** Fork #86: hover the gauge. Each card shows its whole account name, limit names, percent and reset time. */
+export const UsageFullText: Story = {
+  args: { usageRows: fullTextRows },
+};
+
+/** Fork #86: eight accounts and a custom agent. In a narrow window the columns wrap onto more rows. */
+export const UsageFullTextManyAccounts: Story = {
+  args: { usageRows: fullTextManyRows, customAgentUsage },
 };
 
 /** The web client: no macOS window buttons, so the logo in the top row links to the OpenBot site. */
