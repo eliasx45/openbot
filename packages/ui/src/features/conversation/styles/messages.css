@@ -2264,6 +2264,24 @@ button.chat-action-target:active,
   pointer-events: auto;
 }
 
+/* A small video (one the user sends is about 190 px wide) has no room for every value: the width ×
+   height goes first, then the size, so the name keeps a few letters and nothing runs past the edge. */
+.media-stage-details:has(> .media-speed) {
+  container: media-stage-details / inline-size;
+}
+
+@container media-stage-details (width < 272px) {
+  .media-speed ~ .image-generation-spec ~ .image-generation-spec {
+    display: none;
+  }
+}
+
+@container media-stage-details (width < 190px) {
+  .media-speed ~ .image-generation-spec {
+    display: none;
+  }
+}
+
 .media-speed .ui-button {
   height: 22px;
   border-radius: var(--openbot-radius-sm);
