@@ -45,6 +45,8 @@ export function SidebarAgentSection(sectionProps: { sectionId: string; depth: nu
   /**
    * While a filter is set, a folder that shows only for a folder in it has no header: the header of
    * the inner folder names the chats. It does not collapse then, because nothing could open it.
+   * Fork (FEATURES.md #96): it is marked `data-headless` then, so it does not indent its body on a
+   * tree line either.
    */
   const headed = () =>
     (Boolean(custom()) || props.layout.sections.length > 0) && !(listFiltered() && custom() && chats().length === 0);
@@ -61,6 +63,7 @@ export function SidebarAgentSection(sectionProps: { sectionId: string; depth: nu
         aria-label={custom() ? sectionLabel(sectionId()) : name()}
         data-section-id={sectionId()}
         data-depth={custom() ? String(sectionProps.depth) : undefined}
+        data-headless={headed() ? undefined : ""}
       >
         <Show when={headed()}>
           <SidebarSectionHeader sectionId={sectionId()} name={name()} depth={sectionProps.depth} />

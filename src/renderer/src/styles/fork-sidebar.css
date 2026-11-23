@@ -92,3 +92,59 @@
   width: 28px;
   height: 28px;
 }
+
+/* Fork (docs/fork/FEATURES.md #96, "Subfolders sit on a tree line"): everything in an open folder - its
+ * chats, channels and folders - is indented one 16px step, and a thin muted guide line runs from under
+ * the folder header down its content, as in Finder or VS Code. A folder in a folder repeats the step,
+ * so its line sits inside its parent's. The line is in the middle of the step, which at 16px puts it
+ * in line with the folder name (the header's 7px padding and 1px border). Upstream's folders do not
+ * indent and name their parent instead (`app-shell.css`, "folders"); the header now names it only
+ * while a filter hides the parent's header, and such a headless folder (`data-headless`) does not
+ * indent either. The compact rail has no tree. */
+.sidebar:not(.sidebar-compact) {
+  --sidebar-tree-indent: var(--openbot-space-4);
+}
+
+.sidebar:not(.sidebar-compact)
+  .sidebar-folder:not([data-headless])
+  > .sidebar-section-collapse
+  > .sidebar-section-body {
+  position: relative;
+  padding-inline-start: var(--sidebar-tree-indent);
+}
+
+.sidebar:not(.sidebar-compact)
+  .sidebar-folder:not([data-headless])
+  > .sidebar-section-collapse
+  > .sidebar-section-body::before {
+  position: absolute;
+  top: var(--openbot-space-1);
+  bottom: var(--openbot-space-1);
+  inset-inline-start: calc(var(--sidebar-tree-indent) / 2 - 1px);
+  width: 1px;
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-border-strong);
+  content: "";
+  pointer-events: none;
+}
+
+/* In a narrow sidebar (the width at which rows drop their time) each step is 10px, so a folder three
+ * levels deep still leaves its rows room for a name. The line stays in the middle of the step. */
+@container (max-width: 210px) {
+  .sidebar:not(.sidebar-compact) .sidebar-folder {
+    --sidebar-tree-indent: 10px;
+  }
+}
+
+/* A closed or empty folder has no rows under its header, so the folder's part of the drop outline
+ * (`top: 32px` in `app-shell.css`) has no height and the outline lost its bottom edge. Its header
+ * draws the whole box then, at the folder's indent. */
+.sidebar:not(.sidebar-compact)
+  .sidebar-folder.sidebar-section-agent-drop-target:is(
+    :has(> .sidebar-section-collapse[data-collapsed]),
+    :has(> .sidebar-section-collapse > .sidebar-section-body:empty)
+  )
+  > header::before {
+  border-radius: var(--openbot-radius-md);
+  box-shadow: inset 0 0 0 1px var(--sidebar-drop-outline);
+}
