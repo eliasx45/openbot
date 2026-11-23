@@ -62,7 +62,7 @@ import {
 } from "./agent/developer-instructions";
 import type { GeneratedMediaKind } from "./agent/image-generation";
 import { acpPlanSteps, PLAN_UPDATED_METHOD } from "./agent/plan-updates";
-import { elicitationFieldQuestions, elicitationValue } from "./agent/prompts";
+import { elicitationContent, elicitationFieldQuestions } from "./agent/prompts";
 import { ROUTINE_NO_UPDATE_TOOL } from "./agent/routine-quiet-runs";
 import {
   endSubagentTurn,
@@ -5149,7 +5149,6 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     this: AcpAgentClient,
     params: CreateElicitationRequest,
   ): Effect.fn.Return<CreateElicitationResponse, ProviderClientOperationError> {
-    const properties = getRecord(getRecord(params, "requestedSchema"), "properties") ?? {};
     const questions = elicitationFieldQuestions(params, "ACP");
     if (questions.length === 0) {
       questions.push({
@@ -5163,12 +5162,15 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     const result = yield* this.#requestUserInput("session/elicitation", { ...params, questions });
     const answers = isRecord(result.answers) ? result.answers : null;
     if (!answers) return { action: "decline" };
-    const content: Record<string, ElicitationContentValue> = {};
-    for (const [id, answerValue] of Object.entries(answers)) {
-      const answer = isRecord(answerValue) ? getArray(answerValue, "answers").filter(isString) : [];
-      if (answer.length === 0) continue;
-      content[id] = elicitationValue(isRecord(properties[id]) ? properties[id] : undefined, answer);
-    }
+    const content: Record<string, ElicitationContentValue> = elicitationContent(
+      getRecord(params, "requestedSchema"),
+      Object.fromEntries(
+        Object.entries(answers).map(([id, value]) => [
+          id,
+          isRecord(value) ? getArray(value, "answers").filter(isString) : [],
+        ]),
+      ),
+    );
     return yield* providerCall(() =>
       Object.keys(content).length > 0 ? { action: "accept", content } : { action: "decline" },
     );

@@ -82,6 +82,48 @@ const multiSelectQuestion: AgentPromptQuestion[] = [
   },
 ];
 
+/**
+ * Antigravity's `ask_question` as OpenBot maps its elicitation (FEATURES #93): each field title is the
+ * question, its `<id>_other` field is the "Something else" answer, and an array field is a multi-select.
+ */
+const antigravityQuestions: AgentPromptQuestion[] = [
+  {
+    id: "q1",
+    header: "Which color?",
+    question: "Which color?",
+    detail: "The agent has 3 questions.",
+    isSecret: false,
+    options: [
+      { label: "Red", description: "" },
+      { label: "Green", description: "" },
+      { label: "Blue", description: "" },
+    ],
+  },
+  {
+    id: "q2",
+    header: "Which fruits do you like?",
+    question: "Which fruits do you like?",
+    isSecret: false,
+    multiSelect: true,
+    options: [
+      { label: "Apple", description: "" },
+      { label: "Banana", description: "" },
+      { label: "Cherry", description: "" },
+      { label: "Durian", description: "" },
+    ],
+  },
+  {
+    id: "q3",
+    header: "What is your name?",
+    question: "What is your name?",
+    isSecret: false,
+    options: [
+      { label: "Anonymous", description: "" },
+      { label: "Prefer not to say", description: "" },
+    ],
+  },
+];
+
 const secretQuestion: AgentPromptQuestion[] = [
   {
     id: "token",
@@ -170,6 +212,10 @@ export const CustomAnswer: Story = {
 
 export const MultiSelect: Story = {
   args: { questions: multiSelectQuestion },
+};
+
+export const AntigravityQuestions: Story = {
+  args: { questions: antigravityQuestions },
 };
 
 export const SecretAnswer: Story = {

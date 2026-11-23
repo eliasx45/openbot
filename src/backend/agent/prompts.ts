@@ -42,20 +42,56 @@ export type ElicitationFieldValue = string | number | boolean | string[];
 
 export function secretElicitationField(id: string, property: DynamicRecord | undefined): boolean {
   if (property?.writeOnly === true || getString(property, "format") === "password") return true;
+  // A field with choices takes one of them, not a credential. Its title can be a whole question, such
+  // as Antigravity's "How many tokens …?", which the name pattern would take for a secret.
+  if (property && elicitationChoices(property) !== null) return false;
   return SECRET_FIELD_PATTERN.test(`${id} ${getString(property, "title") ?? ""}`);
 }
 
-function elicitationOptions(property: DynamicRecord): Array<{ label: string; description: string }> | null {
-  if (Array.isArray(property.oneOf)) {
-    return property.oneOf.filter(isRecord).flatMap((option) => {
-      const value = getString(option, "const");
-      if (!value) return [];
-      return [{ label: getString(option, "title") ?? value, description: getString(option, "description") ?? "" }];
+interface ElicitationChoice {
+  /** What the response carries: the `const` or the `enum` value. */
+  value: string | number;
+  /** What the card shows and submits: the `title` (or `enumNames`) when the schema gives one. */
+  label: string;
+  description: string;
+}
+
+/**
+ * The choices of a field, or null when it has none. A choice list is `oneOf`/`anyOf` of `const` +
+ * `title`, or `enum` (with the older `enumNames`). An array field takes them from its `items`: it is a
+ * multi-select, as MCP's `{type: "array", items: {anyOf}}` and Antigravity's `ask_question` send it.
+ */
+function elicitationChoices(property: DynamicRecord): ElicitationChoice[] | null {
+  const source = property.type === "array" ? getRecord(property, "items") : property;
+  if (!source) return null;
+  const listed = Array.isArray(source.oneOf) ? source.oneOf : Array.isArray(source.anyOf) ? source.anyOf : null;
+  if (listed) {
+    return listed.filter(isRecord).flatMap((option) => {
+      const value = option.const;
+      if (!(isString(value) && value) && typeof value !== "number") return [];
+      return [
+        {
+          value,
+          label: getString(option, "title") ?? String(value),
+          description: getString(option, "description") ?? "",
+        },
+      ];
     });
   }
-  if (Array.isArray(property.enum)) {
-    return property.enum.filter(isString).map((value) => ({ label: value, description: "" }));
+  if (Array.isArray(source.enum)) {
+    const names = Array.isArray(source.enumNames) ? source.enumNames : [];
+    return source.enum.flatMap((value, index) =>
+      isString(value) || typeof value === "number"
+        ? [{ value, label: isString(names[index]) ? names[index] : String(value), description: "" }]
+        : [],
+    );
   }
+  return null;
+}
+
+function elicitationOptions(property: DynamicRecord): Array<{ label: string; description: string }> | null {
+  const choices = elicitationChoices(property);
+  if (choices) return choices.map(({ label, description }) => ({ label, description }));
   if (property.type === "boolean") {
     return [
       { label: "Yes", description: "" },
@@ -65,23 +101,86 @@ function elicitationOptions(property: DynamicRecord): Array<{ label: string; des
   return null;
 }
 
+/**
+ * The card submits the displayed labels, which are the titles when the schema names them: the
+ * response must carry the consts the schema asked for instead. An array field gets an array.
+ */
 export function elicitationValue(property: DynamicRecord | undefined, answers: string[]): ElicitationFieldValue {
   if (!property) return answers[0] ?? "";
-  if (property.type === "array") return answers;
+  const choices = elicitationChoices(property) ?? [];
+  // MCP and ACP carry a multi-select as an array of strings.
+  if (property.type === "array")
+    return answers.map((answer) => String(choices.find((choice) => choice.label === answer)?.value ?? answer));
   if (property.type === "boolean") return /^(yes|true|1)$/i.test(answers[0] ?? "");
-  if (Array.isArray(property.oneOf)) {
-    // The card submits the displayed label, which is the title when the schema names one: the
-    // response must carry the const the schema asked for instead.
-    const selected = property.oneOf
-      .filter(isRecord)
-      .find((option) => (getString(option, "title") ?? getString(option, "const")) === answers[0]);
-    if (selected) return getString(selected, "const") ?? answers[0] ?? "";
-  }
+  const selected = choices.find((choice) => choice.label === answers[0]);
+  if (selected) return selected.value;
   if (property.type === "number" || property.type === "integer") {
     const parsed = Number(answers[0]);
     return Number.isFinite(parsed) ? parsed : (answers[0] ?? "");
   }
   return answers[0] ?? "";
+}
+
+/** The free-text sibling of a choice field: Antigravity's `ask_question` adds `<id>_other` to each question. */
+const OTHER_FIELD_SUFFIX = "_other";
+
+/**
+ * The fields that are the typed answer of another field: `<id>_other`, a plain text field next to a
+ * field `<id>` with choices. The card shows them on the page of `<id>`, as its "Something else" answer,
+ * so they make no page of their own. Maps the free-text field to its choice field.
+ */
+function elicitationOtherFields(properties: DynamicRecord): Map<string, string> {
+  const folded = new Map<string, string>();
+  for (const [id, property] of Object.entries(properties)) {
+    if (!id.endsWith(OTHER_FIELD_SUFFIX) || !isRecord(property)) continue;
+    const baseId = id.slice(0, -OTHER_FIELD_SUFFIX.length);
+    const base = properties[baseId];
+    if (!isRecord(base) || elicitationChoices(base) === null) continue;
+    if ((property.type !== undefined && property.type !== "string") || elicitationChoices(property) !== null) continue;
+    folded.set(id, baseId);
+  }
+  return folded;
+}
+
+/**
+ * The response content for the card's answers, by question id. For a choice field with a `<id>_other`
+ * sibling, the picked labels become the field's consts and a typed answer goes to `<id>_other`; the
+ * choice field then gets nothing, or an empty array when the schema requires it.
+ */
+export function elicitationContent(
+  requestedSchema: DynamicRecord | null,
+  answers: Record<string, string[]>,
+): Record<string, ElicitationFieldValue> {
+  const properties = getRecord(requestedSchema, "properties") ?? {};
+  const required = getArray(requestedSchema, "required").filter(isString);
+  const otherOf = new Map([...elicitationOtherFields(properties)].map(([other, base]) => [base, other]));
+  const content: Record<string, ElicitationFieldValue> = {};
+  for (const [id, values] of Object.entries(answers)) {
+    if (values.length === 0) continue;
+    const property = getRecord(properties, id) ?? undefined;
+    const other = otherOf.get(id);
+    if (!property || !other) {
+      content[id] = elicitationValue(property, values);
+      continue;
+    }
+    const labels = new Set((elicitationChoices(property) ?? []).map((choice) => choice.label));
+    const picked = values.filter((value) => labels.has(value));
+    const typed = values.filter((value) => !labels.has(value));
+    if (typed.length > 0) content[other] = typed.join("\n");
+    if (picked.length > 0) content[id] = elicitationValue(property, picked);
+    else if (required.includes(id) && property.type === "array") content[id] = [];
+  }
+  return content;
+}
+
+/** At most this many characters of a field title that is the question itself go in the short header. */
+const ELICITATION_HEADER_LENGTH = 40;
+
+function shortElicitationHeader(text: string): string {
+  if (text.length <= ELICITATION_HEADER_LENGTH) return text;
+  const cut = text.slice(0, ELICITATION_HEADER_LENGTH);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > ELICITATION_HEADER_LENGTH / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
 
 export function commandText(params: unknown): string | null {
@@ -139,25 +238,39 @@ function elicitationConsentQuestion(params: unknown, serverName: string | null):
 }
 
 /**
- * One question per requested field, so a plugin can collect an API key or any other value. When a
- * field has its own text, the request message goes under the first question, so it is not lost.
+ * One question per requested field, so a plugin can collect an API key or any other value. A field
+ * says what it asks in its description, else in its title. The request message is the question only of
+ * a form with one field and no description (MCP: the message asks, the title names the field); in a
+ * form of several fields it is a shared line, such as Antigravity's "The agent has 3 questions.", so it
+ * goes under the first question, as it does when a field has its own text. A `<id>_other` free-text
+ * field is the "Something else" answer of `<id>` (`elicitationContent`), not a page.
  */
 export function elicitationFieldQuestions(params: unknown, subject: string): AgentPromptQuestion[] {
   const properties = getRecord(getRecord(params, "requestedSchema"), "properties") ?? {};
   const message = getString(params, "message")?.trim() || undefined;
-  return Object.entries(properties).flatMap(([id, property], index) => {
+  const folded = elicitationOtherFields(properties);
+  const single = Object.keys(properties).length === 1;
+  const fields = Object.entries(properties).filter(([id]) => !folded.has(id));
+  return fields.flatMap(([id, property], index) => {
     if (!isRecord(property)) return [];
-    const description = getString(property, "description");
-    const question = description ?? message ?? `${subject} needs more information.`;
-    const detail = index === 0 && description && message && message !== description ? message : undefined;
+    const description = getString(property, "description")?.trim() || undefined;
+    const title = getString(property, "title")?.trim() || undefined;
+    const question =
+      description ?? (single ? (message ?? title) : (title ?? message)) ?? `${subject} needs more information.`;
+    const options = elicitationOptions(property);
+    const multiSelect = property.type === "array" && options !== null;
+    // A multi-select keeps the card's own "choose all that apply" line.
+    const detail = index === 0 && message && message !== question && !multiSelect ? message : undefined;
+    const header = title && title !== question ? title : shortElicitationHeader(title ?? id);
     return [
       {
         id,
-        header: (getString(property, "title") ?? id).slice(0, INPUT_LIMITS.promptHeader),
+        header: header.slice(0, INPUT_LIMITS.promptHeader),
         question: question.slice(0, INPUT_LIMITS.promptQuestion),
         ...(detail ? { detail: detail.slice(0, INPUT_LIMITS.promptQuestion) } : {}),
         isSecret: secretElicitationField(id, property),
-        options: elicitationOptions(property),
+        options,
+        ...(multiSelect ? { multiSelect: true } : {}),
       },
     ];
   });
@@ -298,7 +411,7 @@ export function mcpElicitationResult(
   }
   const properties = getRecord(getRecord(params, "requestedSchema"), "properties");
   if (properties && Object.keys(properties).length > 0) {
-    return elicitationFieldResult(params, properties, answers);
+    return elicitationFieldResult(params, answers);
   }
   const selected = answers[MCP_ELICITATION_DECISION_QUESTION_ID]?.[0];
   if (selected === MCP_ELICITATION_ALLOW_ONCE) {
@@ -316,15 +429,11 @@ export function mcpElicitationResult(
 /** A skipped required field declines the request: a partial form is not an answer. */
 function elicitationFieldResult(
   params: unknown,
-  properties: DynamicRecord,
   answers: Record<string, string[]>,
 ): { action: "accept" | "decline"; content: DynamicRecord | null; _meta: DynamicRecord | null } {
-  const content: Record<string, ElicitationFieldValue> = {};
-  for (const [id, values] of Object.entries(answers)) {
-    if (values.length === 0) continue;
-    content[id] = elicitationValue(getRecord(properties, id) ?? undefined, values);
-  }
-  const required = getArray(getRecord(params, "requestedSchema"), "required").filter(isString);
+  const requestedSchema = getRecord(params, "requestedSchema");
+  const content = elicitationContent(requestedSchema, answers);
+  const required = getArray(requestedSchema, "required").filter(isString);
   if (required.some((id) => !(id in content)) || Object.keys(content).length === 0) {
     return { action: "decline", content: null, _meta: null };
   }
