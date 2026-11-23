@@ -680,6 +680,108 @@ export function retainThinkingMessages(
   return result;
 }
 
+/**
+ * Fork (docs/fork/FEATURES.md, "Replies stay in a long turn"). What a page or a snapshot holds of each
+ * turn: the ids of its stored messages, and the first and last time of each turn's messages.
+ */
+interface TurnCoverage {
+  ids: ReadonlySet<string>;
+  turns: ReadonlyMap<string, { first: string; last: string }>;
+}
+
+export function turnCoverage(messages: readonly ConversationMessage[]): TurnCoverage {
+  const ids = new Set<string>();
+  const turns = new Map<string, { first: string; last: string }>();
+  for (const message of messages) {
+    ids.add(message.id);
+    if (!message.turnId || !message.createdAt) continue;
+    const range = turns.get(message.turnId);
+    if (!range) turns.set(message.turnId, { first: message.createdAt, last: message.createdAt });
+    else {
+      if (message.createdAt < range.first) range.first = message.createdAt;
+      if (message.createdAt > range.last) range.last = message.createdAt;
+    }
+  }
+  return { ids, turns };
+}
+
+/**
+ * Fork ("Replies stay in a long turn"). The steps row of a turn as a page or a capped snapshot gives
+ * it, with the items of the loaded row that the source does not reach. A page holds at most 100
+ * messages, so it can hold only a part of a long turn, and a snapshot holds only the chat's tail.
+ * The steps row of that part replaced the whole row, and the replies that the turn wrote before that
+ * part went from the chat until the next snapshot (23 Nov 2026). An item that the source does not
+ * hold, from a time outside the turn's messages in the source, stays. An item inside that time that
+ * the source does not hold was removed, so it goes.
+ */
+export function withUnreachedTurnSteps(
+  loaded: AgentMessage | undefined,
+  incoming: AgentMessage,
+  coverage: TurnCoverage,
+): AgentMessage {
+  if (loaded?.kind !== "thinking" || incoming.kind !== "thinking" || !incoming.turnId) return incoming;
+  if (loaded.turnId !== incoming.turnId) return incoming;
+  const range = coverage.turns.get(incoming.turnId);
+  const incomingIds = new Set(incoming.itemIds ?? []);
+  type Item = { text: string; id: string | undefined; createdAt: string | undefined; streaming: boolean };
+  const kept: Item[] = [];
+  for (const [index, text] of (loaded.items ?? []).entries()) {
+    const id = loaded.itemIds?.[index];
+    const createdAt = loaded.itemCreatedAt?.[index];
+    if (!id || incomingIds.has(id) || coverage.ids.has(id)) continue;
+    if (range && createdAt && createdAt >= range.first && createdAt <= range.last) continue;
+    kept.push({ text, id, createdAt, streaming: false });
+  }
+  if (kept.length === 0) return incoming;
+  const items: Item[] = [
+    ...kept,
+    ...(incoming.items ?? []).map((text, index) => ({
+      text,
+      id: incoming.itemIds?.[index],
+      createdAt: incoming.itemCreatedAt?.[index],
+      streaming: incoming.itemStreaming?.[index] === true,
+    })),
+  ];
+  // A stable sort keeps the source's order of items that share a time.
+  items.sort((left, right) => (left.createdAt ?? "").localeCompare(right.createdAt ?? ""));
+  const createdAt = items.find((item) => item.createdAt)?.createdAt ?? incoming.createdAt;
+  return {
+    ...incoming,
+    ...(createdAt ? { createdAt, time: formatMessageTime(createdAt) } : {}),
+    items: items.map((item) => item.text),
+    itemIds: items.map((item) => item.id ?? ""),
+    itemCreatedAt: items.map((item) => item.createdAt ?? ""),
+    itemStreaming: items.map((item) => item.streaming),
+  };
+}
+
+/**
+ * Fork ("Replies stay in a long turn"). Puts each steps row before the first message of its turn that
+ * is newer than its first item. A merge can leave the row where a later part of the turn starts, as
+ * when a page holds only that part, and the turn's earlier replies then showed under later messages.
+ * A list in the shown order does not change.
+ */
+export function placeTurnStepRows(messages: AgentMessage[]): AgentMessage[] {
+  let result = messages;
+  for (const thinking of messages) {
+    if (thinking.kind !== "thinking" || !thinking.turnId || !thinking.createdAt) continue;
+    const at = thinking.createdAt;
+    const index = result.indexOf(thinking);
+    const target = result.findIndex(
+      (message) =>
+        message.turnId === thinking.turnId &&
+        message.kind !== "thinking" &&
+        message.createdAt !== undefined &&
+        message.createdAt > at,
+    );
+    if (target < 0 || target >= index) continue;
+    if (result === messages) result = [...messages];
+    result.splice(index, 1);
+    result.splice(target, 0, thinking);
+  }
+  return result;
+}
+
 /** `values` without the agent's entry. The same object when it has none, so its readers do not run again. */
 export function withoutAgent<T>(values: Record<string, T>, agentId: string): Record<string, T> {
   if (!Object.hasOwn(values, agentId)) return values;

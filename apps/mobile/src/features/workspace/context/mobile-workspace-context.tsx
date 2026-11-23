@@ -1179,10 +1179,11 @@ export function MobileWorkspaceProvider({ children }: PropsWithChildren) {
       const generation = loadGeneration.current;
       const page = await conversationStore.loadLatest(
         agentId,
-        () =>
+        // A cursor reads the page before it, so a latest page can reach the loaded window.
+        (cursor) =>
           request(
             "GET",
-            `${TEAM_API_ROUTES.agent.conversationPage(agentId)}?limit=50`,
+            `${TEAM_API_ROUTES.agent.conversationPage(agentId)}?limit=50${cursor ? `&before=${encodeURIComponent(cursor)}` : ""}`,
             decodeConversationPage,
             undefined,
             serverId,
@@ -1275,10 +1276,10 @@ export function MobileWorkspaceProvider({ children }: PropsWithChildren) {
           await conversationStore
             .loadLatest(
               agentId,
-              () =>
+              (cursor) =>
                 client.request(
                   "GET",
-                  `${TEAM_API_ROUTES.agent.conversationPage(agentId)}?limit=50`,
+                  `${TEAM_API_ROUTES.agent.conversationPage(agentId)}?limit=50${cursor ? `&before=${encodeURIComponent(cursor)}` : ""}`,
                   decodeConversationPage,
                 ),
               context.isCurrent,

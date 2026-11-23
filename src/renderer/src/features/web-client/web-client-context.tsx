@@ -70,6 +70,7 @@ import { toAgentProfile } from "../../app-message-projection";
 import {
   mergeConversationPage,
   missingReplyOriginals,
+  pageMeetsLoaded,
   windowedSnapshotMessages,
 } from "../conversation/conversation-merge";
 import { latestIncomingConversationMessage } from "../conversation/conversation-read-state";
@@ -1697,12 +1698,13 @@ export function createWebWorkspace(
         );
         // A latest page that does not meet the loaded messages, after a long time with no connection,
         // replaces them: joined end to end, the two would hide the messages between with no sign.
-        const pageIds = new Set(page.messages.map((message) => message.id));
+        // Fork (docs/fork/FEATURES.md, "Replies stay in a long turn"): a page that holds only the end of a
+        // long turn, or one queued request, meets the loaded messages without sharing one with them.
         const apart =
           merge === "latest" &&
           !around &&
           page.pageInfo.hasOlder &&
-          !(old?.messages ?? []).some((message) => pageIds.has(message.id));
+          !pageMeetsLoaded(old?.messages ?? [], page, page.messages, old?.revision);
         item.page = {
           ...page,
           messages: around

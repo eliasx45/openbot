@@ -20,7 +20,7 @@ import {
   agentMessagesEqual,
   collectThreadMessageMatches,
   formatMessageTime,
-  retainThinkingMessages,
+  placeTurnStepRows,
   toAgentMessage,
   toAgentMessages,
 } from "../../app-message-projection";
@@ -47,7 +47,7 @@ import {
   messagePromptRequestKey,
   promptRequestKey,
 } from "./conversation-keys";
-import { mergeConversationPage, missingReplyOriginals, windowedSnapshotMessages } from "./conversation-merge";
+import { mergeConversationPage, missingReplyOriginals, pageRows, pageWindow, snapshotRows } from "./conversation-merge";
 import { conversationPort } from "./conversation-port";
 import {
   decideAgentAutoRead,
@@ -73,10 +73,16 @@ const INACTIVE_SNAPSHOT_TAIL = LATEST_PAGE_SIZE * 4;
 
 function trimToLatestPage(conversation: ConversationState): void {
   if (conversation.messages.length <= LATEST_PAGE_SIZE) return;
-  const kept = conversation.messages.slice(-LATEST_PAGE_SIZE);
-  const removedById = new Map(
-    conversation.messages.slice(0, -LATEST_PAGE_SIZE).map((message) => [message.id, message]),
+  const tail = conversation.messages.slice(-LATEST_PAGE_SIZE);
+  const removed = conversation.messages.slice(0, -LATEST_PAGE_SIZE);
+  // Fork (docs/fork/FEATURES.md, "Replies stay in a long turn"): a kept message keeps the steps row of
+  // its turn, which holds the turn's replies and stands where the turn's first step is.
+  const keptTurns = new Set(tail.flatMap((message) => (message.turnId ? [message.turnId] : [])));
+  const turnSteps = removed.filter(
+    (message) => message.kind === "thinking" && message.turnId !== undefined && keptTurns.has(message.turnId),
   );
+  const kept = [...turnSteps, ...tail];
+  const removedById = new Map(removed.map((message) => [message.id, message]));
   // A kept reply keeps the quote of an original that the trim removes, as a page from the host gives it.
   const references: Record<string, AgentMessage> = {};
   for (const message of kept) {
@@ -723,16 +729,16 @@ const Conversation = createSimpleContext({
         const previous = conversation.messages;
         const previousById = new Map(previous.map((message) => [message.id, message]));
         const allMappedMessages = toAgentMessages(sourceMessages, snapshot.agentId);
-        const mappedMessages = retainThinkingMessages(
-          previous,
-          windowedSnapshotMessages(previous, allMappedMessages, {
-            mode: windowMode,
-            // Main also cuts a snapshot by size, so a window with older pages takes it as a tail too.
-            capped:
-              snapshot.messages.length >= CONVERSATION_SNAPSHOT_MESSAGE_LIMIT || conversation.page?.hasOlder === true,
-          }),
+        // Main also cuts a snapshot by size, so a window with older pages takes it as a tail too.
+        const capped =
+          snapshot.messages.length >= CONVERSATION_SNAPSHOT_MESSAGE_LIMIT || conversation.page?.hasOlder === true;
+        const mappedMessages = snapshotRows(previous, allMappedMessages, sourceMessages, {
+          mode: windowMode,
+          capped,
+          // Fork ("Replies stay in a long turn"): a tail of the chat can hold only a part of a turn.
+          whole: !capped && sourceMessages === snapshot.messages,
           activeTurnId,
-        );
+        });
         const next = mappedMessages.map((mapped) => {
           const existing = previousById.get(mapped.id);
           if (!existing) return createStoredMessage({ ...mapped, animate: !initialLoad });
@@ -813,11 +819,13 @@ const Conversation = createSimpleContext({
       const start = first ? mapped.findIndex((message) => message.id === first.id) : -1;
       // The chat must meet the page, or the place would leave a gap that the reader does not see.
       if (start === -1 && !conversation.messages.some((message) => message.id === mapped[0]?.id)) return;
-      const older = mapped
-        .slice(0, Math.max(start, 0))
-        .map((message) => createStoredMessage({ ...message, animate: false }));
+      // Fork ("Replies stay in a long turn"): the steps row of a turn that the page holds only a part
+      // of keeps the loaded items of the rest.
+      const older = pageRows(conversation.messages, mapped.slice(0, Math.max(start, 0)), page.messages).map((message) =>
+        createStoredMessage({ ...message, animate: false }),
+      );
       updateConversation(page.agentId, (current) => {
-        current.messages = mergeConversationPage(current.messages, older, "older");
+        current.messages = placeTurnStepRows(mergeConversationPage(current.messages, older, "older"));
         current.references = { ...current.references, ...pageReferences(page) };
         current.missingReferences = { ...current.missingReferences, ...missingReplyOriginals(page) };
         current.page = page.pageInfo;
@@ -826,14 +834,22 @@ const Conversation = createSimpleContext({
 
     function applyConversationPage(
       page: ConversationPage,
-      merge: "replace" | "older" | "latest",
+      requestedMerge: "replace" | "older" | "latest",
       windowMode?: "latest" | "around",
     ): boolean {
       flushConversationDeltas();
       if (page.revision < (conversations[page.agentId]?.revision ?? -1)) {
-        if (merge !== "older") keepOlderHistoryPlace(page);
+        if (requestedMerge !== "older") keepOlderHistoryPlace(page);
         return false;
       }
+      // Fork ("Replies stay in a long turn"): a snapshot that waits for the next frame and is not newer
+      // than this page applies first, so the page meets the messages that the host sent before it.
+      const pendingSnapshot = pendingConversationSnapshots.get(page.agentId);
+      if (requestedMerge !== "older" && pendingSnapshot && pendingSnapshot.revision <= page.revision) {
+        pendingConversationSnapshots.delete(page.agentId);
+        applyConversation(pendingSnapshot, isAgentChatReadable(page.agentId));
+      }
+      let appliedMerge = requestedMerge;
       for (const message of page.messages) {
         const key = agentMessageKey(page.agentId, message.id);
         if (message.author !== "user" && message.status === "streaming") rawAgentMessageBodies.set(key, message.text);
@@ -843,36 +859,23 @@ const Conversation = createSimpleContext({
       updateConversation(page.agentId, (conversation) => {
         const currentMessages = conversation.messages;
         const currentById = new Map(currentMessages.map((message) => [message.id, message]));
-        const pageMessages = mapped.map((message) => {
+        // Fork ("Replies stay in a long turn"): a page can hold only a part of a long turn.
+        const pageMessages = pageRows(currentMessages, mapped, page.messages).map((message) => {
           const stored = currentById.get(message.id);
           if (!stored) return createStoredMessage({ ...message, animate: false });
           if (!agentMessagesEqual(stored, message))
             updateStored(stored, stored.animate === undefined ? message : { ...message, animate: stored.animate });
           return stored;
         });
-        // A delta that came before this page can show a commentary item as its own message. The page
-        // groups that item under its turn's thinking message, so the loaded copy goes.
-        const pageItemIds = new Set(page.messages.map((message) => message.id));
-        // A latest page is the end of the thread. The loaded messages can reach further back, and
-        // their cursor of the older pages stays. Two cases must not join end to end, because the
-        // messages between would be out of view with no sign: a window around an old message keeps
-        // its place, and loaded messages that the page does not meet give way to the page.
-        const mappedIds = new Set(pageMessages.map((message) => message.id));
-        // A chat with no page yet, or a trimmed one, has no cursor of its own, so it takes the page's.
-        const trimmed = lacksOlderCursor(conversation.page);
-        const tail = merge === "latest" && page.pageInfo.hasOlder && !trimmed;
-        const keepsWindow = tail && conversation.windowMode === "around";
-        const apart = tail && !keepsWindow && !currentMessages.some((message) => mappedIds.has(message.id));
-        const kept = currentMessages.filter((message) => !pageItemIds.has(message.id));
-        conversation.messages = keepsWindow
-          ? windowedSnapshotMessages(currentMessages, pageMessages, { mode: "around", capped: true }).filter(
-              (message) => mappedIds.has(message.id) || !pageItemIds.has(message.id),
-            )
-          : mergeConversationPage(kept, pageMessages, apart ? "replace" : merge);
-        const first = conversation.messages[0];
-        // The loaded messages start before the page, so the cursor of the older pages is still theirs.
-        // A window that starts in the page dropped the page's messages before it, so it keeps its cursor too.
-        const keepsOlder = keepsWindow || (tail && first !== undefined && !mappedIds.has(first.id));
+        const { messages, merge, keepsWindow, keepsOlder } = pageWindow(currentMessages, pageMessages, page, {
+          requestedMerge,
+          windowMode,
+          loadedWindowMode: conversation.windowMode,
+          loadedRevision: conversation.revision,
+          trimmed: lacksOlderCursor(conversation.page),
+        });
+        appliedMerge = merge;
+        conversation.messages = messages;
         conversation.references = {
           ...(merge === "replace" ? {} : conversation.references),
           ...pageReferences(page),
@@ -886,14 +889,14 @@ const Conversation = createSimpleContext({
         conversation.revision = page.revision;
         conversation.loaded = true;
       });
-      if (merge === "latest")
+      if (appliedMerge === "latest")
         for (const messageId of openExchangesOutside(conversations[page.agentId]?.messages ?? [], page.messages))
           refreshOpenExchange(page.agentId, messageId);
       setActiveTurns((current) => ({
         ...current,
         [page.agentId]: completedTurnByAgent.get(page.agentId) === page.activeTurnId ? null : page.activeTurnId,
       }));
-      if (page.readState && merge !== "older") {
+      if (page.readState && requestedMerge !== "older") {
         const trackedAutoRead = autoReadAgentMessages.get(agentConversationKey(activeServerId(), page.agentId));
         const latestIncomingMessage = latestIncomingConversationMessage(page.messages);
         const retainedState =

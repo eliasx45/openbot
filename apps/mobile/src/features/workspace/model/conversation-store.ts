@@ -17,6 +17,8 @@ export interface MobileConversation extends ConversationPage {
 type ReadPage = (cursor?: string) => Promise<ConversationPage>;
 /** The size of the window that the store keeps for a chat that nobody reads. */
 const KEPT_MESSAGES = 50;
+/** How many older pages a latest page reads to meet the loaded window. */
+const BRIDGED_PAGES = 3;
 
 /** In-memory chat windows. Only subscribers to a changed agent are notified. */
 export class MobileConversationStore {
@@ -309,6 +311,8 @@ export class MobileConversationStore {
             page = await read();
             if (page.agentId !== agentId) throw new Error("The server returned a page for another conversation.");
             if (!isCurrent() || this.#loads.get(agentId) !== load) return page;
+            page = await this.#bridged(agentId, page, read);
+            if (!isCurrent() || this.#loads.get(agentId) !== load) return page;
             this.applyPage(page, undefined, load.attach);
           } while (load.dirty);
           this.#upToDate.add(agentId);
@@ -324,6 +328,35 @@ export class MobileConversationStore {
     };
     this.#loads.set(agentId, load);
     return load.promise;
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md, "Replies stay in a long turn"). A latest page with the older pages
+   * up to the loaded window, so it meets the window. A page holds whole turns up to 50 messages and
+   * only one part of a turn of more than 100, so after a long turn the latest page can hold one new
+   * message. That page did not meet the loaded window, so it replaced it, and the long turn left the
+   * chat. A window that more than `BRIDGED_PAGES` pages do not reach is replaced, as before, so the
+   * chat shows no gap.
+   */
+  async #bridged(agentId: string, latest: ConversationPage, read: ReadPage): Promise<ConversationPage> {
+    let page = latest;
+    for (let step = 0; step < BRIDGED_PAGES; step += 1) {
+      const current = this.get(agentId);
+      const indices = this.#indices.get(agentId);
+      const cursor = page.pageInfo.olderCursor;
+      if (!current || current.detached || current.threadId !== page.threadId || !indices?.size) return page;
+      if (page.messages.some((message) => indices.has(message.id)) || !page.pageInfo.hasOlder || !cursor) return page;
+      const older = await read(cursor);
+      if (older.agentId !== agentId || older.threadId !== page.threadId) return page;
+      const ids = new Set(page.messages.map((message) => message.id));
+      page = {
+        ...page,
+        messages: [...older.messages.filter((message) => !ids.has(message.id)), ...page.messages],
+        references: { ...older.references, ...page.references },
+        pageInfo: older.pageInfo,
+      };
+    }
+    return page;
   }
 
   async loadOlder(agentId: string, read: ReadPage, isCurrent: () => boolean) {
