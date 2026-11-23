@@ -91,7 +91,6 @@ const antigravityQuestions: AgentPromptQuestion[] = [
     id: "q1",
     header: "Which color?",
     question: "Which color?",
-    detail: "The agent has 3 questions.",
     isSecret: false,
     options: [
       { label: "Red", description: "" },

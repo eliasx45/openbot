@@ -20,6 +20,7 @@ const OUT = resolve(import.meta.dirname, "../.openbot-build/antigravity-ask-ques
 interface Asked {
   id: string | null;
   question: string | null;
+  detail: string | null;
   options: string[];
   multiSelect: boolean;
 }
@@ -65,6 +66,7 @@ try {
       .map((question) => ({
         id: getString(question, "id"),
         question: getString(question, "question"),
+        detail: getString(question, "detail"),
         options: getArray(question, "options")
           .filter(isRecord)
           .map((option) => getString(option, "label") ?? ""),
@@ -108,6 +110,12 @@ try {
       { id: "q3", question: "What is your name?", options: ["Anonymous", "Prefer not to say"], multiSelect: false },
     ],
     "Each question must be one page with its own words and options; the `_other` fields make no page.",
+  );
+  // The request's "The agent has 3 questions." only counts the pages: no page shows it as its line.
+  assert.deepEqual(
+    asked.map(({ detail }) => detail),
+    [null, null, null],
+    "The generic count line must not show under a question.",
   );
   assert.deepEqual(report.picked.reply, { action: "accept", content: { q1: "2", q2: ["2", "3"], q3: "1" } });
 

@@ -173,6 +173,12 @@ export function elicitationContent(
   return content;
 }
 
+/**
+ * A request message that only says how many questions follow ("The agent has 3 questions.", "I have
+ * 2 questions:"): a short line that ends in a number and "question(s)".
+ */
+const QUESTION_COUNT_LINE = /^.{0,40}\b\d+\s+questions?\s*[.:!]?$/i;
+
 /** At most this many characters of a field title that is the question itself go in the short header. */
 const ELICITATION_HEADER_LENGTH = 40;
 
@@ -242,12 +248,14 @@ function elicitationConsentQuestion(params: unknown, serverName: string | null):
  * says what it asks in its description, else in its title. The request message is the question only of
  * a form with one field and no description (MCP: the message asks, the title names the field); in a
  * form of several fields it is a shared line, such as Antigravity's "The agent has 3 questions.", so it
- * goes under the first question, as it does when a field has its own text. A `<id>_other` free-text
- * field is the "Something else" answer of `<id>` (`elicitationContent`), not a page.
+ * goes under the first question, as it does when a field has its own text, unless it only counts the
+ * questions (Antigravity's "The agent has 3 questions."): the card's pages already show that. A
+ * `<id>_other` free-text field is the "Something else" answer of `<id>` (`elicitationContent`), not a page.
  */
 export function elicitationFieldQuestions(params: unknown, subject: string): AgentPromptQuestion[] {
   const properties = getRecord(getRecord(params, "requestedSchema"), "properties") ?? {};
   const message = getString(params, "message")?.trim() || undefined;
+  const countOnly = message !== undefined && QUESTION_COUNT_LINE.test(message);
   const folded = elicitationOtherFields(properties);
   const single = Object.keys(properties).length === 1;
   const fields = Object.entries(properties).filter(([id]) => !folded.has(id));
@@ -260,7 +268,7 @@ export function elicitationFieldQuestions(params: unknown, subject: string): Age
     const options = elicitationOptions(property);
     const multiSelect = property.type === "array" && options !== null;
     // A multi-select keeps the card's own "choose all that apply" line.
-    const detail = index === 0 && message && message !== question && !multiSelect ? message : undefined;
+    const detail = index === 0 && message && message !== question && !multiSelect && !countOnly ? message : undefined;
     const header = title && title !== question ? title : shortElicitationHeader(title ?? id);
     return [
       {
