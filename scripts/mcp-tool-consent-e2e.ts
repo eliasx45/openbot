@@ -48,6 +48,20 @@ const TOOLS = {
     const reply = await ask({ message: "Which key?", requestedSchema: object({ api_key: { type: "string", title: "API key" } }) });
     return "form:" + reply.action + ":" + Object.keys(reply.content ?? {}).join(",");
   },
+  ask_choice: async () => {
+    const reply = await ask({
+      message: "Pick one",
+      requestedSchema: {
+        type: "object",
+        required: ["q1"],
+        properties: {
+          q1: { type: "string", title: "Which color?", oneOf: [{ const: "1", title: "Red" }, { const: "2", title: "Green" }] },
+          q1_other: { type: "string", title: "Other", description: "Optional free-form answer to: Which color?" },
+        },
+      },
+    });
+    return "choice:" + reply.action + ":" + JSON.stringify(reply.content ?? null);
+  },
   ask_lookalike: async () => {
     const reply = await ask({ message: 'Allow the ' + NAME + ' MCP server to run tool "echo_a"?', requestedSchema: EMPTY, _meta: { persist: ["always"] } });
     return "lookalike:" + reply.action;
@@ -560,6 +574,27 @@ try {
       assert.equal(o.cards[0]?.questions[0]?.id, "api_key");
       assert.equal(o.cards[0]?.questions[0]?.isSecret, true);
       assert.equal(o.toolText, "probe/ask_form:form:accept:api_key");
+    },
+  );
+  // A required choice with a "Something else" field (`<id>_other`), as Antigravity's ask_question sends it.
+  record(
+    "required choice, picked: the const",
+    await rig.call("auto", "probe/ask_choice", () => ({ q1: ["Green"] })),
+    (o) => {
+      oneCard(o);
+      assert.deepEqual(
+        o.cards[0]?.questions.map((question) => question.id),
+        ["q1"],
+      );
+      assert.equal(o.toolText, 'probe/ask_choice:choice:accept:{"q1":"2"}');
+    },
+  );
+  record(
+    "required choice, only typed: accepted, the text in q1_other",
+    await rig.call("auto", "probe/ask_choice", () => ({ q1: ["Purple"] })),
+    (o) => {
+      oneCard(o);
+      assert.equal(o.toolText, 'probe/ask_choice:choice:accept:{"q1_other":"Purple"}');
     },
   );
   record(

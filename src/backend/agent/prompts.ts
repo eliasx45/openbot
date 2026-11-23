@@ -426,7 +426,10 @@ export function mcpElicitationResult(
   return { action: "cancel", content: null, _meta: null };
 }
 
-/** A skipped required field declines the request: a partial form is not an answer. */
+/**
+ * A skipped required field declines the request: a partial form is not an answer. A required choice
+ * answered only by typing is answered: its text is in the `<id>_other` field the schema gave for it.
+ */
 function elicitationFieldResult(
   params: unknown,
   answers: Record<string, string[]>,
@@ -434,7 +437,11 @@ function elicitationFieldResult(
   const requestedSchema = getRecord(params, "requestedSchema");
   const content = elicitationContent(requestedSchema, answers);
   const required = getArray(requestedSchema, "required").filter(isString);
-  if (required.some((id) => !(id in content)) || Object.keys(content).length === 0) {
+  const otherOf = new Map(
+    [...elicitationOtherFields(getRecord(requestedSchema, "properties") ?? {})].map(([other, base]) => [base, other]),
+  );
+  const answered = (id: string) => id in content || (otherOf.get(id) ?? "") in content;
+  if (required.some((id) => !answered(id)) || Object.keys(content).length === 0) {
     return { action: "decline", content: null, _meta: null };
   }
   return { action: "accept", content, _meta: null };
