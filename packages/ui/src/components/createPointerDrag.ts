@@ -2,28 +2,15 @@ import { createSignal } from "solid-js";
 
 interface PointerDragOptions {
   axis: "x" | "y";
-  /** The class on the root element while the drag runs, for the cursor and transitions. */
   rootClass: string;
-  /** Called when a drag starts. Read the start value here. */
   onStart: () => void;
-  /** The distance from the start position, in pixels along the axis. */
   onMove: (delta: number) => void;
-  /** The last distance. A cancelled drag ends at the last move. */
   onEnd?: (delta: number) => void;
 }
 
-/** The root attribute and variable that give the whole window one cursor while a handle drags. */
 export const POINTER_DRAG_ATTRIBUTE = "data-pointer-drag";
 export const POINTER_DRAG_CURSOR_VARIABLE = "--pointer-drag-cursor";
 
-/**
- * One owner of the cursor for the whole drag (fork FEATURES #73). A root class with `cursor` only
- * reaches elements that do not set their own: once the pointer left the handle (a fast move, or a
- * panel at its limit), every link, button, field and window-drag strip it crossed showed its own
- * cursor and hover fill, so the cursor flickered between states. While the attribute is on the root,
- * `app-shell.css` gives every element the handle's cursor and takes pointer events from all but the
- * handle, so nothing under the pointer competes.
- */
 export function holdDragCursor(handle: HTMLElement): () => void {
   const root = document.documentElement;
   root.style.setProperty(POINTER_DRAG_CURSOR_VARIABLE, getComputedStyle(handle).cursor || "default");
@@ -36,10 +23,6 @@ export function holdDragCursor(handle: HTMLElement): () => void {
   };
 }
 
-/**
- * The pointer lifecycle of a drag handle: pointer capture, window listeners, the root class and the
- * cursor. Call `cancel` when the owner unmounts.
- */
 export function createPointerDrag(options: PointerDragOptions) {
   let cleanup: (() => void) | undefined;
   const [isDragging, setIsDragging] = createSignal(false);

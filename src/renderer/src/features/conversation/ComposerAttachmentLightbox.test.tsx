@@ -22,6 +22,17 @@ it("opens an unsent image in the image viewer", async () => {
       value: () => ({ finished: Promise.resolve(), cancel: vi.fn(), finish: vi.fn() }),
     });
   }
+  if (!("matchMedia" in globalThis)) {
+    Object.defineProperty(globalThis, "matchMedia", {
+      configurable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    });
+  }
   render(() => <ComposerAttachmentRow attachments={[image("a"), image("b")]} onRemove={vi.fn()} />);
   expect(screen.queryByRole("dialog")).toBeNull();
   const thumbnails = document.querySelectorAll<HTMLButtonElement>(".composer-attachment-preview");

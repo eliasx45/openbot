@@ -1,11 +1,10 @@
-import type { AgentApproval } from "@openbot/contracts/ipc";
+import type { AgentApproval, BrowserTakeoverRequest } from "@openbot/contracts/ipc";
 import type { AgentProfile } from "@openbot/ui/data";
 import type { SidebarApproval, SidebarAttention } from "@openbot/ui/features/sidebar/sidebar-agent-states";
 import { attentionAgentId, type PendingAttentionPrompts } from "./agent-runtime-snapshot";
 
 export interface AgentThreadAttentionInput {
   agents: readonly Pick<AgentProfile, "id" | "threadId">[];
-  /** By `attentionKey`. */
   pendingPrompts: PendingAttentionPrompts;
   approvals: readonly AgentApproval[];
   /**
@@ -16,11 +15,6 @@ export interface AgentThreadAttentionInput {
   sideThreads?: (agentId: string) => readonly string[];
 }
 
-/**
- * The prompts and approvals of each agent's own thread, by agent. A wait in a channel thread stays
- * out, because the agent's chat cannot answer it. A wait in a side thread counts only when
- * `sideThreads` names it, and a wait of the agent's own thread comes first.
- */
 export function agentThreadAttention(input: AgentThreadAttentionInput): {
   pendingPrompts: Record<string, SidebarAttention | undefined>;
   pendingApprovals: Record<string, SidebarApproval | undefined>;
@@ -39,7 +33,6 @@ export function agentThreadAttention(input: AgentThreadAttentionInput): {
   };
 }
 
-/** The thread of the agent with a wait: its own chat's thread first, then a side thread. */
 export function agentWaitThreadId(input: AgentThreadAttentionInput, agentId: string): string | undefined {
   const own = input.agents.find((agent) => agent.id === agentId)?.threadId;
   const side = input.sideThreads?.(agentId) ?? [];
@@ -67,4 +60,16 @@ function byAgent<Item extends { agentId: string; threadId?: string }, Value>(
   for (const item of items) if (inSideThread(item.agentId, item.threadId)) result[item.agentId] ??= value(item);
   for (const item of items) if (inAgentThread(item.agentId, item.threadId)) result[item.agentId] = value(item);
   return result;
+}
+
+export function agentTakeoverTabIds(
+  agents: readonly Pick<AgentProfile, "id" | "threadId">[],
+  takeovers: readonly Pick<BrowserTakeoverRequest, "agentId" | "threadId" | "tabId">[],
+): Record<string, string> {
+  const agentThreads = new Map(agents.map((agent) => [agent.id, agent.threadId]));
+  return Object.fromEntries(
+    takeovers
+      .filter((request) => agentThreads.get(request.agentId) === request.threadId)
+      .map((request) => [request.agentId, request.tabId]),
+  );
 }

@@ -187,8 +187,7 @@ interface Write {
 
 class FakeSocket implements WhatsAppSocket {
   readonly #events = new EventEmitter();
-  readonly #frames = new Set<() => void>();
-  readonly #acks = new Set<(node: WhatsAppAck) => void>();
+  readonly #ws = new EventEmitter();
   readonly #phone: FakePhone;
   readonly config: UserFacingSocketConfig;
   ended = false;
@@ -198,13 +197,8 @@ class FakeSocket implements WhatsAppSocket {
       this.#events.on(event, listener);
     },
   };
-  readonly ws: WhatsAppSocket["ws"] = {
-    on: (event: string, listener: (node: WhatsAppAck) => void) => {
-      if (event === MESSAGE_ACK) this.#acks.add(listener);
-      else this.#frames.add(() => listener({ attrs: {} }));
-    },
-  };
-  readonly signalRepository = { lidMapping: { getPNForLID: async () => null } };
+  readonly ws: WhatsAppSocket["ws"] = this.#ws;
+  readonly signalRepository = { lidMapping: { getPNForLID: async () => null, getLIDForPN: async () => null } };
 
   constructor(phone: FakePhone, config: UserFacingSocketConfig) {
     this.#phone = phone;
@@ -213,7 +207,7 @@ class FakeSocket implements WhatsAppSocket {
 
   emit<T extends keyof BaileysEventMap>(event: T, arg: BaileysEventMap[T]): void {
     if (this.ended) return;
-    for (const frame of this.#frames) frame();
+    this.#ws.emit("frame");
     this.#events.emit(event, arg);
   }
 
@@ -242,7 +236,7 @@ class FakeSocket implements WhatsAppSocket {
     const id = options?.messageId ?? `SENT${this.#phone.writes.length}`;
     this.#phone.writes.push({ method: "sendMessage", jid, content });
     setTimeout(() => {
-      for (const ack of this.#acks) ack({ attrs: { id } });
+      this.#ws.emit(MESSAGE_ACK, { attrs: { id } } satisfies WhatsAppAck);
     }, 0);
     const text = "text" in content && typeof content.text === "string" ? content.text : "";
     return { key: { remoteJid: jid, id, fromMe: true }, message: { conversation: text } } satisfies WAMessage;
@@ -320,6 +314,7 @@ function text(input: { chat: string; text: string; fromMe?: boolean }): WAMessag
 const unused = () => Effect.die(new Error("Not used by this check."));
 const browser: AgentBrowserHost = {
   listTabs: () => [],
+  toolCanUseTab: () => false,
   beginTakeover: unused,
   endTakeover: () => {},
   userControlTabFor: () => null,
@@ -395,6 +390,7 @@ async function boot<T>(use: (agents: Agents, messaging: Messaging, events: Agent
     agents: {
       listAgents: () => agents.listAgents(),
       respondToApproval: (input) => agents.respondToApproval(input),
+      approvalExecutionThreadId: (requestId) => agents.approvalExecutionThreadId(requestId),
       onEvent: (listener) => {
         agents.on("event", listener);
         return () => agents.off("event", listener);

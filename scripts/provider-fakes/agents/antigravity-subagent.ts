@@ -121,6 +121,35 @@ function runChild(peer: AcpPeer, child: string): void {
     });
 }
 
+type McpServers = NonNullable<AcpRequest["params"]["mcpServers"]>;
+
+async function mcpRequest(server: McpServers[number], method: string, id: number): Promise<void> {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    accept: "application/json, text/event-stream",
+  };
+  for (const header of server.headers ?? []) headers[header.name] = header.value;
+  const params =
+    method === "initialize"
+      ? { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "fake-agy", version: "1" } }
+      : {};
+  await fetch(server.url ?? "", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+  })
+    .then((response) => response.text())
+    .catch(() => "");
+}
+
+async function listOpenBotTools(servers: McpServers): Promise<void> {
+  for (const server of servers) {
+    if (server.type !== "http" || !server.name.startsWith("openbot")) continue;
+    await mcpRequest(server, "initialize", 1);
+    await mcpRequest(server, "tools/list", 2);
+  }
+}
+
 function open(request: AcpRequest, peer: AcpPeer, method: string): void {
   const sessionId = request.params.sessionId ?? "";
   logEntry({
@@ -129,8 +158,10 @@ function open(request: AcpRequest, peer: AcpPeer, method: string): void {
     text: request.params.cwd,
     mcp: (request.params.mcpServers ?? []).map((server) => server.name),
   });
-  peer.reply(request, { models: MODELS });
-  if (children.has(sessionId)) setTimeout(() => runChild(peer, sessionId), 50);
+  void listOpenBotTools(request.params.mcpServers ?? []).then(() => {
+    peer.reply(request, { models: MODELS });
+    if (children.has(sessionId)) setTimeout(() => runChild(peer, sessionId), 50);
+  });
 }
 
 /** `invoke_subagent` (one subagent) or `start_subagent` (a `Subagents` list), which completes at once. */
@@ -177,7 +208,10 @@ serveFakeAcpAgent({
     }),
   "session/new": (request, peer) => {
     sessions += 1;
-    peer.reply(request, { sessionId: `agy-${process.pid}-${sessions}`, models: MODELS });
+    const sessionId = `agy-${process.pid}-${sessions}`;
+    void listOpenBotTools(request.params.mcpServers ?? []).then(() =>
+      peer.reply(request, { sessionId, models: MODELS }),
+    );
   },
   "session/resume": (request, peer) => open(request, peer, "resume"),
   "session/load": (request, peer) => open(request, peer, "load"),

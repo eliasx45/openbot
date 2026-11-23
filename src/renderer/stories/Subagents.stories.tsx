@@ -4,11 +4,6 @@ import { SubagentGroup, SubagentPanel, subagentModelNames } from "@openbot/ui/fe
 import { createSignal, onSettled, untrack } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 
-/*
- * The subagents that an agent starts in one turn: Claude `Agent` calls and Codex `spawnAgent`
- * calls. The chat shows one card for each turn; a click on a row opens its steps in the side panel.
- */
-
 const STARTED = Date.now();
 
 function at(secondsAgo: number): string {
@@ -137,16 +132,12 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Two subagents work. The list is open, and the ring shows how many finished. */
 export const Running: Story = {};
 
-/** All subagents ended. The list is closed, and the chip counts the results. */
 export const Finished: Story = { args: { subagents: FINISHED } };
 
-/** The row of the subagent that the side panel shows. */
 export const Selected: Story = { args: { selectedId: "pricing" } };
 
-/** The side panel pane of one subagent: its task, its state, and all of its steps. */
 export const Panel: Story = {
   render: () => (
     <div style={{ position: "relative", width: "420px", height: "640px", display: "flex" }}>
@@ -155,7 +146,6 @@ export const Panel: Story = {
   ),
 };
 
-/** A failed subagent shows its error under its steps. */
 export const PanelFailed: Story = {
   render: () => (
     <div style={{ position: "relative", width: "420px", height: "640px", display: "flex" }}>
@@ -164,7 +154,6 @@ export const PanelFailed: Story = {
   ),
 };
 
-/** The subagents work through their steps, then end. The loop repeats. */
 export const Live: Story = {
   render: () => {
     const [tick, setTick] = createSignal(0);

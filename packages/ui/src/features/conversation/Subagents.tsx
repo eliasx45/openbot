@@ -41,16 +41,10 @@ const STATE_LABEL = {
   stopped: "chat.subagents.state.stopped",
 } as const satisfies Record<ConversationSubagentStatus, AppTextKey>;
 
-/** The Claude type of a subagent with no special role. The meta line does not name it. */
 const GENERAL_AGENT_TYPE = "general-purpose";
 
-/**
- * Fork (docs/fork/FEATURES.md #78): the name of a model id in the app's model list, or `undefined`
- * for an id the list does not have. The screen passes it; without one a model shows by its id.
- */
 export type SubagentModelNames = (id: string) => string | undefined;
 
-/** Fork: a `SubagentModelNames` that reads a model list, such as the model picker's. */
 export function subagentModelNames(options: readonly { id: string; name: string }[]): SubagentModelNames {
   return (id) => options.find((option) => option.id === id)?.name;
 }
@@ -66,11 +60,6 @@ const EFFORT_LABEL = {
   ultra: "provider.effort.ultra",
 } as const satisfies Record<AgentReasoningEffort, AppTextKey>;
 
-/**
- * Fork (#78): the model and effort a subagent runs on, such as "Claude Opus 5.5 · High", or null
- * when neither is known. The name is the model picker's, else the Claude product name of the id,
- * else the id. `compact` drops the "Claude " that every Claude model starts with, for a row.
- */
 export function subagentModelText(
   subagent: Pick<ConversationSubagent, "model" | "effort">,
   t: AppTranslate,
@@ -90,7 +79,6 @@ export function subagentModelText(
   return text || null;
 }
 
-/** Fork (#78): the model a subagent runs on, muted, at the end of its row's title line. */
 export function SubagentModel(props: { subagent: ConversationSubagent; names?: SubagentModelNames | undefined }) {
   const { t } = useText();
   const compact = () => subagentModelText(props.subagent, t, props.names, true);
@@ -110,13 +98,11 @@ export function SubagentModel(props: { subagent: ConversationSubagent; names?: S
   );
 }
 
-/** The time now, once a second while `running` is true. */
 export function createClock(running: () => boolean) {
   const [now, setNow] = createSignal(Date.now());
   createEffect(running, (active) => {
     setNow(Date.now());
     if (!active) return;
-    // All clocks tick on the same wall-clock second, so the card and its bar show the same time.
     const nextSecond = () => 1_000 - (Date.now() % 1_000);
     const tick = () => {
       setNow(Date.now());
@@ -137,7 +123,6 @@ export function elapsedMs(subagent: ConversationSubagent, now: number): number {
   return timeOf(subagent.endedAt, now) - timeOf(subagent.startedAt, now);
 }
 
-/** "12s" or "1m 05s": the time of a subagent, or of a turn in its steps row. */
 export function useDuration() {
   const { t } = useText();
   return (ms: number) => {
@@ -181,7 +166,6 @@ function StepGlyph(props: { kind: ConversationSubagentStepKind; class: string })
   );
 }
 
-/** The state of one subagent, in the icons and colours of the chat action markers. */
 export function SubagentStatus(props: { status: ConversationSubagentStatus }) {
   const { t } = useText();
   return (
@@ -202,12 +186,6 @@ export function SubagentStatus(props: { status: ConversationSubagentStatus }) {
   );
 }
 
-/**
- * Fork: a step as a person reads it. Home paths become `~/`, an agent folder's long id is cut to
- * its first block, a file step shows its folder and name, and a command loses its error redirects
- * (Elias, 8 Nov 2026: the live lines were `ls /Users/elias/OpenBot/Agents/agent-dfc2ff03-…`).
- * The full text stays in the panel's tooltip.
- */
 export function readableStep(kind: ConversationSubagentStepKind, text: string): string {
   let value = text
     .replace(/\/(?:Users|home)\/[^/\s'"]+\//gu, "~/")
@@ -224,10 +202,8 @@ export function readableStep(kind: ConversationSubagentStepKind, text: string): 
   return value;
 }
 
-/** What the subagent does now, with the icon of that kind of step, or how it ended. */
 export function LiveLine(props: { subagent: ConversationSubagent }) {
   const { t } = useText();
-  /** The step that the line shows: the current step, or the answer of a subagent that ended. */
   const shown = () => {
     const last = props.subagent.steps.at(-1);
     if (props.subagent.status === "running") return last;
@@ -252,15 +228,11 @@ export function LiveLine(props: { subagent: ConversationSubagent }) {
   );
 }
 
-/**
- * Fork: how far a subagent's own task list is, and the step it does now. `undefined` without a list.
- */
 export function subagentPlanProgress(
   subagent: ConversationSubagent,
 ): { done: number; total: number; current: string | null } | undefined {
   const plan = subagent.plan;
   if (!plan?.length) return undefined;
-  // A subagent's task list has no current step; the last running one is the newest work.
   const now = plan.findLast((step) => step.status === "inProgress") ?? plan.find((step) => step.status !== "completed");
   return {
     done: plan.filter((step) => step.status === "completed").length,
@@ -269,7 +241,6 @@ export function subagentPlanProgress(
   };
 }
 
-/** "2/5" with its ring: a subagent's own task list. */
 export function SubagentPlanBadge(props: { subagent: ConversationSubagent }) {
   const { t } = useText();
   return (
@@ -288,7 +259,6 @@ export function SubagentPlanBadge(props: { subagent: ConversationSubagent }) {
   );
 }
 
-/** How far the subagents of one turn are, and their time together, which runs while one works. */
 function createGroupProgress(subagents: () => readonly ConversationSubagent[]) {
   const duration = useDuration();
   const total = () => subagents().length;
@@ -305,7 +275,6 @@ function createGroupProgress(subagents: () => readonly ConversationSubagent[]) {
   return { total, running, failed, finished, now, elapsed };
 }
 
-/** The ring and "1 of 3" of subagents that still work. */
 function RunningProgress(props: { finished: number; total: number }) {
   const { t } = useText();
   return (
@@ -322,19 +291,12 @@ function RunningProgress(props: { finished: number; total: number }) {
 
 export interface SubagentGroupProps {
   subagents: readonly ConversationSubagent[];
-  /** The subagent that the side panel shows now. */
   selectedId?: string | null | undefined;
-  /** Opens the subagent in the side panel, or closes the panel when it shows that subagent. */
   onOpen: (subagentId: string) => void;
   /** Fork (#78): the names of the app's models, for the model each subagent runs on. */
   modelNames?: SubagentModelNames | undefined;
 }
 
-/**
- * The subagents that an agent started in one turn. The header shows how far they are and opens or
- * closes the list; the list is open while a subagent works, unless the user chose. Each row shows
- * what its subagent does now. A click on a row opens its steps in the side panel.
- */
 export function SubagentGroup(props: SubagentGroupProps) {
   const { t } = useText();
   const duration = useDuration();
@@ -415,32 +377,21 @@ export function SubagentGroup(props: SubagentGroupProps) {
   );
 }
 
-/** The morph between the card header in the chat and the bar under the chat header. */
 const DOCK_IN: KeyframeAnimationOptions = { duration: 340, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" };
 const DOCK_OUT: KeyframeAnimationOptions = { ...DOCK_IN, duration: 260 };
 
-/** The offset from `to` to `from`, for a FLIP transform. */
 function offset(from: DOMRect, to: DOMRect): string {
   return `translate(${from.left - to.left}px, ${from.top - to.top}px)`;
 }
 
 export interface SubagentDockProps {
-  /** The subagents of a card that is out of view while one of them works. Otherwise `undefined`. */
   subagents: readonly ConversationSubagent[] | undefined;
-  /** Where the header of that card is, held inside the chat view; `undefined` when it is not drawn. */
   cardHeader: () => DOMRect | undefined;
-  /** Scrolls the chat back to the card. */
   onReveal: () => void;
 }
 
-/**
- * The header of a subagent card that the reader scrolled away from while its subagents work. It
- * morphs from the card to a bar under the chat header, with what a subagent does now, and back when
- * the card shows again. A click scrolls back to the card.
- */
 export function SubagentDock(props: SubagentDockProps) {
   const { t } = useText();
-  // The bar keeps its last subagents while it morphs back to the card.
   const [shown, setShown] = createSignal<readonly ConversationSubagent[]>();
   let bar: HTMLElement | undefined;
   let leaving: Animation | undefined;
@@ -453,7 +404,6 @@ export function SubagentDock(props: SubagentDockProps) {
         setShown(() => subagents);
         return;
       }
-      // The bar morphs back once; a second change while it leaves does not start a second morph.
       if (leaving) return;
       const target = props.cardHeader();
       if (!bar?.isConnected || !target || prefersReducedMotion()) {
@@ -495,7 +445,6 @@ export function SubagentDock(props: SubagentDockProps) {
       <Show when={shown()}>
         {(subagents) => {
           const progress = createGroupProgress(subagents);
-          /** The newest step of a subagent that works: what the team of the agent does now. */
           const current = () => subagents().find((subagent) => subagent.status === "running");
           return (
             <Button
@@ -521,22 +470,24 @@ export function SubagentDock(props: SubagentDockProps) {
 }
 
 export interface SubagentPanelProps {
-  /** The subagent to show. A subagent that is not in the chat any more shows an empty pane. */
   subagent: ConversationSubagent | undefined;
-  /** The agent that started the subagent. */
   agentName: string;
   onClosePanel: () => void;
-  /** Fork (#78): the names of the app's models, for the model the subagent runs on. */
   modelNames?: SubagentModelNames | undefined;
+  resizer?: JSX.Element;
 }
 
-/** The side panel pane of one subagent: its task, its state, and all of its steps. */
 export function SubagentPanel(props: SubagentPanelProps) {
   const { t } = useText();
   const duration = useDuration();
   const now = createClock(() => props.subagent?.status === "running");
   return (
-    <aside class="browser-panel subagents-panel" aria-label={t("conversation.sidePanel.pane.subagent")}>
+    <aside
+      id="subagent-panel"
+      class="browser-panel subagents-panel"
+      aria-label={t("conversation.sidePanel.pane.subagent")}
+    >
+      {props.resizer}
       <header class="file-preview-header side-panel-pane-header">
         <h2 class="side-panel-pane-title">{t("conversation.sidePanel.pane.subagent")}</h2>
         <Button
@@ -624,7 +575,6 @@ export function SubagentPanel(props: SubagentPanelProps) {
                     return (
                       <li class="subagents-step" data-kind={step().kind}>
                         <StepGlyph kind={step().kind} class="subagents-step-glyph" />
-                        {/* A command reads left to right; other steps take their direction from their text. */}
                         <span
                           class={["subagents-step-text", { "agent-activity-label": live() }]}
                           dir={step().kind === "command" ? "ltr" : "auto"}

@@ -11,10 +11,6 @@ import {
   NewerDatabaseError,
 } from "./openbot-database-schema";
 
-// Failure modes: the progress table changes or loses a row of another table; a failed upgrade leaves the
-// table or the marker; a newer or incomplete history is accepted; a deleted thread keeps its progress row;
-// a database with compacted event payloads opens in a release that does not know them. These fixtures
-// cover each.
 const databases: DatabaseSync[] = [];
 afterEach(() => {
   for (const db of databases.splice(0)) db.close();
@@ -43,13 +39,11 @@ function migrateUpTo(db: DatabaseSync, version: number): void {
   db.exec("DROP TRIGGER stop_at_version");
 }
 
-/** Later migrations can add tables, so the fixtures stop at version 65 unless they test the latest. */
 function migrateToProgressTable(db: DatabaseSync): void {
   if (LATEST_SCHEMA_VERSION > 65) migrateUpTo(db, 65);
   else migrateOpenBotDatabase(db);
 }
 
-/** A memory, and from schema 29 on a thread with one event that has a message in full. */
 function seed(db: DatabaseSync, version: number): void {
   db.prepare(`INSERT INTO projection_agent_memories
     (memory_id, agent_id, text, normalized_text, origin, source_turn_id, created_at, updated_at, last_event_sequence)
@@ -68,7 +62,6 @@ function seed(db: DatabaseSync, version: number): void {
 
 type Contents = Record<string, Record<string, SQLOutputValue>[]>;
 
-/** Every row of every table, by table name. */
 function contents(db: DatabaseSync): Contents {
   const tables = db
     .prepare(
@@ -109,7 +102,6 @@ describe("thread event compaction progress migration", () => {
     (version) => {
       const db = databaseAt(version);
       seed(db, version);
-      // The earlier migrations run first; the rows and the schema after them are what v65 must keep.
       if (version < 64) migrateUpTo(db, 64);
       const before = contents(db);
       const schemaBefore = schema(db);
@@ -165,11 +157,6 @@ describe("thread event compaction progress migration", () => {
     expectHealthy(db);
   });
 
-  // A release before compaction knows only the migrations of its tag (`released-schemas/releases.json`).
-  // It throws `NewerDatabaseError` for a newer database before it reads a row. Here the schema module
-  // of this build runs with only those migrations. Without migration 65 in the registry, the database
-  // stays at 64 and that build opens it. The payload shape does not change, so the refusal is the only
-  // downgrade effect: the user can not go back below this release.
   it("makes a release before compaction refuse a database with compacted events", async () => {
     const olderNewest = Math.max(
       ...releasedDatabaseCases()

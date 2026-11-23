@@ -11,20 +11,13 @@ import { type DynamicRecord, isString } from "@openbot/contracts/runtime-values"
 import { isRecord } from "../protocol";
 import { type ClaudePlanState, foldClaudePlanCall, newClaudePlanState } from "./plan-updates";
 
-/**
- * The notification that carries the subagents of a turn:
- * `{ threadId, turnId, subagents: ConversationSubagent[] }`, always the full list of that turn.
- * A background subagent can end after its turn, so an update can name a turn that has ended.
- */
 export const SUBAGENTS_UPDATED_METHOD = "turn/subagents/updated";
 
-/** The subagents in a `turn/subagents/updated` notification, or null. */
 export function subagentsFromNotification(params: unknown): ConversationSubagent[] | null {
   if (!isRecord(params) || !isConversationSubagents(params.subagents)) return null;
   return clampConversationSubagents(params.subagents);
 }
 
-/** The step that a subagent's tool call shows: the kind gives the icon, the text is the target. */
 function subagentToolStep(name: string, input: unknown): { kind: ConversationSubagentStepKind; text: string } {
   const fields = isRecord(input) ? input : {};
   const field = (key: string) => (isString(fields[key]) ? fields[key] : "");
@@ -51,10 +44,6 @@ function subagentToolStep(name: string, input: unknown): { kind: ConversationSub
   }
 }
 
-/**
- * Adds a step, or replaces the step with the same id, and keeps only the newest steps, so a long
- * run holds bounded memory. Returns false for a blank step, which is not added.
- */
 export function pushSubagentStep(subagent: ConversationSubagent, step: ConversationSubagentStep): boolean {
   const text = step.text.trim();
   if (!text) return false;
@@ -66,14 +55,12 @@ export function pushSubagentStep(subagent: ConversationSubagent, step: Conversat
   return true;
 }
 
-/** The final report as the last step, unless the subagent already wrote the same text. */
 export function pushSubagentReport(subagent: ConversationSubagent, text: string): void {
   const last = subagent.steps.at(-1);
   if (last?.kind === "text" && last.id !== `${subagent.id}:result` && last.text === text.trim()) return;
   pushSubagentStep(subagent, { id: `${subagent.id}:result`, kind: "text", text });
 }
 
-/** Ends a subagent once. A later end, such as a tool result after the task notification, keeps the first. */
 export function endSubagent(
   subagent: ConversationSubagent,
   status: Exclude<ConversationSubagentStatus, "running">,
@@ -87,29 +74,15 @@ export function endSubagent(
   return true;
 }
 
-/** The subagents of one turn, in start order. */
 interface SubagentTurn {
   subagents: ConversationSubagent[];
-  /** The turn ended. A later `Agent` call can still come while it runs, so its list stays until then. */
   ended: boolean;
 }
 
-/**
- * The subagents of one provider session: Claude's `Agent` calls, an ACP agent's subagent tool
- * calls, or OpenCode's child sessions. The state lives with the session, because a background
- * subagent ends after its turn, and the provider then reports it in a turn of its own. A turn's
- * entry goes when the turn ended and none of its subagents still runs.
- */
 export interface SubagentState {
   turns: Map<string, SubagentTurn>;
-  /** The turn of each subagent, under the subagent's id. */
   turnOf: Map<string, string>;
-  /**
-   * The subagent's id under another id that an update names: a Claude CLI task id, which
-   * `task_updated` names alone, or a nested OpenCode child session, which shows in its top subagent.
-   */
   aliases: Map<string, string>;
-  /** The text of steps that still stream, under the subagent's id and then the step's id. */
   streams: Map<string, Map<string, string>>;
   /** Fork: the task list each subagent keeps with its own tools, under the subagent's id. */
   plans?: Map<string, ClaudePlanState>;
@@ -148,13 +121,11 @@ export function newSubagentState(): SubagentState {
 
 const CLAUDE_SUBAGENT_TOOLS = new Set(["Agent", "Task"]);
 
-/** The turn whose list changed and its full list, for one notification. */
 export interface SubagentChange {
   turnId: string;
   subagents: ConversationSubagent[];
 }
 
-/** The full list of a turn after a change. A turn that ended with no subagent left running is forgotten. */
 export function subagentChange(state: SubagentState, turnId: string | undefined): SubagentChange | null {
   const turn = turnId ? state.turns.get(turnId) : undefined;
   if (!turnId || !turn) return null;
@@ -171,14 +142,12 @@ export function subagentChange(state: SubagentState, turnId: string | undefined)
   return { turnId, subagents };
 }
 
-/** The subagent with this id, or null when the state does not know it. */
 export function subagentFor(state: SubagentState, id: unknown): ConversationSubagent | undefined {
   if (!isString(id)) return undefined;
   const turnId = state.turnOf.get(id);
   return turnId ? state.turns.get(turnId)?.subagents.find((subagent) => subagent.id === id) : undefined;
 }
 
-/** Adds a subagent to a turn. The turn's entry starts with its first subagent. */
 export function startSubagent(
   state: SubagentState,
   turnId: string,
@@ -191,7 +160,6 @@ export function startSubagent(
   return subagentChange(state, turnId);
 }
 
-/** Removes a subagent that turned out not to be one that OpenBot can follow. */
 export function dropSubagent(state: SubagentState, id: string): SubagentChange | null {
   const turnId = state.turnOf.get(id);
   const turn = turnId ? state.turns.get(turnId) : undefined;
@@ -202,12 +170,6 @@ export function dropSubagent(state: SubagentState, id: string): SubagentChange |
   return subagentChange(state, turnId);
 }
 
-/**
- * Starts a subagent for an `Agent` call of the main agent. Returns null for every other tool.
- * Fork (FEATURES.md #78): `parent` is the model and effort of the main agent, which a subagent
- * runs on when the call names none; `resolveModel` turns a model alias of the call (`opus`) into
- * the model id. The first message of the subagent then reports the model it really runs on.
- */
 export function foldClaudeSubagentCall(
   state: SubagentState,
   turnId: string,
@@ -245,34 +207,22 @@ export function foldClaudeSubagentCall(
   });
 }
 
-/**
- * Fork (FEATURES.md #78): the model that a subagent's message names (`message.model`) is the one it
- * runs on, which can differ from the guess: an agent type such as Explore names its own model. When
- * it differs and the effort was only the parent's, the effort is not known any more. Only the first
- * message counts.
- */
 function noteReportedModel(state: SubagentState, subagent: ConversationSubagent, message: DynamicRecord): boolean {
   const guess = state.guessedModels?.get(subagent.id);
   const reported = isString(message.model) ? message.model.trim() : "";
   if (!guess || !reported || reported.startsWith("<")) return false;
   state.guessedModels?.delete(subagent.id);
-  // The guess can name a context variant (`[1m]`) that the message does not: it then stays.
   if (subagent.model !== undefined && sameModelId(subagent.model, reported)) return false;
   subagent.model = reported;
   if (guess.inheritedEffort) delete subagent.effort;
   return true;
 }
 
-/** The same model, apart from a context variant such as `[1m]`. */
 function sameModelId(left: string, right: string): boolean {
   const base = (id: string) => id.replace(/\[[^\]]*\]$/u, "").toLowerCase();
   return base(left) === base(right);
 }
 
-/**
- * Applies a message that a subagent wrote: its `parent_tool_use_id` names the `Agent` call. Each
- * thought, text, and tool call becomes a step.
- */
 export function foldClaudeSubagentMessage(
   state: SubagentState,
   parentToolUseId: string,
@@ -305,12 +255,6 @@ export function foldClaudeSubagentMessage(
 
 const SUBAGENT_PLAN_TOOLS = new Set(["TodoWrite", "TaskCreate", "TaskUpdate"]);
 
-/**
- * Fork: folds a subagent's `TodoWrite` / `TaskCreate` / `TaskUpdate` call into its plan. True when
- * the call was a task-list call that the plan took. A `TaskCreate` gets the next number as its id
- * (the CLI answers "Task #n created" and the result is not read here; a guess that holds while the
- * subagent numbers its own tasks from 1).
- */
 function foldSubagentPlan(state: SubagentState, subagent: ConversationSubagent, block: DynamicRecord): boolean {
   const name = isString(block.name) ? block.name : "";
   if (!SUBAGENT_PLAN_TOOLS.has(name)) return false;
@@ -338,11 +282,6 @@ function foldSubagentPlan(state: SubagentState, subagent: ConversationSubagent, 
   return true;
 }
 
-/**
- * Applies the main agent's result of an `Agent` call. A background call answers at once that the
- * subagent started, so only a foreground result ends the subagent. An error ends both: a background
- * call that failed started no task, so no `task_notification` ends it later.
- */
 export function foldClaudeSubagentResult(
   state: SubagentState,
   toolUseId: string,
@@ -372,15 +311,6 @@ export function foldClaudeSubagentResult(
   return subagentChange(state, state.turnOf.get(toolUseId));
 }
 
-/**
- * Fork: the result of the main agent's `SendMessage` call. When it resumed a subagent that had
- * finished (`resumedAgentId`, "Resuming agent …"), the CLI runs that subagent again as a background
- * task under the `SendMessage` call's id, and the `task_notification` of that run names this id. So
- * the resume starts a subagent in this turn as a background `Agent` call does, and the agent counts
- * as at work until that notification, the session's end or a restart ends it. A message queued for a
- * subagent that still runs, a failed call, or an unknown id starts nothing. Tatiana, 12 Nov 2026: a
- * subagent resumed at 17:29 showed as done, and the turn's end sent a "plan has open steps" note.
- */
 export function foldClaudeSubagentResume(
   state: SubagentState,
   turnId: string,
@@ -397,7 +327,6 @@ export function foldClaudeSubagentResume(
   const fields = isRecord(result) ? result : parsedRecord(text);
   const resumedId = isString(fields?.resumedAgentId) ? fields.resumedAgentId.trim() : "";
   if (!resumedId || fields?.success === false) return null;
-  // The earlier run, when the state still knows it, gives the title. Its turn can be forgotten.
   let earlier: ConversationSubagent | undefined;
   for (const turn of state.turns.values())
     for (const subagent of turn.subagents) if (subagent.providerAgentId === resumedId) earlier = subagent;
@@ -428,7 +357,6 @@ function parsedRecord(text: string): DynamicRecord | null {
   }
 }
 
-/** The final report in the structured result. The text form is wrapped in a frame for the model. */
 function claudeResultText(result: unknown): string {
   if (!isRecord(result) || !Array.isArray(result.content)) return "";
   return result.content
@@ -437,11 +365,6 @@ function claudeResultText(result: unknown): string {
     .join("\n");
 }
 
-/**
- * Applies the CLI's own record of a subagent: `task_started`, `task_updated`, and
- * `task_notification`, which carries the end state and the final report. These come for background
- * subagents after their turn too.
- */
 export function foldClaudeTaskMessage(state: SubagentState, message: unknown, now: string): SubagentChange | null {
   if (!isRecord(message) || message.type !== "system") return null;
   if (
@@ -471,10 +394,6 @@ export function foldClaudeTaskMessage(state: SubagentState, message: unknown, no
   return subagentChange(state, turnId);
 }
 
-/**
- * The turn ended. A foreground subagent that still runs has stopped with it, for example when the
- * person stopped the turn. A background subagent works on.
- */
 export function endSubagentTurn(state: SubagentState, turnId: string, now: string): SubagentChange | null {
   // A `SendMessage` result comes within its turn, so a call left here got none.
   state.sends?.clear();
@@ -488,10 +407,6 @@ export function endSubagentTurn(state: SubagentState, turnId: string, now: strin
   return changed ? update : null;
 }
 
-/**
- * Fork (docs/fork/FEATURES.md, "Stopped subagents continue"): the background subagents that still
- * run, with their turn, read before the process ends so the agent can be told to continue them.
- */
 export function runningBackgroundSubagents(
   state: SubagentState,
 ): Array<{ turnId: string; subagent: ConversationSubagent }> {
@@ -502,10 +417,6 @@ export function runningBackgroundSubagents(
   );
 }
 
-/**
- * The process ended, and each subagent that still ran ended with it. `turnIds` limits this to the
- * turns of one session, which closed: the agent then reports nothing more of its subagents.
- */
 export function stopSubagents(state: SubagentState, now: string, turnIds?: ReadonlySet<string>): SubagentChange[] {
   if (!turnIds) state.sends?.clear();
   return [...state.turns].flatMap(([turnId, turn]) => {
@@ -518,11 +429,6 @@ export function stopSubagents(state: SubagentState, now: string, turnIds?: Reado
   });
 }
 
-/**
- * Ends the subagents in a stored list that still run. `background` keeps a background subagent,
- * which works on after its turn. `keep` names more subagents that work on, by id. Returns true when
- * the list changed.
- */
 export function stopRunningSubagents(
   subagents: ConversationSubagent[] | undefined,
   now: string,
@@ -535,11 +441,6 @@ export function stopRunningSubagents(
   return changed;
 }
 
-/**
- * Applies a Codex `collabAgentToolCall` item to the subagents of a turn. `spawnAgent` starts one
- * subagent for each receiver thread; the other tools (`wait`, `closeAgent`) report the state of
- * subagents that already exist. Returns the new list, or null when nothing changed.
- */
 export function foldCodexSubagentItem(
   current: readonly ConversationSubagent[],
   item: DynamicRecord,
@@ -596,11 +497,6 @@ export function foldCodexSubagentItem(
   return changed ? subagents : null;
 }
 
-/**
- * Fork (FEATURES.md #78): what a Codex turn knows of its subagents' models. `parent` is the model
- * and effort of the agent itself. `resolved` holds the model that a `subAgentActivity` item named for
- * a thread that no `spawnAgent` named yet, under the thread's id; the caller keeps it between items.
- */
 export interface CodexSubagentModels {
   parent?: SubagentModelPick;
   resolved: Map<string, { model: string | null; effort: string | null }>;
@@ -608,10 +504,6 @@ export interface CodexSubagentModels {
 
 const CODEX_RESOLVED_LIMIT = 48;
 
-/**
- * Fork: a `subAgentActivity` item carries the model and effort that Codex resolved when it created
- * the subagent, which wins over the requested one.
- */
 function foldCodexSubagentActivity(
   subagents: ConversationSubagent[],
   item: DynamicRecord,
@@ -644,7 +536,6 @@ function foldCodexSubagentActivity(
   return changed ? subagents : null;
 }
 
-/** The end state of a Codex agent, or null while it still works. */
 function codexSubagentStatus(status: unknown): Exclude<ConversationSubagentStatus, "running"> | null {
   if (status === "completed") return "completed";
   if (status === "errored" || status === "failed") return "failed";
@@ -652,11 +543,6 @@ function codexSubagentStatus(status: unknown): Exclude<ConversationSubagentStatu
   return null;
 }
 
-/**
- * Applies an item of a Codex subagent's own thread as a step of that subagent. Codex sends the
- * items of each thread to every connection, child threads too. Returns the new list, or null when
- * nothing changed. An ended subagent takes no more steps.
- */
 export function foldCodexChildItem(
   current: readonly ConversationSubagent[],
   childThreadId: string,
@@ -670,10 +556,6 @@ export function foldCodexChildItem(
   return subagent && pushSubagentStep(subagent, step) ? subagents : null;
 }
 
-/**
- * Ends a Codex subagent whose own turn ended after its parent turn: no `wait` of the parent reports
- * it then. Returns the new list, or null when the subagent no longer runs.
- */
 export function endCodexChild(
   current: readonly ConversationSubagent[],
   childThreadId: string,
@@ -686,7 +568,6 @@ export function endCodexChild(
   return subagent && endSubagent(subagent, status, now) ? subagents : null;
 }
 
-/** The step that a Codex thread item shows, or null for an item that is not work of the subagent. */
 function codexChildStep(item: DynamicRecord): ConversationSubagentStep | null {
   if (!isString(item.id)) return null;
   const id = item.id;

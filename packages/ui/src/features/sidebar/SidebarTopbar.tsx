@@ -1,16 +1,9 @@
-/**
- * The server name, Search, the filter and New (fork), Back and Forward, the sidebar toggle, the server update,
- * the marketplace button, and an optional detail from the app - plus the window drag region. A window with the
- * page rail shows the server in the rail, and its styles hide the name here. The styles also hide Back, Forward
- * and the update in a compact sidebar that has no room for them.
- */
-
-import { ArrowLeft, ArrowRight, Button, CircleFadingArrowUp, IconButton, Puzzle } from "@openbot/ui";
+import { ArrowLeft, ArrowRight, Button, CircleFadingArrowUp, IconButton, PanelLeft, Puzzle } from "@openbot/ui";
 import { Show } from "solid-js";
 import { useText } from "../../text";
 import { ServerMenu } from "../servers/ServerMenu";
 import { SidebarFilterMenu } from "./SidebarFilterMenu";
-import { SearchIcon, SidebarToggleIcon } from "./SidebarIcons";
+import { SearchIcon } from "./SidebarIcons";
 import { SidebarNewMenu } from "./SidebarNewMenu";
 import { useSidebarScope } from "./sidebar-scope";
 
@@ -19,6 +12,29 @@ export function SidebarTopbar() {
   const { t } = useText();
   const toggleLabel = () => (props.compact ? t("sidebar.topbar.expand") : t("sidebar.topbar.collapse"));
   const toggleSidebar = () => (props.compact ? props.onExpand() : props.onCollapse?.());
+  const updateButton = () => (
+    <Show when={props.serverUpdate}>
+      {(update) => {
+        const label = () =>
+          update().running
+            ? t("server.update.dialog.progressTitle", { name: props.serverName })
+            : t("server.update.dialog.offerTitle", { name: props.serverName, version: update().version });
+        return (
+          <Button
+            variant="ghost"
+            type="button"
+            class="sidebar-icon-button sidebar-update-button no-drag"
+            data-running={update().running ? "true" : undefined}
+            aria-label={label()}
+            title={label()}
+            onClick={() => update().onOpen()}
+          >
+            <CircleFadingArrowUp aria-hidden="true" />
+          </Button>
+        );
+      }}
+    </Show>
+  );
   return (
     <div class="window-drag sidebar-topbar">
       <Show
@@ -102,6 +118,7 @@ export function SidebarTopbar() {
             );
           }}
         </Show>
+        <Show when={!props.compact}>{updateButton()}</Show>
         <Show when={props.compact || props.onCollapse}>
           <Button
             variant="ghost"
@@ -114,31 +131,10 @@ export function SidebarTopbar() {
             aria-expanded={props.compact ? "false" : "true"}
             title={toggleLabel()}
           >
-            <SidebarToggleIcon />
+            <PanelLeft aria-hidden="true" />
           </Button>
         </Show>
-        <Show when={props.serverUpdate}>
-          {(update) => {
-            const label = () =>
-              update().running
-                ? t("server.update.dialog.progressTitle", { name: props.serverName })
-                : t("server.update.dialog.offerTitle", { name: props.serverName, version: update().version });
-            return (
-              <Button
-                variant="ghost"
-                type="button"
-                class="sidebar-icon-button sidebar-update-button no-drag"
-                data-running={update().running ? "true" : undefined}
-                aria-label={label()}
-                title={label()}
-                onClick={() => update().onOpen()}
-              >
-                <CircleFadingArrowUp aria-hidden="true" />
-              </Button>
-            );
-          }}
-        </Show>
-        {/* The menu view needs the room for the server name. The page rail also opens the marketplace. */}
+        <Show when={props.compact}>{updateButton()}</Show>
         <Show when={!props.compact && props.marketplaceSupported !== false && props.serverMenu?.view !== "menu"}>
           <Button
             variant="ghost"

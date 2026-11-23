@@ -20,12 +20,6 @@ import {
   uiBlockState,
 } from "./ui-block-support";
 
-/**
- * A list of options with letter keys. A `choice` block sends the picked options with its submit
- * button. A `quick_replies` block, which agents no longer get but which stays in stored and remote
- * chats, sends an option at once: a click, Enter, Space or its letter. With `allowText`, its last row
- * takes an answer in words.
- */
 export function UiChoiceBlock(props: UiBlockProps<UiChoiceSpec | UiQuickRepliesSpec>) {
   const { t } = useText();
   const hintId = createUniqueId();
@@ -44,9 +38,7 @@ export function UiChoiceBlock(props: UiBlockProps<UiChoiceSpec | UiQuickRepliesS
   );
   const [draft, setDraft] = createSignal("");
   let customInput: HTMLInputElement | undefined;
-  // An arrow key moves the radio selection with a click; that click must not send a reply.
   let arrowMove = false;
-  // A frozen block shows the stored answer, whatever the person had picked before.
   const chosen = (): string[] => {
     const response = state().response;
     if (!frozen()) return picked();
@@ -55,7 +47,6 @@ export function UiChoiceBlock(props: UiBlockProps<UiChoiceSpec | UiQuickRepliesS
     return Array.isArray(stored) ? stored : [];
   };
   const isChosen = (id: string) => chosen().includes(id);
-  // A chosen row shows the answer; an answer in words has no row, so it keeps the outcome line.
   const answerInRows = () => chosen().some((id) => props.spec.options.some((option) => option.id === id));
 
   function toggle(id: string): void {
@@ -72,7 +63,6 @@ export function UiChoiceBlock(props: UiBlockProps<UiChoiceSpec | UiQuickRepliesS
 
   function submit(): void {
     if (locked() || picked().length === 0) return;
-    // The answer lists the options in the order the block shows them.
     const selected = props.spec.options.filter((option) => picked().includes(option.id)).map((option) => option.id);
     sendUiBlockResponse(
       props.spec,
@@ -94,7 +84,6 @@ export function UiChoiceBlock(props: UiBlockProps<UiChoiceSpec | UiQuickRepliesS
       arrowMove = true;
       return;
     }
-    // Arrow keys only move the selection of a reply; Enter and Space send it.
     if (replies() && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
       reply(id);
@@ -113,10 +102,6 @@ export function UiChoiceBlock(props: UiBlockProps<UiChoiceSpec | UiQuickRepliesS
     else toggle(option.id);
   }
 
-  /**
-   * A click sends a reply: from a pointer, or from assistive technology, which clicks with no key.
-   * The click that an arrow key makes only selects.
-   */
   function handleClick(id: string): void {
     const fromArrow = arrowMove;
     arrowMove = false;
@@ -128,7 +113,6 @@ export function UiChoiceBlock(props: UiBlockProps<UiChoiceSpec | UiQuickRepliesS
   const submitLabel = () => (props.spec.type === "choice" && props.spec.submit) || t("uiBlock.choice.submit");
   const submitDisabled = () => locked() || (replies() ? draft().trim() === "" : picked().length === 0);
   const onSubmit = () => (replies() ? sendText() : submit());
-  // A reply block has a button only for the answer in words.
   const actions = () =>
     !replies() || allowText() ? (
       <Button type="button" size="sm" disabled={submitDisabled()} onClick={onSubmit}>
@@ -210,7 +194,6 @@ export function UiChoiceBlock(props: UiBlockProps<UiChoiceSpec | UiQuickRepliesS
                 setPicked([]);
               }}
               onKeyDown={(event) => {
-                // The browser owns the key that commits an IME composition.
                 if (event.isComposing || event.keyCode === 229 || event.key !== "Enter") return;
                 event.preventDefault();
                 sendText();

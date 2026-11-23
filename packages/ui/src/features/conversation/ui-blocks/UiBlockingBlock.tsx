@@ -7,17 +7,13 @@ import { UiFormBlock } from "./UiFormBlock";
 import type { UiBlockProps } from "./ui-block-support";
 
 export interface UiBlockingBlockProps extends Omit<UiBlockProps<UiBlockSpec>, "onRespond"> {
-  /** Gets the response, and a confirm block's edited preview when the person changed it. */
   onRespond: (response: UiBlockResponse, preview?: string) => void;
-  /** Draws safe Markdown: a confirm block's preview, a hint. */
   renderMarkdown?: ((markdown: string) => JSX.Element) | undefined;
-  /** Lets a confirm block's preview be edited in the card (see `UiConfirmBlock`). */
   canEditPreview?: boolean | undefined;
-  /** Only for a form: the id of a choice field that the footer shows as a small select. */
   footerFieldId?: string | undefined;
+  onPreviewDraftChange?: ((draft: string | undefined) => void) | undefined;
 }
 
-/** The card for any blocking block type: confirm, choice or form. An old quick replies block shows as a choice. */
 export function UiBlockingBlock(props: UiBlockingBlockProps) {
   const shared = {
     get state() {
@@ -57,6 +53,7 @@ export function UiBlockingBlock(props: UiBlockingBlockProps) {
             spec={spec()}
             renderPreview={props.renderMarkdown}
             canEditPreview={props.canEditPreview}
+            onDraftChange={props.onPreviewDraftChange}
           />
         )}
       </Match>

@@ -4,7 +4,6 @@ import { SidebarFrame } from "./SidebarFrame";
 import { SidebarNav } from "./SidebarNav";
 import { SidebarSearch } from "./SidebarSearch";
 import { SidebarTopbar } from "./SidebarTopbar";
-import { SidebarViewSwitch } from "./SidebarViewSwitch";
 import { createSidebarScope, SidebarScopeContext } from "./sidebar-scope";
 import type { SidebarProps } from "./sidebar-types";
 
@@ -18,10 +17,6 @@ export function Sidebar(props: SidebarProps) {
         {/* Fork: the expanded sidebar has Search in its top bar; the compact one keeps its icon here. */}
         <Show when={props.compact}>
           <SidebarSearch />
-        </Show>
-
-        <Show when={props.onViewChange && !props.compact}>
-          <SidebarViewSwitch />
         </Show>
 
         <SidebarNav />

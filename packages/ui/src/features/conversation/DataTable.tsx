@@ -50,7 +50,6 @@ export function DataTable(props: {
     if (copiedTimer) clearTimeout(copiedTimer);
   });
 
-  // Markdown keeps the cells' own markdown. CSV is for a spreadsheet, so it takes the text as shown.
   const copy = async (format: DataTableFormat) => {
     const text =
       format === "markdown"
@@ -129,7 +128,6 @@ export function DataTable(props: {
   );
 }
 
-/** The table as Markdown source again. A cell keeps its own markdown, with `|` escaped. */
 export function dataTableMarkdown(table: Pick<DataTableBlock, "headers" | "alignments" | "rows">): string {
   const row = (cells: readonly string[]) =>
     `| ${cells.map((cell) => cell.replace(/\\(?=[\\|]|$)/gu, "\\\\").replace(/\|/gu, "\\|")).join(" | ")} |`;
@@ -140,7 +138,6 @@ export function dataTableMarkdown(table: Pick<DataTableBlock, "headers" | "align
   return [row(table.headers), `| ${separator.join(" | ")} |`, ...table.rows.map(row)].join("\n");
 }
 
-/** Rows as CSV (RFC 4180): a cell with a comma, a quote or a line break goes in quotes. */
 export function dataTableCsv(rows: readonly (readonly string[])[]): string {
   return rows
     .map((cells) => cells.map((cell) => (/[",\r\n]/u.test(cell) ? `"${cell.replaceAll('"', '""')}"` : cell)).join(","))
@@ -187,11 +184,6 @@ export function messageContentBlocks(body: string, streaming = false): MessageCo
   return foundStructuredBlock ? blocks : [{ type: "text", text: body }];
 }
 
-/**
- * Gives back `next` with each block that equals the block at the same index in `previous` replaced
- * by that earlier object. A streaming reply is parsed again on each revealed word; this keeps the
- * blocks that did not grow unchanged, so they do not render again.
- */
 export function reuseUnchangedBlocks(
   previous: readonly MessageContentBlock[],
   next: MessageContentBlock[],
@@ -371,7 +363,6 @@ function parseRow(line: string): string[] | null {
 }
 
 function hasUnescapedPipe(value: string): boolean {
-  // Each streamed chunk parses the whole message again, and most lines have no pipe.
   if (!value.includes("|")) return false;
   for (let index = 0; index < value.length; index += 1) {
     if (value[index] !== "|") continue;

@@ -145,14 +145,12 @@
   }
 }
 
-/* While a file from a joined server downloads, its download button shows the progress and stops it. */
 .attachment-download-ring {
   --ui-radial-progress-color: var(--openbot-text-primary);
 
   width: var(--openbot-control-xs);
 }
 
-/* The card sizes every button icon; the ring chart fills its own box instead. */
 .attachment-download-stop .ui-radial-progress-chart {
   width: 100%;
   height: 100%;
@@ -183,11 +181,8 @@
 .agent-queue-panel {
   --queue-row-height: 29px;
   --queue-composer-overlap: 14px;
-  /* The leading glyph fills its column, so this inset is the gap the eye sees on the left. */
   --queue-row-inset-start: 13px;
-  /* The trailing buttons are 26px boxes around 16px glyphs, so 5px of the gap is already in them. */
   --queue-row-inset-end: 8px;
-  /* What stays between the panel edge and a row's hover fill, the same on all four sides. */
   --queue-row-gutter: 5px;
 
   position: relative;
@@ -221,10 +216,6 @@
   min-height: 0;
 }
 
-/*
- * Why the queue waits, above the rows that wait. Sits inside the panel's own
- * padding because the list below owns the row insets, not the panel.
- */
 .agent-queue-hold {
   margin: 0;
   padding-block: var(--queue-row-gutter) 0;
@@ -288,21 +279,15 @@
   height: var(--openbot-control-xl);
 }
 
-/*
- * Fork: a video card is as wide as the person dragged it (280-1100 px, default 560), capped by the
- * chat column, with a slim header and border so the picture gets the room (Elias, 8 Nov 2026).
- */
 .message-attachments-group:has(.message-attachment[data-media="video"]),
 .message-attachments:has(.message-attachment[data-media="video"]) {
   width: 100%;
 }
 
-/* The grip reaches into the bubble's padding, so the bubble's content must not clip it. */
 [data-slot="bubble"]:has(.message-attachment[data-media="video"]) > [data-slot="bubble-content"] {
   overflow: visible;
 }
 
-/* The bubble's own cap (at most 800 px) would hold the card back, so a video's bubble takes its width. */
 [data-slot="bubble"]:has(.message-attachment[data-media="video"]) {
   width: min(100%, calc(var(--video-card-width, 560px) + 2 * var(--openbot-space-3)));
   max-width: 100%;
@@ -339,10 +324,6 @@
   border-radius: var(--openbot-radius-md);
 }
 
-/*
- * The grip: the whole outer edge of the bubble on the card's free side, drawn as a corner mark at its
- * outer bottom corner. It reaches past the card into the bubble's padding, so the outermost point drags.
- */
 .attachment-video-resize {
   position: absolute;
   z-index: 2;
@@ -385,17 +366,6 @@
   opacity: 1;
 }
 
-/*
- * A video has no card: only the player, as a generated video, with its name under it. Its details
- * show on hover, and a right click gives its actions.
- *
- * Fork (Elias, 20 Nov 2026: "why vid previews this small and i cant make them bigger"): a reply with
- * videos takes the whole chat column. One video fills it; several make a grid of large tiles, each at
- * least `--video-card-width` wide (default 440 px: two tiles in a 1150 px column). The grip sets that
- * width, so it changes how many tiles share a row. Before, the bubble had a width but a ghost bubble's
- * content kept `width: fit-content`, so every player shrank to its smallest size (about 100 px) and
- * the grip changed a width that nothing used.
- */
 .message-attachments-group:has(.message-attachment[data-player="video"]),
 .message-attachments:has(.message-attachment[data-player="video"]) {
   width: 100%;
@@ -425,9 +395,8 @@
   width: min(100%, 360px);
 }
 
-/* The player and its name show. The row comes back while a download runs or after it fails. */
 .message-attachment[data-player="video"]:not([data-download])
-> :not(.attachment-media-player, .attachment-video-resize, .attachment-video-caption) {
+  > :not(.attachment-media-player, .attachment-video-resize, .attachment-video-caption) {
   display: none;
 }
 
@@ -481,12 +450,10 @@
   padding: 0;
 }
 
-/* The first frame says that the file is a video. */
 .message-attachment[data-player="video"] .attachment-file-visual {
   display: none;
 }
 
-/* A video keeps its shape and is never higher than most of the window: an upright one gets narrower. */
 .message-attachment[data-player="video"] .attachment-media-player {
   max-width: min(100%, calc(min(72vh, 900px) * (var(--media-generation-ratio))));
   border-radius: var(--openbot-radius-lg);

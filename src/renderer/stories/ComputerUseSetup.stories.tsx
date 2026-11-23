@@ -66,7 +66,6 @@ export const Ready: Story = {
   ),
 };
 
-/** macOS reports both grants but refuses the Accessibility calls (#10658), so OpenBot must restart. */
 export const RestartRequired: Story = {
   render: () => (
     <MockedSetup
@@ -83,7 +82,6 @@ export const Loading: Story = {
   render: () => <MockedSetup loading />,
 };
 
-/** A build that carries no driver. A fault of that build, so the panel names no command to run. */
 export const DriverMissing: Story = {
   render: () => (
     <MockedSetup
@@ -96,7 +94,6 @@ export const DriverMissing: Story = {
   ),
 };
 
-/** Windows and Linux grant no permission, so a driver that answers is all the panel has to report. */
 export const ReadyWithoutPermissions: Story = {
   render: () => <MockedSetup state={{ status: "ready", permissions: [], message: null }} />,
 };

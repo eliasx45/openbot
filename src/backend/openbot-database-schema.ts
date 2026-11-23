@@ -9,17 +9,6 @@ import { MIGRATIONS } from "./migrations/registry";
 
 const BASELINE_SCHEMA_VERSION = 8;
 
-// Fork (docs/fork/FEATURES.md #43): indexes the child keys that a thread delete follows. A delete of a thread removes its turns and
-// activities by ON DELETE CASCADE, and each provider session it removes clears its turns by ON DELETE SET NULL.
-// SQLite finds those rows through an index that starts with the child key, or else reads the whole child table
-// once for each parent row. Both tables grow by a row for each turn or message of every thread, so a delete of
-// one side thread read every turn and activity ever stored. A whole-snapshot write also deletes the activities of
-// its thread by thread and sequence, which is the second column. A turn without a session never needs the
-// session index, so it is partial. Restart recovery reads the running turns of every thread, which without an
-// index is a read of every turn; that index holds only running turns, so a finished turn leaves it.
-// The fork shipped these as migration 59 (6 Nov 2026); upstream then took 59 for the messaging pings table
-// and 60 for the memory site. So they are no numbered migration any more: `applyForkSchema` makes them on
-// every start (IF NOT EXISTS), and upstream's numbers stay free for the next sync.
 const FORK_THREAD_CHILD_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS thread_activities_thread
     ON projection_thread_activities(thread_id, last_event_sequence);
@@ -29,7 +18,6 @@ const FORK_THREAD_CHILD_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS turns_running ON projection_turns(thread_id, turn_id) WHERE status = 'running';
 `;
 
-/** Fork: the indexes of `FORK_THREAD_CHILD_INDEX_SQL`, which the migration history leaves out. */
 export const FORK_SCHEMA_INDEX_NAMES: ReadonlySet<string> = new Set([
   "thread_activities_thread",
   "turns_thread",
@@ -37,31 +25,17 @@ export const FORK_SCHEMA_INDEX_NAMES: ReadonlySet<string> = new Set([
   "turns_running",
 ]);
 
-// Each migration and the SQL it runs is in its own frozen file under `migrations/`. This module runs them.
-// A new database runs the same migrations as an existing one, from the version 8 baseline, so a new
-// install and an upgraded install cannot get different schemas.
-
 export interface OpenBotMigrationOptions {
   appliedAt?: string;
   warn?: (message: string, error: unknown) => void;
-  /** The last connection closed cleanly, so SQLite removed the write-ahead log. */
   closedCleanly?: boolean;
-  /**
-   * Stops the database after this version. Tests use it to make the database of an older release
-   * (`src/backend/migration-harness.ts`).
-   */
   throughVersion?: number;
 }
 
 const logger = createOpenBotLogger("openbot-database-schema");
 
-/** The highest schema version that this build can open. */
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? BASELINE_SCHEMA_VERSION;
 
-/**
- * True when `migrateOpenBotDatabase` will run a migration, also on a new database. It ends with the full
- * check on this connection, so a check elsewhere before it would only read the file twice.
- */
 export function openBotDatabaseNeedsMigration(db: DatabaseSync): boolean {
   if (!hasExistingSchema(db)) return true;
   const currentVersion = latestAppliedVersion(readAppliedVersions(db));
@@ -80,24 +54,19 @@ export function migrateOpenBotDatabase(db: DatabaseSync, options: OpenBotMigrati
   const pending = MIGRATIONS.filter(
     (migration) => migration.version > currentVersion && migration.version <= throughVersion,
   );
-  // A database can hold broken references from before this upgrade. A migration that does not touch them must not
-  // stop on them, and deleting them would lose rows, so each migration is checked only for the ones it adds.
   let violations: Map<string, number> | undefined;
 
   for (const migration of pending) {
     try {
-      // Read inside the try, so that a failed read names the migration that it stops, as a failed check did before.
       violations ??= readOldForeignKeyViolations(db);
       violations = runMigration(db, migration, appliedAt, violations);
     } catch (error) {
-      // The startup log keeps only the message, so the cause is logged here.
       logger.error(`OpenBot database migration to version ${migration.version} failed.`, toLogValue(error));
       throw new Error(`OpenBot database migration to version ${migration.version} failed.`, {
         cause: error,
       });
     }
 
-    // A new database has no free pages to give back.
     if (migration.vacuumAfterCommit && !isNewDatabase) {
       try {
         db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
@@ -110,11 +79,7 @@ export function migrateOpenBotDatabase(db: DatabaseSync, options: OpenBotMigrati
     }
   }
 
-  // Fork: a test that makes the database of an older release stops before the latest version, and an
-  // upstream release has no fork indexes, so only a full upgrade adds them.
   if (throughVersion >= LATEST_SCHEMA_VERSION) applyForkSchema(db);
-  // The check reads every page, which takes minutes on a large file. Only a migration, or a stop that
-  // did not close the file (a crash, a kill, a disk save while it ran), can leave a damaged page.
   if (pending.length > 0 || !options.closedCleanly) assertQuickCheck(db);
 }
 
@@ -169,10 +134,6 @@ function readAppliedVersions(db: DatabaseSync): number[] {
     });
 }
 
-/**
- * A newer OpenBot migrated the database. This build stops before it writes anything; the start can
- * recover by installing a release that knows the version (`src/main/newer-database-recovery.ts`).
- */
 export class NewerDatabaseError extends Error {
   constructor(databaseVersion: number, supportedVersion: number) {
     super(`OpenBot database version ${databaseVersion} is newer than this application supports (${supportedVersion}).`);
@@ -231,14 +192,9 @@ function assertForeignKeys(db: DatabaseSync, before: ReadonlyMap<string, number>
   return violations;
 }
 
-/**
- * Counts the broken references per child and parent table. A rebuild gives the rows new rowids and the table new
- * foreign-key ids, so only the table names identify a violation from one migration to the next.
- */
 function readForeignKeyViolations(db: DatabaseSync): Map<string, number> {
   const counts = new Map<string, number>();
   for (const row of db.prepare("PRAGMA foreign_key_check").all()) {
-    // Every row counts, also one of an unexpected shape, so that the check cannot miss a violation.
     const reference = isDynamicRecord(row) ? `${String(row.table)} -> ${String(row.parent)}` : "unknown";
     counts.set(reference, (counts.get(reference) ?? 0) + 1);
   }
@@ -264,10 +220,8 @@ function assertQuickCheck(db: DatabaseSync): void {
   );
 }
 
-/** Throws the integrity error unless the lines of a `PRAGMA quick_check` are the one line "ok". */
 export function assertQuickCheckResult(problems: readonly unknown[]): void {
   if (problems.length === 1 && problems[0] === "ok") return;
-  // The lines name the damaged pages and tables, which tell a page left by a disk save from a bad index.
   logger.error("The OpenBot database failed its integrity check.", { problems });
   throw new Error(sourceText("error.backend.databaseIntegrity"));
 }

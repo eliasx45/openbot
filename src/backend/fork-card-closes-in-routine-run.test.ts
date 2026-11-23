@@ -159,7 +159,12 @@ async function setUp() {
   const errors: string[] = [];
   const registry = new AttentionRegistry({
     conversation,
-    browser: { listTabs: () => [], beginTakeover: () => Effect.void, endTakeover: () => {} },
+    browser: {
+      listTabs: () => [],
+      toolCanUseTab: () => false,
+      beginTakeover: () => Effect.void,
+      endTakeover: () => {},
+    },
     hostedSites: { prepareApproval: () => Effect.succeed(null), resolveApproval: () => Effect.void },
     routines: {
       markNeedsAttention: (turnId) => {

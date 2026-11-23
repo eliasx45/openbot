@@ -16,16 +16,12 @@ import {
   subagentModelFields,
 } from "./subagent-updates";
 
-/** The ACP extension notification that OpenCode sends for the sessions of its subagents. */
 export const OPENCODE_CHILD_UPDATE_METHOD = "opencode/session/child_update";
 
-/** The client capability that makes OpenCode send `OPENCODE_CHILD_UPDATE_METHOD`. */
 export const OPENCODE_CHILD_SESSION_UPDATES = "opencode/child-session-updates";
 
-/** The fields of an ACP `tool_call` or `tool_call_update` that a subagent card reads. */
 export interface AcpSubagentToolCall {
   id: string;
-  /** The name that OpenBot shows for the call: the ACP `name`, else the title. */
   name: string;
   status: string | undefined;
   rawInput: unknown;
@@ -33,7 +29,6 @@ export interface AcpSubagentToolCall {
   content: unknown;
 }
 
-/** The text blocks of ACP tool call content, joined. */
 function contentText(content: unknown): string {
   if (!Array.isArray(content)) return "";
   return content
@@ -42,7 +37,6 @@ function contentText(content: unknown): string {
     .join("\n");
 }
 
-/** A JSON object in text, or null. Kimi sends the arguments of a call as its content text. */
 function jsonRecord(text: string): DynamicRecord | null {
   if (!text.trim().startsWith("{")) return null;
   try {
@@ -53,7 +47,6 @@ function jsonRecord(text: string): DynamicRecord | null {
   }
 }
 
-/** The first string among these fields. */
 function firstString(record: DynamicRecord | null, keys: readonly string[]): string | null {
   for (const key of keys) {
     const value = record?.[key];
@@ -62,7 +55,6 @@ function firstString(record: DynamicRecord | null, keys: readonly string[]): str
   return null;
 }
 
-/** The description after `<name>: `, "" for the bare name, or null when the call is not one of these tools. */
 function subagentToolTitle(names: readonly string[], name: string): string | null {
   for (const tool of names) {
     if (name === tool) return "";
@@ -71,18 +63,12 @@ function subagentToolTitle(names: readonly string[], name: string): string | nul
   return null;
 }
 
-/** The report or error in a tool result: a string, or the text field of an object. */
 function resultText(rawOutput: unknown, content: unknown): string {
   if (isString(rawOutput)) return rawOutput;
   const field = isRecord(rawOutput) ? firstString(rawOutput, ["output", "result", "text", "error", "message"]) : null;
   return field ?? contentText(content);
 }
 
-/**
- * Applies an ACP tool call that runs a subagent, such as Kimi's `Agent`, Cline's `spawn_agent`, or
- * Hermes's `delegate_task`. These agents send no events of the subagent itself, so its card shows
- * the task, the state, and the report. A background call is not shown: no event says when it ends.
- */
 export function foldAcpSubagentTool(
   state: SubagentState,
   turnId: string,
@@ -94,9 +80,7 @@ export function foldAcpSubagentTool(
   const title = subagentToolTitle(names, call.name);
   const existing = subagentFor(state, call.id);
   const ended = call.status === "completed" || call.status === "failed";
-  // A call that was not shown while it ran, such as Kimi's background call, is not shown at its end.
   if (!existing && (title === null || ended)) return null;
-  // Kimi sends no `rawInput`: the content of a running call is its arguments, and at the end its result.
   const input = isRecord(call.rawInput) ? call.rawInput : ended ? null : jsonRecord(contentText(call.content));
   if (input?.run_in_background === true || input?.background === true)
     return existing ? dropSubagent(state, call.id) : null;
@@ -119,7 +103,6 @@ export function foldAcpSubagentTool(
       error: null,
       ...subagentModelFields(requested, parent),
     });
-  // The arguments stream in, so a later update can name the task that the first one did not.
   let changed = false;
   if (existing.status === "running") {
     if (description && existing.title !== description) {
@@ -151,7 +134,6 @@ export function foldAcpSubagentTool(
   return changed ? subagentChange(state, state.turnOf.get(call.id)) : null;
 }
 
-/** Fork: the model and effort that a subagent call's arguments name, when they name one. */
 function acpRequestedModel(input: DynamicRecord | null): { model: string | null; effort: string | null } {
   const model = firstString(input, ["model", "model_id", "modelId"]);
   return {
@@ -160,7 +142,6 @@ function acpRequestedModel(input: DynamicRecord | null): { model: string | null;
   };
 }
 
-/** A subagent call that OpenCode's parent session made, which its child session takes the task of. */
 interface OpenCodeLaunch {
   title: string;
   prompt: string | null;
@@ -171,18 +152,12 @@ interface OpenCodeLaunch {
   effort: string | null;
 }
 
-/** The parent's `subagent` (`task` before OpenCode 2) calls that no child session took yet, by call id. */
 export type OpenCodeLaunches = Map<string, OpenCodeLaunch>;
 
 const OPENCODE_LAUNCH_LIMIT = 24;
 
-/** The text that a streamed step keeps. A step shows 500 characters on one line. */
 const OPENCODE_STREAM_LIMIT = 2_000;
 
-/**
- * Notes a parent tool call that starts an OpenCode subagent. Its child session reports only the
- * description as its title, so the prompt and the agent come from this call.
- */
 export function noteOpenCodeLaunch(launches: OpenCodeLaunches, call: AcpSubagentToolCall): void {
   const input = isRecord(call.rawInput) ? call.rawInput : null;
   const title = firstString(input, ["description"]);
@@ -201,10 +176,6 @@ export function noteOpenCodeLaunch(launches: OpenCodeLaunches, call: AcpSubagent
   }
 }
 
-/**
- * Marks the subagent background when the parent's call ended and left it running: OpenCode then
- * reports its end after the turn. The call's result names the child session.
- */
 export function markOpenCodeBackground(state: SubagentState, rawOutput: unknown): SubagentChange | null {
   const metadata = isRecord(rawOutput) && isRecord(rawOutput.metadata) ? rawOutput.metadata : null;
   if (metadata?.status !== "running" || !isString(metadata.sessionID)) return null;
@@ -214,7 +185,6 @@ export function markOpenCodeBackground(state: SubagentState, rawOutput: unknown)
   return subagentChange(state, state.turnOf.get(subagent.id));
 }
 
-/** The step kind of an ACP tool kind. */
 function acpStepKind(kind: unknown): ConversationSubagentStepKind {
   switch (kind) {
     case "read":
@@ -236,12 +206,6 @@ function acpStepKind(kind: unknown): ConversationSubagentStepKind {
   }
 }
 
-/**
- * Applies an `opencode/session/child_update` notification. `turnId` is the parent session's
- * running turn: a new child session belongs to it. A child of a child shows its steps in its top
- * subagent. Text and thinking stream; the list is sent when a step starts or the state changes, not
- * for each chunk.
- */
 export function foldOpenCodeChildUpdate(
   state: SubagentState,
   launches: OpenCodeLaunches,
@@ -266,7 +230,6 @@ export function foldOpenCodeChildUpdate(
     if (status === "created" || status === "running") {
       if (subagent) {
         if (subagent.status === "running") return null;
-        // The parent sent a follow-up to a subagent that had ended.
         subagent.status = "running";
         subagent.endedAt = null;
         subagent.error = null;
@@ -345,13 +308,11 @@ function foldSubagentChunk(
   if (!kind || !chunk) return null;
   const streams = state.streams.get(id) ?? new Map<string, string>();
   state.streams.set(id, streams);
-  // Without a message id, a chunk continues the open step of its kind. A tool call closes it.
   const kindPrefix = `${prefix}${kind}:`;
   const stepId = isString(update.messageId)
     ? `${kindPrefix}${update.messageId}`
     : ([...streams.keys()].find((key) => key.startsWith(kindPrefix)) ?? `${kindPrefix}${now}`);
   const previous = streams.get(stepId) ?? "";
-  // A step shows only the start of its text, so a long stream stops growing.
   if (previous.length >= OPENCODE_STREAM_LIMIT) return null;
   streams.set(stepId, previous + chunk);
   const started = !subagent.steps.some((step) => step.id === stepId);
@@ -359,24 +320,16 @@ function foldSubagentChunk(
   return pushed && started ? subagentChange(state, state.turnOf.get(id)) : null;
 }
 
-/** Fork (FEATURES.md #90): the card id of the `index`th of the `count` subagents that a call starts. */
 function sessionSubagentId(callId: string, index: number, count: number): string {
   return count === 1 ? callId : `${callId}:${index}`;
 }
 
-/** Fork (FEATURES.md #90): the cards of the subagents that the call `callId` started. */
 function sessionSubagentCards(state: SubagentState, callId: string): ConversationSubagent[] {
   return [...state.turns.values()]
     .flatMap((turn) => turn.subagents)
     .filter((subagent) => subagent.id === callId || subagent.id.startsWith(`${callId}:`));
 }
 
-/**
- * Fork (FEATURES.md #90): applies a call that starts subagents that run as sessions of their own
- * (`AcpFlavor.subagentSessions`), such as Antigravity's `invoke_subagent`. The call completes at once
- * and each subagent works on after it, also after the turn, so each card is a background subagent
- * that runs until it reports, is stopped, or its session ends. A failed call starts none.
- */
 export function foldSessionSubagentCall(
   state: SubagentState,
   turnId: string,
@@ -414,12 +367,6 @@ export function foldSessionSubagentCall(
   return change;
 }
 
-/**
- * Fork (FEATURES.md #90): ties the session of a subagent that the call `callId` of session
- * `parentId` started to its card: the card with the same task, else the first card of the call with
- * no session. A subagent of a subagent shows its work in the card of its top subagent. Returns false
- * when there is no card for it.
- */
 export function linkSessionSubagent(
   state: SubagentState,
   callId: string,
@@ -440,11 +387,6 @@ export function linkSessionSubagent(
   return true;
 }
 
-/**
- * Fork (FEATURES.md #90): ends the cards of the call `callId` that got no session. OpenBot then can
- * neither answer the subagent's approvals nor follow its work, and the agent's own approval wait
- * fails its commands (FEATURES.md #84).
- */
 export function failUnlinkedSessionSubagents(
   state: SubagentState,
   callId: string,
@@ -459,7 +401,6 @@ export function failUnlinkedSessionSubagents(
   return change;
 }
 
-/** Fork (FEATURES.md #90): ends the cards of the subagent sessions that the agent stopped. */
 export function stopSessionSubagents(
   state: SubagentState,
   sessionIds: readonly string[],
@@ -478,17 +419,8 @@ export function stopSessionSubagents(
   return [...turnIds].flatMap((turnId) => subagentChange(state, turnId) ?? []);
 }
 
-/** Fork (FEATURES.md #90): the argument that a step of a subagent session shows, before the call's title. */
 const SESSION_STEP_FIELDS = ["CommandLine", "Path", "AbsolutePath", "TargetFile", "Url", "Query", "command", "path"];
 
-/**
- * Fork (FEATURES.md #90): applies an update of a subagent's own session, which OpenBot resumed on its
- * parent's connection (`AcpFlavor.subagentSessions`), to the subagent's card: its tool calls, text
- * and thinking are its steps. `report` reads a call that reports to a session; a report to `ownerId`,
- * the session of the agent that started the subagent, ends the card with the report as its last
- * step. A report of a nested subagent to its own parent is a step. A new tool call after the report
- * runs the card again.
- */
 export function foldSessionSubagentUpdate(
   state: SubagentState,
   sessionId: string,
@@ -532,7 +464,6 @@ export function foldSessionSubagentUpdate(
   return pushed || reopened ? subagentChange(state, turnId) : null;
 }
 
-/** The launch whose description is the child session's title, which it then leaves the list. */
 function takeLaunch(launches: OpenCodeLaunches, title: string): OpenCodeLaunch | undefined {
   for (const [callId, launch] of launches)
     if (launch.title === title) {

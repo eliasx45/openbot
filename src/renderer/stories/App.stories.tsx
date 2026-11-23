@@ -1,4 +1,4 @@
-import type { AgentEvent, ConversationMessage } from "@openbot/contracts/ipc";
+import type { AgentEvent, ConversationMessage, WorkflowNode } from "@openbot/contracts/ipc";
 import type { ServerView } from "@openbot/ui/features/servers/ServerMenu";
 import { onCleanup } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
@@ -22,7 +22,6 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Sets one stored layout value for the story, and puts the old value back when the story ends. */
 function useStoredLayoutValue(key: string, value: string): void {
   const previous = window.localStorage.getItem(key);
   window.localStorage.setItem(key, value);
@@ -46,14 +45,12 @@ export const ExpandedSidebar: Story = {
   render: () => <SidebarStatePlayground compact={false} />,
 };
 
-/** The servers in a rail at the left of the sidebar, instead of the server menu. */
 export const ServerRailView: Story = {
   render: () => <SidebarStatePlayground compact={false} serverView="rail" />,
 };
 
 const SLOW_REMOTE_LOAD_MS = 15_000;
 
-/** The agents of the remote server arrive late: its first load stays on screen past the 10 s toast. */
 function SlowRemotePlayground() {
   useStoredLayoutValue(LEFT_PANEL_COLLAPSED_STORAGE_KEY, "false");
   useStoredLayoutValue(SERVER_VIEW_STORAGE_KEY, "rail");
@@ -76,7 +73,6 @@ function SlowRemotePlayground() {
   );
 }
 
-/** Select the remote server in the rail: its first load covers the whole window. */
 export const SlowRemoteServer: Story = {
   render: () => <SlowRemotePlayground />,
 };
@@ -88,6 +84,68 @@ export const CompactSidebar: Story = {
 export const LinuxWindow: Story = {
   render: () => (
     <SidebarStatePlayground compact={false} options={{ appInfo: { ...STORY_APP_INFO, platform: "linux" } }} />
+  ),
+};
+
+function mediaStep(id: string, column: number, fields: WorkflowNode["fields"]): WorkflowNode {
+  return { kind: "image", id, at: { x: column * 460, y: 0 }, fields };
+}
+
+export const CanvasMediaSteps: Story = {
+  render: () => (
+    <SidebarStatePlayground
+      compact={false}
+      options={{
+        workflows: [
+          {
+            id: "launch-media",
+            title: "Launch media",
+            graph: {
+              nodes: [
+                mediaStep("poster", 0, {
+                  media: "image",
+                  model: "higgsfield-gpt_image_2_6",
+                  prompt: "The product box on a white table, soft light, no text",
+                  aspect: "4:3",
+                }),
+                mediaStep("teaser", 1, {
+                  media: "video",
+                  model: "higgsfield-seedance_2_0",
+                  prompt: "A slow push-in on the product window at dusk, soft city sounds",
+                  aspect: "21:9",
+                  duration: 7,
+                  resolution: "720p",
+                }),
+                mediaStep("clip", 2, {
+                  media: "video",
+                  model: "sunra-veo-3.1",
+                  prompt: "A hand opens the box; the camera follows the lid",
+                  aspect: "16:9",
+                }),
+                mediaStep("unboxing", 3, {
+                  media: "video",
+                  model: "higgsfield-kling4_0",
+                  prompt: "The product turns slowly on a stand; the light moves across it",
+                  aspect: "16:9",
+                  duration: 12,
+                }),
+                mediaStep("banner", 4, {
+                  media: "image",
+                  model: "sunra-nano-banana-pro",
+                  prompt: "A wide banner of the product on a city street at night",
+                  aspect: "16:9",
+                }),
+              ],
+              edges: [
+                { id: "poster>teaser:image", from: "poster", to: "teaser", type: "image" },
+                { id: "clip>unboxing:file", from: "clip", to: "unboxing", type: "file" },
+              ],
+              strokes: [],
+            },
+          },
+        ],
+      }}
+    />
   ),
 };
 
@@ -169,7 +227,6 @@ export const DifferentRemoteVersions: Story = {
   ),
 };
 
-/** A joined server has a new OpenBot version. Entering it opens the update dialog each time. */
 export const RemoteHostUpdate: Story = {
   render: () => (
     <OpenBotPlayground
@@ -220,10 +277,6 @@ export const AgentStarting: Story = {
   ),
 };
 
-/**
- * The signed-out provider in the real shell. `sign-in-required` is the only input: the notice, the
- * model picker's label and the suppressed usage chip all read that one field.
- */
 export const ProviderSignInRequired: Story = {
   render: () => (
     <OpenBotPlayground
@@ -247,7 +300,6 @@ export const ProviderSignInRequired: Story = {
   ),
 };
 
-/** One agent for each wait: a question, a command approval and a browser takeover. */
 const STORY_WAITING_EVENTS: AgentEvent[] = [
   {
     type: "prompt",
@@ -295,11 +347,6 @@ const STORY_WAITING_EVENTS: AgentEvent[] = [
   },
 ];
 
-/**
- * The "Needs you" group in the real shell. The waits arrive as agent events, so the sidebar reads
- * them through the same bridge as on desktop. Each subscriber gets them again, which is harmless:
- * a wait is kept per agent.
- */
 function WaitingForInputPlayground(props: { compact: boolean }) {
   useStoredLayoutValue(LEFT_PANEL_COLLAPSED_STORAGE_KEY, props.compact ? "true" : "false");
   return (
@@ -333,7 +380,6 @@ export const CompactAgentsWaitingForInput: Story = {
 
 const LONG_CHAT_TURN_ID = "story-long-chat-turn";
 
-/** 40 messages after Chief's own, so the chat scrolls far past the screen. */
 function longChatHistory(): ConversationMessage[] {
   const start = Date.UTC(2026, 7, 19, 9, 0);
   return Array.from({ length: 40 }, (_, index): ConversationMessage => {
@@ -351,11 +397,6 @@ function longChatHistory(): ConversationMessage[] {
   });
 }
 
-/**
- * Fork (docs/fork/FEATURES.md #89): Chief works in a long chat, so the working line shows under the
- * last message. `scripts/chat-pane-shift-e2e.ts` checks that a jump to a late message moves only the
- * transcript, never the pane with the header and the message box.
- */
 function LongChatWorkingPlayground() {
   useStoredLayoutValue(LEFT_PANEL_COLLAPSED_STORAGE_KEY, "false");
   return (
@@ -390,4 +431,42 @@ function LongChatWorkingPlayground() {
 
 export const AgentWorksInLongChat: Story = {
   render: () => <LongChatWorkingPlayground />,
+};
+
+function paywallServers(role: "owner" | "member"): MockOpenBotOptions {
+  if (!storyLocalServer || !storyRemoteServer) return {};
+  return {
+    servers: [
+      { ...storyLocalServer, active: false },
+      {
+        ...storyRemoteServer,
+        active: true,
+        role,
+        paymentRequired: true,
+        ...(role === "owner"
+          ? {
+              customPlan: {
+                name: "Business",
+                amount: 89_000,
+                currency: "eur",
+                interval: "month",
+                vcpu: 16,
+                memoryGb: 64,
+                storageGb: 500,
+                personalizedSupport: true,
+              },
+            }
+          : {}),
+      },
+    ],
+    agents: [],
+  };
+}
+
+export const CustomServerPaywall: Story = {
+  render: () => <SidebarStatePlayground compact={false} serverView="menu" options={paywallServers("owner")} />,
+};
+
+export const CustomServerPaywallMember: Story = {
+  render: () => <SidebarStatePlayground compact={false} serverView="menu" options={paywallServers("member")} />,
 };
