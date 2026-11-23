@@ -1,6 +1,6 @@
 import { type AgentProviderId, isAgentProvider } from "./agent-providers";
 import { INPUT_LIMITS } from "./input-limits";
-import { type AgentModelOption, isAgentModelOption } from "./ipc-agent-identity";
+import { type AgentModelId, type AgentModelOption, isAgentModel, isAgentModelOption } from "./ipc-agent-identity";
 import { isBoundedString, isFiniteNumber, isNullableBoundedString } from "./ipc-bounded-values";
 import type { McpSignInRelayPage } from "./ipc-mcp-servers";
 import { isDynamicRecord, isOneOf } from "./runtime-values";
@@ -123,6 +123,8 @@ export interface ProviderAccountStatus {
   state: ProviderAccountState;
   message: string | null;
   models?: AgentModelOption[];
+  // Fork #97: shared models that this account does not list.
+  missingModels?: AgentModelId[];
 }
 
 export const PROVIDER_ACCOUNT_LABEL_MAX_LENGTH = 60;
@@ -135,7 +137,9 @@ export function isProviderAccountStatus(value: unknown): value is ProviderAccoun
     isNullableBoundedString(value.email, INPUT_LIMITS.email) &&
     isBoundedString(value.state, INPUT_LIMITS.identifier) &&
     isNullableBoundedString(value.message, INPUT_LIMITS.messageText) &&
-    (value.models === undefined || (Array.isArray(value.models) && value.models.every(isAgentModelOption)))
+    (value.models === undefined || (Array.isArray(value.models) && value.models.every(isAgentModelOption))) &&
+    (value.missingModels === undefined ||
+      (Array.isArray(value.missingModels) && value.missingModels.every(isAgentModel)))
   );
 }
 

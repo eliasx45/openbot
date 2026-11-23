@@ -102,6 +102,7 @@ import { CliLoginFailed, CliLoginFlow, toCliLoginFailed } from "./cli-login-flow
 import { CodexLoginFlow, toCodexLoginFailed } from "./codex-login";
 import type { ConversationRuntime } from "./conversation-runtime";
 import type { FailureContext } from "./failure-signal";
+import { withAccountModelDifference } from "./fork-account-missing-models";
 import { ModelCatalog } from "./model-catalog";
 import { startMuseDeviceLogin } from "./muse-login";
 import type { PoolCandidate } from "./provider-account-pool";
@@ -1886,10 +1887,10 @@ export class ProviderRuntime implements ProviderPort {
   }
 
   #extraModels(provider: AgentProvider, account: ProviderAccountStatus): ProviderAccountStatus {
-    if (!account.models) return account;
-    const catalogue = this.#modelCatalog.list().filter((model) => model.provider === provider);
-    const models = account.models.filter((model) => !catalogue.some((listed) => listed.id === model.id));
-    return { ...account, models };
+    return withAccountModelDifference(
+      account,
+      this.#modelCatalog.list().filter((model) => model.provider === provider),
+    );
   }
 
   accountModels(provider: AgentProvider, accountId: string | undefined): AgentModelOption[] {

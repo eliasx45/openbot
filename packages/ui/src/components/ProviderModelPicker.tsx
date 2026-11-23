@@ -59,6 +59,7 @@ import { currentText, type TextValue, useText } from "../text";
 import { createScrollFades } from "./createScrollFades";
 import { findModelOption, isApiKeyAccount, providerAccountName } from "./provider-accounts";
 import {
+  accountModelOptions,
   customProviderIds,
   groupPickerModels,
   isCustomEndpointModel,
@@ -288,9 +289,8 @@ export function ProviderModelPicker(props: ProviderModelPickerProps) {
     return account ? { account, number: index + 1, name: providerAccountName(t, accounts, id) } : null;
   };
   const entryModelOptions = (key: RailKey): ClientAgentModelOption[] => {
-    const shared = railModelOptions(railOf(key));
-    const own = entryAccount(key)?.account.models ?? [];
-    return own.length ? [...shared, ...own] : shared;
+    const account = entryAccount(key)?.account;
+    return accountModelOptions(railModelOptions(railOf(key)), account, key === activeKey() ? props.value : null);
   };
   const entryStatus = (key: RailKey): AgentProviderStatus => {
     const status = railStatus(railOf(key));

@@ -6,6 +6,7 @@ import type {
   ClientAgentModelOption,
   CustomProviderHarness,
   CustomProviderSummary,
+  ProviderAccountStatus,
   ProviderRuntimeStatus,
 } from "@openbot/contracts/ipc";
 import {
@@ -188,6 +189,17 @@ export function pickerModels(
         ...(model.listing ? { listing: model.listing } : {}),
       };
     });
+}
+
+export function accountModelOptions(
+  shared: readonly ClientAgentModelOption[],
+  account: Pick<ProviderAccountStatus, "models" | "missingModels"> | undefined,
+  inUse: string | null,
+): ClientAgentModelOption[] {
+  const missing = new Set(account?.missingModels ?? []);
+  const listed = shared.filter((option) => !missing.has(option.id) || option.id === inUse);
+  const own = account?.models ?? [];
+  return own.length ? [...listed, ...own] : listed;
 }
 
 export function groupPickerModels(models: PickerModel[], search: string): PickerModelGroup[] {

@@ -321,3 +321,60 @@ export const CodexModelCatalogSource: Story = {
     agentStatus: codexStatusWithSource({ kind: "catalog" }),
   },
 };
+
+const geminiModel = (id: string, name: string) => ({
+  provider: "antigravity" as const,
+  id,
+  name,
+  description: "Model discovered from ACP CLI through ACP.",
+  defaultReasoningEffort: "high" as const,
+  supportedReasoningEfforts: ["low" as const, "medium" as const, "high" as const],
+});
+
+export const SecondGeminiAccount: Story = {
+  args: {
+    provider: "antigravity",
+    value: "gemini-4-neon",
+    providerAccountId: "second-gemini",
+    accountChoice: true,
+    reasoningEffort: "high",
+    onReasoningEffortChange: fn(),
+    modelOptions: [
+      ...STORY_MODELS.filter((model) => model.provider !== "antigravity"),
+      geminiModel("gemini-4-neon", "Gemini 4 Neon"),
+      geminiModel("gemini-pro-orchestrator-neon", "Orchestrator (Neon)"),
+      geminiModel("gemini-pro-orchestrator-g1-pro", "Orchestrator (Argon)"),
+      geminiModel("gemini-3.8-flash", "Gemini 3.8 Flash"),
+      geminiModel("claude-opus-5-5", "Claude Opus 5.5"),
+    ],
+    agentStatus: {
+      ...STORY_AGENT_STATUS,
+      providers: [
+        ...(STORY_AGENT_STATUS.providers ?? []).filter((provider) => provider.id !== "antigravity"),
+        {
+          id: "antigravity",
+          state: "available",
+          version: "1.5.15",
+          message: null,
+          email: "first@example.com",
+          accounts: [
+            { id: "default", label: null, email: "first@example.com", state: "connected", message: null },
+            {
+              id: "second-gemini",
+              label: null,
+              email: "second@example.com",
+              state: "connected",
+              message: null,
+              models: [
+                geminiModel("gemini-4-carbon", "Gemini 4 Carbon"),
+                geminiModel("gemini-pro-orchestrator", "Orchestrator (Carbon)"),
+                geminiModel("gemini-pro-orchestrator-argon", "Orchestrator (Argon)"),
+              ],
+              missingModels: ["gemini-pro-orchestrator-g1-pro"],
+            },
+          ],
+        },
+      ],
+    },
+  },
+};
