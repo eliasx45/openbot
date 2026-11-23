@@ -77,6 +77,7 @@ import {
   type SetSidebarPinsInput,
   type SidebarLayoutAction,
   type SidebarLayoutSnapshot,
+  sidebarPlaceFallback,
   withFastServiceTiers,
   withModelListings,
   withSteeringModels,
@@ -772,7 +773,9 @@ export function agentIpcHandlers({
       }),
       mutateSidebarLayout: scopedHandler(parseSidebarFolderAction, {
         local: (action) => runCauseEffect(sidebarLayout.mutate(action, service.sidebarChatIds())),
-        remote: (action, serverId) => {
+        remote: (requested, serverId) => {
+          // The Team API has no mixed order of chats and folders (fork FEATURES #94).
+          const action = requested.type === "place" ? sidebarPlaceFallback(requested) : requested;
           if (remoteServers.supportsCapability(serverId, SIDEBAR_FOLDERS_CAPABILITY))
             return remoteFolderLayout(serverId, action);
           // The released route has every folder at the top: it refuses `nest`, and would drop a parent.

@@ -15,11 +15,25 @@
  * Positions are measured with the row's own animations cancelled and, while a drop settles, with
  * the CSS offset transition off (`data-sidebar-settling` in `app-shell.css`), so a measurement is
  * always the layout position.
+ *
+ * Fork (docs/fork/FEATURES.md #94): sections and folders are rows here too, so a dropped folder
+ * settles as a dropped chat does. A row in a section moves with it, so it plays only the part of its
+ * move that its section does not.
  */
 
 import { prefersReducedMotion } from "../../utils";
 
-const ROW_SELECTOR = "[data-chat-id]";
+const ROW_SELECTOR = "[data-chat-id], [data-section-id]";
+
+/** The key of a chat row or a section, unique across both kinds. */
+export function sidebarRowKey(kind: "chat" | "section", id: string): string {
+  return `${kind}:${id}`;
+}
+
+function rowKey(row: HTMLElement): string {
+  const chatId = row.dataset.chatId;
+  return chatId !== undefined ? sidebarRowKey("chat", chatId) : sidebarRowKey("section", row.dataset.sectionId ?? "");
+}
 /** How long a row takes to slide to its new place. */
 export const SIDEBAR_ROW_SLIDE_MS = 200;
 /** The longest a drop holds the rows before it settles on whatever order the list has then. */
@@ -49,27 +63,43 @@ export function rowOrderChanged(before: readonly string[], after: readonly strin
 
 /**
  * A row that moves to another section is a new element there. It takes the place of the element
- * with its chat id that left the list, so it slides from where that one was.
+ * with its key that left the list, so it slides from where that one was.
  */
 function carryOver(before: Map<HTMLElement, number>, now: Map<HTMLElement, number>): Map<HTMLElement, number> {
   const gone = new Map<string, number>();
   for (const [row, top] of before) {
-    const chatId = row.dataset.chatId;
-    if (!row.isConnected && chatId && !gone.has(chatId)) gone.set(chatId, top);
+    const key = rowKey(row);
+    if (!row.isConnected && !gone.has(key)) gone.set(key, top);
   }
   if (gone.size === 0) return before;
   const merged = new Map(before);
   for (const row of now.keys()) {
-    const chatId = row.dataset.chatId;
-    const top = chatId ? gone.get(chatId) : undefined;
+    const top = gone.get(rowKey(row));
     if (!merged.has(row) && top !== undefined) merged.set(row, top);
   }
   return merged;
 }
 
+/**
+ * `rowSlideDeltas` for rows in sections that move too: each row's move less the move of the section it
+ * is in, because the section's transform already carries the rows in it.
+ */
+function ownSlideDeltas(before: Map<HTMLElement, number>, after: Map<HTMLElement, number>): Map<HTMLElement, number> {
+  const deltas = rowSlideDeltas(before, after);
+  const moved = (row: HTMLElement) => deltas.get(row) ?? 0;
+  const own = new Map<HTMLElement, number>();
+  for (const row of after.keys()) {
+    if (!before.has(row)) continue;
+    const section = row.parentElement?.closest<HTMLElement>(ROW_SELECTOR);
+    const delta = moved(row) - (section ? moved(section) : 0);
+    if (Math.abs(delta) >= 0.5) own.set(row, delta);
+  }
+  return own;
+}
+
 export interface SidebarDropSettle {
-  /** The chat that was dropped. It starts under the pointer. */
-  chatId: string;
+  /** The row that was dropped (`sidebarRowKey`). It starts under the pointer. */
+  key: string;
   /** The pointer's vertical position at the drop, in the viewport. */
   clientY: number;
   /** False when the drop leaves the order as it is: the rows settle at once. */
@@ -95,7 +125,7 @@ export function createSidebarRowMotion() {
   }
 
   function order(): string[] {
-    return rows().map((row) => row.dataset.chatId ?? "");
+    return rows().map(rowKey);
   }
 
   /** Content coordinates do not change when the list scrolls. */
@@ -169,7 +199,7 @@ export function createSidebarRowMotion() {
     clearTimeout(settle.timer);
     settle = null;
     const now = measure();
-    slide(rowSlideDeltas(carryOver(from, now), now));
+    slide(ownSlideDeltas(carryOver(from, now), now));
     tops = now;
     observe(false);
     if (settleEndTimer !== null) clearTimeout(settleEndTimer);
@@ -189,7 +219,7 @@ export function createSidebarRowMotion() {
       }
       // The drag offsets are gone but the new order is not in yet: keep every row where it was.
       const now = measure();
-      hold(rowSlideDeltas(settle.from, now));
+      hold(ownSlideDeltas(settle.from, now));
       return;
     }
     const rowsChanged = records.some((record) =>
@@ -198,7 +228,7 @@ export function createSidebarRowMotion() {
       ),
     );
     const now = measure();
-    if (rowsChanged) slide(rowSlideDeltas(carryOver(tops, now), now));
+    if (rowsChanged) slide(ownSlideDeltas(carryOver(tops, now), now));
     tops = now;
   }
 
@@ -245,12 +275,20 @@ export function createSidebarRowMotion() {
   function beginDropSettle(drop: SidebarDropSettle): void {
     if (!list || !observer || prefersReducedMotion()) return;
     const from = measureVisual();
-    const dropped = rows().find((row) => row.dataset.chatId === drop.chatId && row.closest("[data-section-id]"));
+    const dropped = rows().find(
+      (row) => rowKey(row) === drop.key && (row.dataset.chatId === undefined || row.closest("[data-section-id]")),
+    );
     if (dropped) {
-      const height = dropped.getBoundingClientRect().height;
+      // A folder is held by its header, so the header comes to rest under the pointer.
+      const header = dropped.dataset.chatId === undefined ? dropped.querySelector(":scope > header") : null;
+      const height = (header ?? dropped).getBoundingClientRect().height;
       const bounds = list.getBoundingClientRect();
       const top = Math.min(Math.max(drop.clientY - height / 2, bounds.top), bounds.bottom - height);
-      from.set(dropped, top - bounds.top + list.scrollTop);
+      const next = top - bounds.top + list.scrollTop;
+      // The rows in a dropped folder come along with it.
+      const shift = next - (from.get(dropped) ?? next);
+      for (const [row, rowTop] of from) if (row !== dropped && dropped.contains(row)) from.set(row, rowTop + shift);
+      from.set(dropped, next);
     }
     if (settle) clearTimeout(settle.timer);
     if (settleEndTimer !== null) clearTimeout(settleEndTimer);

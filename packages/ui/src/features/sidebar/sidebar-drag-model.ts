@@ -5,7 +5,7 @@
  * up as a type error at every site that builds one.
  */
 
-import { SIDEBAR_PEOPLE_SECTION_ID } from "@openbot/contracts/ipc";
+import { SIDEBAR_PEOPLE_SECTION_ID, type SidebarFolderItem } from "@openbot/contracts/ipc";
 
 export interface DragSlot {
   bottom: number;
@@ -183,6 +183,19 @@ export interface SidebarDragWorld {
   session: SidebarDragSession;
   /** Used by the pinned and people hit tests, both of which key off the session's own start. */
   sessionScrollDelta: number;
+  /**
+   * Fork (docs/fork/FEATURES.md #94): the target to keep while a dragged folder is over its own gap.
+   * When its siblings slid to open the gap somewhere else, the gap is where the drop goes; when the
+   * gap is still at the start, this is null and a drop there leaves the folder in place.
+   */
+  heldSectionTarget?: SidebarDropTarget | null;
+  /**
+   * Fork (docs/fork/FEATURES.md #94): the chats and folders in a section, in the order they show. With
+   * it, a drop lands at an exact place among them, also between a folder's chats and its folders.
+   */
+  folderItems?: (sectionId: string) => SidebarFolderItem[];
+  /** Whether a section is closed: below a closed folder's header, a chat goes after the folder. */
+  sectionIsCollapsed?: (sectionId: string) => boolean;
 }
 
 /** What the resolver asks about folders. Each answer comes from the layout that is on the screen. */
@@ -202,10 +215,14 @@ export function chatDropSectionId(
   source: SidebarDragSource | null,
   target: SidebarDropTarget | null,
   sourceSectionId: (chatId: string) => string,
+  sectionParent?: (sectionId: string) => string | null,
 ): string | null {
   let sectionId: string | null = null;
+  if (source?.kind === "section" || source?.kind === "person") return null;
   if (target?.kind === "chat") sectionId = target.target.sectionId;
   else if (target?.kind === "section" && source?.kind === "chat") sectionId = target.sectionId;
+  // Fork #94: a chat put beside a folder goes into that folder's parent.
+  else if (target?.kind === "section-order") sectionId = sectionParent?.(target.target.sectionId) ?? null;
   if (sectionId === null) return null;
   if (source?.kind === "chat" && sourceSectionId(source.id) === sectionId) return null;
   return sectionId;
@@ -375,12 +392,80 @@ export function sidebarDropTargetAt(world: SidebarDragWorld, point: SidebarDragP
   }
 
   if (!world.sectionAcceptsChat(section.sectionId)) return null;
+  if (world.folderItems) return chatTargetInSection(world, section, point);
   const chat = chatAtPoint(world, point, section.sectionId);
   if (chat && chat.chatId !== session.source.id) {
     const target = targetChatAt(world, session.source.id, chat.chatId, point.clientY);
     if (target) return { kind: "chat", target };
   }
   return { kind: "section", sectionId: section.sectionId };
+}
+
+/** A chat or folder of a section with the rectangle it shows in, in viewport coordinates. */
+interface SidebarItemSlot {
+  item: SidebarFolderItem;
+  top: number;
+  bottom: number;
+  centerY: number;
+}
+
+function itemSlotsIn(
+  world: SidebarDragWorld,
+  sectionId: string,
+  skip: (item: SidebarFolderItem) => boolean = () => false,
+): SidebarItemSlot[] {
+  const slots: SidebarItemSlot[] = [];
+  for (const item of world.folderItems?.(sectionId) ?? []) {
+    if (skip(item)) continue;
+    const slot = item.kind === "chat" ? world.chatSlots.get(item.id) : world.sectionSlots.get(item.id);
+    if (!slot) continue;
+    const delta = item.kind === "chat" ? world.chatScrollDelta : world.sectionScrollDelta;
+    slots.push({ item, top: slot.top - delta, bottom: slot.bottom - delta, centerY: slot.centerY - delta });
+  }
+  return slots;
+}
+
+/** The item under a point, or the first or last one when the point is above or below them all. */
+function itemSlotAt(slots: SidebarItemSlot[], clientY: number): SidebarItemSlot | undefined {
+  const first = slots[0];
+  if (!first) return undefined;
+  return closestVerticalSlot(slots, clientY, 0) ?? (clientY < first.top ? first : slots[slots.length - 1]);
+}
+
+function besideSection(sectionId: string, placement: "before" | "after"): SidebarDropTarget {
+  return { kind: "section-order", target: { sectionId, placement } };
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md #94): where a chat lands in a section, the deepest one under the point.
+ * On the header of a folder in a folder, the top quarter puts it before the folder, and the bottom
+ * quarter of a closed folder after it; the rest of the header puts it in the folder. In the rows, it
+ * takes the place of the row under the point, also when that is a folder, and above or below the rows
+ * it goes first or last. Its own row and its own section's header leave it where it is.
+ */
+function chatTargetInSection(
+  world: SidebarDragWorld,
+  section: SectionDragSlot,
+  point: SidebarDragPoint,
+): SidebarDropTarget | null {
+  const source = world.session.source;
+  const ownSectionId = source.kind === "chat" ? world.chatSlots.get(source.id)?.sectionId : undefined;
+  const sectionId = section.sectionId;
+  const band = sectionHeaderBand(section, world.sectionScrollDelta);
+  if (band && point.clientY >= band.top && point.clientY <= band.bottom) {
+    const parentId = world.folders?.parent(sectionId) ?? null;
+    if (parentId !== null && world.sectionAcceptsChat(parentId)) {
+      const ratio = (point.clientY - band.top) / (band.bottom - band.top);
+      if (ratio < 0.25) return besideSection(sectionId, "before");
+      if (ratio > 0.75 && world.sectionIsCollapsed?.(sectionId)) return besideSection(sectionId, "after");
+    }
+    return sectionId === ownSectionId ? null : { kind: "section", sectionId };
+  }
+  const hit = itemSlotAt(itemSlotsIn(world, sectionId), point.clientY);
+  if (!hit) return sectionId === ownSectionId ? null : { kind: "section", sectionId };
+  if (hit.item.kind === "section") return besideSection(hit.item.id, point.clientY < hit.centerY ? "before" : "after");
+  const target = targetChatAt(world, source.id, hit.item.id, point.clientY);
+  return target ? { kind: "chat", target } : null;
 }
 
 /**
@@ -398,7 +483,7 @@ function folderTargetAtPoint(
   const scrollDelta = world.sectionScrollDelta;
   const y = point.clientY + scrollDelta;
   const sourceSlot = world.sectionSlots.get(sourceId);
-  if (sourceSlot && y >= sourceSlot.top && y <= sourceSlot.bottom) return null;
+  if (sourceSlot && y >= sourceSlot.top && y <= sourceSlot.bottom) return world.heldSectionTarget ?? null;
   const accepts = (candidate: SectionDragSlot) => !folders.isInside(candidate.sectionId, sourceId);
   // A header that shows under the point wins, also when it is stuck over a folder that it holds.
   let header: { slot: SectionDragSlot; top: number; bottom: number } | null = null;
@@ -408,7 +493,7 @@ function folderTargetAtPoint(
   }
   // Slots come in document order, so of the sections that hold the point, the deepest one wins.
   const slot = header?.slot ?? closestVerticalSlot(world.sectionSlots.values(), point.clientY, scrollDelta, accepts);
-  if (!slot) return null;
+  if (!slot) return outsideFolders(world, folders, sourceId, y, accepts);
   const parentId = folders.parent(slot.sectionId);
   const beside = (placement: "before" | "after"): SidebarDropTarget | null =>
     folders.canNest(sourceId, parentId)
@@ -425,7 +510,43 @@ function folderTargetAtPoint(
   }
   if (y < slot.top) return beside("before");
   if (y > slot.bottom) return beside("after");
+  // Fork (docs/fork/FEATURES.md #94): in a folder's rows, the folder lands before or after the row
+  // under the point, a chat or a folder, as a chat does.
+  if (into) {
+    const hit = itemSlotAt(
+      itemSlotsIn(world, slot.sectionId, (item) => item.kind === "section" && folders.isInside(item.id, sourceId)),
+      point.clientY,
+    );
+    if (hit) {
+      const placement = point.clientY < hit.centerY ? "before" : "after";
+      return hit.item.kind === "chat"
+        ? { kind: "chat", target: { chatId: hit.item.id, placement, sectionId: slot.sectionId } }
+        : besideSection(hit.item.id, placement);
+    }
+  }
   return into ?? beside(y < slot.centerY ? "before" : "after");
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md #94): below the last section, a folder goes last in the list; above the
+ * first, first.
+ */
+function outsideFolders(
+  world: SidebarDragWorld,
+  folders: SidebarDragFolders,
+  sourceId: string,
+  y: number,
+  accepts: (slot: SectionDragSlot) => boolean,
+): SidebarDropTarget | null {
+  if (!folders.canNest(sourceId, null)) return null;
+  const top = [...world.sectionSlots.values()].filter(
+    (slot) => folders.parent(slot.sectionId) === null && accepts(slot),
+  );
+  const first = top[0];
+  const last = top[top.length - 1];
+  if (last && y > last.bottom) return besideSection(last.sectionId, "after");
+  if (first && y < first.top) return besideSection(first.sectionId, "before");
+  return null;
 }
 
 /**
@@ -465,6 +586,43 @@ export function reorderOffsets(
     const y = destinationSlot.top - currentSlot.top;
     if (x !== 0 || y !== 0) offsets[id] = { x, y };
   }
+  return offsets;
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md #94): `reorderOffsets` for rows of different heights, such as an open
+ * folder beside closed ones. The rows are stacked again in the new order, each gap kept at its place
+ * in the list, so a row moves by the height of the row that passes it, not to that row's old top.
+ * The result has the dragged row too: where its gap now is, which the drop resolver needs.
+ */
+export function stackReorderOffsets(
+  currentIds: readonly string[],
+  sourceId: string,
+  target: { id: string; placement: "before" | "after" },
+  slotOf: (id: string) => { top: number; bottom: number } | undefined,
+): Record<string, DragOffset> {
+  const slots = new Map<string, { top: number; bottom: number }>();
+  for (const id of currentIds) {
+    const slot = slotOf(id);
+    if (slot) slots.set(id, slot);
+  }
+  const placed = [...slots.values()];
+  const desiredIds = [...slots.keys()].filter((id) => id !== sourceId);
+  const targetIndex = desiredIds.indexOf(target.id);
+  if (targetIndex < 0 || !slots.has(sourceId)) return {};
+  desiredIds.splice(targetIndex + (target.placement === "after" ? 1 : 0), 0, sourceId);
+  const offsets: Record<string, DragOffset> = {};
+  let top = placed[0]?.top ?? 0;
+  let previous: { top: number; bottom: number } | undefined;
+  desiredIds.forEach((id, index) => {
+    const slot = slots.get(id);
+    if (!slot) return;
+    if (previous)
+      top += previous.bottom - previous.top + ((placed[index]?.top ?? 0) - (placed[index - 1]?.bottom ?? 0));
+    previous = slot;
+    const y = top - slot.top;
+    if (Math.abs(y) >= 0.5) offsets[id] = { x: 0, y };
+  });
   return offsets;
 }
 

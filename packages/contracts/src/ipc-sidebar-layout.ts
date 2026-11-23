@@ -12,6 +12,12 @@ export interface SidebarSection {
    * an older version that edited the file keeps the field but does not maintain it.
    */
   parentId?: string;
+  /**
+   * Fork (docs/fork/FEATURES.md #94): in its parent folder, the folder shows right before this chat.
+   * Absent, or a chat that is not in the parent: after the chats, as before. Only this computer keeps
+   * it: the Team API contracts drop it, so a remote client shows the folder after the chats.
+   */
+  beforeChatId?: string;
 }
 
 /** A folder can hold folders, and those can hold folders: three levels in all. */
@@ -65,6 +71,7 @@ export function isSidebarLayoutSnapshot(value: unknown): value is SidebarLayoutS
   for (const section of value.sections) {
     if (!isDynamicRecord(section) || !isString(section.id) || !isString(section.name)) return false;
     if (section.parentId !== undefined && !isString(section.parentId)) return false;
+    if (section.beforeChatId !== undefined && !isString(section.beforeChatId)) return false;
     if (sectionIds.has(section.id)) return false;
     sectionIds.add(section.id);
   }
@@ -89,7 +96,77 @@ export type SidebarLayoutAction =
    * sibling `beforeSectionId` (null: after the last one). At the top, the people and unassigned
    * sections are siblings too. Needs `sidebar-folders-v1` on a remote host.
    */
-  | { type: "nest"; sectionId: string; parentId: string | null; beforeSectionId: string | null };
+  | { type: "nest"; sectionId: string; parentId: string | null; beforeSectionId: string | null }
+  /**
+   * Fork (docs/fork/FEATURES.md #94): puts a chat or a folder in the folder `parentId`, among its chats
+   * and folders, right before whichever comes first of `beforeAgentId` and `beforeSectionId` (null:
+   * the end). Both name the next chat and the next folder after the place, so a host that does not
+   * know this action does `move-agent` or `nest` with them (`sidebarPlaceFallback`). Local only.
+   */
+  | {
+      type: "place";
+      item: SidebarFolderItem;
+      parentId: string;
+      beforeAgentId: string | null;
+      beforeSectionId: string | null;
+    };
+
+/** A chat or a folder in a folder. A type, not an interface, so the action stays a JSON value. */
+export type SidebarFolderItem = {
+  kind: "chat" | "section";
+  id: string;
+};
+
+/** The `move-agent` or `nest` that does what a `place` does, without the order between the two kinds. */
+export function sidebarPlaceFallback(
+  action: Extract<SidebarLayoutAction, { type: "place" }>,
+): Exclude<SidebarLayoutAction, { type: "place" }> {
+  return action.item.kind === "chat"
+    ? { type: "move-agent", agentId: action.item.id, sectionId: action.parentId, beforeAgentId: action.beforeAgentId }
+    : { type: "nest", sectionId: action.item.id, parentId: action.parentId, beforeSectionId: action.beforeSectionId };
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md #94): the chats and the folders of one folder in the order they show.
+ * `chatIds` and `folderIds` are each in their own order; a folder goes right before the chat that
+ * `beforeChatOf` names, or after the chats when it names none that is here.
+ */
+export function sidebarFolderItems(
+  chatIds: readonly string[],
+  folderIds: readonly string[],
+  beforeChatOf: (folderId: string) => string | undefined,
+): SidebarFolderItem[] {
+  const chats = new Set(chatIds);
+  const before = new Map<string, string[]>();
+  const after: string[] = [];
+  for (const folderId of folderIds) {
+    const chatId = beforeChatOf(folderId);
+    if (chatId !== undefined && chats.has(chatId)) before.set(chatId, [...(before.get(chatId) ?? []), folderId]);
+    else after.push(folderId);
+  }
+  const items: SidebarFolderItem[] = [];
+  for (const chatId of chatIds) {
+    for (const folderId of before.get(chatId) ?? []) items.push({ kind: "section", id: folderId });
+    items.push({ kind: "chat", id: chatId });
+  }
+  for (const folderId of after) items.push({ kind: "section", id: folderId });
+  return items;
+}
+
+/** The chat that each folder in `items` shows right before, or undefined for one after the last chat. */
+export function sidebarFolderAnchors(items: readonly SidebarFolderItem[]): Map<string, string | undefined> {
+  const anchors = new Map<string, string | undefined>();
+  let pending: string[] = [];
+  for (const item of items) {
+    if (item.kind === "section") pending.push(item.id);
+    else {
+      for (const folderId of pending) anchors.set(folderId, item.id);
+      pending = [];
+    }
+  }
+  for (const folderId of pending) anchors.set(folderId, undefined);
+  return anchors;
+}
 
 /**
  * The parent of each folder that has one. A parent that is unknown, is the folder itself or makes a

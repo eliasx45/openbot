@@ -6,7 +6,9 @@
  */
 
 import {
+  SIDEBAR_PEOPLE_SECTION_ID,
   SIDEBAR_UNASSIGNED_SECTION_ID,
+  type SidebarFolderItem,
   type SidebarLayoutAction,
   type TeamPresenceMember,
 } from "@openbot/contracts/ipc";
@@ -39,6 +41,8 @@ export function createSidebarLayoutActions(deps: {
   props: SidebarProps;
   sectionCanNest: (sectionId: string, parentId: string | null) => boolean;
   sectionChildren: (parentId: string | null) => string[];
+  /** The chats and folders in a section, in the order they show (fork #94). */
+  sectionItems: (sectionId: string) => SidebarFolderItem[];
   sectionLabel: (sectionId: string) => string;
   sectionParent: (sectionId: string) => string | null;
   visiblePinnedKeys: () => string[];
@@ -60,11 +64,55 @@ export function createSidebarLayoutActions(deps: {
     props,
     sectionCanNest,
     sectionChildren,
+    sectionItems,
     sectionLabel,
     sectionParent,
     visiblePinnedKeys,
     visibleSectionIds,
   } = deps;
+
+  /** A folder of the user's, which can hold chats and folders side by side. */
+  const isFolder = (sectionId: string | null): sectionId is string =>
+    sectionId !== null && sectionId !== SIDEBAR_UNASSIGNED_SECTION_ID && sectionId !== SIDEBAR_PEOPLE_SECTION_ID;
+
+  /**
+   * Fork (docs/fork/FEATURES.md #94): the action that puts a chat or folder in a folder right before or
+   * after one of its rows, the place the drag showed.
+   */
+  function placeAction(
+    item: SidebarFolderItem,
+    parentId: string,
+    beside: SidebarFolderItem,
+    placement: "before" | "after",
+  ): SidebarLayoutAction | null {
+    const items = sectionItems(parentId).filter(
+      (candidate) => candidate.kind !== item.kind || candidate.id !== item.id,
+    );
+    const index = items.findIndex((candidate) => candidate.kind === beside.kind && candidate.id === beside.id);
+    if (index < 0) return null;
+    const after = items.slice(index + (placement === "after" ? 1 : 0));
+    return {
+      type: "place",
+      item,
+      parentId,
+      beforeAgentId: after.find((candidate) => candidate.kind === "chat")?.id ?? null,
+      beforeSectionId: after.find((candidate) => candidate.kind === "section")?.id ?? null,
+    };
+  }
+
+  function commitPlace(
+    item: SidebarFolderItem,
+    parentId: string,
+    beside: SidebarFolderItem,
+    placement: "before" | "after",
+  ): void {
+    const action = placeAction(item, parentId, beside, placement);
+    if (!action) return;
+    const name = item.kind === "chat" ? chatName(item.id) : sectionLabel(item.id);
+    void props
+      .onMutateLayout(action)
+      .then(() => announce(t("sidebar.announce.movedIn", { name, section: sectionLabel(parentId) })), announceError);
+  }
   const { t } = currentText();
 
   /** The folders next to this one, in its parent or at the top, and its index among them. */
@@ -302,9 +350,16 @@ export function createSidebarLayoutActions(deps: {
     }
 
     if (source.kind === "chat") {
+      const chat: SidebarFolderItem = { kind: "chat", id: source.id };
       if (target?.kind === "pinned") pinDraggedSidebarItem();
+      else if (target?.kind === "chat" && foldersSupported() && isFolder(target.target.sectionId))
+        commitPlace(chat, target.target.sectionId, { kind: "chat", id: target.target.chatId }, target.target.placement);
       else if (target?.kind === "chat") moveDraggedChat(source.id, target.target);
-      else if (target?.kind === "section") {
+      else if (target?.kind === "section-order") {
+        const parentId = sectionParent(target.target.sectionId);
+        if (isFolder(parentId))
+          commitPlace(chat, parentId, { kind: "section", id: target.target.sectionId }, target.target.placement);
+      } else if (target?.kind === "section") {
         void props
           .onMutateLayout(appendChatAction(source.id, target.sectionId))
           .then(
@@ -323,8 +378,15 @@ export function createSidebarLayoutActions(deps: {
       return;
     }
 
-    if (target?.kind === "section-order") reorderDraggedSection(source.id, target.target);
-    else if (target?.kind === "section-into") nestSection(source.id, target.sectionId, null);
+    const folder: SidebarFolderItem = { kind: "section", id: source.id };
+    if (target?.kind === "chat")
+      commitPlace(folder, target.target.sectionId, { kind: "chat", id: target.target.chatId }, target.target.placement);
+    else if (target?.kind === "section-order") {
+      const parentId = sectionParent(target.target.sectionId);
+      if (foldersSupported() && isFolder(parentId))
+        commitPlace(folder, parentId, { kind: "section", id: target.target.sectionId }, target.target.placement);
+      else reorderDraggedSection(source.id, target.target);
+    } else if (target?.kind === "section-into") nestSection(source.id, target.sectionId, null);
   }
 
   function reorderPinnedItem(sourceKey: string, targetKey: string): void {

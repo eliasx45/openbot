@@ -4,6 +4,7 @@ import {
   type SidebarSection,
   sidebarFolderParents,
   sidebarFolderTreeOrder,
+  sidebarPlaceFallback,
 } from "@openbot/contracts/ipc";
 
 /** As the store does: each action, then the folders back in tree order. */
@@ -11,7 +12,8 @@ export function applySidebarLayoutAction(
   layout: SidebarLayoutSnapshot,
   action: SidebarLayoutAction,
 ): SidebarLayoutSnapshot {
-  const next = applyFlatAction(layout, action);
+  // The preview has no mixed order of chats and folders (fork FEATURES #94).
+  const next = applyFlatAction(layout, action.type === "place" ? sidebarPlaceFallback(action) : action);
   const parents = sidebarFolderParents(next);
   return {
     ...next,
@@ -24,7 +26,10 @@ function withParent(section: SidebarSection, parentId: string | undefined): Side
   return parentId === undefined ? { id: section.id, name: section.name } : { ...section, parentId };
 }
 
-function applyFlatAction(layout: SidebarLayoutSnapshot, action: SidebarLayoutAction): SidebarLayoutSnapshot {
+function applyFlatAction(
+  layout: SidebarLayoutSnapshot,
+  action: Exclude<SidebarLayoutAction, { type: "place" }>,
+): SidebarLayoutSnapshot {
   const revision = layout.revision + 1;
   if (action.type === "create") {
     const id = crypto.randomUUID();

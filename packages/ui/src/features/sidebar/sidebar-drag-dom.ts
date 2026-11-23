@@ -69,7 +69,7 @@ export function measureSidebarDragSlots(
   for (const section of list.querySelectorAll<HTMLElement>(SIDEBAR_DRAG_SELECTORS.sectionRegion)) {
     const sectionId = section.dataset.sectionId;
     if (!sectionId || isInClosedSection(section)) continue;
-    const bounds = section.getBoundingClientRect();
+    const bounds = layoutBounds(section, list);
     const header = section.querySelector<HTMLElement>(":scope > header");
     // A stuck header is not at the top of its section, so its line comes from its style, not its box.
     const headerStyle = header ? getComputedStyle(header) : null;
@@ -131,6 +131,22 @@ export function measureSidebarDragSlots(
 }
 
 /**
+ * Fork (docs/fork/FEATURES.md #94): a section's box without the slide it and the sections around it
+ * show now. A folder that opens during a folder drag makes the drag measure again while its siblings
+ * are moved aside; their slots must stay where the layout puts them.
+ */
+function layoutBounds(section: HTMLElement, list: HTMLElement): DOMRect {
+  const bounds = section.getBoundingClientRect();
+  let shift = 0;
+  for (let element: HTMLElement | null = section; element && element !== list; element = element.parentElement) {
+    if (!element.matches(SIDEBAR_DRAG_SELECTORS.sectionRegion)) continue;
+    const transform = getComputedStyle(element).transform;
+    if (transform && transform !== "none") shift += new DOMMatrixReadOnly(transform).m42;
+  }
+  return shift === 0 ? bounds : new DOMRect(bounds.left, bounds.top - shift, bounds.width, bounds.height);
+}
+
+/**
  * A closed section keeps its rows and its folders in the DOM, at a height of zero. They take no drop,
  * so a drop there goes to the closed section itself.
  */
@@ -152,26 +168,53 @@ export function clearSidebarDragDecorations(list: HTMLElement | undefined): void
 }
 
 export function createSidebarChatDragCard(source: HTMLElement): HTMLElement {
+  const sourceAvatar = source.querySelector(".agent-row-avatar")?.cloneNode(true);
+  return createSidebarDragCard(
+    sourceAvatar instanceof HTMLElement ? sourceAvatar : null,
+    source
+      .querySelector(".sidebar-pinned-name, .agent-row-title strong, .agent-row-heading > strong")
+      ?.textContent?.trim() ?? "Chat",
+    source.querySelector(".sidebar-pinned-title, .agent-role-badge")?.textContent?.trim(),
+  );
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md #94): a dragged folder lifts as the same card as a dragged chat, with
+ * the folder icon of its header in place of the avatar.
+ */
+export function createSidebarFolderDragCard(source: HTMLElement): HTMLElement {
+  const avatar = document.createElement("span");
+  avatar.className = "agent-row-avatar sidebar-folder-drag-avatar";
+  const icon = source.querySelector(".sidebar-folder-icon, .sidebar-section-chevron")?.cloneNode(true);
+  if (icon instanceof SVGElement) {
+    icon.removeAttribute("class");
+    avatar.append(icon);
+  }
+  const name = source.querySelector(".sidebar-section-name");
+  const ownName = [...(name?.childNodes ?? [])]
+    .filter((node) => node.nodeType === Node.TEXT_NODE)
+    .map((node) => node.textContent ?? "")
+    .join("")
+    .trim();
+  return createSidebarDragCard(avatar, ownName || name?.textContent?.trim() || "Folder", undefined);
+}
+
+function createSidebarDragCard(avatar: HTMLElement | null, nameText: string, titleText: string | undefined) {
   const card = document.createElement("div");
   card.className = "agent-row sidebar-pinned-row sidebar-agent-drag-card";
 
-  const sourceAvatar = source.querySelector(".agent-row-avatar")?.cloneNode(true);
-  if (sourceAvatar instanceof HTMLElement) {
-    sourceAvatar.classList.add("sidebar-pinned-avatar");
-    card.append(sourceAvatar);
+  if (avatar) {
+    avatar.classList.add("sidebar-pinned-avatar");
+    card.append(avatar);
   }
 
   const copy = document.createElement("span");
   copy.className = "agent-row-copy sidebar-pinned-copy";
   const name = document.createElement("strong");
   name.className = "sidebar-pinned-name";
-  name.textContent =
-    source
-      .querySelector(".sidebar-pinned-name, .agent-row-title strong, .agent-row-heading > strong")
-      ?.textContent?.trim() ?? "Chat";
+  name.textContent = nameText;
   copy.append(name);
 
-  const titleText = source.querySelector(".sidebar-pinned-title, .agent-role-badge")?.textContent?.trim();
   if (titleText) {
     const title = document.createElement("span");
     title.className = "z-badge z-badge-variant-secondary sidebar-pinned-title";

@@ -173,6 +173,25 @@ export function parseSidebarFolderAction(value: unknown): SidebarLayoutAction {
         beforeSectionId === null ? null : requireString(beforeSectionId, "beforeSectionId", INPUT_LIMITS.identifier),
     };
   }
+  if (value.type === "place") {
+    // Fork (docs/fork/FEATURES.md #94).
+    const item = value.item;
+    const beforeAgentId = value.beforeAgentId;
+    const beforeSectionId = value.beforeSectionId;
+    if (!isObject(item) || (item.kind !== "chat" && item.kind !== "section"))
+      throw new Error("Invalid sidebar folder item.");
+    if (beforeAgentId !== null && !isString(beforeAgentId)) throw new Error("Invalid agent order target.");
+    if (beforeSectionId !== null && !isString(beforeSectionId)) throw new Error("Invalid sidebar folder order target.");
+    return {
+      type: "place",
+      item: { kind: item.kind, id: requireString(item.id, "id", INPUT_LIMITS.identifier) },
+      parentId: requireString(value.parentId, "parentId", INPUT_LIMITS.identifier),
+      beforeAgentId:
+        beforeAgentId === null ? null : requireString(beforeAgentId, "beforeAgentId", INPUT_LIMITS.identifier),
+      beforeSectionId:
+        beforeSectionId === null ? null : requireString(beforeSectionId, "beforeSectionId", INPUT_LIMITS.identifier),
+    };
+  }
   const action = parseSidebarLayoutAction(value);
   if (action.type !== "create" || value.parentId === undefined) return action;
   return { ...action, parentId: requireString(value.parentId, "parentId", INPUT_LIMITS.identifier) };

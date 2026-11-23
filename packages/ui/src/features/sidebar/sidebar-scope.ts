@@ -67,6 +67,7 @@ export function createSidebarScope(props: SidebarProps) {
     sectionChildren,
     sectionIsCollapsed,
     sectionIsInside,
+    sectionItems,
     sectionLabel,
     sectionParent,
     sectionPosition,
@@ -121,7 +122,14 @@ export function createSidebarScope(props: SidebarProps) {
   const dragFolders = () =>
     foldersSupported() ? { canNest: sectionCanNest, isInside: sectionIsInside, parent: sectionParent } : null;
 
-  const dragState = createSidebarDragStateStore({ assignedSectionId, chatKind, sectionAcceptsChat });
+  const dragState = createSidebarDragStateStore({
+    assignedSectionId,
+    chatKind,
+    sectionAcceptsChat,
+    sectionParent,
+    sectionReorderSlides: (sectionId, targetSectionId) =>
+      !foldersSupported() || sectionParent(sectionId) === sectionParent(targetSectionId),
+  });
   dragActive = () => dragState.draggingKind() !== undefined;
   const {
     assignChatSection,
@@ -148,6 +156,7 @@ export function createSidebarScope(props: SidebarProps) {
     props,
     sectionCanNest,
     sectionChildren,
+    sectionItems,
     sectionLabel,
     sectionParent,
     visiblePinnedKeys,
@@ -172,7 +181,6 @@ export function createSidebarScope(props: SidebarProps) {
     chatPinnedItems,
     commitSidebarDrop,
     dragState,
-    filteredChatsBySection,
     getAgentList: () => agentList,
     rowMotion,
     orderedPeople,
@@ -180,7 +188,9 @@ export function createSidebarScope(props: SidebarProps) {
     scrollFades,
     sectionAcceptsChat,
     folders: dragFolders,
+    sectionChildren,
     sectionIsCollapsed,
+    sectionItems,
     visiblePinnedKeys,
     visibleSectionIds,
   });
@@ -300,6 +310,7 @@ export function createSidebarScope(props: SidebarProps) {
     sectionChildren,
     sectionDragClasses: dragState.sectionDragClasses,
     sectionIsCollapsed,
+    sectionItems,
     sectionLabel,
     sectionParent,
     sectionPosition,

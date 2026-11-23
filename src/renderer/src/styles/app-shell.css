@@ -2075,8 +2075,7 @@ textarea {
 }
 
 .sidebar-agent-drag-preview,
-.sidebar-person-drag-preview,
-.sidebar-section-drag-preview {
+.sidebar-person-drag-preview {
   position: fixed;
   z-index: var(--openbot-layer-dropdown);
   box-sizing: border-box;
@@ -2091,15 +2090,9 @@ textarea {
 }
 
 .sidebar-agent-drag-preview *,
-.sidebar-person-drag-preview *,
-.sidebar-section-drag-preview * {
+.sidebar-person-drag-preview * {
   animation: none;
   transition: none;
-}
-
-.sidebar-section-drag-preview.sidebar-section-toggle {
-  background: var(--openbot-bg-surface-raised);
-  color: var(--openbot-text-secondary);
 }
 
 .agent-row.sidebar-agent-drag-preview {

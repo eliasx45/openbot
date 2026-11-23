@@ -12,9 +12,12 @@ import {
   type SidebarLayoutSnapshot,
   type SidebarSection,
   sidebarFolderAncestors,
+  sidebarFolderAnchors,
   sidebarFolderHeight,
+  sidebarFolderItems,
   sidebarFolderParents,
   sidebarFolderTreeOrder,
+  sidebarPlaceFallback,
 } from "@openbot/contracts/ipc";
 import { isDynamicRecord, isNumber, isString } from "@openbot/contracts/runtime-values";
 import { isUuidV4, legacyAgentId } from "@openbot/contracts/validation";
@@ -260,7 +263,7 @@ function applySidebarLayoutAction(
 ): SidebarLayoutSnapshot {
   const next = applyFlatSidebarLayoutAction(current, action, agentIds);
   if (next === current) return current;
-  const normalized = withFolderTree(next);
+  const normalized = withValidFolderAnchors(current, withFolderTree(next));
   // A move between a folder and its own folders leaves the tree as it was.
   return action.type === "move" && arraysEqual(normalized.order, current.order) ? current : normalized;
 }
@@ -274,12 +277,82 @@ function withFolderTree(layout: SidebarLayoutSnapshot): SidebarLayoutSnapshot {
   const parents = sidebarFolderParents(layout);
   return {
     ...layout,
-    sections: layout.sections.map(({ id, name }) => {
+    sections: layout.sections.map(({ id, name, beforeChatId }) => {
       const parentId = parents.get(id);
-      return parentId === undefined ? { id, name } : { id, name, parentId };
+      if (parentId === undefined) return { id, name };
+      return beforeChatId === undefined ? { id, name, parentId } : { id, name, parentId, beforeChatId };
     }),
     order: sidebarFolderTreeOrder(layout.order, parents),
   };
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md #94): each folder's `beforeChatId` names a chat in its parent. A folder
+ * whose chat left the parent keeps its place: it shows before the chat that came after that one. A
+ * folder that changed parent has no chat to stand before; it goes after the chats.
+ */
+function withValidFolderAnchors(current: SidebarLayoutSnapshot, next: SidebarLayoutSnapshot): SidebarLayoutSnapshot {
+  const previousParent = new Map(current.sections.map((section) => [section.id, section.parentId]));
+  let changed = false;
+  const sections = next.sections.map((section) => {
+    const { beforeChatId, parentId } = section;
+    if (beforeChatId === undefined || (parentId !== undefined && next.agentAssignments[beforeChatId] === parentId))
+      return section;
+    changed = true;
+    const { beforeChatId: _left, ...rest } = section;
+    if (parentId === undefined || previousParent.get(section.id) !== parentId) return rest;
+    const start = current.agentOrder.indexOf(beforeChatId);
+    const following =
+      start < 0
+        ? undefined
+        : current.agentOrder
+            .slice(start + 1)
+            .find((chatId) => chatId !== beforeChatId && next.agentAssignments[chatId] === parentId);
+    return following === undefined ? rest : { ...rest, beforeChatId: following };
+  });
+  return changed ? { ...next, sections } : next;
+}
+
+/** Fork (docs/fork/FEATURES.md #94): a chat or a folder put at an exact place among a folder's items. */
+function placeInFolder(
+  current: SidebarLayoutSnapshot,
+  action: Extract<SidebarLayoutAction, { type: "place" }>,
+  agentIds: ReadonlySet<string>,
+): SidebarLayoutSnapshot {
+  const { item, parentId } = action;
+  requireCustomSection(current, parentId);
+  if (item.kind === "chat" && !agentIds.has(item.id)) throw new Error("Unknown agent.");
+  const parents = sidebarFolderParents(current);
+  const anchors = new Map(current.sections.map((section) => [section.id, section.beforeChatId]));
+  const items = sidebarFolderItems(
+    normalizedAgentOrder(current.agentOrder, agentIds).filter(
+      (chatId) => current.agentAssignments[chatId] === parentId,
+    ),
+    current.order.filter((sectionId) => parents.get(sectionId) === parentId),
+    (sectionId) => anchors.get(sectionId),
+  ).filter((candidate) => candidate.kind !== item.kind || candidate.id !== item.id);
+  const indexOf = (kind: "chat" | "section", id: string | null) => {
+    if (id === null) return items.length;
+    const index = items.findIndex((candidate) => candidate.kind === kind && candidate.id === id);
+    if (index < 0) throw new Error("Unknown sidebar order target.");
+    return index;
+  };
+  items.splice(Math.min(indexOf("chat", action.beforeAgentId), indexOf("section", action.beforeSectionId)), 0, item);
+  const moved = withFolderTree(applyFlatSidebarLayoutAction(current, sidebarPlaceFallback(action), agentIds));
+  const placed = sidebarFolderAnchors(items);
+  const next: SidebarLayoutSnapshot = {
+    ...moved,
+    sections: moved.sections.map((section) => {
+      if (!placed.has(section.id)) return section;
+      const { beforeChatId: _previous, ...rest } = section;
+      const beforeChatId = placed.get(section.id);
+      return beforeChatId === undefined ? rest : { ...rest, beforeChatId };
+    }),
+  };
+  const same =
+    JSON.stringify([next.sections, next.order, next.agentAssignments, next.agentOrder]) ===
+    JSON.stringify([current.sections, current.order, current.agentAssignments, current.agentOrder]);
+  return same ? current : { ...next, revision: current.revision + 1 };
 }
 
 function applyFlatSidebarLayoutAction(
@@ -288,6 +361,8 @@ function applyFlatSidebarLayoutAction(
   agentIds: ReadonlySet<string>,
 ): SidebarLayoutSnapshot {
   switch (action.type) {
+    case "place":
+      return placeInFolder(current, action, agentIds);
     case "create": {
       if (current.sections.length >= INPUT_LIMITS.sidebarSections) {
         throw new Error(sourceText("error.backend.sidebarSectionLimit", { limit: INPUT_LIMITS.sidebarSections }));
@@ -549,7 +624,11 @@ function snapshotFromLegacyStored(stored: LegacyStoredSidebarLayout): Omit<Sideb
  * The id, the name and a text `parentId`. Other fields are dropped; a parent that is not text is
  * dropped too and the folder goes to the top, so the file is not reset.
  */
-function storedSection({ id, name, parentId }: SidebarSection): SidebarSection {
+function storedSection({ id, name, parentId, beforeChatId }: SidebarSection): SidebarSection {
   // The file check above does not read `parentId`, so this check runs on the value in the file.
-  return isString(parentId) ? { id, name, parentId } : { id, name };
+  if (!isString(parentId)) return { id, name };
+  // Fork (docs/fork/FEATURES.md #94): the chat the folder shows before, kept the same way.
+  return isString(beforeChatId) && beforeChatId.length <= INPUT_LIMITS.identifier
+    ? { id, name, parentId, beforeChatId }
+    : { id, name, parentId };
 }

@@ -10,11 +10,16 @@
  * to avoid. `commitSidebarDrop` is passed that source for the same reason.
  */
 
-import type { TeamPresenceMember } from "@openbot/contracts/ipc";
+import type { SidebarFolderItem, TeamPresenceMember } from "@openbot/contracts/ipc";
 import { createBoundedDragPreview } from "../../components/createBoundedDragPreview";
 import type { createScrollFades } from "../../components/createScrollFades";
 
-import { clearSidebarDragDecorations, createSidebarChatDragCard, measureSidebarDragSlots } from "./sidebar-drag-dom";
+import {
+  clearSidebarDragDecorations,
+  createSidebarChatDragCard,
+  createSidebarFolderDragCard,
+  measureSidebarDragSlots,
+} from "./sidebar-drag-dom";
 import {
   type ChatDragSlot,
   type DragOffset,
@@ -34,10 +39,11 @@ import {
   type SidebarNativeDragStart,
   sidebarDropTargetAt,
   sidebarDropTargetsEqual,
+  stackReorderOffsets,
 } from "./sidebar-drag-model";
 import type { SidebarPinnedItem } from "./sidebar-pins";
-import type { createSidebarRowMotion } from "./sidebar-row-motion";
-import type { SidebarChatItem, SidebarProps } from "./sidebar-types";
+import { type createSidebarRowMotion, sidebarRowKey } from "./sidebar-row-motion";
+import type { SidebarProps } from "./sidebar-types";
 import type { SidebarDragWriters } from "./stores/drag-state-store";
 
 export interface SidebarDragEngineDeps {
@@ -47,7 +53,6 @@ export interface SidebarDragEngineDeps {
   /** Read on the resolve path, so it is a predicate over the pin count - never a read of the source. */
   canPinDraggedItem: () => boolean;
   dragState: SidebarDragWriters;
-  filteredChatsBySection: () => Map<string, SidebarChatItem[]>;
   orderedPeople: () => TeamPresenceMember[];
   getAgentList: () => HTMLElement | undefined;
   /** Which kind of chat an id names, or null when it names none: only a known chat can be pinned. */
@@ -61,6 +66,10 @@ export interface SidebarDragEngineDeps {
   rowMotion?: ReturnType<typeof createSidebarRowMotion>;
   /** Whether a section is closed, so a drag that rests on it can open it. */
   sectionIsCollapsed: (sectionId: string) => boolean;
+  /** The sections in a folder, or at the top of the list for null, in order. */
+  sectionChildren: (parentId: string | null) => string[];
+  /** The chats and folders in a section, in the order they show (fork #94). */
+  sectionItems: (sectionId: string) => SidebarFolderItem[];
   visiblePinnedKeys: () => string[];
   visibleSectionIds: () => string[];
 }
@@ -79,7 +88,6 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
     chatPinnedItems,
     commitSidebarDrop,
     dragState,
-    filteredChatsBySection,
     orderedPeople,
     scrollFades,
     sectionAcceptsChat,
@@ -96,6 +104,12 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
   let sectionDragSlots = new Map<string, SectionDragSlot>();
 
   let sectionDragStartScrollTop = 0;
+
+  /**
+   * Fork (docs/fork/FEATURES.md #94): how far each sibling of a dragged folder slid, with the dragged
+   * folder's own gap, by section id. The drop resolver reads the folders where they show.
+   */
+  let sectionOffsets: Record<string, DragOffset> = {};
 
   let dragSession: SidebarDragSession | null = null;
 
@@ -136,6 +150,7 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
     dragScrollFrame = null;
     dragScrollSpeed = 0;
     dragGeometry = { list: null, pinned: null };
+    sectionOffsets = {};
     dragState.resetDrag();
     clearSidebarDragDecorations(deps.getAgentList());
     for (const slot of personDragSlots.values()) slot.element.classList.remove("sidebar-person-item-dragging");
@@ -173,6 +188,9 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
   function remeasureAfterTransition(event: TransitionEvent): void {
     if (!dragSession || event.propertyName !== "grid-template-rows") return;
     measureSidebarDragTargets();
+    // The rows that slid aside slide to the places the new measure gives.
+    sectionOffsets = itemReorderOffsets(dragTarget);
+    dragState.setDragOffsets(sidebarDragOffsets(dragTarget));
     if (dragPoint) scheduleSidebarDragTarget(dragPoint);
   }
 
@@ -267,11 +285,13 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
     personDragSlots.get(member.id)?.element.classList.add("sidebar-person-item-dragging");
   }
 
+  /** Fork (docs/fork/FEATURES.md #94): a folder lifts as the same card as a chat, and moves the same way. */
   function startSectionDragging(event: DragEvent & { currentTarget: HTMLElement }, sectionId: string): void {
     startNativeItemDragging(event, {
-      className: "sidebar-section-drag-preview",
+      className: "sidebar-agent-drag-preview",
+      createPreview: createSidebarFolderDragCard,
       data: `openbot-section:${sectionId}`,
-      horizontal: false,
+      previewSize: { height: 102, width: 72 },
       source: { kind: "section", id: sectionId },
     });
   }
@@ -283,20 +303,110 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
    */
   function sidebarDragWorld(session: SidebarDragSession): SidebarDragWorld {
     const scrollTop = deps.getAgentList()?.scrollTop ?? 0;
+    const folders = deps.folders();
+    const sourceGap = session.source.kind === "section" ? sectionOffsets[session.source.id] : undefined;
     return {
+      heldSectionTarget: sourceGap ? dragTarget : null,
       chatScrollDelta: scrollTop - chatDragStartScrollTop,
-      chatSlots: chatDragSlots,
+      chatSlots: folders && session.source.kind === "section" ? shiftedChatSlots(folders) : chatDragSlots,
       canPinDraggedItem,
       geometry: dragGeometry,
       personSlots: personDragSlots,
       pinnedSlots: pinnedDragSlots,
       sectionAcceptsChat,
       sectionScrollDelta: scrollTop - sectionDragStartScrollTop,
-      sectionSlots: sectionDragSlots,
-      folders: deps.folders(),
+      sectionSlots: folders && session.source.kind === "section" ? shiftedSectionSlots(folders) : sectionDragSlots,
+      folders,
+      folderItems: folders ? deps.sectionItems : undefined,
+      sectionIsCollapsed: deps.sectionIsCollapsed,
       session,
       sessionScrollDelta: scrollTop - session.startScrollTop,
     };
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md #94): the slots where the rows show while the rows around a dragged
+   * folder slide aside. A row in a folder moves with every folder it is in.
+   */
+  function shiftOf(folders: SidebarDragFolders, sectionId: string | null, ownOffset: number): number {
+    let y = ownOffset;
+    for (let id = sectionId; id !== null; id = folders.parent(id)) y += sectionOffsets[id]?.y ?? 0;
+    return y;
+  }
+
+  function shiftedSectionSlots(folders: SidebarDragFolders): Map<string, SectionDragSlot> {
+    if (Object.keys(sectionOffsets).length === 0) return sectionDragSlots;
+    const shifted = new Map<string, SectionDragSlot>();
+    for (const [sectionId, slot] of sectionDragSlots) {
+      const y = shiftOf(folders, sectionId, 0);
+      shifted.set(
+        sectionId,
+        y === 0 ? slot : { ...slot, bottom: slot.bottom + y, centerY: slot.centerY + y, top: slot.top + y },
+      );
+    }
+    return shifted;
+  }
+
+  function shiftedChatSlots(folders: SidebarDragFolders): Map<string, ChatDragSlot> {
+    if (Object.keys(sectionOffsets).length === 0) return chatDragSlots;
+    const shifted = new Map<string, ChatDragSlot>();
+    for (const [chatId, slot] of chatDragSlots) {
+      const y = shiftOf(folders, slot.sectionId, sectionOffsets[chatId]?.y ?? 0);
+      shifted.set(
+        chatId,
+        y === 0 ? slot : { ...slot, bottom: slot.bottom + y, centerY: slot.centerY + y, top: slot.top + y },
+      );
+    }
+    return shifted;
+  }
+
+  /** The section a dragged chat or folder is in now; null for a folder at the top of the list. */
+  function sourceContainer(source: SidebarDragSource): string | null | undefined {
+    if (source.kind === "chat") return assignedSectionId(source.id);
+    if (source.kind === "section") return deps.folders()?.parent(source.id) ?? null;
+    return undefined;
+  }
+
+  /** The section a target puts the dragged item in, beside the row it names. */
+  function targetContainer(
+    target: SidebarDropTarget,
+  ): { container: string | null; id: string; placement: "before" | "after" } | null {
+    if (target.kind === "chat")
+      return { container: target.target.sectionId, id: target.target.chatId, placement: target.target.placement };
+    if (target.kind === "section-order")
+      return {
+        container: deps.folders()?.parent(target.target.sectionId) ?? null,
+        id: target.target.sectionId,
+        placement: target.target.placement,
+      };
+    return null;
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md #94): a chat or folder dropped beside a row of its own section is a
+   * reorder: the rows between slide by the height of the dragged row, chats and folders alike. A drop
+   * into another section is a move and slides nothing; it keeps its drop line or folder outline. The
+   * result has the dragged row's gap too, which the resolver of a folder drag reads.
+   */
+  function itemReorderOffsets(target: SidebarDropTarget | null): Record<string, DragOffset> {
+    const source = dragSession?.source;
+    const aim = target ? targetContainer(target) : null;
+    if (!source || !aim) return {};
+    const container = sourceContainer(source);
+    if (container === undefined || container !== aim.container) return {};
+    const items: SidebarFolderItem[] =
+      container === null
+        ? (deps.folders() ? deps.sectionChildren(null) : visibleSectionIds()).map((id) => ({ kind: "section", id }))
+        : deps.sectionItems(container);
+    const slots = new Map(
+      items.map((item) => [item.id, item.kind === "chat" ? chatDragSlots.get(item.id) : sectionDragSlots.get(item.id)]),
+    );
+    return stackReorderOffsets(
+      items.map((item) => item.id),
+      source.id,
+      { id: aim.id, placement: aim.placement },
+      (id) => slots.get(id),
+    );
   }
 
   function pointerIsAtDragOrigin(point: SidebarDragPoint): boolean {
@@ -335,23 +445,13 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
           "x-and-y",
         );
       }
-      case "chat": {
-        if (source.kind !== "chat") return {};
-        const sourceSlot = chatDragSlots.get(source.id);
-        const targetSlot = chatDragSlots.get(target.target.chatId);
-        // A chat only pushes its own neighbours: aimed at another section it is a move, not a reorder.
-        if (!sourceSlot || !targetSlot || sourceSlot.sectionId !== targetSlot.sectionId) return {};
-        const chatIds = (filteredChatsBySection().get(sourceSlot.sectionId) ?? []).map((item) => item.id);
-        return reorderOffsets(
-          chatIds,
-          source.id,
-          {
-            id: target.target.chatId,
-            placement: placementForSwap(chatIds, source.id, target.target.chatId),
-          },
-          (chatId) => chatDragSlots.get(chatId),
-          "y",
-        );
+      case "chat":
+      case "section-order": {
+        // A chat or folder only pushes its own neighbours: aimed at another section it is a move.
+        // Its own gap is for the resolver only: the dragged row does not show.
+        const offsets = itemReorderOffsets(target);
+        delete offsets[source.id];
+        return offsets;
       }
       case "person": {
         if (source.kind !== "person") return {};
@@ -360,18 +460,6 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
           source.id,
           { id: target.target.memberId, placement: target.target.placement },
           (memberId) => personDragSlots.get(memberId),
-          "y",
-        );
-      }
-      case "section-order": {
-        // Folders in folders draw a drop line and move no rows: the folder's new place can be far
-        // from the one it leaves, in another folder.
-        if (source.kind !== "section" || deps.folders()) return {};
-        return reorderOffsets(
-          visibleSectionIds(),
-          source.id,
-          { id: target.target.sectionId, placement: target.target.placement },
-          (sectionId) => sectionDragSlots.get(sectionId),
           "y",
         );
       }
@@ -384,6 +472,7 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
     if (sidebarDropTargetsEqual(dragTarget, target)) return;
     dragTarget = target;
     updateSpringOpen(target);
+    sectionOffsets = itemReorderOffsets(target);
     dragState.setDragTarget(target);
     dragState.setDragOffsets(sidebarDragOffsets(target));
   }
@@ -481,11 +570,17 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
     if (dragState.emptyPinnedDropVisible() && !animatedPinnedTarget) measureSidebarDragTargets();
     const target = animatedPinnedTarget ?? flushSidebarDragTarget({ clientX: event.clientX, clientY: event.clientY });
     const source = dragSession.source;
-    if (source.kind === "chat" && (target?.kind === "chat" || target?.kind === "section")) {
+    // Fork (docs/fork/FEATURES.md #94): a folder settles where it drops as a chat does.
+    if (
+      (source.kind === "chat" || source.kind === "section") &&
+      target &&
+      target.kind !== "pinned" &&
+      target.kind !== "person"
+    ) {
       deps.rowMotion?.beginDropSettle({
-        chatId: source.id,
+        key: sidebarRowKey(source.kind, source.id),
         clientY: event.clientY,
-        expectsChange: chatDropChangesOrder(source.id, target),
+        expectsChange: dropChangesOrder(source, target),
       });
     }
     commitSidebarDrop(source, target);
@@ -493,19 +588,20 @@ export function createSidebarDragEngine(deps: SidebarDragEngineDeps) {
     stopSidebarDragging();
   }
 
-  /** Whether a chat dropped on this target ends up somewhere else than where it is. */
-  function chatDropChangesOrder(
-    chatId: string,
-    target: Extract<SidebarDropTarget, { kind: "chat" } | { kind: "section" }>,
-  ): boolean {
-    const fromSection = assignedSectionId(chatId);
-    if (target.kind === "section") {
-      if (target.sectionId !== fromSection) return true;
-      const ids = filteredChatsBySection().get(fromSection) ?? [];
-      return ids[ids.length - 1]?.id !== chatId;
+  /** Whether a chat or folder dropped on this target ends up somewhere else than where it is. */
+  function dropChangesOrder(source: SidebarDragSource, target: SidebarDropTarget): boolean {
+    const from = sourceContainer(source);
+    if (target.kind === "section" || target.kind === "section-into") {
+      if (target.sectionId !== from) return true;
+      const items = deps.sectionItems(target.sectionId);
+      const last = items[items.length - 1];
+      // A chat goes after the last chat; a folder after everything.
+      if (source.kind === "chat") return items.filter((item) => item.kind === "chat").at(-1)?.id !== source.id;
+      return last?.id !== source.id;
     }
-    if (target.target.sectionId !== fromSection) return true;
-    return Object.keys(sidebarDragOffsets(target)).length > 0;
+    const aim = targetContainer(target);
+    if (!aim || aim.container !== from) return true;
+    return Object.keys(itemReorderOffsets(target)).length > 0;
   }
 
   function endChatDragging(event: DragEvent): void {

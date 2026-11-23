@@ -87,6 +87,7 @@ import {
   isQueueSnapshot,
   isSidebarLayoutSnapshot,
   isTeamPresenceSnapshot,
+  sidebarPlaceFallback,
   withFastServiceTiers,
   withModelListings,
   withModelSources,
@@ -1351,7 +1352,9 @@ export function createWebWorkspaceRuntime(
       return decodeWebBrowserPreview(await request("POST", TEAM_API_ROUTES.browser.preview, { tabId }));
     },
     getSidebarLayout: readSidebarLayout,
-    async mutateSidebarLayout(action) {
+    async mutateSidebarLayout(requested) {
+      // The Team API has no mixed order of chats and folders (fork FEATURES #94).
+      const action = requested.type === "place" ? sidebarPlaceFallback(requested) : requested;
       const folders = capabilities.includes(SIDEBAR_FOLDERS_CAPABILITY);
       // The released route has every folder at the top: it refuses `nest`, and would drop a parent.
       if (!folders && (action.type === "nest" || (action.type === "create" && action.parentId !== undefined)))

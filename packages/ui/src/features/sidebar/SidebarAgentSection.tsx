@@ -2,6 +2,8 @@
  * One section - the unassigned one included. A custom section is a folder: it stays visible while
  * empty so it can be dropped into, and it shows its chats first, then the folders in it.
  *
+ * Fork (docs/fork/FEATURES.md #94): a folder can stand between its parent's chats (`sectionItems`).
+ *
  * The unassigned section keeps its heading only once a custom section exists. Before that it is the
  * whole list, and "Unassigned" names it against nothing.
  */
@@ -14,6 +16,10 @@ import { SidebarChannelRow } from "./SidebarChannelRow";
 import { SidebarSectionDraft } from "./SidebarSectionEditor";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { useSidebarScope } from "./sidebar-scope";
+import type { SidebarChatItem } from "./sidebar-types";
+
+const chatAgent = (chat: SidebarChatItem) => (chat.kind === "agent" ? chat.agent : undefined);
+const chatChannel = (chat: SidebarChatItem) => (chat.kind === "channel" ? chat.channel : undefined);
 
 export function SidebarAgentSection(sectionProps: { sectionId: string; depth: number }) {
   const {
@@ -22,16 +28,18 @@ export function SidebarAgentSection(sectionProps: { sectionId: string; depth: nu
     filteredChatsBySection,
     listFiltered,
     props,
-    sectionChildren,
     sectionDragClasses,
     sectionIsCollapsed,
+    sectionItems,
     sectionLabel,
   } = useSidebarScope();
   const { t } = useText();
   const sectionId = () => sectionProps.sectionId;
   const chats = () => filteredChatsBySection().get(sectionId()) ?? [];
   const custom = () => customSectionById().get(sectionId());
-  const children = () => (custom() ? sectionChildren(sectionId()) : []);
+  const chatById = () => new Map(chats().map((chat) => [chat.id, chat]));
+  /** Keys, not items: a key stays the same object across a change, so each row keeps its element. */
+  const itemKeys = () => sectionItems(sectionId()).map((item) => `${item.kind}:${item.id}`);
   const name = () =>
     sectionId() === SIDEBAR_UNASSIGNED_SECTION_ID ? t("sidebar.section.unassigned") : (custom()?.name ?? "");
   /**
@@ -64,20 +72,24 @@ export function SidebarAgentSection(sectionProps: { sectionId: string; depth: nu
           inert={collapsed() ? true : undefined}
         >
           <div id={`sidebar-section-body-${sectionId()}`} class="sidebar-section-body">
-            <For each={chats()}>
-              {(chat) => (
-                <Switch>
-                  <Match when={chat.kind === "agent" ? chat.agent : undefined}>
-                    {(agent) => <SidebarAgentRow agent={agent()} />}
-                  </Match>
-                  <Match when={chat.kind === "channel" ? chat.channel : undefined}>
-                    {(channel) => <SidebarChannelRow channel={channel()} />}
-                  </Match>
-                </Switch>
-              )}
-            </For>
-            <For each={children()}>
-              {(childId) => <SidebarAgentSection sectionId={childId} depth={sectionProps.depth + 1} />}
+            <For each={itemKeys()}>
+              {(key) => {
+                const id = key.slice(key.indexOf(":") + 1);
+                return key.startsWith("section:") ? (
+                  <SidebarAgentSection sectionId={id} depth={sectionProps.depth + 1} />
+                ) : (
+                  <Show when={chatById().get(id)}>
+                    {(chat) => (
+                      <Switch>
+                        <Match when={chatAgent(chat())}>{(agent) => <SidebarAgentRow agent={agent()} />}</Match>
+                        <Match when={chatChannel(chat())}>
+                          {(channel) => <SidebarChannelRow channel={channel()} />}
+                        </Match>
+                      </Switch>
+                    )}
+                  </Show>
+                );
+              }}
             </For>
             <Show when={custom()}>
               <SidebarSectionDraft parentId={sectionId()} />

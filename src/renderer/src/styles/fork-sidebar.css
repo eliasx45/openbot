@@ -59,3 +59,36 @@
 :root[data-openbot-window-glass] .sidebar {
   --sidebar-drop-outline: var(--openbot-accent-strong);
 }
+
+/* Fork (docs/fork/FEATURES.md #94): a folder drags like a chat. It lifts as the same card (with its
+ * folder icon in the avatar place), the folders around it slide on the chat rows' timing and easing,
+ * and a dropped folder settles with `sidebar-row-motion.ts`, which turns the offset transition off. */
+.sidebar-section {
+  transition-timing-function: var(--openbot-ease-out);
+}
+
+.agent-list[data-sidebar-dragging="section"] .sidebar-section {
+  will-change: transform;
+}
+
+.agent-list[data-sidebar-settling] .sidebar-section {
+  transition: none;
+}
+
+/* While a drop settles, the rows are held where the drop left them. Scroll anchoring read the held
+ * rows as moved content and scrolled the list to its end on a drop below the start. */
+.agent-list[data-sidebar-dragging],
+.agent-list[data-sidebar-settling] {
+  overflow-anchor: none;
+}
+
+.agent-row.sidebar-pinned-row .sidebar-folder-drag-avatar {
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-hover);
+  color: var(--openbot-text-secondary);
+}
+
+.sidebar-folder-drag-avatar > svg {
+  width: 28px;
+  height: 28px;
+}

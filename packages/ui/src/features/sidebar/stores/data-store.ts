@@ -9,8 +9,10 @@ import {
   SIDEBAR_FOLDER_LEVELS,
   SIDEBAR_PEOPLE_SECTION_ID,
   SIDEBAR_UNASSIGNED_SECTION_ID,
+  type SidebarFolderItem,
   sidebarFolderAncestors,
   sidebarFolderHeight,
+  sidebarFolderItems,
   sidebarFolderParents,
 } from "@openbot/contracts/ipc";
 import { createMemo, createSignal } from "solid-js";
@@ -494,6 +496,17 @@ export function createSidebarDataStore(deps: {
     return folderChildren().get(parentId) ?? [];
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md #94): the chats and the folders in a section, in the order they show.
+   * A folder can stand before any of its parent's chats; the other sections hold only chats.
+   */
+  function sectionItems(sectionId: string): SidebarFolderItem[] {
+    const chatIds = (filteredChatsBySection().get(sectionId) ?? []).map((item) => item.id);
+    const sections = customSectionById();
+    if (!sections.has(sectionId)) return chatIds.map((id) => ({ kind: "chat", id }));
+    return sidebarFolderItems(chatIds, sectionChildren(sectionId), (folderId) => sections.get(folderId)?.beforeChatId);
+  }
+
   function sectionParent(sectionId: string): string | null {
     return folderParents().get(sectionId) ?? null;
   }
@@ -685,6 +698,7 @@ export function createSidebarDataStore(deps: {
     sectionChildren,
     sectionIsCollapsed,
     sectionIsInside,
+    sectionItems,
     sectionParent,
     sectionLabel,
     sectionPosition,

@@ -36,8 +36,15 @@ export function createSidebarDragStateStore(deps: {
   /** Which kind of chat an id names, or null when it names none: an unknown chat cannot be pinned. */
   chatKind: (chatId: string) => "agent" | "channel" | null;
   sectionAcceptsChat: (sectionId: string) => boolean;
+  /**
+   * Fork (docs/fork/FEATURES.md #94): whether a folder dropped beside this one is a reorder, whose
+   * neighbours slide (no drop line, as for a chat in its own folder), rather than a move.
+   */
+  sectionReorderSlides: (sectionId: string, targetSectionId: string) => boolean;
+  /** The folder that holds a folder, or null at the top. */
+  sectionParent: (sectionId: string) => string | null;
 }) {
-  const { assignedSectionId, chatKind, sectionAcceptsChat } = deps;
+  const { assignedSectionId, chatKind, sectionAcceptsChat, sectionParent, sectionReorderSlides } = deps;
 
   const [drag, setDrag] = createStore<SidebarDrag>({
     emptyPinnedDropVisible: false,
@@ -76,7 +83,17 @@ export function createSidebarDragStateStore(deps: {
    * The section a dragged chat would move into, whether it aims at a row inside it or at the section.
    * Null while it stays in its own section: a reorder there draws no box.
    */
-  const chatDropSectionId = createMemo(() => chatDropSectionFor(drag.source, drag.target, assignedSectionId));
+  const chatDropSectionId = createMemo(() =>
+    chatDropSectionFor(drag.source, drag.target, assignedSectionId, sectionParent),
+  );
+
+  /** Fork #94: the folder that a folder dropped on one of its chats moves into, from another folder. */
+  const folderMoveSectionId = createMemo(() => {
+    const source = drag.source;
+    const target = drag.target;
+    if (source?.kind !== "section" || target?.kind !== "chat") return null;
+    return sectionParent(source.id) === target.target.sectionId ? null : target.target.sectionId;
+  });
 
   const sectionDropTarget = createMemo(() => {
     const target = drag.target;
@@ -116,16 +133,18 @@ export function createSidebarDragStateStore(deps: {
   }
 
   function sectionDragClasses(sectionId: string) {
-    const target = sectionDropTarget();
+    const dragged = draggedSectionId();
+    const target = dragged !== null && sectionDropTarget()?.sectionId === sectionId ? sectionDropTarget() : null;
+    const line = target && dragged !== null && !sectionReorderSlides(dragged, sectionId) ? target.placement : null;
     return {
       "sidebar-section-agent-drop-target":
-        (chatDropSectionId() === sectionId && sectionAcceptsChat(sectionId)) || sectionIntoId() === sectionId,
+        (chatDropSectionId() === sectionId && sectionAcceptsChat(sectionId)) ||
+        sectionIntoId() === sectionId ||
+        folderMoveSectionId() === sectionId,
       "sidebar-section-dragging": draggedSectionId() === sectionId,
       "sidebar-drag-shifting": dragOffset(sectionId).y !== 0,
-      "sidebar-section-drop-before":
-        draggedSectionId() !== null && target?.sectionId === sectionId && target.placement === "before",
-      "sidebar-section-drop-after":
-        draggedSectionId() !== null && target?.sectionId === sectionId && target.placement === "after",
+      "sidebar-section-drop-before": line === "before",
+      "sidebar-section-drop-after": line === "after",
     };
   }
 
