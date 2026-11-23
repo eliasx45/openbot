@@ -460,13 +460,25 @@ export function SelectionActionsBar(props: {
     else setMode("error");
   };
 
+  // Set by the Enter that ends an input method composition, until the next key.
+  let compositionEnter = false;
+
   /*
    * Fork: Enter and the arrow add the note to the composer, as in Claude's desktop app. The modifier
    * of the quote chord (Command on macOS) with Enter sends it at once, as before.
    */
   const addNote = (instruction: string) => {
     const normalized = instruction.trim();
-    if (!normalized || mode() === "sending") return;
+    if (mode() === "sending") return;
+    // Fork: Enter with no note quotes the selection, as the Quote action does. The person then
+    // writes about it in the message box. The Enter that ends an input method composition does not.
+    if (!normalized) {
+      if (compositionEnter || !props.onQuote) return;
+      // The message box takes the focus with the quote, so a held or doubled Enter would send it.
+      holdEnterAfterQuote();
+      props.onQuote();
+      return;
+    }
     if (props.onQueueNote?.(normalized)) props.onDismiss();
     else void submit(normalized);
   };
@@ -584,6 +596,7 @@ export function SelectionActionsBar(props: {
                     maxlength={maximumInstructionLength()}
                     onValueChange={updatePrompt}
                     onKeyDown={(event) => {
+                      compositionEnter = event.key === "Enter" && (event.isComposing || event.keyCode === 229);
                       if (!props.onQueueNote || !sendsNow(event)) return;
                       event.preventDefault();
                       void submit(prompt());
@@ -727,6 +740,50 @@ export function QuoteSelectionButton(props: { quoteShortcut: QuoteShortcutModifi
 
 /* The Quote button, so the presets do not clip it. */
 const QUOTE_ACTION_WIDTH = 84;
+
+/** How long after Enter quotes a selection a second Enter does nothing. */
+const ENTER_HOLD_MS = 400;
+/** The longest hold, for an Enter whose release the window never sees. */
+const ENTER_HOLD_MAX_MS = 3_000;
+let releaseEnterHold: (() => void) | undefined;
+
+/**
+ * Fork: after Enter in the empty describe field quotes the selection, the message box has the focus.
+ * Until that Enter is released and for a moment after, Enter does nothing there, so a held key or a
+ * fast second press does not send the quote. A pointer press ends the hold.
+ */
+function holdEnterAfterQuote(): void {
+  releaseEnterHold?.();
+  let keyDown = true;
+  let timeUp = false;
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  const onKeyUp = (event: KeyboardEvent) => {
+    if (event.key !== "Enter") return;
+    keyDown = false;
+    if (timeUp) release();
+  };
+  const shortTimer = setTimeout(() => {
+    timeUp = true;
+    if (!keyDown) release();
+  }, ENTER_HOLD_MS);
+  const longTimer = setTimeout(() => release(), ENTER_HOLD_MAX_MS);
+  const release = () => {
+    clearTimeout(shortTimer);
+    clearTimeout(longTimer);
+    window.removeEventListener("keydown", onKeyDown, true);
+    window.removeEventListener("keyup", onKeyUp, true);
+    window.removeEventListener("pointerdown", release, true);
+    if (releaseEnterHold === release) releaseEnterHold = undefined;
+  };
+  releaseEnterHold = release;
+  window.addEventListener("keydown", onKeyDown, true);
+  window.addEventListener("keyup", onKeyUp, true);
+  window.addEventListener("pointerdown", release, true);
+}
 
 /** ⌘⇧. on macOS, Ctrl+Shift+. elsewhere. A key that a visual reply page gives to the app counts too. */
 export function isQuoteShortcut(
