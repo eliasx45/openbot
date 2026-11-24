@@ -371,7 +371,7 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
             wrap={wrapLines()}
             selectionQuoteId={props.selectionQuoteId}
           />
-          <Show when={previewKind() === "text" && text().truncated}>
+          <Show when={text().truncated}>
             <p class="file-preview-truncated">{t("preview.truncated", { limit: format.number(TEXT_LIMIT) })}</p>
           </Show>
         </Show>

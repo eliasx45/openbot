@@ -1,6 +1,6 @@
 import type { FilePreview } from "@openbot/contracts/ipc";
 import FilePreviewPanel from "@openbot/ui/features/conversation/FilePreviewPanel";
-import { render, screen, waitFor } from "@solidjs/testing-library";
+import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { describe, expect, it, vi } from "vitest";
 
 const TEXT = "Name;Price\nCafé;3 €\nÜber;12 €\n";
@@ -84,5 +84,16 @@ describe("a Markdown file with YAML front matter", () => {
     const { container } = showFile("notes.md", new TextEncoder().encode("---\nJust a line\n---\n\nText\n"), "markdown");
     expect(container.querySelector("article hr")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Just a line" })).toBeTruthy();
+  });
+});
+
+describe("a Markdown file longer than the preview limit", () => {
+  it("says that the source view is cut, as the rendered view does", async () => {
+    const { container } = showFile("long.md", new TextEncoder().encode(`${"a".repeat(1_000_100)}\n`), "markdown");
+    expect(screen.getByText(/Preview truncated after/u)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Show Markdown source" }));
+    await waitFor(() => expect(container.querySelector("article")).toBeNull());
+    expect(container.querySelector("pre")?.textContent?.length).toBe(1_000_000);
+    expect(screen.getByText(/Preview truncated after/u)).toBeTruthy();
   });
 });
