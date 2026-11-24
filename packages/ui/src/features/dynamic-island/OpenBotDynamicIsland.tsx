@@ -16,6 +16,7 @@ import {
   DYNAMIC_ISLAND_SIZE_LIMITS,
   dynamicIslandCompactHeight,
 } from "@openbot/contracts/ipc";
+import { markdownPreviewText } from "@openbot/contracts/markdown-preview-text";
 import type { AppTextKey, AppTranslate } from "@openbot/i18n";
 import {
   ArrowUp,
@@ -992,7 +993,7 @@ function ExpandedContent(props: {
                         <IslandContentSwap contentKey={`${item().agent.id}:${item().task}`}>
                           <span class="dynamic-island-surface-row-copy" data-island-motion-content>
                             <strong>{item().agent.name}</strong>
-                            <small>{item().task}</small>
+                            <small>{markdownPreviewText(item().task)}</small>
                           </span>
                         </IslandContentSwap>
                       </Button>
@@ -1033,7 +1034,7 @@ function ExpandedContent(props: {
               <DynamicIslandIdentity
                 name={message().agent.name}
                 status={t("island.status.replied")}
-                description={message().text}
+                description={markdownPreviewText(message().text)}
                 trailing={<time datetime={message().createdAt}>{t("chat.day.now")}</time>}
               />
             </IslandContentSwap>
@@ -1427,7 +1428,7 @@ function QuestionContent(props: {
       <DynamicIslandIdentity
         name={props.item.agent.name}
         status={t("island.status.asks")}
-        description={questionText()}
+        description={markdownPreviewText(questionText())}
         descriptionRef={(element) => {
           questionPrompt = element;
         }}
