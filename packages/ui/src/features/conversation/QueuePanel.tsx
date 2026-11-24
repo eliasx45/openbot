@@ -87,6 +87,15 @@ export function QueuePanel(props: QueuePanelProps) {
       )
       .map((delivery) => delivery.id),
   );
+  let movedByKey: { id: string; order: string } | undefined;
+  createEffect(queueIds, (ids) => {
+    const moved = movedByKey;
+    if (!moved || ids.join("\n") !== moved.order) return;
+    movedByKey = undefined;
+    const active = document.activeElement;
+    if (active && active !== document.body && !queueList?.contains(active)) return;
+    queueList?.querySelector<HTMLElement>(`[data-queue-delivery-id="${CSS.escape(moved.id)}"]`)?.focus();
+  });
 
   createEffect(
     () => props.editingDeliveryId ?? null,
@@ -335,6 +344,7 @@ export function QueuePanel(props: QueuePanelProps) {
     if (index < 0 || moved === undefined || displaced === undefined) return;
     ids[index] = displaced;
     ids[target] = moved;
+    movedByKey = { id: moved, order: ids.join("\n") };
     props.onReorder(ids);
     setAnnouncement(t("queue.moved", { position: target + 1, total: ids.length }));
   }
@@ -418,44 +428,44 @@ export function QueuePanel(props: QueuePanelProps) {
         </Show>
         <div class="agent-queue-panel-resize" ref={(element) => (queueResizeContainer = element)}>
           <div class="agent-queue-panel-list" ref={(element) => (queueList = element)}>
-            <For each={visibleDeliveries()}>
+            <For each={visibleDeliveries()} keyed={(delivery) => delivery.id}>
               {(delivery) => {
-                const firstAttachment = delivery.attachments[0];
-                const removing = () => removingIds().has(delivery.id) || editingExitId() === delivery.id;
-                const editing = editedElsewhere(delivery);
-                const actionable = delivery.status === "queued" && !editing;
+                const firstAttachment = () => delivery().attachments[0];
+                const removing = () => removingIds().has(delivery().id) || editingExitId() === delivery().id;
+                const editing = () => editedElsewhere(delivery());
+                const actionable = () => delivery().status === "queued" && !editing();
                 return (
                   <fieldset
                     class={[
                       "agent-queue-item",
                       {
-                        "agent-queue-item-dragging": draggedId() === delivery.id,
-                        "agent-queue-item-drag-over": dragOverId() === delivery.id,
-                        "agent-queue-item-entering": enteringIds().has(delivery.id),
+                        "agent-queue-item-dragging": draggedId() === delivery().id,
+                        "agent-queue-item-drag-over": dragOverId() === delivery().id,
+                        "agent-queue-item-entering": enteringIds().has(delivery().id),
                         "agent-queue-item-removing": removing(),
-                        "agent-queue-item-steering": delivery.status === "starting",
-                        "agent-queue-item-editing": editing,
-                        "agent-queue-item-has-attachment": Boolean(firstAttachment),
+                        "agent-queue-item-steering": delivery().status === "starting",
+                        "agent-queue-item-editing": editing(),
+                        "agent-queue-item-has-attachment": Boolean(firstAttachment()),
                       },
                     ]}
-                    style={{ "--queue-drag-step": dragStep(delivery.id) }}
-                    data-queue-delivery-id={delivery.id}
-                    draggable={actionable && !removing() ? "true" : "false"}
+                    style={{ "--queue-drag-step": dragStep(delivery().id) }}
+                    data-queue-delivery-id={delivery().id}
+                    draggable={actionable() && !removing() ? "true" : "false"}
                     disabled={removing()}
                     aria-hidden={removing() ? "true" : undefined}
                     inert={removing() ? true : undefined}
                     onDragStart={(event) => {
-                      if (!actionable) return;
+                      if (!actionable()) return;
                       if (event.target instanceof Element && event.target.closest(".agent-queue-actions")) {
                         event.preventDefault();
                         return;
                       }
-                      event.dataTransfer?.setData("text/plain", delivery.id);
+                      event.dataTransfer?.setData("text/plain", delivery().id);
                       if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
                       measureDragSlots();
                       setDragPreview(event);
-                      setDraggedId(delivery.id);
-                      setDragOverId(delivery.id);
+                      setDraggedId(delivery().id);
+                      setDragOverId(delivery().id);
                     }}
                     onDragEnd={() => {
                       setDraggedId(null);
@@ -464,25 +474,25 @@ export function QueuePanel(props: QueuePanelProps) {
                       dragPreview.stop();
                     }}
                     onKeyDown={(event) => {
-                      if (!actionable || !event.altKey) return;
+                      if (!actionable() || !event.altKey) return;
                       if (event.key === "ArrowUp") {
                         event.preventDefault();
-                        moveDelivery(delivery.id, -1);
+                        moveDelivery(delivery().id, -1);
                       } else if (event.key === "ArrowDown") {
                         event.preventDefault();
-                        moveDelivery(delivery.id, 1);
+                        moveDelivery(delivery().id, 1);
                       }
                     }}
-                    tabindex={delivery.status === "queued" && !removing() ? 0 : -1}
-                    aria-label={t(editing ? "queue.item.labelEditing" : "queue.item.label", {
-                      position: delivery.position ?? "",
-                      preview: messagePreview(delivery),
+                    tabindex={delivery().status === "queued" && !removing() ? 0 : -1}
+                    aria-label={t(editing() ? "queue.item.labelEditing" : "queue.item.label", {
+                      position: delivery().position ?? "",
+                      preview: messagePreview(delivery()),
                     })}
                   >
                     <span class="agent-queue-icon" aria-hidden="true">
                       <QueueIcon />
                     </span>
-                    <Show when={firstAttachment}>
+                    <Show when={firstAttachment()}>
                       {(attachment) => (
                         <span class="agent-queue-attachment" aria-hidden="true">
                           <Show
@@ -494,14 +504,14 @@ export function QueuePanel(props: QueuePanelProps) {
                         </span>
                       )}
                     </Show>
-                    <span class="agent-queue-message" title={messagePreview(delivery)}>
-                      {messagePreview(delivery)}
+                    <span class="agent-queue-message" title={messagePreview(delivery())}>
+                      {messagePreview(delivery())}
                     </span>
                     <div class="agent-queue-actions">
-                      <Show when={editing}>
+                      <Show when={editing()}>
                         <span class="agent-queue-editing-badge">{t("queue.item.editing")}</span>
                       </Show>
-                      <Show when={!editing && delivery.status === "queued" && delivery.steerFallback}>
+                      <Show when={!editing() && delivery().status === "queued" && delivery().steerFallback}>
                         {(fallback) => {
                           const reason = () =>
                             t(
@@ -533,17 +543,17 @@ export function QueuePanel(props: QueuePanelProps) {
                               variant="ghost"
                               type="button"
                               class="agent-queue-steer"
-                              disabled={!props.canSteer || !actionable || headEdited()}
+                              disabled={!props.canSteer || !actionable() || headEdited()}
                               aria-label={t(props.sendsNow ? "queue.item.sendNowLabel" : "queue.item.steerLabel", {
-                                position: delivery.position ?? "",
+                                position: delivery().position ?? "",
                               })}
-                              onClick={() => steer()(delivery.id)}
+                              onClick={() => steer()(delivery().id)}
                             >
                               <SteerIcon />
                               <span>
                                 {props.sendsNow
                                   ? t("queue.item.sendNow")
-                                  : delivery.status === "starting"
+                                  : delivery().status === "starting"
                                     ? t("queue.item.steering")
                                     : t("queue.item.steer")}
                               </span>
@@ -559,9 +569,9 @@ export function QueuePanel(props: QueuePanelProps) {
                               variant="ghost"
                               type="button"
                               class="agent-queue-icon-button agent-queue-run-as-task"
-                              disabled={!actionable}
-                              aria-label={t("queue.item.runAsTaskLabel", { position: delivery.position ?? "" })}
-                              onClick={() => runAsTask()(delivery.id)}
+                              disabled={!actionable()}
+                              aria-label={t("queue.item.runAsTaskLabel", { position: delivery().position ?? "" })}
+                              onClick={() => runAsTask()(delivery().id)}
                             >
                               <Plus aria-hidden="true" />
                             </LabelTooltipTrigger>
@@ -574,12 +584,12 @@ export function QueuePanel(props: QueuePanelProps) {
                           variant="destructive-ghost"
                           type="button"
                           class="agent-queue-icon-button agent-queue-delete"
-                          disabled={delivery.status !== "queued"}
+                          disabled={delivery().status !== "queued"}
                           data-cuelume-tap="close"
-                          aria-label={t("queue.item.deleteLabel", { position: delivery.position ?? "" })}
+                          aria-label={t("queue.item.deleteLabel", { position: delivery().position ?? "" })}
                           onClick={() => {
-                            if (editing) setDeleteHeldId(delivery.id);
-                            else requestCancel(delivery.id);
+                            if (editing()) setDeleteHeldId(delivery().id);
+                            else requestCancel(delivery().id);
                           }}
                         >
                           <TrashIcon />
@@ -591,9 +601,9 @@ export function QueuePanel(props: QueuePanelProps) {
                           variant="ghost"
                           type="button"
                           class="agent-queue-icon-button agent-queue-edit"
-                          disabled={!actionable}
-                          aria-label={t("queue.item.editLabel", { position: delivery.position ?? "" })}
-                          onClick={() => props.onEdit(delivery)}
+                          disabled={!actionable()}
+                          aria-label={t("queue.item.editLabel", { position: delivery().position ?? "" })}
+                          onClick={() => props.onEdit(delivery())}
                         >
                           <EditIcon />
                         </LabelTooltipTrigger>
