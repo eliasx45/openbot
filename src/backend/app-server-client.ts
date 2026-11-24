@@ -125,6 +125,7 @@ export class CodexAppServerClient extends EventEmitter<ClientEvents> {
   readonly #stoppedParents = new Set<string>();
   readonly #turnClocks = new Map<string, TurnClock>();
   readonly #hostRequests = new Map<string, { threadId: string; turnKey: string }>();
+  readonly #unreadSteers = new Map<string, string>();
   #stallCheck: { timer: ReturnType<typeof setInterval>; at: number } | null = null;
   #threadWork = 0;
   readonly #sandboxWarnings = new Map<string, string>();
@@ -410,6 +411,7 @@ export class CodexAppServerClient extends EventEmitter<ClientEvents> {
       if (this.#abandonedThreads().has(params.threadId))
         return yield* Effect.fail(new ProviderClientOperationError({ cause: new ProviderSessionBusyError("Codex") }));
     }
+    const steerId = method === "turn/steer" ? this.#awaitSteerRead(params) : null;
     let counted = false;
     return yield* Effect.callback<T, ProviderClientOperationError>((resume) => {
       if (THREAD_WORK_METHODS.has(method)) {
@@ -455,6 +457,7 @@ export class CodexAppServerClient extends EventEmitter<ClientEvents> {
         Effect.sync(() => {
           this.#pending.delete(id);
           if (counted) this.#threadWork -= 1;
+          if (steerId !== null && !answered) this.#unreadSteers.delete(steerId);
           if (method === "turn/start" && !answered && isRecord(params) && isString(params.threadId))
             this.#turnContext.resend(params.threadId);
         }),
@@ -621,6 +624,7 @@ export class CodexAppServerClient extends EventEmitter<ClientEvents> {
           this.#interruptedTurns.delete(JSON.stringify([message.params.threadId, message.params.turn.id]));
         }
         this.#observeTurnContext(message.method, message.params);
+        this.#noteSteerRead(message.method, message.params, turnKey);
         this.emit("notification", { method: message.method, params: message.params });
         this.#warnSandboxFailure(message.method, message.params);
       }
@@ -640,6 +644,27 @@ export class CodexAppServerClient extends EventEmitter<ClientEvents> {
     }
 
     pending.resolve(message.result);
+  }
+
+  #awaitSteerRead(params: unknown): string | null {
+    if (!isRecord(params) || !isString(params.clientUserMessageId) || !isString(params.expectedTurnId)) return null;
+    this.#unreadSteers.set(params.clientUserMessageId, JSON.stringify([params.threadId, params.expectedTurnId]));
+    return params.clientUserMessageId;
+  }
+
+  #noteSteerRead(method: string, params: unknown, turnKey: string | null): void {
+    if (this.#unreadSteers.size === 0 || !isRecord(params)) return;
+    if (method === "turn/completed") {
+      for (const [id, key] of this.#unreadSteers) if (key === turnKey) this.#unreadSteers.delete(id);
+      return;
+    }
+    if (method !== "item/started" || !isRecord(params.item) || params.item.type !== "userMessage") return;
+    const clientUserMessageId = params.item.clientId;
+    if (!isString(clientUserMessageId) || !this.#unreadSteers.delete(clientUserMessageId)) return;
+    this.emit("notification", {
+      method: "openbot/steer-read",
+      params: { threadId: params.threadId, turnId: params.turnId, clientUserMessageId },
+    });
   }
 
   #watchStop(threadId: string, turnId: string, requestId: RequestId, child: ChildProcessWithoutNullStreams | null) {

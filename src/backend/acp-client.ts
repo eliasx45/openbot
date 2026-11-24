@@ -255,6 +255,7 @@ interface AcpTurn {
   completing: boolean;
   task: Fiber.Fiber<void, ProviderClientOperationError> | null;
   readonly steerReplies: Deferred.Deferred<Result.Result<PromptResponse, ProviderClientOperationError>>[];
+  readonly unreadSteers: Map<string, boolean>;
   lastPrompt: Deferred.Deferred<void> | null;
   readonly steerLock: Semaphore.Semaphore;
   lastActivityAt: number;
@@ -1293,13 +1294,11 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
           (!steer && (turn.unprompted || turn.waitingOnUser > 0 || !turn.answered))
         )
           return yield* providerFailure(new Error(sourceText("error.backend.steerTurnChanged")));
-        if (steer)
-          yield* steer(this.#sessionConnection(thread), {
-            sessionId: threadId,
-            messageId: getString(params, "clientUserMessageId"),
-            blocks,
-          });
-        else yield* turn.steerLock.withPermit(this.#steerByPrompt(thread, turn, blocks));
+        const messageId = getString(params, "clientUserMessageId");
+        if (steer) {
+          yield* steer(this.#sessionConnection(thread), { sessionId: threadId, messageId, blocks });
+          if (messageId) turn.unreadSteers.set(messageId, false);
+        } else yield* turn.steerLock.withPermit(this.#steerByPrompt(thread, turn, blocks, messageId));
         turn.lastActivityAt = Date.now();
         turn.modelRetries = 0;
         return yield* providerSync(() => decoder({ turnId: turn.id }));
@@ -2502,6 +2501,7 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       completing: false,
       task: null,
       steerReplies: [],
+      unreadSteers: new Map(),
       lastPrompt: null,
       steerLock: Semaphore.makeUnsafe(1),
       lastActivityAt: Date.now(),
@@ -2840,12 +2840,14 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     thread: AcpThread,
     turn: AcpTurn,
     prompt: ContentBlock[],
+    messageId: string | null,
   ): Effect.fn.Return<void, ProviderClientOperationError> {
     if (thread.activeTurn !== turn || turn.stopped || turn.completing || turn.waitingOnUser > 0)
       return yield* providerFailure(new Error(sourceText("error.backend.steerTurnChanged")));
     const open = turn.lastPrompt;
     const reply = Deferred.makeUnsafe<Result.Result<PromptResponse, ProviderClientOperationError>>();
     turn.steerReplies.push(reply);
+    if (messageId) turn.unreadSteers.set(messageId, false);
     yield* Effect.forkIn(
       this.#turnPrompt(thread, turn, prompt).pipe(Effect.flatMap((result) => Deferred.succeed(reply, result))),
       this.#scope,
@@ -2859,6 +2861,7 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     if (first === null || Result.isSuccess(first)) return;
     const index = turn.steerReplies.indexOf(reply);
     if (index >= 0) turn.steerReplies.splice(index, 1);
+    if (messageId) turn.unreadSteers.delete(messageId);
     turn.lastPrompt = open;
     logger.warn("An ACP agent refused a steer prompt. The message waits in the queue.", {
       provider: this.provider,
@@ -3252,7 +3255,34 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       delete turn.retrying;
       this.#emitTurnProgress(thread, turn, recovered);
     }
+    this.#noteSteerReads(thread, turn, update);
     this.#applyTurnUpdate(thread, turn, update);
+  }
+
+  #noteSteerReads(thread: AcpThread, turn: AcpTurn, update: SessionUpdate): void {
+    if (turn.unreadSteers.size === 0) return;
+    if (this.#isModelOutput(update))
+      for (const [clientUserMessageId, delivered] of turn.unreadSteers) {
+        if (!delivered) continue;
+        turn.unreadSteers.delete(clientUserMessageId);
+        this.emit("notification", {
+          method: "openbot/steer-read",
+          params: { threadId: thread.id, turnId: turn.id, clientUserMessageId },
+        });
+      }
+    if (endsModelStep(update)) for (const id of turn.unreadSteers.keys()) turn.unreadSteers.set(id, true);
+  }
+
+  #isModelOutput(update: SessionUpdate): boolean {
+    if (update.sessionUpdate === "tool_call" || update.sessionUpdate === "plan") return true;
+    if (update.sessionUpdate !== "agent_message_chunk" && update.sessionUpdate !== "agent_thought_chunk") return false;
+    if (update.content.type !== "text") return true;
+    const text = update.content.text;
+    return (
+      text.trim() !== "" &&
+      this.#flavor.noiseChunk?.test(text) !== true &&
+      (this.#flavor.sdkHarness?.retryNotice?.(text) ?? null) === null
+    );
   }
 
   #emitTurnProgress(thread: AcpThread, turn: AcpTurn, detail: string): void {
@@ -4798,6 +4828,12 @@ class MissingAcpSessionError extends Error {
 function contentMessageId(update: SessionNotification["update"]): string | null {
   if (!("messageId" in update) || typeof update.messageId !== "string" || update.messageId.length === 0) return null;
   return update.messageId;
+}
+
+function endsModelStep(update: SessionUpdate): boolean {
+  if (update.sessionUpdate === "user_message_chunk") return true;
+  if (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update") return false;
+  return update.status === "completed" || update.status === "failed";
 }
 
 function shownEntryId(update: SessionUpdate): string | null {
