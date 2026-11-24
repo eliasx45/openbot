@@ -815,6 +815,7 @@ function CompactAgentName(props: { name: string; displayMode?: "notch" | "island
   return (
     <span
       class="dynamic-island-surface-compact-name"
+      dir="auto"
       style={{ "max-width": `${nameMaxWidth()}px` }}
       data-island-motion-content
     >
@@ -992,8 +993,8 @@ function ExpandedContent(props: {
                         <span class="dynamic-island-surface-working-avatar-slot" aria-hidden="true" />
                         <IslandContentSwap contentKey={`${item().agent.id}:${item().task}`}>
                           <span class="dynamic-island-surface-row-copy" data-island-motion-content>
-                            <strong>{item().agent.name}</strong>
-                            <small>{markdownPreviewText(item().task)}</small>
+                            <strong dir="auto">{item().agent.name}</strong>
+                            <small dir="auto">{markdownPreviewText(item().task)}</small>
                           </span>
                         </IslandContentSwap>
                       </Button>

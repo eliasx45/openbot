@@ -155,7 +155,11 @@ function AwaitingReplyList(props: AwaitingReplyListProps) {
                       {item().name}
                     </span>
                     <Show when={preview(item())}>
-                      {(text) => <span class="awaiting-replies-preview">{text()}</span>}
+                      {(text) => (
+                        <span class="awaiting-replies-preview" dir="auto">
+                          {text()}
+                        </span>
+                      )}
                     </Show>
                   </span>
                   <span class="awaiting-replies-state">

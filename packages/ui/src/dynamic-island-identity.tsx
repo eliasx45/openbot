@@ -18,12 +18,15 @@ export function DynamicIslandIdentity(props: DynamicIslandIdentityProps): JSX.El
       <ItemMedia class="ui-dynamic-island-identity-avatar" aria-hidden="true" />
       <ItemContent class="ui-dynamic-island-identity-copy" data-island-motion-content>
         <ItemTitle class="ui-dynamic-island-identity-title">
-          <span class="ui-dynamic-island-identity-name">{props.name}</span>
+          <span class="ui-dynamic-island-identity-name" dir="auto">
+            {props.name}
+          </span>
           <span class="ui-dynamic-island-identity-status">{props.status}</span>
         </ItemTitle>
         <ItemDescription
           ref={(element) => props.descriptionRef?.(element)}
           class="ui-dynamic-island-identity-description"
+          dir="auto"
         >
           {props.description}
         </ItemDescription>
