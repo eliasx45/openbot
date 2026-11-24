@@ -39,6 +39,7 @@ import {
   notificationForAgentEvent,
   notificationForUsageLimit,
   notificationRequestKey,
+  plainPreview,
   settledRequestKeys,
   teammateTurnCompleted,
 } from "@openbot/team-client/agent-notifications";
@@ -98,7 +99,6 @@ export interface RendererForwarderDependencies {
 }
 
 const ANSWER_LOOKUP_LIMIT = 20;
-const WORKFLOW_NOTICE_LENGTH = 200;
 const CHANNEL_READ_GAP_MS = 250;
 
 export function createRendererForwarders({
@@ -488,15 +488,12 @@ export function createRendererForwarders({
   function forwardWorkflowNotice(notice: WorkflowNotice): void {
     if (!desktopNotificationsEnabled()) return;
     const translate = getTranslate();
-    const preview = notificationPreviewEnabled() ? redactText(notice.text).trim() : "";
+    const preview = notificationPreviewEnabled() ? plainPreview(redactText(notice.text)) : null;
     const fallback =
       notice.kind === "approval"
         ? translate("notification.workflowApproval")
         : translate("notification.workflowOutput");
-    const body =
-      preview.length > WORKFLOW_NOTICE_LENGTH
-        ? `${preview.slice(0, WORKFLOW_NOTICE_LENGTH - 1)}…`
-        : preview || fallback;
+    const body = preview || fallback;
     const notification = new Notification({ title: notice.workflowTitle, body });
     notification.on("click", () => {
       const current = getMainWindow();
