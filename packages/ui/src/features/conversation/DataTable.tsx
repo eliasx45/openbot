@@ -4,6 +4,7 @@ import { createSignal, For, onCleanup } from "solid-js";
 import { ScrollEdges } from "../../components/ScrollEdges";
 import { firstTextDirection } from "../../content-direction";
 import { useText } from "../../text";
+import { mapTextOutsideMath, splitTableRow } from "./table-cell-math";
 
 export type DataTableAlignment = "left" | "center" | "right";
 
@@ -130,12 +131,16 @@ export function DataTable(props: {
 
 export function dataTableMarkdown(table: Pick<DataTableBlock, "headers" | "alignments" | "rows">): string {
   const row = (cells: readonly string[]) =>
-    `| ${cells.map((cell) => cell.replace(/\\(?=[\\|]|$)/gu, "\\\\").replace(/\|/gu, "\\|")).join(" | ")} |`;
+    `| ${cells.map((cell) => mapTextOutsideMath(cell, escapedCellText)).join(" | ")} |`;
   const separator = table.headers.map((_, index) => {
     const alignment = table.alignments[index];
     return alignment === "center" ? ":---:" : alignment === "right" ? "---:" : "---";
   });
   return [row(table.headers), `| ${separator.join(" | ")} |`, ...table.rows.map(row)].join("\n");
+}
+
+function escapedCellText(text: string): string {
+  return text.replace(/\\(?=[\\|]|$)/gu, "\\\\").replace(/\|/gu, "\\|");
 }
 
 export function dataTableCsv(rows: readonly (readonly string[])[]): string {
@@ -337,29 +342,12 @@ function parseRow(line: string): string[] | null {
   if (source.startsWith("|")) source = source.slice(1);
   if (endsWithUnescapedPipe(source)) source = source.slice(0, -1);
 
-  const cells: string[] = [];
-  let cell = "";
-  let escaped = false;
-  for (const character of source) {
-    if (escaped) {
-      cell += character === "|" || character === "\\" ? character : `\\${character}`;
-      escaped = false;
-      continue;
-    }
-    if (character === "\\") {
-      escaped = true;
-      continue;
-    }
-    if (character === "|") {
-      cells.push(cell.trim());
-      cell = "";
-      continue;
-    }
-    cell += character;
-  }
-  if (escaped) cell += "\\";
-  cells.push(cell.trim());
+  const cells = splitTableRow(source).map((cell) => mapTextOutsideMath(cell.trim(), unescapedCellText));
   return cells.length >= 2 ? cells : null;
+}
+
+function unescapedCellText(text: string): string {
+  return text.replace(/\\([\\|])/gu, "$1");
 }
 
 function hasUnescapedPipe(value: string): boolean {

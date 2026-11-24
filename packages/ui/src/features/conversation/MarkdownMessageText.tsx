@@ -11,7 +11,7 @@ import { chatPreviewKind } from "@openbot/contracts/chat-preview";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import { Button, Checkbox } from "@openbot/ui";
 import { Dynamic } from "@solidjs/web";
-import { Marked, type Token, type Tokens, type TokensList } from "marked";
+import { Marked, type Token, Tokenizer, type Tokens, type TokensList } from "marked";
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { ScrollEdges } from "../../components/ScrollEdges";
 import { textDirection } from "../../content-direction";
@@ -30,6 +30,7 @@ import {
   streamingTrailReach,
   useStreamingReveal,
 } from "./streamingReveal";
+import { keepMathInTableCells } from "./table-cell-math";
 
 type MarkdownMessageTextProps = Omit<RichMessageTextProps, "showCitationFooter"> & {
   showCitationFooter?: boolean;
@@ -95,6 +96,11 @@ const markdown = new Marked({
     lheading(source) {
       const heading = this.rules.block.lheading.exec(source);
       return heading && chatMathBlockInterrupts(source, heading[0].length) ? undefined : false;
+    },
+    table(source) {
+      const table = Tokenizer.prototype.table.call(this, source);
+      if (table) keepMathInTableCells(table, this.lexer);
+      return table;
     },
   },
   extensions: [

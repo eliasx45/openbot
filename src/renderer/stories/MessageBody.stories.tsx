@@ -310,6 +310,26 @@ export const DataTable: Story = {
   render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="460px" />,
 };
 
+export const DataTableMath: Story = {
+  args: {
+    message: {
+      ...message,
+      id: "message-data-table-math",
+      body: [
+        "| Matrix | Value |",
+        "|---|---|",
+        String.raw`| $A$ (std) | $\begin{pmatrix}1&-2&-1\\-1&1&0\\-1&0&-1\end{pmatrix}$ |`,
+        String.raw`| $P$ (cols = $v_1, v_2, v_3$) | $\begin{bmatrix}1&0&2\\1&0&1\\0&1&-3\end{bmatrix}$ |`,
+        String.raw`| Unit ball | $\{v \in \mathbb{R}^3 : \|v\| \le 1\}$ and $$\frac{1}{\sqrt{2}}\begin{pmatrix}1&1\\1&-1\end{pmatrix}$$ |`,
+        "| Prose | a \\\\ b, \\*not bold\\* costs $5.00, `a\\|b` |",
+      ].join("\n"),
+      status: undefined,
+      attachments: [],
+    },
+  },
+  render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="560px" />,
+};
+
 export const DataTableNarrow: Story = {
   args: {
     message: {
