@@ -310,6 +310,7 @@
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .ui-block-preview {
@@ -629,12 +630,14 @@
 }
 
 .ui-block-answer-row > dt {
-  flex: none;
+  min-width: 0;
+  flex: 0 1 auto;
   color: var(--openbot-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .ui-block-answer-row > dd {
-  min-width: 0;
+  min-width: min(192px, 50%);
   margin: 0;
   color: var(--openbot-text-primary);
   font-weight: var(--openbot-weight-medium);
@@ -643,6 +646,7 @@
 
 .ui-block-answer-value {
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .ui-block-answer-hidden {

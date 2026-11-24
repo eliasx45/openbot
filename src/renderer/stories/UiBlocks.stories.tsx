@@ -426,6 +426,45 @@ export const MathInEveryField: Story = {
   ),
 };
 
+const addressConfirmSpec: UiConfirmSpec = {
+  type: "confirm",
+  title: "Send the parcel to this address?",
+  fields: [
+    { label: "To", value: "Flat 41, 7th floor\nMain Street 1\n1000 Brussels" },
+    { label: "Delivery window that the courier asked for on the phone this morning", value: "9:00–12:00" },
+  ],
+  actions: [{ id: "send", label: "Send", style: "primary" }],
+};
+
+const reportFormSpec: UiFormSpec = {
+  type: "form",
+  title: "Bug report for the staging API",
+  fields: [
+    {
+      id: "steps",
+      kind: "textarea",
+      label: "What did you do before the error, step by step, and what did you see each time",
+    },
+    { id: "token", kind: "text", label: "Staging token", secret: true },
+  ],
+};
+
+export const LongAndMultilineFields: Story = {
+  render: (args) => (
+    <>
+      <LiveConfirm spec={addressConfirmSpec} onRespond={args.onRespond} />
+      <LiveForm
+        spec={reportFormSpec}
+        state={answered(reportFormSpec, {
+          actionId: "submit",
+          values: { steps: "Opened /orders\nPressed Export\nGot a 502 after 30 s" },
+        })}
+        onRespond={args.onRespond}
+      />
+    </>
+  ),
+};
+
 export const Narrow: Story = {
   render: (args) => (
     <div style={{ "max-width": "360px" }}>
