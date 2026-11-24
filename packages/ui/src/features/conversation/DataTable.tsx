@@ -398,7 +398,7 @@ function endsWithUnescapedPipe(value: string): boolean {
 }
 
 function separatorAlignment(value: string): DataTableAlignment | null {
-  if (!/^:?-{3,}:?$/u.test(value)) return null;
+  if (!/^:?-+:?$/u.test(value)) return null;
   if (value.startsWith(":") && value.endsWith(":")) return "center";
   return value.endsWith(":") ? "right" : "left";
 }
