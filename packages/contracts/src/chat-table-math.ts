@@ -52,12 +52,12 @@ export function keepMathInTableCells(table: Tokens.Table, lexer: Lexer): void {
   });
 }
 
-function mathAt(cell: string, index: number): string | undefined {
+export function mathAt(cell: string, index: number): string | undefined {
   if (cell[index] !== "$" && !cell.startsWith("\\(", index) && !cell.startsWith("\\[", index)) return undefined;
   return inlineChatMath(cell.slice(index))?.raw;
 }
 
-function codeSpanLength(cell: string, index: number): number | undefined {
+export function codeSpanLength(cell: string, index: number): number | undefined {
   if (cell[index] !== "`") return undefined;
   let fence = index;
   while (cell[fence] === "`") fence += 1;

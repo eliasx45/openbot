@@ -330,6 +330,28 @@ export const DataTableMath: Story = {
   render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="560px" />,
 };
 
+export const MathInEmphasis: Story = {
+  args: {
+    message: {
+      ...message,
+      id: "message-math-in-emphasis",
+      body: [
+        String.raw`**The set $\{x \mid x^* > 0\}$ is open** and *the product $a*b$ is defined*.`,
+        "",
+        String.raw`- *Ratio \(x*y\) per unit*`,
+        "- ~~old bound $a~~b$ removed~~",
+        "",
+        "| Term | Note |",
+        "|---|---|",
+        "| Adjoint | **uses $A^{**}$ twice** |",
+      ].join("\n"),
+      status: undefined,
+      attachments: [],
+    },
+  },
+  render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="560px" />,
+};
+
 export const DataTableNarrow: Story = {
   args: {
     message: {

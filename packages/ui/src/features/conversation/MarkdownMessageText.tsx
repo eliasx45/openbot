@@ -22,6 +22,7 @@ import { CodeBlock } from "./CodeBlock";
 import { CodePreview } from "./CodePreview";
 import type { MessageCodeBlock } from "./DataTable";
 import { type FileChipPeek, FilePagePeek } from "./FilePagePeek";
+import { maskEmphasisInMath } from "./inline-math-mask";
 import { MathFormula } from "./MathFormula";
 import { linkTitle, MessageLink, RichMessageText, type RichMessageTextProps, safeBrowserUrl } from "./RichMessageText";
 import {
@@ -101,6 +102,12 @@ const markdown = new Marked({
       const table = Tokenizer.prototype.table.call(this, source);
       if (table) keepMathInTableCells(table, this.lexer);
       return table;
+    },
+    emStrong(source, masked, previous) {
+      return Tokenizer.prototype.emStrong.call(this, source, maskEmphasisInMath(source, masked), previous);
+    },
+    del(source, masked, previous) {
+      return Tokenizer.prototype.del.call(this, source, maskEmphasisInMath(source, masked), previous);
     },
   },
   extensions: [
