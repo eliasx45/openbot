@@ -4,6 +4,12 @@ import { MathFormula } from "../MathFormula";
 
 type Part = { text: string } | { math: ChatMath };
 
+function escapedDollar(text: string, index: number): boolean {
+  if (text[index] !== "$") return false;
+  const backslashes = /\\*$/u.exec(text.slice(0, index))?.[0].length ?? 0;
+  return backslashes % 2 === 1;
+}
+
 /** `text` cut into plain text and the math in it, with the delimiters of the chat. */
 function parts(text: string): Part[] {
   const result: Part[] = [];
@@ -12,6 +18,11 @@ function parts(text: string): Part[] {
   for (;;) {
     const start = chatMathStart(rest);
     if (start === undefined) break;
+    if (escapedDollar(rest, start)) {
+      plain += `${rest.slice(0, start - 1)}$`;
+      rest = rest.slice(start + 1);
+      continue;
+    }
     plain += rest.slice(0, start);
     rest = rest.slice(start);
     const math = inlineChatMath(rest);

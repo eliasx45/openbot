@@ -8,7 +8,7 @@ import {
   uiBlockOutcomeText,
 } from "@openbot/contracts/ui-blocks";
 import { UiBlockingBlock } from "@openbot/ui/features/conversation/ui-blocks/UiBlockingBlock";
-import { cleanup, render, waitFor } from "@solidjs/testing-library";
+import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 function typesetTex(): string[] {
@@ -84,5 +84,28 @@ describe("math in the plain text fields of a card", () => {
     };
     show(spec);
     await waitFor(() => expect(typesetTex()).toContain("y = x^2"));
+  });
+});
+
+describe("an escaped dollar in card text", () => {
+  it("shows a plain dollar sign, without the backslash", async () => {
+    show({ type: "confirm", title: String.raw`It costs \$5, not \$10.`, actions: [{ id: "ok", label: "OK" }] });
+    expect(screen.getByRole("heading").textContent).toBe("It costs $5, not $10.");
+  });
+
+  it("does not open math at an escaped dollar", async () => {
+    show({
+      type: "confirm",
+      title: String.raw`Pay \$x$ to $y$`,
+      actions: [{ id: "ok", label: "OK" }],
+    });
+    await waitFor(() => expect(typesetTex()).toEqual(["y"]));
+    expect(screen.getByRole("heading").textContent?.startsWith("Pay $x$ to ")).toBe(true);
+  });
+
+  it("keeps a backslash that is itself escaped before math", async () => {
+    show({ type: "confirm", title: String.raw`Path C:\\$x$`, actions: [{ id: "ok", label: "OK" }] });
+    await waitFor(() => expect(typesetTex()).toEqual(["x"]));
+    expect(screen.getByRole("heading").textContent?.startsWith(String.raw`Path C:\\`)).toBe(true);
   });
 });
