@@ -20,7 +20,7 @@ import { useText } from "../../text";
 import { AttachmentReferenceVisual, attachmentReferenceTone } from "./AttachmentReference";
 import { CodeBlock } from "./CodeBlock";
 import { CodePreview } from "./CodePreview";
-import type { MessageCodeBlock } from "./DataTable";
+import { type MessageCodeBlock, parseCodeInfo } from "./DataTable";
 import { type FileChipPeek, FilePagePeek } from "./FilePagePeek";
 import { maskEmphasisInMath } from "./inline-math-mask";
 import { MathFormula } from "./MathFormula";
@@ -469,10 +469,10 @@ function MarkdownBlock(props: {
             <code>{token.text}</code>
           </pre>
         );
-      const language = token.lang?.trim().split(/\s+/u)[0] ?? "";
+      const { language, filename } = parseCodeInfo(token.lang ?? "");
       if (language.toLowerCase() === "math" && props.streaming !== true)
         return <MathFormula tex={token.text} raw={token.raw} display block />;
-      const block: MessageCodeBlock = { type: "code", code: token.text, language };
+      const block: MessageCodeBlock = { type: "code", code: token.text, language, ...(filename ? { filename } : {}) };
       const preview = chatPreviewKind(language);
       if (preview)
         return (

@@ -295,7 +295,7 @@ function isMathFence(block: MessageCodeBlock): boolean {
   return block.language.toLowerCase() === "math";
 }
 
-function parseCodeInfo(info: string): { language: string; filename?: string } {
+export function parseCodeInfo(info: string): { language: string; filename?: string } {
   const [language = "", ...filenameParts] = info.trim().split(/\s+/u).filter(Boolean);
   const filename = filenameParts.join(" ");
   return {

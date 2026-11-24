@@ -248,6 +248,28 @@ export const CodeBlock: Story = {
   render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="460px" />,
 };
 
+export const CodeBlockFileNames: Story = {
+  args: {
+    message: {
+      ...message,
+      id: "message-code-block-file-names",
+      body: [
+        "~~~python app/churn.py",
+        "def churn_batch():",
+        "    return 42",
+        "~~~",
+        "",
+        "> ```ts src/freezer.ts",
+        '> await freezer.store(base, { temp: "-14C" });',
+        "> ```",
+      ].join("\n"),
+      status: undefined,
+      attachments: [],
+    },
+  },
+  render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="460px" />,
+};
+
 export const UnknownConstructorLanguage: Story = {
   args: {
     message: {
