@@ -22,6 +22,12 @@ interface TextRange {
   end: number;
 }
 
+const BIDI_CONTROLS = /[\u202A-\u202E\u2066-\u2069]/gu;
+
+export function visibleFileName(name: string): string {
+  return name.replace(BIDI_CONTROLS, "");
+}
+
 const PATH_CHARACTER_EXCLUSIONS = "\\s\"'`<>()[\\]";
 const UNQUOTED_PATH_PATTERNS = [
   new RegExp(`~[/\\\\][^${PATH_CHARACTER_EXCLUSIONS}]+`, "gu"),

@@ -4,6 +4,7 @@ import { createSignal, For, Show } from "solid-js";
 import { useText } from "../../text";
 import { fileBadge } from "./AttachmentCards";
 import { attachmentReferenceTone } from "./AttachmentReference";
+import { visibleFileName } from "./FileReference";
 import { ImageLightbox, type ImageLightboxOpening, isLightboxImage } from "./ImageLightbox";
 
 export interface ComposerPendingImage {
@@ -66,7 +67,7 @@ export function ComposerAttachmentRow(props: {
                     type="button"
                     class="composer-attachment-preview"
                     data-attachment-id={attachment.id}
-                    aria-label={t("chat.image.preview", { name: attachment.name })}
+                    aria-label={t("chat.image.preview", { name: visibleFileName(attachment.name) })}
                     data-cuelume-tap="open"
                     onClick={(event) => openImage(attachment, event.currentTarget)}
                   >
@@ -75,12 +76,12 @@ export function ComposerAttachmentRow(props: {
                 </Show>
                 <Show when={chip() === "file"}>
                   <span class="composer-attachment-copy">
-                    <strong title={attachment.name}>{attachment.name}</strong>
+                    <strong title={visibleFileName(attachment.name)}>{visibleFileName(attachment.name)}</strong>
                     <small>{format.fileSize(attachment.size)}</small>
                   </span>
                 </Show>
                 <ImageRemoveButton
-                  label={t("composer.attachment.remove", { name: attachment.name })}
+                  label={t("composer.attachment.remove", { name: visibleFileName(attachment.name) })}
                   disabled={props.removeDisabled === true}
                   onClick={() => props.onRemove(attachment)}
                 />
@@ -140,7 +141,8 @@ function ComposerUploadChip(props: {
     if (sent === null) return format.fileSize(size);
     return t("composer.upload.progress", { sent: format.fileSize(sent), total: format.fileSize(size) });
   };
-  const uploadingLabel = () => t("composer.upload.uploading", { name: props.upload.name });
+  const name = () => visibleFileName(props.upload.name);
+  const uploadingLabel = () => t("composer.upload.uploading", { name: name() });
   return (
     <div
       class="composer-attachment ui-removable-image"
@@ -158,7 +160,7 @@ function ComposerUploadChip(props: {
         </Show>
       </span>
       <span class="composer-attachment-copy">
-        <strong title={props.upload.name}>{props.upload.name}</strong>
+        <strong title={name()}>{name()}</strong>
         <small title={detail()}>{detail()}</small>
       </span>
       <Show when={failed() && props.onRetry}>
@@ -168,8 +170,8 @@ function ComposerUploadChip(props: {
             size="icon-xs"
             type="button"
             class="composer-upload-retry"
-            aria-label={t("composer.upload.retry", { name: props.upload.name })}
-            title={t("composer.upload.retry", { name: props.upload.name })}
+            aria-label={t("composer.upload.retry", { name: name() })}
+            title={t("composer.upload.retry", { name: name() })}
             onClick={() => retry()(props.upload.uploadId)}
           >
             <RotateCcw aria-hidden="true" />
@@ -179,7 +181,7 @@ function ComposerUploadChip(props: {
       <Show when={props.onRemove}>
         {(remove) => (
           <ImageRemoveButton
-            label={t("composer.attachment.remove", { name: props.upload.name })}
+            label={t("composer.attachment.remove", { name: name() })}
             onClick={() => remove()(props.upload.uploadId)}
           />
         )}

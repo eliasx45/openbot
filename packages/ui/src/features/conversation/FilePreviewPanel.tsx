@@ -26,6 +26,7 @@ import { SETTINGS_PANEL_DEFAULT } from "@openbot/ui/components/SettingsPanel";
 import type { AgentProfile } from "@openbot/ui/data";
 import { ChatVisual } from "@openbot/ui/features/conversation/ChatVisual";
 import { type CodeToken, fileCodeLanguage, highlightedCodeLines } from "@openbot/ui/features/conversation/CodeBlock";
+import { visibleFileName } from "@openbot/ui/features/conversation/FileReference";
 import { MarkdownFilePreview } from "@openbot/ui/features/conversation/MarkdownFilePreview";
 import type { QuoteShortcutModifier } from "@openbot/ui/features/conversation/SelectionActions";
 import { SpreadsheetFilePreview } from "@openbot/ui/features/conversation/SpreadsheetFilePreview";
@@ -101,7 +102,7 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
   };
   const showsSourceText = () =>
     (previewKind() === "text" && (rawSource() || !hasPage())) || (previewKind() === "markdown" && rawSource());
-  const title = () => props.directory?.name ?? props.preview?.name ?? "";
+  const title = () => visibleFileName(props.directory?.name ?? props.preview?.name ?? "");
   const source = createMemo(() => {
     const preview = file();
     if (!preview?.bytes || (preview.previewKind !== "text" && preview.previewKind !== "markdown")) return "";

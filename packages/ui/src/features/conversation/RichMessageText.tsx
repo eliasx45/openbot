@@ -12,7 +12,7 @@ import { AgentAvatar } from "../agents/AgentAvatar";
 import { AnchoredTooltip } from "./AnchoredTooltip";
 import { AttachmentReferenceVisual, attachmentReferenceTone } from "./AttachmentReference";
 import { LinkIcon } from "./ConversationIcons";
-import { messageFileReferences } from "./FileReference";
+import { messageFileReferences, visibleFileName } from "./FileReference";
 import {
   sameStreamingTailOffsets,
   splitStreamingTrail,
@@ -109,7 +109,7 @@ export function RichMessageText(props: RichMessageTextProps) {
           const attachment = part.attachment;
           const sharedPath = part.sharedPath;
           if (attachment || sharedPath) {
-            const name = untrack(() => attachment?.name) ?? part.text;
+            const name = visibleFileName(untrack(() => attachment?.name) ?? part.text);
             return (
               <Button
                 variant="ghost"

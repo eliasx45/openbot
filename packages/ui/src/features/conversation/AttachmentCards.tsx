@@ -16,6 +16,7 @@ import {
 import { createSignal, For, Match, Show, Switch } from "solid-js";
 import { useText } from "../../text";
 import { attachmentReferenceTone } from "./AttachmentReference";
+import { visibleFileName } from "./FileReference";
 import { MediaFilePreview } from "./MediaFilePreview";
 import type { VideoStageMenu } from "./VideoStage";
 import { resetVideoCardWidth, startVideoCardResize, videoCardFreeSide } from "./video-card-width";
@@ -123,6 +124,7 @@ export function AttachmentCards(props: {
     <div class="message-attachments">
       <For each={props.attachments}>
         {(attachment) => {
+          const shownName = visibleFileName(attachment.name);
           const source = props.mediaSource;
           if (
             source &&
@@ -146,7 +148,7 @@ export function AttachmentCards(props: {
               });
             }
             return {
-              details: [attachment.name, status(attachment)],
+              details: [shownName, status(attachment)],
               actions,
             };
           };
@@ -154,7 +156,7 @@ export function AttachmentCards(props: {
             <MediaFilePreview
               kind={mediaKind(attachment)}
               src={imageUrl(attachment)}
-              name={attachment.name}
+              name={shownName}
               class="attachment-media-player"
               preload={mediaPreload(attachment)}
               autoplay={playRequested().has(attachment.id)}
@@ -183,7 +185,7 @@ export function AttachmentCards(props: {
               <Show when={showsVideo(attachment)}>
                 {player()}
                 <div class="attachment-video-caption">
-                  <span title={attachment.name}>{attachment.name}</span>
+                  <span title={shownName}>{shownName}</span>
                   <small>{status(attachment)}</small>
                 </div>
               </Show>
@@ -192,7 +194,7 @@ export function AttachmentCards(props: {
                 type="button"
                 class="attachment-preview-button"
                 disabled={isMissing(attachment) || !canPreviewAttachment(attachment)}
-                aria-label={t("attachment.preview", { name: attachment.name })}
+                aria-label={t("attachment.preview", { name: shownName })}
                 data-attachment-id={attachment.id}
                 data-cuelume-tap="open"
                 onClick={(event) => props.onPreview(attachment, event.currentTarget)}
@@ -229,7 +231,7 @@ export function AttachmentCards(props: {
                   </span>
                 </Show>
                 <span class="attachment-file-copy">
-                  <strong title={attachment.name}>{attachment.name}</strong>
+                  <strong title={shownName}>{shownName}</strong>
                   <small>{status(attachment)}</small>
                 </span>
               </Button>
@@ -239,7 +241,7 @@ export function AttachmentCards(props: {
                     variant="ghost"
                     type="button"
                     class="attachment-open-button"
-                    aria-label={t("attachment.loadMedia", { name: attachment.name })}
+                    aria-label={t("attachment.loadMedia", { name: shownName })}
                     disabled={loadingMedia().has(attachment.id)}
                     aria-busy={loadingMedia().has(attachment.id) ? "true" : undefined}
                     onClick={() => void loadMedia(attachment)}
@@ -253,7 +255,7 @@ export function AttachmentCards(props: {
                       variant="ghost"
                       type="button"
                       class="attachment-open-button"
-                      aria-label={t("attachment.download", { name: attachment.name })}
+                      aria-label={t("attachment.download", { name: shownName })}
                       onClick={() => props.onAction(attachment, "download")}
                     >
                       <Download />
@@ -267,7 +269,7 @@ export function AttachmentCards(props: {
                         type="button"
                         class="attachment-open-button attachment-download-stop"
                         aria-label={t("attachment.stopDownload", {
-                          name: attachment.name,
+                          name: shownName,
                           percent: String(percent(state())),
                         })}
                         onClick={() => props.downloads?.stop(attachment)}
@@ -283,7 +285,7 @@ export function AttachmentCards(props: {
                       variant="ghost"
                       type="button"
                       class="attachment-open-button"
-                      aria-label={t("attachment.retryDownload", { name: attachment.name })}
+                      aria-label={t("attachment.retryDownload", { name: shownName })}
                       onClick={() => props.downloads?.retry(attachment)}
                     >
                       <RefreshCw />
@@ -296,7 +298,7 @@ export function AttachmentCards(props: {
                     variant="ghost"
                     type="button"
                     class="attachment-open-button"
-                    aria-label={t("attachment.open", { name: attachment.name })}
+                    aria-label={t("attachment.open", { name: shownName })}
                     disabled={downloading(attachment) !== undefined}
                     onClick={() => props.onAction(attachment, "open")}
                   >

@@ -63,6 +63,31 @@ export const NarrowLongNames: Story = {
   ),
 };
 
+const RIGHT_TO_LEFT_OVERRIDE = String.fromCodePoint(0x202e);
+
+export const UnusualNames: Story = {
+  name: "Names with symbols, emoji, RTL and a spoofed extension",
+  args: {
+    attachments: [
+      { ...compactFile, id: "name-symbols", name: "price $5 & tax #1 | final.pdf", previewKind: "pdf" as const },
+      { ...compactFile, id: "name-emoji", name: "🎉 launch party 🎉.txt", mimeType: "text/plain" },
+      { ...compactFile, id: "name-rtl", name: "דוח רבעוני 2026.pdf", previewKind: "pdf" as const },
+      {
+        ...compactFile,
+        id: "name-spoofed",
+        name: `invoice${RIGHT_TO_LEFT_OVERRIDE}fdp.command`,
+        mimeType: "application/octet-stream",
+        previewKind: "none" as const,
+      },
+    ],
+  },
+  render: (storyArgs) => (
+    <div style={{ width: "460px" }}>
+      <AttachmentCards {...storyArgs} />
+    </div>
+  ),
+};
+
 export const Empty: Story = {
   args: { attachments: [] },
 };
