@@ -1,3 +1,5 @@
+import { rangeTextWithFormulas } from "@openbot/ui/features/conversation/math-plain-text";
+
 for (const type of ["copy", "cut"] as const) window.addEventListener(type, writeSelection);
 
 function writeSelection(event: ClipboardEvent): void {
@@ -8,17 +10,23 @@ function writeSelection(event: ClipboardEvent): void {
   if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
   const handled = event.defaultPrevented;
   if (handled && !event.clipboardData.getData("text/html").includes("katex-mathml")) return;
-  const native = selection.toString().replace(/\u00a0/gu, " ");
+  const native = (handled ? textWithFormulas(selection) : selection.toString()).replace(/\u00a0/gu, " ");
   const text = isEditable(event.target) ? native : native.replace(/^\s*\n|\n\s*$/gu, "");
   if (!text) return;
   const container = document.createElement("div");
   for (let index = 0; index < selection.rangeCount; index += 1) {
     container.append(rangeFragment(selection.getRangeAt(index)));
   }
-  if (!handled) event.clipboardData.setData("text/plain", text);
+  event.clipboardData.setData("text/plain", text);
   event.clipboardData.setData("text/html", container.innerHTML);
   event.preventDefault();
   if (cut) document.execCommand("delete", false);
+}
+
+function textWithFormulas(selection: Selection): string {
+  return Array.from({ length: selection.rangeCount }, (_, index) =>
+    rangeTextWithFormulas(selection.getRangeAt(index)),
+  ).join("\n");
 }
 
 export function keptSpaces(line: string): string {

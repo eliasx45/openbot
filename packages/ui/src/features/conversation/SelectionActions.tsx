@@ -11,6 +11,7 @@ import { Portal } from "@solidjs/web";
 import type { Element as SolidElement } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, onSettled, Show } from "solid-js";
 import { useText } from "../../text";
+import { rangeHasFormula, rangeTextWithFormulas } from "./math-plain-text";
 
 const MESSAGE_TEXT_SELECTOR = "[data-selection-message-id]";
 const FILE_TEXT_SELECTOR = "[data-selection-file-quote]";
@@ -51,7 +52,7 @@ export function messageTextSelection(selection: Selection | null): MessageTextSe
   const endBlock = messageTextBlock(range.endContainer);
   if (!startBlock || startBlock !== endBlock) return null;
   const messageId = startBlock.dataset.selectionMessageId ?? fileSelectionQuoteId(startBlock, range);
-  const text = (tableSelectionText(range) ?? selection.toString()).replace(/\u00a0/gu, " ").trim();
+  const text = (tableSelectionText(range) ?? selectionText(selection, range)).replace(/\u00a0/gu, " ").trim();
   if (!messageId || !text || rangeIntersectsEditableContent(range, startBlock)) return null;
   return { messageId, text, range: range.cloneRange() };
 }
@@ -799,7 +800,7 @@ export function tableSelectionText(range: Range): string | null {
       if (range.compareBoundaryPoints(Range.START_TO_START, part) > 0)
         part.setStart(range.startContainer, range.startOffset);
       if (range.compareBoundaryPoints(Range.END_TO_END, part) < 0) part.setEnd(range.endContainer, range.endOffset);
-      const text = part.toString().replace(/\s+/gu, " ").trim();
+      const text = (rangeHasFormula(part) ? rangeTextWithFormulas(part) : part.toString()).replace(/\s+/gu, " ").trim();
       if (!text) continue;
       parts.push(text);
       cells += 1;
@@ -807,6 +808,10 @@ export function tableSelectionText(range: Range): string | null {
     if (parts.length > 0) lines.push(parts.join(" · "));
   }
   return cells > 1 ? lines.join("\n") : null;
+}
+
+function selectionText(selection: Selection, range: Range): string {
+  return rangeHasFormula(range) ? rangeTextWithFormulas(range) : selection.toString();
 }
 
 function enclosingTable(node: Node): HTMLTableElement | null {

@@ -212,6 +212,7 @@
     "./features/conversation/routine-schedule-draft": "./src/features/conversation/routine-schedule-draft.ts",
     "./features/conversation/routine-schedule-saved": "./src/features/conversation/routine-schedule-saved.ts",
     "./features/conversation/SelectionActions": "./src/features/conversation/SelectionActions.tsx",
+    "./features/conversation/math-plain-text": "./src/features/conversation/math-plain-text.ts",
     "./features/conversation/SkillGlyph": "./src/features/conversation/SkillGlyph.tsx",
     "./features/conversation/SkillLibraryToolbar": "./src/features/conversation/SkillLibraryToolbar.tsx",
     "./features/conversation/SpreadsheetFilePreview": "./src/features/conversation/SpreadsheetFilePreview.tsx",

@@ -5,6 +5,7 @@ import { createSignal, For, onCleanup } from "solid-js";
 import { ScrollEdges } from "../../components/ScrollEdges";
 import { firstTextDirection } from "../../content-direction";
 import { useText } from "../../text";
+import { rangeTextWithFormulas } from "./math-plain-text";
 
 export type DataTableAlignment = "left" | "center" | "right";
 
@@ -55,7 +56,7 @@ export function DataTable(props: {
     const text =
       format === "markdown"
         ? dataTableMarkdown(props.table)
-        : dataTableCsv([...(table?.rows ?? [])].map((row) => [...row.cells].map((cell) => cell.innerText.trim())));
+        : dataTableCsv([...(table?.rows ?? [])].map((row) => [...row.cells].map(renderedCellText)));
     try {
       await navigator.clipboard.writeText(text);
       setCopied(format);
@@ -141,6 +142,15 @@ export function dataTableMarkdown(table: Pick<DataTableBlock, "headers" | "align
 
 function escapedCellText(text: string): string {
   return text.replace(/\\(?=[\\|]|$)/gu, "\\\\").replace(/\|/gu, "\\|");
+}
+
+function renderedCellText(cell: HTMLTableCellElement): string {
+  if (!cell.querySelector(".katex")) return cell.innerText.trim();
+  const range = cell.ownerDocument.createRange();
+  range.selectNodeContents(cell);
+  return rangeTextWithFormulas(range)
+    .replace(/\s*\n\s*/gu, " ")
+    .trim();
 }
 
 export function dataTableCsv(rows: readonly (readonly string[])[]): string {
