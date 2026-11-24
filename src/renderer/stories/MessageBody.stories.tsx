@@ -224,6 +224,25 @@ export const LinkWithCodeText: Story = {
   render: (storyArgs) => <MessageBodySurface args={storyArgs} width="460px" />,
 };
 
+export const FileLinksWithSpaces: Story = {
+  args: {
+    message: {
+      ...message,
+      id: "message-file-links-with-spaces",
+      body: [
+        "The [weekly report](/Users/test/OpenBot/Shared/Weekly report.md) is ready.",
+        "",
+        "The app log is [main.log](/Users/test/Library/Application Support/OpenBot/logs/main.log).",
+      ].join("\n"),
+      status: undefined,
+      attachments: [],
+    },
+    onOpenSharedFile: fn(),
+    onOpenWorkspaceFile: fn(),
+  },
+  render: (storyArgs) => <MessageBodySurface args={storyArgs} width="520px" />,
+};
+
 export const CodeBlock: Story = {
   args: {
     message: {

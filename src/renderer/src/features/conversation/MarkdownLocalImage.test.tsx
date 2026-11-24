@@ -18,7 +18,7 @@ it("shows a Markdown image of a local file as the file and loads the picture", a
   render(() => (
     <MessageBody
       message={reply(
-        "The logo:\n\n![Logo](/Users/test/OpenBot/Shared/brand/logo.svg)\n\nThe draft: ![](app/draft.png)",
+        "The logo:\n\n![Logo](/Users/test/OpenBot/Shared/brand/logo.svg)\n\nThe draft: ![](app/draft.png)\n\n![Shop front](/Users/test/OpenBot/Shared/shop front.png)",
       )}
       agents={[]}
       onSelectAgent={vi.fn()}
@@ -40,6 +40,7 @@ it("shows a Markdown image of a local file as the file and loads the picture", a
   expect(loadImageFile.mock.calls.map(([file]) => file)).toEqual([
     { path: "/Users/test/OpenBot/Shared/brand/logo.svg", kind: "shared" },
     { path: "app/draft.png", kind: "workspace" },
+    { path: "/Users/test/OpenBot/Shared/shop front.png", kind: "shared" },
   ]);
   expect(await screen.findByRole("button", { name: "Preview logo.svg" })).toBeTruthy();
 });

@@ -1213,7 +1213,7 @@ function sharedFileTarget(value: string): string | null {
 
 function repairEscapedLocalFileLinkTokens(tokens: Token[]): Token[] {
   const raw = tokens.map((token) => token.raw).join("");
-  if (!raw.includes("\\(<")) return tokens;
+  if (!raw.includes("\\(<") && !SPACED_LOCAL_FILE_LINK_START.test(raw)) return tokens;
   const result: Token[] = [];
   let candidates: Token[] = [];
   const openHtmlElements: string[] = [];
@@ -1283,15 +1283,19 @@ function updateOpenHtmlElements(elements: string[], raw: string): void {
   }
 }
 
+const SPACED_LOCAL_FILE_LINK_START = /\]\((?:~[/\\]|[/\\]|[A-Za-z]:[/\\])[^()<>"\r\n]*\s/u;
+
 function normalizeEscapedLocalFileLinkCandidate(value: string, maskedValue = value): string {
-  const pattern = /(?<!!)(\[[^\]\r\n]+\])\\\(<([^<>\r\n]+)>(\\?\))/gu;
+  const pattern =
+    /(?<!!)(\[[^\]\r\n]+\])\\\(<([^<>\r\n]+)>(\\?\))|(!?\[[^\]\r\n]+\])\(((?:~[/\\]|[/\\]|[A-Za-z]:[/\\])[^()<>"\r\n]*\s[^()<>"\r\n]*)\)/gu;
   let result = "";
   let cursor = 0;
   for (const match of maskedValue.matchAll(pattern)) {
     const start = match.index;
-    const labelLength = match[1]?.length ?? 0;
-    const targetLength = match[2]?.length ?? 0;
-    const targetStart = start + labelLength + 3;
+    const spaced = match[4] !== undefined;
+    const labelLength = (spaced ? match[4] : match[1])?.length ?? 0;
+    const targetLength = (spaced ? match[5] : match[2])?.length ?? 0;
+    const targetStart = start + labelLength + (spaced ? 1 : 3);
     const target = value.slice(targetStart, targetStart + targetLength);
     if (!localFileTarget(target)) continue;
     const label = value.slice(start, start + labelLength);
@@ -1451,7 +1455,7 @@ export function messageImageFiles(blocks: readonly string[]): MessageImageFile[]
   const files = new Map<string, MessageImageFile>();
   for (const body of blocks) {
     const directory = messageFileDirectory(body);
-    void markdown.walkTokens(lexBlockTokens(body, true), (token) => {
+    const add = (token: Token) => {
       const file = tokenIs(token, "codespan")
         ? mentionedFileTarget(token.text, directory)
         : tokenIs(token, "link") || tokenIs(token, "image")
@@ -1459,6 +1463,11 @@ export function messageImageFiles(blocks: readonly string[]): MessageImageFile[]
           : null;
       if (file && IMAGE_FILE_PATTERN.test(fileReferenceName(file.path)))
         files.set(`${file.kind}:${file.path}`, { path: file.path, kind: file.kind });
+    };
+    void markdown.walkTokens(lexBlockTokens(body, true), (token) => {
+      add(token);
+      if (tokenIs(token, "paragraph") || tokenIs(token, "heading") || tokenIs(token, "text"))
+        for (const repaired of repairEscapedLocalFileLinkTokens(token.tokens ?? [])) add(repaired);
     });
   }
   return [...files.values()].slice(0, IMAGE_FILE_LIMIT);
