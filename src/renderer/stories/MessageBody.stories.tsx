@@ -394,6 +394,26 @@ export const TildeFence: Story = {
   render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="560px" />,
 };
 
+export const FenceInListItem: Story = {
+  args: {
+    message: {
+      ...message,
+      id: "message-fence-in-list-item",
+      body: [
+        "1. Add the helper:",
+        "   ```python",
+        "   def mean(values):",
+        "       return sum(values) / len(values)",
+        "   ```",
+        "2. Run the tests.",
+      ].join("\n"),
+      status: undefined,
+      attachments: [],
+    },
+  },
+  render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="560px" />,
+};
+
 export const DataTableNarrow: Story = {
   args: {
     message: {

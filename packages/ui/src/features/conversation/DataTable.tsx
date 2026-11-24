@@ -248,10 +248,11 @@ function parseCodeAt(
   startIndex: number,
   streaming: boolean,
 ): { block: MessageCodeBlock; nextIndex: number } | null {
-  const opening = /^(?: {0,3})(?:(`{3,})([^`]*)|(~{3,})(.*))$/u.exec(lines[startIndex] ?? "");
+  const opening = /^( {0,3})(?:(`{3,})([^`]*)|(~{3,})(.*))$/u.exec(lines[startIndex] ?? "");
   if (!opening) return null;
 
-  const fence = opening[1] ?? opening[3] ?? "```";
+  const indent = opening[1]?.length ?? 0;
+  const fence = opening[2] ?? opening[4] ?? "```";
   const closingPattern = new RegExp(`^(?: {0,3})${fence[0]}{${fence.length},}\\s*$`, "u");
   let closingIndex = startIndex + 1;
   while (closingIndex < lines.length && !closingPattern.test(lines[closingIndex] ?? "")) closingIndex += 1;
@@ -259,16 +260,25 @@ function parseCodeAt(
   const hasClosingFence = closingIndex < lines.length;
   if (!hasClosingFence && !streaming) return null;
 
-  const { language, filename } = parseCodeInfo(opening[2] ?? opening[4] ?? "");
+  const { language, filename } = parseCodeInfo(opening[3] ?? opening[5] ?? "");
   return {
     block: {
       type: "code",
-      code: lines.slice(startIndex + 1, hasClosingFence ? closingIndex : lines.length).join("\n"),
+      code: lines
+        .slice(startIndex + 1, hasClosingFence ? closingIndex : lines.length)
+        .map((line) => withoutFenceIndent(line, indent))
+        .join("\n"),
       language,
       ...(filename ? { filename } : {}),
     },
     nextIndex: hasClosingFence ? closingIndex + 1 : lines.length,
   };
+}
+
+function withoutFenceIndent(line: string, indent: number): string {
+  let start = 0;
+  while (start < indent && line[start] === " ") start += 1;
+  return line.slice(start);
 }
 
 function isMathFence(block: MessageCodeBlock): boolean {

@@ -92,3 +92,18 @@ describe("a tilde fence in a reply", () => {
     expect(container.textContent).toContain("Done.");
   });
 });
+
+describe("a fence inside a list item in a reply", () => {
+  it.each([
+    ["an ordered item", ["1. Install:", "   ```bash", "   npm i", "     --flag", "   ```", "2. Run it."]],
+    ["a bullet item", ["- Code:", "  ```py", "  def f():", "      return 1", "  ```", "- Done."]],
+  ])("copies the code without the indent of %s", async (_name, lines) => {
+    const { container } = renderReply(lines.join("\n"));
+    const [block] = codeBlocks(container);
+    if (!block) throw new Error("no code block");
+    const fence = lines.findIndex((line) => line.trimStart().startsWith("```"));
+    const indent = lines[fence]?.indexOf("`") ?? 0;
+    const code = lines.slice(fence + 1, fence + 3).map((line) => line.slice(indent));
+    expect(await copiedCode(block)).toBe(code.join("\n"));
+  });
+});
