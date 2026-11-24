@@ -17,6 +17,8 @@ import { safeBrowserUrl } from "./RichMessageText";
 type DiagramState = { status: "drawing" } | MermaidDiagram;
 type PreviewView = "preview" | "code";
 
+const HTML_PREVIEW_DEFAULT_HEIGHT = 160;
+
 export function CodePreview(props: {
   block: MessageCodeBlock;
   kind: ChatPreviewKind;
@@ -302,7 +304,15 @@ function HtmlPreviewFrame(props: { html: string; title: string; fill: boolean; o
   let frame: HTMLIFrameElement | undefined;
   const measure = () => {
     const root = frame?.contentDocument?.documentElement;
-    if (root) setHeight(Math.ceil(root.getBoundingClientRect().height));
+    const holder = frame?.parentElement;
+    if (props.fill || !frame || !root || !holder) return;
+    const shown = root.getBoundingClientRect().height;
+    holder.style.height = `${holder.getBoundingClientRect().height}px`;
+    frame.style.height = "0px";
+    const content = Math.max(Math.ceil(root.getBoundingClientRect().height), root.scrollHeight);
+    frame.style.height = "";
+    holder.style.height = "";
+    setHeight(Math.ceil(shown) > content + 1 ? Math.max(content, HTML_PREVIEW_DEFAULT_HEIGHT) : content);
   };
   const openLink = (event: MouseEvent) => {
     const page = frame?.contentDocument;

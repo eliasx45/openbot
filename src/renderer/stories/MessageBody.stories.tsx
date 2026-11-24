@@ -270,6 +270,40 @@ export const CodeBlockFileNames: Story = {
   render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="460px" />,
 };
 
+export const HtmlPreviewSizes: Story = {
+  args: {
+    message: {
+      ...message,
+      id: "message-html-preview-sizes",
+      body: [
+        "A card that centres itself in the window:",
+        "",
+        "```html",
+        "<style>body{min-height:100vh;display:flex;align-items:center;justify-content:center}</style>",
+        '<div style="padding:8px 16px;border:1px solid #ccc;border-radius:8px">Pistachio: 42 gallons</div>',
+        "```",
+        "",
+        "A short page:",
+        "",
+        "```html",
+        "<h3>Freezer</h3><p>-14 °C, door closed.</p>",
+        "```",
+        "",
+        "A long page with a table of contents:",
+        "",
+        "```html",
+        '<p><a href="#late">Late batches</a></p>',
+        ...Array.from({ length: 30 }, (_, index) => `<p>Batch ${index + 1}: done</p>`),
+        '<h3 id="late">Late batches</h3><p>Batch 31: waiting for milk</p>',
+        "```",
+      ].join("\n"),
+      status: undefined,
+      attachments: [],
+    },
+  },
+  render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="560px" />,
+};
+
 export const UnknownConstructorLanguage: Story = {
   args: {
     message: {
