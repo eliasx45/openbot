@@ -1,4 +1,8 @@
-import { attachmentMimeTypeForName, playableMediaKind } from "@openbot/contracts/attachment-files";
+import {
+  attachmentFileExtension,
+  attachmentMimeTypeForName,
+  playableMediaKind,
+} from "@openbot/contracts/attachment-files";
 import { type AttachmentSummary, canPreviewAttachment } from "@openbot/contracts/ipc";
 import {
   AudioLines,
@@ -336,7 +340,7 @@ export function AttachmentCards(props: {
 export function fileBadge(attachment: AttachmentSummary): string {
   if (attachment.previewKind === "pdf") return "PDF";
   if (attachment.previewKind === "text") return "TXT";
-  return attachment.name.split(".").at(-1)?.slice(0, 4).toUpperCase() || "FILE";
+  return attachmentFileExtension(attachment.name)?.slice(0, 4).toUpperCase() || "FILE";
 }
 
 function AttachmentFileIcon() {
