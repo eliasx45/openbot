@@ -135,3 +135,17 @@ export const UsageLimit: Story = {
     ],
   },
 };
+
+export const LongTeammateName: Story = {
+  args: {
+    items: [
+      researchReplied,
+      {
+        id: "reply-intelligence",
+        agent: sales,
+        name: "Research and Competitive Intelligence Lead for the EMEA Launch",
+        state: "working",
+      },
+    ],
+  },
+};
