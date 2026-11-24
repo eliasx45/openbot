@@ -28,6 +28,7 @@ import { type ReactNode, useMemo } from "react";
 import { Pressable, View } from "react-native";
 import { BloubAvatar } from "@/features/agents/components/bloub-avatar";
 import { openChatFromPane, useChatListPane } from "@/features/agents/components/chat-list-pane-context";
+import { agentPreviewLine } from "@/features/agents/model/agent-preview";
 import { ChannelAvatar } from "@/features/channels/components/channel-avatar";
 import { showsAsImage } from "@/features/chat/components/attachment-preview";
 import {
@@ -232,7 +233,7 @@ export function MobileSearchResultRow({
         <SearchRow
           leading={<AgentAvatar agent={agent} />}
           title={agent.name}
-          detail={agent.title.trim() || agent.preview}
+          detail={agent.title.trim() || agentPreviewLine(agent.preview)}
           trailing={agent.updatedLabel}
           query={query}
           onPress={() => openChat(agent.id)}

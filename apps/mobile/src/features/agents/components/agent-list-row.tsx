@@ -1,4 +1,3 @@
-import { markdownPreviewText } from "@openbot/contracts/markdown-preview-text";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { BlurView } from "expo-blur";
 import { Link } from "expo-router";
@@ -27,6 +26,7 @@ import { BloubAvatar } from "@/features/agents/components/bloub-avatar";
 import { AgentDragPreview, useChatDrag, useHoldMenu } from "@/features/agents/components/chat-drag";
 import { ChatLinkPressable } from "@/features/agents/components/chat-link-pressable";
 import { useChatRowBackground } from "@/features/agents/components/chat-list-pane-context";
+import { agentPreviewLine } from "@/features/agents/model/agent-preview";
 import { useWaitingChannel } from "@/features/channels/components/use-waiting-channel";
 import {
   agentListWaitReason,
@@ -123,7 +123,7 @@ export const AgentListRow = memo(function AgentListRow({ agent, leftInset = 20, 
   const agentChatPreview = useAgentChatPreview(agent);
   const activity = useAgentListActivity(agent.id);
   const waitingChannel = useWaitingChannel(activity, agent.serverId);
-  const lastMessage = useMemo(() => markdownPreviewText(agent.preview), [agent.preview]);
+  const lastMessage = useMemo(() => agentPreviewLine(agent.preview), [agent.preview]);
   const previewLine = waitingChannel
     ? t("mobile.chat.channelWork.waiting", { channel: waitingChannel.name })
     : lastMessage;

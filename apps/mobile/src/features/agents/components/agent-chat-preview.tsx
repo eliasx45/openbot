@@ -1,3 +1,4 @@
+import { cleanAgentMessageText } from "@openbot/team-client/agent-message-text";
 import { Link } from "expo-router";
 import { Typography } from "heroui-native";
 import { useThemeColor } from "heroui-native/hooks";
@@ -45,7 +46,7 @@ export function useAgentChatPreview(agent: MobileAgent) {
   const [bubbleHeight, setBubbleHeight] = useState<number | null>(null);
   const width = screenWidth - 2 * SIDE_INSET;
   const bubbleWidth = width - 2 * SIDE_INSET;
-  const text = previewText(agent.preview);
+  const text = previewText(cleanAgentMessageText(agent.preview));
 
   const fallbackLines = Math.ceil((text.length * FALLBACK_CHARACTER_WIDTH * fontScale) / (bubbleWidth - 32));
   const estimatedBubbleHeight = bubbleHeight ?? 24 + Math.max(1, fallbackLines) * FALLBACK_LINE_HEIGHT * fontScale;
