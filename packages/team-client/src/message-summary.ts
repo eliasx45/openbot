@@ -1,3 +1,4 @@
+import { markdownSpanRanges } from "@openbot/contracts/markdown-preview-text";
 import { cleanAgentMessageText } from "./agent-message-text";
 
 export function messageSummary(text: string, limit: number): string {
@@ -142,11 +143,13 @@ function messageParts(text: string): MessagePart[] {
 
 function sentences(text: string): string[] {
   const result: string[] = [];
+  const spans = markdownSpanRanges(text);
   let start = 0;
   for (const match of text.matchAll(/[.!?…]+["'”’)\]]*(?=\s)|[。！？]+/gu)) {
     const end = match.index + match[0].length;
     const before = text.slice(0, end);
     if ((before.match(/`/gu)?.length ?? 0) % 2 === 1) continue;
+    if (spans.some(([from, to]) => end > from && end < to)) continue;
     if (ABBREVIATION.test(text.slice(start, match.index + 1))) continue;
     const sentence = text.slice(start, end).trim();
     if (sentence) result.push(sentence);

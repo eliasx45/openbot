@@ -123,6 +123,18 @@ export function markdownPreviewSource(body: string, limit: number): string {
   return fallback;
 }
 
+const PLAIN_INLINE_TOKENS = new Set(["text", "escape", "br"]);
+
+export function markdownSpanRanges(body: string): [number, number][] {
+  const ranges: [number, number][] = [];
+  let offset = 0;
+  for (const token of new markdown.Lexer(markdown.defaults).inlineTokens(body)) {
+    if (!PLAIN_INLINE_TOKENS.has(token.type)) ranges.push([offset, offset + token.raw.length]);
+    offset += token.raw.length;
+  }
+  return ranges;
+}
+
 export function markdownInlinePlainText(body: string): string {
   return inlineText(new markdown.Lexer(markdown.defaults).inlineTokens(body)).replace(/\s+/gu, " ").trim();
 }
