@@ -195,3 +195,14 @@ export const INTERACTIVE_CHOICE = `<!doctype html>
   );
 </script>
 </body></html>`;
+
+export const PLAIN_FORM = `<!doctype html>
+<html><body>
+<form>
+  <p>Order a batch</p>
+  <p><label>Flavour <select><option>Pistachio</option><option>Vanilla</option></select></label></p>
+  <p><label>Gallons <input type="number" value="42"></label></p>
+  <p><label>Note <textarea rows="2">Keep at -14 °C</textarea></label></p>
+  <p><button type="button">Order</button></p>
+</form>
+</body></html>`;

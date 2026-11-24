@@ -9,6 +9,7 @@ import {
   INLINE_SVG_CHART,
   INTERACTIVE_CHOICE,
   LINK_OUT,
+  PLAIN_FORM,
   publishChatVisualPage,
   TALL_PAGE,
 } from "./chat-visual-fixtures";
@@ -98,6 +99,10 @@ export const ImageCollage: Story = {
 
 export const InteractiveChoice: Story = {
   args: { html: INTERACTIVE_CHOICE, title: "Pick a plan" },
+};
+
+export const PlainForm: Story = {
+  args: { html: PLAIN_FORM, title: "Order a batch" },
 };
 
 export const Loading: Story = {

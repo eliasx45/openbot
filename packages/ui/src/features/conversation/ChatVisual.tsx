@@ -1,4 +1,5 @@
 import {
+  CHAT_VISUAL_COLOR_SCHEME,
   CHAT_VISUAL_FRAME_SANDBOX,
   type ChatVisualKey,
   type ChatVisualRect,
@@ -16,7 +17,7 @@ import type { AttachmentSummary } from "@openbot/contracts/ipc";
 import { Button, Maximize2, PanelRight, Wallpaper } from "@openbot/ui";
 import { Portal } from "@solidjs/web";
 import { createEffect, createSignal, onSettled, Show, untrack } from "solid-js";
-import { documentColorScheme } from "../../document-color-scheme";
+import { type DocumentColorScheme, documentColorScheme } from "../../document-color-scheme";
 import { useText } from "../../text";
 import { CloseIcon } from "./ConversationIcons";
 import { ImageLightbox, type ImageLightboxOpening } from "./ImageLightbox";
@@ -52,9 +53,9 @@ const THEME_TOKENS: ReadonlyArray<readonly [`--${string}`, string]> = [
   ["--font-mono", "--openbot-font-mono"],
 ];
 
-function visualTheme(element: Element): ChatVisualTheme {
+function visualTheme(element: Element, scheme: DocumentColorScheme): ChatVisualTheme {
   const style = getComputedStyle(element);
-  const theme: ChatVisualTheme = { "--background": "transparent" };
+  const theme: ChatVisualTheme = { "--background": "transparent", [CHAT_VISUAL_COLOR_SCHEME]: scheme };
   for (const [name, token] of THEME_TOKENS) {
     const value = style.getPropertyValue(token).trim();
     if (value) theme[name] = value;
@@ -237,7 +238,7 @@ function VisualFrame(props: ChatVisualProps) {
   };
 
   onSettled(() => {
-    if (frame) setTheme(visualTheme(frame));
+    if (frame) setTheme(visualTheme(frame, untrack(documentColorScheme)));
     window.addEventListener("message", onMessage);
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("pointerdown", onPointerDown);
@@ -256,7 +257,8 @@ function VisualFrame(props: ChatVisualProps) {
   createEffect(documentColorScheme, (scheme) => {
     if (scheme === shownScheme) return;
     shownScheme = scheme;
-    if (frame && untrack(theme)) frame.contentWindow?.postMessage(chatVisualThemeMessage(visualTheme(frame)), "*");
+    if (frame && untrack(theme))
+      frame.contentWindow?.postMessage(chatVisualThemeMessage(visualTheme(frame, scheme)), "*");
   });
 
   return (
@@ -298,7 +300,10 @@ function VisualFrame(props: ChatVisualProps) {
           style={filled() ? undefined : `height: ${chatVisualFrameHeight(reported(), props.height)}px`}
           onLoad={() => {
             if (frame && untrack(theme))
-              frame.contentWindow?.postMessage(chatVisualThemeMessage(visualTheme(frame)), "*");
+              frame.contentWindow?.postMessage(
+                chatVisualThemeMessage(visualTheme(frame, untrack(documentColorScheme))),
+                "*",
+              );
           }}
         />
       </section>

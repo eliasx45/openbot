@@ -8,6 +8,10 @@
   color-scheme: dark;
 }
 
+:root[data-openbot-color-scheme="light"] .chat-visual-frame {
+  color-scheme: light;
+}
+
 .chat-visual-reply {
   max-width: var(--message-wide-bubble-width);
 }

@@ -9,6 +9,7 @@ export const CHAT_VISUAL_MAX_HEIGHT = 2000;
 export const CHAT_VISUAL_DEFAULT_HEIGHT = 240;
 
 export const CHAT_VISUAL_THEME_FRAGMENT = "openbot-theme=";
+export const CHAT_VISUAL_COLOR_SCHEME = "--openbot-color-scheme";
 
 export const CHAT_VISUAL_SIZE_CHANGED = "ui/notifications/size-changed";
 export const CHAT_VISUAL_HOST_CONTEXT_CHANGED = "ui/notifications/host-context-changed";
@@ -222,7 +223,7 @@ export function chatVisualThemeMessage(theme: ChatVisualTheme) {
   return {
     jsonrpc: "2.0",
     method: CHAT_VISUAL_HOST_CONTEXT_CHANGED,
-    params: { theme: "dark", styles: { variables: theme } },
+    params: { theme: theme[CHAT_VISUAL_COLOR_SCHEME] === "light" ? "light" : "dark", styles: { variables: theme } },
   } as const;
 }
 
@@ -339,7 +340,7 @@ function webUrl(value: string): string | null {
 }
 
 const BASE_STYLE = [
-  ":root{color-scheme:dark;--background:transparent;--foreground:CanvasText;--muted-foreground:GrayText;",
+  `:root{color-scheme:var(${CHAT_VISUAL_COLOR_SCHEME},dark);--background:transparent;--foreground:CanvasText;--muted-foreground:GrayText;`,
   "--border:rgba(127,127,127,.3);--card:rgba(127,127,127,.12);--radius:12px;",
   "--font-sans:system-ui,sans-serif;--font-mono:ui-monospace,monospace;scrollbar-width:none}",
   "::-webkit-scrollbar{display:none}",
