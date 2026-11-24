@@ -1,6 +1,6 @@
 import type { FilePreview } from "@openbot/contracts/ipc";
 import FilePreviewPanel from "@openbot/ui/features/conversation/FilePreviewPanel";
-import { render } from "@solidjs/testing-library";
+import { render, screen, waitFor } from "@solidjs/testing-library";
 import { describe, expect, it, vi } from "vitest";
 
 const TEXT = "Name;Price\nCafé;3 €\nÜber;12 €\n";
@@ -17,8 +17,9 @@ function utf16(text: string, byteOrder: "le" | "be"): Uint8Array {
   return bytes;
 }
 
-function showFile(name: string, bytes: Uint8Array) {
-  const preview: FilePreview = { name, size: bytes.length, mimeType: "text/plain", previewKind: "text", bytes };
+function showFile(name: string, bytes: Uint8Array, previewKind: FilePreview["previewKind"] = "text") {
+  const mimeType = previewKind === "markdown" ? "text/markdown" : "text/plain";
+  const preview: FilePreview = { name, size: bytes.length, mimeType, previewKind, bytes };
   return render(() => (
     <FilePreviewPanel
       readWidth={() => 480}
@@ -56,5 +57,32 @@ describe("a text file in the file panel", () => {
   it("reads UTF-16 with a big-endian byte order mark", () => {
     const { container } = showFile("prices.txt", utf16(TEXT, "be"));
     expect(shownSource(container)).toBe(TEXT);
+  });
+});
+
+const SKILL = `---
+name: pdf-tools
+description: Fill and merge PDF forms.
+---
+# PDF tools
+
+Use it for forms.
+`;
+
+describe("a Markdown file with YAML front matter", () => {
+  it("shows the front matter as YAML, not as a heading", async () => {
+    const { container } = showFile("SKILL.md", new TextEncoder().encode(SKILL), "markdown");
+    expect(screen.getByRole("heading", { level: 1, name: "PDF tools" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: /name: pdf-tools/u })).toBeNull();
+    expect(container.querySelector("article hr")).toBeNull();
+    await waitFor(() =>
+      expect(container.querySelector("article pre")?.textContent).toContain("description: Fill and merge PDF forms."),
+    );
+  });
+
+  it("keeps a horizontal rule and a heading that do not hold YAML keys", () => {
+    const { container } = showFile("notes.md", new TextEncoder().encode("---\nJust a line\n---\n\nText\n"), "markdown");
+    expect(container.querySelector("article hr")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Just a line" })).toBeTruthy();
   });
 });

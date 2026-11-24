@@ -21,6 +21,17 @@ export interface MarkdownFilePreviewProps {
 }
 
 const TRUNCATED_AFTER = 1_000_000;
+const FRONT_MATTER =
+  /^---[ \t]*\r?\n((?:[A-Za-z0-9_-]+[ \t]*:[^\n]*)(?:\r?\n[^\n]*)*?)\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/u;
+
+function frontMatterAsCode(body: string): string {
+  const match = FRONT_MATTER.exec(body);
+  const yaml = match?.[1];
+  if (!match || yaml === undefined) return body;
+  const longestRun = Math.max(0, ...Array.from(yaml.matchAll(/`+/gu), (run) => run[0].length));
+  const fence = "`".repeat(Math.max(3, longestRun + 1));
+  return `${fence}yaml\n${yaml}\n${fence}\n\n${body.slice(match[0].length)}`;
+}
 
 export function MarkdownFilePreview(props: MarkdownFilePreviewProps) {
   const { t, format } = useText();
@@ -39,7 +50,7 @@ export function MarkdownFilePreview(props: MarkdownFilePreviewProps) {
         <article class={props.renderedClass} data-selection-file-quote={props.selectionQuoteId}>
           <MarkdownMessageText
             document
-            body={props.body}
+            body={frontMatterAsCode(props.body)}
             agents={props.agents}
             attachments={[]}
             citations={[]}
