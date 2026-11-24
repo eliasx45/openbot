@@ -749,7 +749,12 @@ function MarkdownInline(props: {
                 ) : (
                   <MarkdownInline
                     tokens={token.tokens}
-                    content={{ ...props.content, onOpenImage: undefined }}
+                    content={{
+                      ...props.content,
+                      onOpenImage: undefined,
+                      onOpenSharedFile: undefined,
+                      onOpenWorkspaceFile: undefined,
+                    }}
                     streamingTailAfter={tailInside(token, token.tokens, after())}
                   />
                 )}

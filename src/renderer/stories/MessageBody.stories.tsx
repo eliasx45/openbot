@@ -210,6 +210,20 @@ export const WorkspaceFileLinks: Story = {
   render: (storyArgs) => <MessageBodySurface args={storyArgs} width="620px" />,
 };
 
+export const LinkWithCodeText: Story = {
+  args: {
+    message: {
+      ...message,
+      id: "message-link-with-code-text",
+      body: "The script is [`run.ts`](https://openbot.run/docs/run.ts), and the notes are in [`notes.md`](https://openbot.run/docs/notes).",
+      status: undefined,
+      attachments: [],
+    },
+    onOpenWorkspaceFile: fn(),
+  },
+  render: (storyArgs) => <MessageBodySurface args={storyArgs} width="460px" />,
+};
+
 export const CodeBlock: Story = {
   args: {
     message: {

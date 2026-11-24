@@ -1170,3 +1170,11 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Not covered:** the packaged app was not rebuilt or run; the fixes were checked in jsdom tests and Storybook (headless Chromium). The mobile app (`apps/mobile`) has its own Markdown parser and was not changed.
 - **Found, not fixed (judgement calls):** an inline formula wider than the bubble with no break point (one long `\left(…\right)` group, many fractions in a row) is cut at the bubble edge with no scroll (`.ui-bubble-content` clips; display math scrolls). A fix changes how long inline formulas wrap or needs a width check per formula. Shot: `wide-inline-math-clipped.png`. A table or a fence under a list item is taken out of the list and drawn after it (the list goes on with the right number). `\[1\]` is display math, not escaped brackets (upstream choice, as ChatGPT). GFM footnotes (`[^1]`) and raw HTML (`<details>`) show as text.
 - **Check:** ask an agent for `**the adjoint $A^*$ of $A$**`: the line is bold and shows A*.
+
+## 103. Rich blocks in replies: bug hunt fixes (code, previews, images, links)
+
+- **Get:** code blocks, HTML and Mermaid previews, images and links in a reply act as written. Each fix below has its own commit.
+- **Why:** Elias, 24 Nov 2026: a bug hunt over the non-prose blocks of a chat message (code, previews, visuals, media, links).
+- **Fixes:**
+  - **A link with code as its text opens only the link.** `[`run.ts`](https://…)` showed a local file chip inside the link, so one click opened the workspace file `run.ts` and the web page. Root cause: the link's text was drawn with the file openers, so `MarkdownInline` made its code span a `MentionedFileChip` (a button in the `<a>`). Now the link's text gets no file openers and shows as code. `MarkdownMessageText.tsx` (`case "link"`). Test `src/renderer/src/features/conversation/MarkdownCodeLink.test.tsx` (FAIL before: "TSrun.ts", a button in the link). Story `Conversation/MessageBody` › `LinkWithCodeText`. Shots: `~/OpenBot/Shared/gotham/chat-bughunt/blocks/link-code-span-before.png`, `-after.png`.
+- **Check:** see each fix's line.
