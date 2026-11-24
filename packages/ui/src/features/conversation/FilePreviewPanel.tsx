@@ -36,6 +36,7 @@ import { holdFlag } from "@openbot/ui/utils";
 import type { JSX } from "@solidjs/web";
 import { createEffect, createMemo, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 
+import { decodedFileText } from "./file-text";
 import { MediaFilePreview } from "./MediaFilePreview";
 
 const PANEL_MIN = SETTINGS_PANEL_DEFAULT;
@@ -106,7 +107,7 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
   const source = createMemo(() => {
     const preview = file();
     if (!preview?.bytes || (preview.previewKind !== "text" && preview.previewKind !== "markdown")) return "";
-    return new TextDecoder().decode(preview.bytes);
+    return decodedFileText(preview.bytes);
   });
   const text = createMemo(() => ({ value: source().slice(0, TEXT_LIMIT), truncated: source().length > TEXT_LIMIT }));
   const openEntry = (entry: WorkspaceDirectoryEntry) => {
