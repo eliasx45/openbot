@@ -47,6 +47,7 @@
 @import "@openbot/ui/styles/provider-code-login.css";
 @import "@openbot/ui/styles/scroll-edges.css";
 @import "@openbot/ui/features/conversation/conversation.css";
+@import "./features/conversation/pdf-paper.css";
 @import "@openbot/ui/features/channels/channel-avatar.css";
 @import "./features/channels/channels.css";
 @import "@openbot/ui/features/channels/channel-activity.css";

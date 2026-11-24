@@ -1,5 +1,6 @@
 import type { FilePreview } from "@openbot/contracts/ipc";
 import { strToU8, zipSync } from "fflate";
+import worksheetPdfUrl from "./assets/algebra-worksheet.pdf?url";
 import { INLINE_SVG_CHART } from "./chat-visual-fixtures";
 
 const encode = (value: string) => new TextEncoder().encode(value);
@@ -189,6 +190,16 @@ const JSON_PREVIEW = filePreview("evidence-map.json", "application/json", "text"
 export const IMAGE_PREVIEW = filePreview("trust-boundary.svg", "image/svg+xml", "image", SVG);
 
 export const PDF_PREVIEW = filePreview("invoice-2026-09.pdf", "application/pdf", "pdf", buildPdf());
+
+export const WORKSHEET_PDF_URL = worksheetPdfUrl;
+
+export const WORKSHEET_PDF_PREVIEW: FilePreview = {
+  name: "algebra-worksheet.pdf",
+  size: 98_607,
+  mimeType: "application/pdf",
+  previewKind: "pdf",
+  bytes: null,
+};
 
 export const AUDIO_PREVIEW: FilePreview = {
   name: "standup-recap.mp3",

@@ -140,6 +140,27 @@
   background: var(--openbot-bg-canvas);
 }
 
+.file-preview-content[data-dimmed]
+  :is(.file-preview-pdf, .file-preview-image, .chat-visual-frame, .file-preview-dimmable) {
+  filter: brightness(var(--file-preview-brightness));
+}
+
+.file-preview-view-trigger[data-active] {
+  color: var(--openbot-text-primary);
+}
+
+.file-preview-brightness {
+  z-index: var(--openbot-layer-popover);
+  display: grid;
+  width: 248px;
+  gap: var(--openbot-space-2);
+  padding: var(--openbot-space-3);
+}
+
+.file-preview-brightness-reset {
+  justify-self: end;
+}
+
 .file-preview-audio {
   display: block;
   width: calc(100% - 40px);

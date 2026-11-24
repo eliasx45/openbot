@@ -1,7 +1,8 @@
+import type { PdfReadingMode } from "@openbot/ui/features/conversation/pdf-reading-mode";
 import { createSignal } from "solid-js";
 import { fn } from "storybook/test";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import FilePreviewPanel from "../src/features/conversation/FilePreviewPanel";
+import FilePreviewPanel, { READING_MODE_STORAGE_KEY } from "../src/features/conversation/FilePreviewPanel";
 import { INLINE_SVG_CHART, publishChatVisualPage } from "./chat-visual-fixtures";
 import {
   AUDIO_PREVIEW,
@@ -13,6 +14,8 @@ import {
   SOURCE_PREVIEW,
   TEXT_PREVIEW,
   UNSUPPORTED_PREVIEW,
+  WORKSHEET_PDF_PREVIEW,
+  WORKSHEET_PDF_URL,
   XLSX_LITERAL_PREFIXES_PREVIEW,
   XLSX_PREVIEW,
 } from "./file-previews";
@@ -84,6 +87,21 @@ export const Pdf: Story = {
   name: "PDF",
   args: { preview: PDF_PREVIEW },
 };
+
+const worksheetStory = (name: string, mode: PdfReadingMode): Story => ({
+  name,
+  args: { preview: WORKSHEET_PDF_PREVIEW, sourceUrl: WORKSHEET_PDF_URL },
+  render: (args) => {
+    window.localStorage.setItem(READING_MODE_STORAGE_KEY, mode);
+    return meta.render(args);
+  },
+});
+
+export const PdfWorksheet: Story = worksheetStory("PDF worksheet", "off");
+
+export const PdfWorksheetDarkPaper: Story = worksheetStory("PDF worksheet (dark paper)", "dark");
+
+export const PdfWorksheetSepia: Story = worksheetStory("PDF worksheet (sepia)", "sepia");
 
 export const Audio: Story = {
   args: { preview: AUDIO_PREVIEW },

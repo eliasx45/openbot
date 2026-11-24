@@ -9,15 +9,23 @@ import {
 import {
   ArrowLeft,
   Button,
+  buttonVariants,
+  Check,
   Code,
   CopyButton,
   Download,
+  DropdownMenu,
   ExternalLink,
   File,
   Folder,
   FolderOpen,
   LabelTooltip,
   LabelTooltipTrigger,
+  Moon,
+  Popover,
+  SliderField,
+  Sun,
+  SunDim,
   WrapText,
   X,
 } from "@openbot/ui";
@@ -33,11 +41,26 @@ import { SpreadsheetFilePreview } from "@openbot/ui/features/conversation/Spread
 import { WordFilePreview } from "@openbot/ui/features/conversation/WordFilePreview";
 import { useText } from "@openbot/ui/text";
 import { holdFlag } from "@openbot/ui/utils";
-import type { JSX } from "@solidjs/web";
+import { Dynamic, type JSX } from "@solidjs/web";
 import { createEffect, createMemo, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 
+import {
+  clampFilePreviewBrightness,
+  FILE_PREVIEW_BRIGHTNESS_MAX,
+  FILE_PREVIEW_BRIGHTNESS_MIN,
+  filePreviewBrightnessStyle,
+  filePreviewCanDim,
+  isFilePreviewDimmed,
+} from "./file-preview-brightness";
 import { decodedFileText } from "./file-text";
 import { MediaFilePreview } from "./MediaFilePreview";
+import {
+  PDF_READING_MODE_LABEL,
+  PDF_READING_MODES,
+  type PdfPaperReader,
+  type PdfReadingMode,
+  pdfReadingMode,
+} from "./pdf-reading-mode";
 
 const PANEL_MIN = SETTINGS_PANEL_DEFAULT;
 const TEXT_LIMIT = 1_000_000;
@@ -45,12 +68,19 @@ const HIGHLIGHT_LIMIT = 200_000;
 const HIGHLIGHT_LINE_LIMIT = 5_000;
 const BLOB_PREVIEW_KINDS = new Set<FilePreview["previewKind"]>(["image", "pdf", "audio", "video"]);
 
+type HeaderPopup = "pageColors" | "brightness";
+
 interface FilePreviewPanelProps {
   readWidth: () => number;
   onResizeEnd: (width: number) => void;
   onResetWidth: () => void;
   readWrapLines: () => boolean;
   onWrapLinesChange: (wrap: boolean) => void;
+  readBrightness?: (() => number) | undefined;
+  onBrightnessChange?: ((brightness: number) => void) | undefined;
+  readReadingMode?: (() => PdfReadingMode) | undefined;
+  onReadingModeChange?: ((mode: PdfReadingMode) => void) | undefined;
+  pdfReader?: PdfPaperReader | undefined;
   preview: FilePreview | null;
   fileKey?: string | undefined;
   directory?: WorkspaceDirectory | null;
@@ -86,6 +116,12 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
   const [revealed, setRevealed] = createSignal(false);
   const [rawSource, setRawSource] = createSignal(false);
   const [wrapLines, setWrapLines] = createSignal(untrack(() => props.readWrapLines()));
+  const [brightness, setBrightness] = createSignal(
+    untrack(() => clampFilePreviewBrightness(props.readBrightness?.() ?? FILE_PREVIEW_BRIGHTNESS_MAX)),
+  );
+  const [readingMode, setReadingMode] = createSignal<PdfReadingMode>(untrack(() => props.readReadingMode?.() ?? "off"));
+  const [openPopup, setOpenPopup] = createSignal<HeaderPopup | null>(null);
+  let savedBrightness = untrack(brightness);
   let currentPreviewUrl: string | null = null;
   let revealFrame: number | undefined;
   const file = () => (props.directory ? null : props.preview);
@@ -103,6 +139,7 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
   };
   const showsSourceText = () =>
     (previewKind() === "text" && (rawSource() || !hasPage())) || (previewKind() === "markdown" && rawSource());
+  const canDim = () => filePreviewCanDim({ kind: previewKind(), hasPage: hasPage(), rawSource: rawSource() });
   const title = () => visibleFileName(props.directory?.name ?? props.preview?.name ?? "");
   const source = createMemo(() => {
     const preview = file();
@@ -124,6 +161,7 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
   const shownFile = createMemo(() => props.fileKey ?? file());
   createEffect(shownFile, () => {
     setRawSource(false);
+    showPopup(null);
   });
   createEffect(
     () => ({ preview: file(), sourceUrl: props.sourceUrl }),
@@ -186,6 +224,62 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
     setWrapLines(wrap);
     props.onWrapLinesChange(wrap);
   };
+
+  const saveBrightness = (value: number) => {
+    const next = clampFilePreviewBrightness(value);
+    setBrightness(next);
+    if (next === savedBrightness) return;
+    savedBrightness = next;
+    props.onBrightnessChange?.(next);
+  };
+  const chooseReadingMode = (mode: PdfReadingMode) => {
+    setReadingMode(mode);
+    props.onReadingModeChange?.(mode);
+  };
+  const pdfReader = () => (previewKind() === "pdf" ? props.pdfReader : undefined);
+  const paperMode = () => {
+    const mode = readingMode();
+    return mode === "off" ? null : mode;
+  };
+
+  const shownPopup = () => {
+    const popup = openPopup();
+    if (popup === "pageColors" && !pdfReader()) return null;
+    if (popup === "brightness" && !canDim()) return null;
+    return popup;
+  };
+  const showPopup = (next: HeaderPopup | null) => {
+    if (openPopup() === "brightness" && next !== "brightness") saveBrightness(brightness());
+    setOpenPopup(next);
+  };
+  const popupOpenChange = (popup: HeaderPopup) => (open: boolean) => {
+    if (open) showPopup(popup);
+    else if (openPopup() === popup) showPopup(null);
+  };
+  const popupTriggers: Partial<Record<HeaderPopup, HTMLElement>> = {};
+  const returnFocusAfterClose = (trigger: HTMLElement | undefined) => {
+    const focusAtClose = document.activeElement;
+    if (focusAtClose !== null && panel.contains(focusAtClose)) return;
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const active = document.activeElement;
+        const focusLost = active === null || active === document.body || !active.isConnected || active === focusAtClose;
+        if (trigger?.isConnected && focusLost) trigger.focus();
+      }),
+    );
+  };
+  createEffect(shownPopup, (popup) => {
+    if (!popup) return;
+    const closeOnlyPopup = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      showPopup(null);
+      returnFocusAfterClose(popupTriggers[popup]);
+    };
+    document.addEventListener("keydown", closeOnlyPopup, true);
+    return () => document.removeEventListener("keydown", closeOnlyPopup, true);
+  });
+  onSettled(() => () => saveBrightness(untrack(brightness)));
 
   const resizeDefaultPanel = () => {
     setPanelWidth(Math.round(Math.min(props.maxWidth(), Math.max(PANEL_MIN, props.readWidth()))));
@@ -264,6 +358,29 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
             </LabelTooltip>
           )}
         </Show>
+        <Show when={pdfReader()}>
+          <PageColorsControl
+            mode={readingMode()}
+            open={shownPopup() === "pageColors"}
+            onOpenChange={popupOpenChange("pageColors")}
+            triggerRef={(element) => {
+              popupTriggers.pageColors = element;
+            }}
+            onChange={chooseReadingMode}
+          />
+        </Show>
+        <Show when={canDim()}>
+          <BrightnessControl
+            value={brightness()}
+            open={shownPopup() === "brightness"}
+            onOpenChange={popupOpenChange("brightness")}
+            triggerRef={(element) => {
+              popupTriggers.brightness = element;
+            }}
+            onChange={(value) => setBrightness(clampFilePreviewBrightness(value))}
+            onChangeEnd={saveBrightness}
+          />
+        </Show>
         <Show when={file() && props.allowExternalOpen !== false}>
           <HeaderButton label={t("preview.panel.openExternally")} onClick={props.onOpenExternally}>
             <ExternalLink class="browser-toolbar-icon" />
@@ -292,7 +409,11 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
           <X class="browser-toolbar-icon" />
         </HeaderButton>
       </header>
-      <div class="file-preview-content">
+      <div
+        class="file-preview-content"
+        data-dimmed={canDim() && isFilePreviewDimmed(brightness()) ? "" : undefined}
+        style={filePreviewBrightnessStyle(brightness())}
+      >
         <Show when={props.directory}>
           {(directory) => (
             <Show
@@ -381,7 +502,21 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
           </div>
         </Show>
         <Show when={previewKind() === "pdf" && previewUrl()}>
-          <iframe class="file-preview-pdf" title={title()} src={previewUrl() ?? ""} />
+          <Show
+            when={pdfReader() && paperMode()}
+            fallback={<iframe class="file-preview-pdf" title={title()} src={previewUrl() ?? ""} />}
+          >
+            {(mode) => (
+              <Dynamic
+                component={pdfReader()}
+                bytes={file()?.bytes ?? null}
+                url={props.sourceUrl ?? null}
+                title={title()}
+                mode={mode()}
+                onOpenLink={props.onOpenLink}
+              />
+            )}
+          </Show>
         </Show>
         <Show when={previewUrl()}>
           <MediaFilePreview
@@ -438,6 +573,129 @@ function HeaderButton(props: {
         {props.children}
       </LabelTooltipTrigger>
     </LabelTooltip>
+  );
+}
+
+function PageColorsControl(props: {
+  mode: PdfReadingMode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  triggerRef: (element: HTMLElement) => void;
+  onChange: (mode: PdfReadingMode) => void;
+}) {
+  const { t } = useText();
+  const label = () => t("preview.reading.label");
+  return (
+    <DropdownMenu.Root open={props.open} onOpenChange={props.onOpenChange} placement="bottom-end" gutter={6}>
+      <LabelTooltip content={label()}>
+        <LabelTooltipTrigger
+          as={DropdownMenu.Trigger}
+          ref={props.triggerRef}
+          class={[buttonVariants({ variant: "ghost" }), "browser-toolbar-button file-preview-view-trigger"]}
+          aria-label={label()}
+          data-active={props.mode === "off" ? undefined : ""}
+        >
+          <Moon class="browser-toolbar-icon" />
+        </LabelTooltipTrigger>
+      </LabelTooltip>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content aria-label={label()}>
+          <DropdownMenu.RadioGroup
+            value={props.mode}
+            onChange={(value: string) => props.onChange(pdfReadingMode(value))}
+          >
+            <For each={PDF_READING_MODES}>
+              {(mode) => (
+                <DropdownMenu.RadioItem value={mode} closeOnSelect>
+                  <span class="ui-menu-check" data-checked={props.mode === mode ? "" : undefined} aria-hidden="true">
+                    <Show when={props.mode === mode}>
+                      <Check />
+                    </Show>
+                  </span>
+                  <span>{t(PDF_READING_MODE_LABEL[mode])}</span>
+                </DropdownMenu.RadioItem>
+              )}
+            </For>
+          </DropdownMenu.RadioGroup>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
+function BrightnessControl(props: {
+  value: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  triggerRef: (element: HTMLElement) => void;
+  onChange: (value: number) => void;
+  onChangeEnd: (value: number) => void;
+}) {
+  const { t, format } = useText();
+  const dimmed = () => isFilePreviewDimmed(props.value);
+  const label = () => t("preview.panel.brightness");
+  let content: HTMLElement | undefined;
+  const focusSlider = () => content?.querySelector<HTMLElement>('[role="slider"]')?.focus();
+
+  createEffect(
+    () => props.open,
+    (open) => {
+      if (!open) return;
+      const frame = requestAnimationFrame(focusSlider);
+      return () => cancelAnimationFrame(frame);
+    },
+  );
+
+  const reset = () => {
+    props.onChangeEnd(FILE_PREVIEW_BRIGHTNESS_MAX);
+    focusSlider();
+  };
+
+  return (
+    <Popover.Root open={props.open} onOpenChange={props.onOpenChange} placement="bottom-end" gutter={6}>
+      <LabelTooltip content={label()}>
+        <LabelTooltipTrigger
+          as={Popover.Trigger}
+          ref={props.triggerRef}
+          class={[buttonVariants({ variant: "ghost" }), "browser-toolbar-button file-preview-view-trigger"]}
+          aria-label={label()}
+          data-active={dimmed() ? "" : undefined}
+        >
+          <Show when={dimmed()} fallback={<Sun class="browser-toolbar-icon" />}>
+            <SunDim class="browser-toolbar-icon" />
+          </Show>
+        </LabelTooltipTrigger>
+      </LabelTooltip>
+      <Popover.Portal>
+        <Popover.Content
+          ref={(element: HTMLElement) => {
+            content = element;
+          }}
+          class="ui-popover-menu-surface file-preview-brightness"
+        >
+          <SliderField
+            label={label()}
+            description={t("preview.panel.brightnessHint")}
+            value={props.value}
+            minValue={FILE_PREVIEW_BRIGHTNESS_MIN}
+            maxValue={FILE_PREVIEW_BRIGHTNESS_MAX}
+            formatValue={(value) => format.percent(value / FILE_PREVIEW_BRIGHTNESS_MAX)}
+            onChange={props.onChange}
+            onChangeEnd={props.onChangeEnd}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            class="file-preview-brightness-reset"
+            disabled={!dimmed()}
+            onClick={reset}
+          >
+            {t("preview.panel.brightnessReset")}
+          </Button>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 

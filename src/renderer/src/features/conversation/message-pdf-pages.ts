@@ -1,7 +1,7 @@
 import type { FileChipPeek, MessageImageFile } from "@openbot/ui/features/conversation/MarkdownMessageText";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url&no-inline";
 import { releaseFilePreviewPage } from "./conversation-port";
 import type { ConversationRuntime } from "./conversation-runtime";
+import { loadPdfJs } from "./pdf-js";
 
 /** A larger PDF gets no peek: the host does not read or send a larger file for it. */
 const PEEK_PDF_BYTES = 32 * 1024 * 1024;
@@ -11,18 +11,6 @@ const PEEK_WIDTH = 320;
 const MAX_PIXEL_RATIO = 2;
 /** The cached `data:` pictures together take at most this many characters. */
 const CACHE_CHARACTERS = 32 * 1024 * 1024;
-
-type PdfJs = typeof import("pdfjs-dist");
-let pdfJs: Promise<PdfJs> | undefined;
-
-/** pdf.js loads on the first peek, so a chat with no PDF does not load it. */
-function loadPdfJs(): Promise<PdfJs> {
-  pdfJs ??= import("pdfjs-dist").then((module) => {
-    module.GlobalWorkerOptions.workerSrc = workerUrl;
-    return module;
-  });
-  return pdfJs;
-}
 
 interface Entry {
   job: Promise<FileChipPeek | null>;

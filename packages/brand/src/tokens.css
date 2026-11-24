@@ -103,6 +103,10 @@
   --openbot-paper-text-muted: rgba(20, 20, 20, 0.52);
   --openbot-paper-text-dim: rgba(20, 20, 20, 0.36);
   --openbot-paper-border: rgba(20, 20, 20, 0.14);
+  --openbot-reading-dark-paper: #262626;
+  --openbot-reading-dark-ink: #d2d2d2;
+  --openbot-reading-sepia-paper: #ddd0b6;
+  --openbot-reading-sepia-ink: #3a2e22;
   --openbot-onboarding-desktop-mist: #dbe9ff;
   --openbot-onboarding-desktop-blue: #7eb4f2;
   --openbot-onboarding-desktop-indigo: #6f7de8;

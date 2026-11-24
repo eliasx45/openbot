@@ -176,6 +176,8 @@ export { default as Star } from "lucide-solid/icons/star";
 export { default as StarOff } from "lucide-solid/icons/star-off";
 export { default as StickyNote } from "lucide-solid/icons/sticky-note";
 export { default as Store } from "lucide-solid/icons/store";
+export { default as Sun } from "lucide-solid/icons/sun";
+export { default as SunDim } from "lucide-solid/icons/sun-dim";
 export { default as Table2 } from "lucide-solid/icons/table-2";
 export { default as Tag } from "lucide-solid/icons/tag";
 export { default as TextAlignCenter } from "lucide-solid/icons/text-align-center";

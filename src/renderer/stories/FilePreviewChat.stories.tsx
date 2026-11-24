@@ -1,12 +1,13 @@
 import { Bubble, BubbleContent } from "@openbot/ui";
 import type { AgentMessage } from "@openbot/ui/data";
 import { MessageBody } from "@openbot/ui/features/conversation/MessageRendering";
+import type { PdfReadingMode } from "@openbot/ui/features/conversation/pdf-reading-mode";
 import { createEffect, createSignal, For, Show, untrack } from "solid-js";
 import { fn } from "storybook/test";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import FilePreviewPanel from "../src/features/conversation/FilePreviewPanel";
+import FilePreviewPanel, { READING_MODE_STORAGE_KEY } from "../src/features/conversation/FilePreviewPanel";
 import { INLINE_SVG_CHART, publishChatVisualPage } from "./chat-visual-fixtures";
-import { filePreviewForPath, WORKSPACE_FILE_PREVIEWS } from "./file-previews";
+import { filePreviewForPath, WORKSHEET_PDF_PREVIEW, WORKSHEET_PDF_URL, WORKSPACE_FILE_PREVIEWS } from "./file-previews";
 import { STORY_AGENTS } from "./fixtures";
 
 const WORKSPACE = "/Users/test/OpenBot/Agents/agent-4f2c";
@@ -70,7 +71,15 @@ const MESSAGES: AgentMessage[] = [
     time: "10:09",
     status: "Done",
   },
+  {
+    id: "file-preview-chat-7",
+    author: "agent",
+    body: `Your worksheet is here: [algebra-worksheet.pdf](${WORKSPACE}/algebra-worksheet.pdf)`,
+    time: "10:12",
+  },
 ];
+
+const CHAT_FILE_PREVIEWS = [...WORKSPACE_FILE_PREVIEWS, WORKSHEET_PDF_PREVIEW];
 
 const CONVERSATION_MIN = 320;
 const PANEL_MIN = 220;
@@ -88,9 +97,9 @@ function FilePreviewChat(props: {
   const [width, setWidth] = createSignal(PANEL_DEFAULT);
   let stage: HTMLDivElement | undefined;
   const stageWidth = () => stage?.clientWidth || window.innerWidth;
-  const preview = () => WORKSPACE_FILE_PREVIEWS.find((file) => file.name === openName()) ?? null;
+  const preview = () => CHAT_FILE_PREVIEWS.find((file) => file.name === openName()) ?? null;
   const openPath = (path: string) => {
-    const file = filePreviewForPath(path);
+    const file = path.endsWith(WORKSHEET_PDF_PREVIEW.name) ? WORKSHEET_PDF_PREVIEW : filePreviewForPath(path);
     if (file) setOpenName(file.name);
   };
 
@@ -136,6 +145,7 @@ function FilePreviewChat(props: {
         {(file) => (
           <FilePreviewPanel
             preview={file()}
+            sourceUrl={file() === WORKSHEET_PDF_PREVIEW ? WORKSHEET_PDF_URL : undefined}
             pageUrl={file().mimeType === "text/html" ? props.htmlPageUrl : undefined}
             agents={STORY_AGENTS}
             maxWidth={() => Math.min(PANEL_MAX, Math.max(PANEL_MIN, stageWidth() - CONVERSATION_MIN))}
@@ -175,6 +185,21 @@ export const ChatWithOpenFile: Story = {
   name: "Chat (file open)",
   args: { openFile: "RELEASE-NOTES.md" },
 };
+
+const worksheetChat = (name: string, mode: PdfReadingMode): Story => ({
+  name,
+  args: { openFile: WORKSHEET_PDF_PREVIEW.name },
+  render: (args) => {
+    window.localStorage.setItem(READING_MODE_STORAGE_KEY, mode);
+    return <FilePreviewChat {...args} />;
+  },
+});
+
+export const WorksheetPdf: Story = worksheetChat("Chat (PDF worksheet)", "off");
+
+export const WorksheetPdfDarkPaper: Story = worksheetChat("Chat (PDF worksheet, dark paper)", "dark");
+
+export const WorksheetPdfSepia: Story = worksheetChat("Chat (PDF worksheet, sepia)", "sepia");
 
 export const HtmlWorkspacePage: Story = {
   name: "Workspace HTML (page)",
