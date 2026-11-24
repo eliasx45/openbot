@@ -1,5 +1,5 @@
-import { inlineChatMath } from "@openbot/contracts/chat-math";
 import type { Lexer, Tokens } from "marked";
+import { inlineChatMath } from "./chat-math";
 
 export function splitTableRow(source: string): string[] {
   const cells: string[] = [];

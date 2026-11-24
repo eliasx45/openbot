@@ -8,6 +8,7 @@ import {
   inlineChatMath,
 } from "@openbot/contracts/chat-math";
 import { chatPreviewKind } from "@openbot/contracts/chat-preview";
+import { keepMathInTableCells } from "@openbot/contracts/chat-table-math";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import { Button, Checkbox } from "@openbot/ui";
 import { Dynamic } from "@solidjs/web";
@@ -30,7 +31,6 @@ import {
   streamingTrailReach,
   useStreamingReveal,
 } from "./streamingReveal";
-import { keepMathInTableCells } from "./table-cell-math";
 
 type MarkdownMessageTextProps = Omit<RichMessageTextProps, "showCitationFooter"> & {
   showCitationFooter?: boolean;

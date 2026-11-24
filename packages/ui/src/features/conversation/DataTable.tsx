@@ -1,10 +1,10 @@
+import { mapTextOutsideMath, splitTableRow } from "@openbot/contracts/chat-table-math";
 import { Button, Check, Copy } from "@openbot/ui";
 import type { JSX } from "@solidjs/web";
 import { createSignal, For, onCleanup } from "solid-js";
 import { ScrollEdges } from "../../components/ScrollEdges";
 import { firstTextDirection } from "../../content-direction";
 import { useText } from "../../text";
-import { mapTextOutsideMath, splitTableRow } from "./table-cell-math";
 
 export type DataTableAlignment = "left" | "center" | "right";
 

@@ -5,9 +5,10 @@ import {
   chatMathStart,
   inlineChatMath,
 } from "@openbot/contracts/chat-math";
+import { keepMathInTableCells } from "@openbot/contracts/chat-table-math";
 import { chatTagReferences } from "@openbot/contracts/chat-tag-references";
 import { replaceEqualDeep } from "@tanstack/react-query";
-import { Marked, type Token, type TokensList } from "marked";
+import { Marked, type Token, Tokenizer, type TokensList } from "marked";
 import { nextPhoneNumberIndex, phoneNumberAtStart } from "./chat-phone-number";
 
 const markdown = new Marked({
@@ -17,6 +18,11 @@ const markdown = new Marked({
     lheading(source) {
       const heading = this.rules.block.lheading.exec(source);
       return heading && chatMathBlockInterrupts(source, heading[0].length) ? undefined : false;
+    },
+    table(source) {
+      const table = Tokenizer.prototype.table.call(this, source);
+      if (table) keepMathInTableCells(table, this.lexer);
+      return table;
     },
   },
   extensions: [
