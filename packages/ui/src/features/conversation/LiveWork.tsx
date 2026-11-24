@@ -128,7 +128,9 @@ export function LiveWorkDock(props: LiveWorkDockProps) {
             onClick={() => setOpen(!open())}
           >
             <span class="live-work-pulse" aria-hidden="true" />
-            <span class="subagents-group-title">{t("chat.liveWork.title", { count: workCount() })}</span>
+            <Show when={workCount() > 0}>
+              <span class="subagents-group-title">{t("chat.liveWork.title", { count: workCount() })}</span>
+            </Show>
             <Show when={waiting().length > 0}>
               <Badge class="live-work-waiting-badge">{t("chat.liveWork.waiting", { count: waiting().length })}</Badge>
             </Show>

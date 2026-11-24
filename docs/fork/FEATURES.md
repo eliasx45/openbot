@@ -1105,3 +1105,12 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Tests:** `src/renderer/src/features/conversation/MarkdownTableMath.test.tsx`, 19 tests for a reply's table (`MessageBody`) and a marked table (`MarkdownMessageText`): pmatrix, bmatrix, `\frac` with a matrix, `\{…\|v\|…\}`, two formulas in one cell, `$$…$$` in a cell, `\\` text next to a formula, escaped text without math, an unescaped `|` still splits, Copy as Markdown. Before the fix 9 failed, 10 passed; after the fix 19 passed. `vitest related` on the three sources (5 files, 35 tests), `typecheck:renderer`, `typecheck:storybook`, Biome: PASS. A fuzz of 300 000 random rows: the old and new `parseRow` give the same cells unless a formula holds `\\` or `\|`. Story shot in headless Chromium, before and after: `~/OpenBot/Shared/gotham/table-math/before-fix-dark.png`, `after-fix-dark.png`.
 - **Not covered:** the mobile app (`apps/mobile`, marked tables: `\|` in a formula still becomes `|`). A formula that an emphasis or link opened before it and closes inside it is not found as marked finds it. Not run in the packaged app.
 - **Check:** ask an agent for a table with `$\begin{pmatrix}1&2\\3&4\end{pmatrix}$` in a cell: the cell shows a 2×2 matrix.
+
+## 99. Chat flow: live states that showed wrong or went stale
+
+- **Get:** the chat's live parts say what is true: the work bar under the header, the day separators, the steps rows and the queued-message list.
+- **Why:** bug hunt of the conversation flow, 24 Nov 2026 (Elias asked for every bug in how a chat renders over time, each with a failing test, a fix and proof). Shots: `~/OpenBot/Shared/gotham/chat-bughunt/flow/`.
+- **Fixes:**
+  - **"0 working" in the work bar.** A question or an approval that waits, with no subagent and no plan running, showed the bar as "0 working · 1 waits for you" (`LiveWork.tsx`: the title counted only subagents and plans). Now the bar shows only "1 waits for you"; with work it still says "N working". Test: `src/renderer/src/fork-chat-flow-live-work.test.tsx` (fails on the old bar). Shots: `live-work-zero-working-before.png`, `-after.png`.
+- **Not covered:** the packaged app was not rebuilt or run; the fixes were checked in jsdom tests and Storybook (headless Chromium).
+- **Check:** let an agent ask you a question: the bar under the header says "1 waits for you", without "0 working".
