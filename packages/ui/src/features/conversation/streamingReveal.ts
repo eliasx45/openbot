@@ -12,7 +12,8 @@ export function useStreamingReveal(): Accessor<StreamingRevealChunk[]> | null {
 }
 
 const MIN_CHARACTERS_PER_SECOND = 120;
-const STREAMING_WORD = /\s*(?:(?:#{1,6}|[-+*>]|\d+[.)])\s+)?\S+\s+/uy;
+const STREAMING_WORD =
+  /\s*(?:(?:#{1,6}|[-+*>]|\d+[.)])\s+)?(?:\S+\s+|[^\s\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]*[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])/uy;
 
 export function nextStreamingReveal(input: {
   shownLength: number;
