@@ -159,7 +159,9 @@ export function ConversationComposer() {
   const { t, format, errorMessage, sourceText: localizeSourceText } = useText();
   const messageLabel = () =>
     channel
-      ? t("channel.composer.placeholder", { name: channel.name() })
+      ? channel.feed?.shown()
+        ? channel.feed.composerPlaceholder()
+        : t("channel.composer.placeholder", { name: channel.name() })
       : props.agent?.name
         ? t("composer.placeholder.message", { name: props.agent.name })
         : t("composer.placeholder.messageAgent");

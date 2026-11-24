@@ -1,14 +1,16 @@
-import { leadingAddress } from "@openbot/contracts/chat-tag-references";
+import { channelThreads } from "@openbot/contracts/fork-channel-threads";
 import {
   type AgentApproval,
   type AgentEvent,
   type BrowserTakeoverRequest,
+  type CentralAuthUser,
   channelBrowserAgent,
 } from "@openbot/contracts/ipc";
 import type { AgentMessage } from "@openbot/ui/data";
 import { unloadedHistory } from "@openbot/ui/features/conversation/ChatScrollRail";
 import { useText } from "@openbot/ui/text";
-import { createEffect, createMemo } from "solid-js";
+import { createEffect, createMemo, createSignal, Show } from "solid-js";
+import { actionToast } from "../../action-toast";
 import { agentMessagesEqual } from "../../app-message-projection";
 import { channelAwaitingReplies } from "../../awaiting-replies";
 import type {
@@ -25,6 +27,7 @@ import {
   type ChannelRoutineHost,
   ChannelSettingsPane,
 } from "./ChannelConversationParts";
+import { type ChannelFeedModel, ChannelFeedToggle, ChannelFeedView } from "./ChannelFeedView";
 import {
   activeChannelRuns,
   channelApproval,
@@ -38,6 +41,13 @@ import {
   sentChannelMessageId,
   waitingChannelPrompt,
 } from "./channel-conversation-rows";
+import {
+  channelFeedChosen,
+  channelSendCommand,
+  feedReplyTarget,
+  feedWindowWide,
+  setChannelFeedChosen,
+} from "./channel-feed";
 import { useChannels } from "./channels-context";
 
 export interface ChannelConversationEnvironment {
@@ -49,11 +59,12 @@ export interface ChannelConversationEnvironment {
   takeovers: () => readonly BrowserTakeoverRequest[];
   prompts: () => readonly Extract<AgentEvent, { type: "prompt" }>[];
   pausedAgentIds: () => ReadonlySet<string>;
+  feed?: { account: () => CentralAuthUser } | undefined;
 }
 
 export function createChannelConversation(env: ChannelConversationEnvironment) {
   const channels = useChannels();
-  const { t, errorDetails, sourceText } = useText();
+  const { t, errorDetails, errorMessage, sourceText } = useText();
   const channelId = env.channelId;
   const page = () => {
     const current = channels.state.page;
@@ -83,6 +94,20 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
   };
 
   const entries = createMemo(() => page()?.messages.filter(channelMessageHasContent) ?? []);
+  const feedThreads = createMemo(() => {
+    const current = page();
+    return current ? channelThreads(current.messages, current.tasks) : null;
+  });
+  const feedShown = () => env.feed !== undefined && feedWindowWide() && channelFeedChosen(channelId);
+  const [openRoot, setOpenRoot] = createSignal<string | null>(null);
+  const [panelFocus, setPanelFocus] = createSignal(0);
+  const openThread = (rootId: string, focus: boolean) => {
+    setOpenRoot(rootId);
+    if (focus) setPanelFocus((current) => current + 1);
+  };
+  createEffect(feedShown, (shown) => {
+    if (!shown) setOpenRoot(null);
+  });
 
   let rowsById = new Map<string, AgentMessage>();
   let drawn = false;
@@ -168,22 +193,44 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
   ): Promise<SendMessageResult> {
     if (!env.connectionReady() || readOnly()) return { error: t("channel.error.action") };
     const sequenceBefore = page()?.throughSequence ?? 0;
-    const mention = leadingAddress(body).mentions[0];
+    const startsThread = feedShown();
     try {
-      const after = await channels.send({
-        type: "send",
-        operationId: clientMessageId ?? crypto.randomUUID(),
-        channelId,
-        text: body,
-        recipientAgentId: mention?.id ?? null,
-        replyToMessageId,
-        attachmentDraftIds,
-      });
+      const after = await channels.send(
+        channelSendCommand({
+          channelId,
+          text: body,
+          operationId: clientMessageId ?? crypto.randomUUID(),
+          replyToMessageId: feedReplyTarget(startsThread, replyToMessageId),
+          attachmentDraftIds,
+        }),
+      );
       const messageId = sentChannelMessageId(after, sequenceBefore, body, env.isOwnSender);
+      if (messageId && startsThread && feedShown()) openThread(messageId, false);
       return messageId ? { messageId } : { error: t("channel.error.action") };
     } catch (error) {
       const details = errorDetails(error, t("channel.error.action"));
       return { error: details.message, reference: details.reference };
+    }
+  }
+
+  async function sendThreadReply(rootId: string, text: string): Promise<boolean> {
+    if (!env.connectionReady() || readOnly()) return false;
+    try {
+      await channels.send(
+        channelSendCommand({
+          channelId,
+          text,
+          operationId: crypto.randomUUID(),
+          replyToMessageId: rootId,
+          attachmentDraftIds: [],
+        }),
+      );
+      return true;
+    } catch (error) {
+      actionToast.error(errorMessage(error, t("channel.error.action")), {
+        report: { operation: "other", source: "action", cause_code: "unknown" },
+      });
+      return false;
     }
   }
 
@@ -217,6 +264,7 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     }
   }
 
+  const feedEnvironment = env.feed;
   const source: ConversationChannelSource = {
     id: channelId,
     name: () => page()?.channel.name ?? summary()?.name ?? "",
@@ -263,7 +311,17 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
           rowStopping = false;
         });
     },
-    HeaderTitle: (props) => <ChannelHeaderTitle channelId={channelId} onOpenSettings={props.onOpenSettings} />,
+    HeaderTitle: (props) => (
+      <>
+        <ChannelHeaderTitle channelId={channelId} onOpenSettings={props.onOpenSettings} />
+        <Show when={env.feed && feedWindowWide()}>
+          <ChannelFeedToggle
+            feed={channelFeedChosen(channelId)}
+            onChange={(feed) => setChannelFeedChosen(channelId, feed)}
+          />
+        </Show>
+      </>
+    ),
     SettingsPane: (props) => (
       <ChannelSettingsPane
         channelId={channelId}
@@ -275,7 +333,47 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     ),
     AboveComposer: () => <ChannelAboveComposer channelId={channelId} />,
     EmptyState: () => <ChannelEmptyState channelId={channelId} />,
+    feed: feedEnvironment
+      ? {
+          shown: feedShown,
+          composerPlaceholder: () => t("channel.feed.startThread", { name: source.name() }),
+          View: () => <ChannelFeedView model={feedModel(feedEnvironment)} />,
+        }
+      : undefined,
   };
+  function revealInChat(messageId: string, frame = 0): void {
+    requestAnimationFrame(() => {
+      const target = document.querySelector<HTMLElement>(`[data-chat-search-message="${CSS.escape(messageId)}"]`);
+      if (target) target.scrollIntoView({ block: "center" });
+      else if (frame < 30) revealInChat(messageId, frame + 1);
+    });
+  }
+  function feedModel(feed: NonNullable<ChannelConversationEnvironment["feed"]>): ChannelFeedModel {
+    return {
+      channelId,
+      name: () => source.name(),
+      readOnly,
+      threads: feedThreads,
+      rows: messages,
+      openRoot,
+      open: openThread,
+      close: () => setOpenRoot(null),
+      panelFocus,
+      sendReply: sendThreadReply,
+      mentionAgents: () => {
+        const members = memberAgentIds();
+        return channels.agents().filter((agent) => members.has(agent.id));
+      },
+      account: feed.account,
+      showInChat: (rootId) => {
+        setOpenRoot(null);
+        setChannelFeedChosen(channelId, false);
+        revealInChat(rootId);
+      },
+      hasOlder: () => Boolean(page()?.olderCursor),
+      loadOlder: () => void channels.loadOlder(),
+    };
+  }
 
   const deleteMessage = (messageId: string) => channels.deleteMessage(channelId, messageId);
   const canDeleteMessage = (message: AgentMessage) =>

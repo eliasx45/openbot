@@ -93,6 +93,13 @@ export interface ConversationChannelSource {
   SettingsPane: (props: ConversationChannelSettingsPaneProps) => JSX.Element;
   AboveComposer: () => JSX.Element;
   EmptyState: () => JSX.Element;
+  feed?: ConversationChannelFeed | undefined;
+}
+
+export interface ConversationChannelFeed {
+  shown: () => boolean;
+  composerPlaceholder: () => string;
+  View: () => JSX.Element;
 }
 
 export interface ConversationChannelSettingsPaneProps {

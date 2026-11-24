@@ -132,7 +132,12 @@ export function ConversationView(props: ConversationProps) {
         <ConversationHeader />
         {props.notice}
 
-        <ConversationTimeline />
+        <Show when={props.channel?.feed?.shown() && props.channel.feed} fallback={<ConversationTimeline />}>
+          {(feed) => {
+            const FeedView = feed().View;
+            return <FeedView />;
+          }}
+        </Show>
         <ConversationComposer />
         <Show when={sideThreadOpen()}>
           <ConversationThread />

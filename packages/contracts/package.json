@@ -6,6 +6,7 @@
   "exports": {
     "./live-activity-relay": "./src/live-activity-relay.ts",
     "./fork-channel-handoffs": "./src/fork-channel-handoffs.ts",
+    "./fork-channel-threads": "./src/fork-channel-threads.ts",
     "./notification-relay": "./src/notification-relay.ts",
     "./agent-mention-rank": "./src/agent-mention-rank.ts",
     "./agent-providers": "./src/agent-providers.ts",

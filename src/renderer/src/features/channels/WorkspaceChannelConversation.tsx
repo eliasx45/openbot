@@ -104,6 +104,7 @@ function DesktopChannelConversation(props: { channelId: string; account: () => C
     takeovers,
     prompts,
     pausedAgentIds: userPausedAgentIds,
+    feed: { account: props.account },
   });
   const usageLimitAskFor = useUsageLimitAsk();
   const usageLimitAsk = createMemo(() => {
