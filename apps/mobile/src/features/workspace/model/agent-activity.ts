@@ -1,5 +1,6 @@
 import type { AvatarMood } from "@openbot/brand/bloub-avatar-motion";
 import type { AgentEvent, TeamRealtimeEvent } from "@openbot/contracts/ipc";
+import { markdownPreviewText } from "@openbot/contracts/markdown-preview-text";
 
 export type MobileAgentWaitReason = "question" | "approval" | "takeover";
 
@@ -211,9 +212,9 @@ export function reduceAgentActivity(
 }
 
 function questionDetail(questions: readonly { question: string }[]): string | null {
-  return questions[0]?.question.trim() || null;
+  return markdownPreviewText(questions[0]?.question ?? "") || null;
 }
 
 function approvalDetail(approval: { command: string | null; reason: string | null }): string | null {
-  return approval.command?.trim() || approval.reason?.trim() || null;
+  return approval.command?.trim() || markdownPreviewText(approval.reason ?? "") || null;
 }

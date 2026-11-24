@@ -1,4 +1,5 @@
 import { type ChannelSummary, type QueueSnapshot, queueHoldWorker } from "@openbot/contracts/ipc";
+import { markdownPreviewText } from "@openbot/contracts/markdown-preview-text";
 import type { SidebarAgentState, SidebarChannelWait, SidebarRoutinePhase } from "./sidebar-types";
 
 export type SidebarAttention =
@@ -115,11 +116,15 @@ function waitingState(
 const TAKEOVER_WAIT: SidebarChannelWait = { kind: "waiting", reason: "takeover", detail: null };
 
 function questionWait(questions: readonly { question: string }[] | undefined): SidebarChannelWait {
-  return { kind: "waiting", reason: "question", detail: questions?.[0]?.question.trim() || null };
+  return { kind: "waiting", reason: "question", detail: markdownPreviewText(questions?.[0]?.question ?? "") || null };
 }
 
 function approvalWait(approval: Pick<SidebarApproval, "command" | "reason">): SidebarChannelWait {
-  return { kind: "waiting", reason: "approval", detail: approval.command?.trim() || approval.reason?.trim() || null };
+  return {
+    kind: "waiting",
+    reason: "approval",
+    detail: approval.command?.trim() || markdownPreviewText(approval.reason ?? "") || null,
+  };
 }
 
 interface SidebarThreadRequest {
