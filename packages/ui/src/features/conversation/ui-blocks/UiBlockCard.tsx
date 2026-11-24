@@ -72,7 +72,9 @@ function UiBlockOutcome(props: { status: UiBlockStatus; outcome?: string | undef
             <X aria-hidden="true" />
           </Match>
         </Switch>
-        <span class="ui-block-outcome-text">{text()}</span>
+        <span class="ui-block-outcome-text">
+          <UiMathText text={text()} />
+        </span>
       </p>
     </Show>
   );
@@ -145,7 +147,7 @@ export function UiBlockCard(props: UiBlockCardProps) {
                     <Clock3 data-icon="inline-start" aria-hidden="true" />
                   </Match>
                 </Switch>
-                {outcomeText(props.status, props.outcome, t)}
+                <UiMathText text={outcomeText(props.status, props.outcome, t)} />
               </Badge>
             </Show>
           </header>

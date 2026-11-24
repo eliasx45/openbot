@@ -165,7 +165,11 @@ export function UiChoiceBlock(props: UiBlockProps<UiChoiceSpec | UiQuickRepliesS
                 <UiMathText text={option.label} />
               </span>
               <Show when={"meta" in option && option.meta}>
-                {(meta) => <span class="ui-block-option-meta">{meta()}</span>}
+                {(meta) => (
+                  <span class="ui-block-option-meta">
+                    <UiMathText text={meta()} />
+                  </span>
+                )}
               </Show>
             </label>
           )}

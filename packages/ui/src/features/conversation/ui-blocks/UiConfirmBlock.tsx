@@ -14,6 +14,7 @@ import { useText } from "../../../text";
 import { cx } from "../../../utils";
 import { UiBlockCard } from "./UiBlockCard";
 import { UiHoldButton } from "./UiHoldButton";
+import { UiMathText } from "./UiMathText";
 import { sendUiBlockResponse, type UiBlockProps, uiBlockState } from "./ui-block-support";
 
 const DEFAULT_HOLD_MS = 800;
@@ -265,7 +266,9 @@ export function UiConfirmBlock(props: UiConfirmBlockProps) {
           <For each={props.spec.fields ?? []}>
             {(field) => (
               <>
-                <dt>{field.label}</dt>
+                <dt>
+                  <UiMathText text={field.label} />
+                </dt>
                 <dd>
                   {"select" in field ? (
                     <NativeSelect
@@ -280,7 +283,7 @@ export function UiConfirmBlock(props: UiConfirmBlockProps) {
                       <For each={field.options}>{(option) => <option value={option}>{option}</option>}</For>
                     </NativeSelect>
                   ) : (
-                    field.value
+                    <UiMathText text={field.value} />
                   )}
                 </dd>
               </>

@@ -48,10 +48,16 @@ function FormAnswerRows(props: { rows: AnswerRow[] }) {
       <For each={props.rows}>
         {(row) => (
           <div class="ui-block-answer-row">
-            <dt>{fieldLabel(row.field)}</dt>
+            <dt>
+              <UiMathText text={fieldLabel(row.field)} />
+            </dt>
             <dd>
               <Show when={row.value} fallback={<HiddenValue />}>
-                {(value) => <span class="ui-block-answer-value">{value()}</span>}
+                {(value) => (
+                  <span class="ui-block-answer-value">
+                    <UiMathText text={value()} />
+                  </span>
+                )}
               </Show>
             </dd>
           </div>

@@ -9,6 +9,7 @@ import { Button, FileX } from "@openbot/ui";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
 import { useText } from "../../../text";
 import { ImageLightbox, type ImageLightboxOpening } from "../ImageLightbox";
+import { UiMathText } from "./UiMathText";
 
 /**
  * Keeps a video inside `start`..`end`: a seek before the start or play past the end goes back to the
@@ -119,7 +120,11 @@ export function UiBlockMediaStrip(props: { media?: readonly UiBlockMedia[] | und
                 )}
               </Show>
               <Show when={item.caption}>
-                <figcaption class="ui-block-media-caption">{item.caption}</figcaption>
+                {(caption) => (
+                  <figcaption class="ui-block-media-caption">
+                    <UiMathText text={caption()} />
+                  </figcaption>
+                )}
               </Show>
             </figure>
           )}

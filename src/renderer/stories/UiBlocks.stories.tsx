@@ -371,6 +371,61 @@ export const ApiKeyPending: Story = {
   render: (args) => <LiveForm spec={apiKeySpec} onRespond={args.onRespond} />,
 };
 
+const mathChoiceSpec: UiChoiceSpec = {
+  type: "choice",
+  title: "Which antiderivative of $x^2$ is right? It costs \\$5, not \\$10.",
+  options: [
+    { id: "cube", label: "$\\frac{x^3}{3} + C$", meta: "$F(1) = \\frac{1}{3}$" },
+    { id: "slope", label: "$2x$", meta: "$F'(x) \\ne x^2$" },
+  ],
+  media: [{ path: "/Users/demo/plots/parabola.png", caption: "The area under $y = x^2$" }],
+};
+
+const mathConfirmSpec: UiConfirmSpec = {
+  type: "confirm",
+  title: "Use this sum in the worksheet?",
+  fields: [
+    { label: "Sum $S_n$", value: "$\\frac{n(n+1)}{2}$" },
+    { label: "Check", value: "$S_3 = 6$" },
+  ],
+  actions: [
+    { id: "use", label: "Use it", style: "primary" },
+    { id: "skip", label: "Not now", style: "ghost" },
+  ],
+};
+
+const mathFormSpec: UiFormSpec = {
+  type: "form",
+  title: "Solve $x^2 = 4$",
+  fields: [
+    { id: "root", kind: "text", label: "Positive root $x_1$" },
+    { id: "sign", kind: "segmented", label: "Sign of $x_2$", options: ["$+$", "$-$"] },
+    {
+      id: "steps",
+      kind: "textarea",
+      label: "Write each step on its own line, and say which rule of the course you use for the step",
+    },
+    { id: "key", kind: "text", label: "Course key", secret: true },
+  ],
+};
+
+export const MathInEveryField: Story = {
+  render: (args) => (
+    <>
+      <LiveChoice spec={mathChoiceSpec} onRespond={args.onRespond} />
+      <LiveConfirm spec={mathConfirmSpec} onRespond={args.onRespond} />
+      <LiveForm
+        spec={mathFormSpec}
+        state={answered(mathFormSpec, {
+          actionId: "submit",
+          values: { root: "$x_1 = 2$", sign: "$-$", steps: "x^2 = 4\nx = 2 or x = -2" },
+        })}
+        onRespond={args.onRespond}
+      />
+    </>
+  ),
+};
+
 export const Narrow: Story = {
   render: (args) => (
     <div style={{ "max-width": "360px" }}>
