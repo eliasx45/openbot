@@ -29,7 +29,7 @@ import { ChatRowBoundary } from "@openbot/ui/features/conversation/ChatRowBounda
 import { ChatScrollRail, createChatScrollRail } from "@openbot/ui/features/conversation/ChatScrollRail";
 import { ChatSearch } from "@openbot/ui/features/conversation/ChatSearch";
 import { ContextCompactionMarker, type ContextCompactionView } from "@openbot/ui/features/conversation/ContextUsage";
-import { dayMarkerLabel } from "@openbot/ui/features/conversation/chat-day-markers";
+import { createChatDayClock, dayMarkerLabel } from "@openbot/ui/features/conversation/chat-day-markers";
 import { CHAT_TIME_GAP_MS, continuesSenderRun } from "@openbot/ui/features/conversation/chat-grouping";
 import { LiveWorkDock } from "@openbot/ui/features/conversation/LiveWork";
 import { markdownPlainText } from "@openbot/ui/features/conversation/MarkdownMessageText";
@@ -232,6 +232,7 @@ export function ConversationTimeline() {
     messagePins,
   } = useConversationViewScope();
   const { t, format } = useText();
+  const chatDay = createChatDayClock();
   const subagentModels = createMemo(() => subagentModelNames(props.modelOptions));
   const controller = useConversationController();
   const waitingProviderName = () => {
@@ -919,6 +920,7 @@ export function ConversationTimeline() {
                     return dayMarkerLabel(previous?.createdAt, current.createdAt, {
                       t,
                       format,
+                      now: chatDay(),
                       ...(channel || !compactActions() ? {} : { gapMs: CHAT_TIME_GAP_MS }),
                     });
                   return previous === undefined ? (current.time ?? t("chat.day.now")) : null;

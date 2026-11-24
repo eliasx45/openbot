@@ -1,7 +1,8 @@
 import type { AgentMessage } from "@openbot/ui/data";
 import { dayMarkerLabel } from "@openbot/ui/features/conversation/chat-day-markers";
 import { render } from "@solidjs/testing-library";
-import { describe, expect, it } from "vitest";
+import { flush } from "solid-js";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { StoryConversation } from "../stories/conversation-story-support";
 
 function at(day: number, hour: number, minute: number): string {
@@ -19,6 +20,26 @@ function timeMarkers(): string[] {
 }
 
 describe("the chat timeline", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("renames the day separators when the day changes while the chat stays open", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date(2026, 10, 21, 23, 59, 0));
+    const messages: AgentMessage[] = [
+      { id: "late", author: "you", body: "Ship it tonight.", time: "22:00", createdAt: at(21, 22, 0), kind: "text" },
+    ];
+    render(() => <StoryConversation messages={messages} />);
+    await expect.poll(() => document.querySelectorAll(".virtual-chat-row").length).toBe(1);
+    const today = dayMarkerLabel(undefined, at(21, 22, 0), { now: new Date(2026, 10, 21, 23, 59) });
+    expect(timeMarkers()).toEqual([today]);
+
+    vi.advanceTimersByTime(2 * 60_000);
+    flush();
+    const yesterday = dayMarkerLabel(undefined, at(21, 22, 0), { now: new Date(2026, 10, 22, 0, 1) });
+    expect(yesterday).not.toBe(today);
+    await expect.poll(timeMarkers).toEqual([yesterday]);
+  });
+
   it("starts a new day at a steps row that opens the day", async () => {
     const messages: AgentMessage[] = [
       { id: "ask", author: "you", body: "Check the release.", time: "23:58", createdAt: at(20, 23, 58), kind: "text" },

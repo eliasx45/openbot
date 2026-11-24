@@ -1,5 +1,20 @@
 import type { AppFormat, AppTranslate } from "@openbot/i18n";
 import { currentText } from "@openbot/ui/text";
+import { type Accessor, createSignal, onSettled } from "solid-js";
+
+const DAY_CHECK_MS = 60_000;
+
+export function createChatDayClock(): Accessor<Date> {
+  const [today, setToday] = createSignal(new Date());
+  onSettled(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      if (startOfDay(now) !== startOfDay(today())) setToday(now);
+    }, DAY_CHECK_MS);
+    return () => clearInterval(timer);
+  });
+  return today;
+}
 
 export interface DayMarkerOptions {
   now?: Date;

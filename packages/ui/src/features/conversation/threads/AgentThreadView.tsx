@@ -55,7 +55,7 @@ import { ComposerSendControl } from "@openbot/ui/features/conversation/ComposerS
 import { ComposerStackCard } from "@openbot/ui/features/conversation/ComposerStackCard";
 import { ContextUsageMeter, type ContextUsageView } from "@openbot/ui/features/conversation/ContextUsage";
 import { ApprovalCard } from "@openbot/ui/features/conversation/ConversationPrompts";
-import { dayMarkerLabel } from "@openbot/ui/features/conversation/chat-day-markers";
+import { createChatDayClock, dayMarkerLabel } from "@openbot/ui/features/conversation/chat-day-markers";
 import { CHAT_TIME_GAP_MS, continuesSenderRun } from "@openbot/ui/features/conversation/chat-grouping";
 import {
   preferredMessageScrollBehavior,
@@ -605,6 +605,7 @@ export function AgentThreadView(props: AgentThreadViewProps) {
     ...(message.createdAt === undefined ? {} : { createdAt: message.createdAt }),
     ...(message.turnId === undefined ? {} : { turnId: message.turnId }),
   });
+  const chatDay = createChatDayClock();
   const timeMarkers = createMemo(() => {
     const labels = new Map<string, string>();
     const gap = props.compactMessageActions === false ? {} : { gapMs: CHAT_TIME_GAP_MS };
@@ -615,7 +616,7 @@ export function AgentThreadView(props: AgentThreadViewProps) {
           ? previous === undefined
             ? (message.time ?? t("chat.day.now"))
             : null
-          : dayMarkerLabel(previous?.createdAt, message.createdAt, { t, format, ...gap });
+          : dayMarkerLabel(previous?.createdAt, message.createdAt, { t, format, now: chatDay(), ...gap });
       if (label !== null) labels.set(message.id, label);
       previous = message;
     }
