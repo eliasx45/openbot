@@ -106,7 +106,12 @@ function blockElement(block: WordBlock): JSX.Element {
         </p>
       );
     case "list":
-      if (block.ordered) return <ol dir="auto">{listItems(block.items)}</ol>;
+      if (block.ordered)
+        return (
+          <ol dir="auto" start={block.start}>
+            {listItems(block.items)}
+          </ol>
+        );
       return <ul dir="auto">{listItems(block.items)}</ul>;
     case "table":
       return <WordTable rows={block.rows} />;

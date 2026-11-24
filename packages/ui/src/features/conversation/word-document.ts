@@ -43,7 +43,7 @@ type WordHeadingLevel = (typeof WORD_HEADING_LEVELS)[number];
 export type WordBlock =
   | { kind: "heading"; level: WordHeadingLevel; runs: WordRun[] }
   | { kind: "paragraph"; runs: WordRun[] }
-  | { kind: "list"; ordered: boolean; items: WordRun[][] }
+  | { kind: "list"; ordered: boolean; items: WordRun[][]; start?: number }
   | { kind: "table"; rows: WordTableRow[] };
 
 export interface WordDocumentData {
@@ -61,6 +61,13 @@ interface WordStyle {
 interface OpenList {
   block: WordBlock;
   id: string;
+  level: number;
+}
+
+interface ListMembership {
+  id: string;
+  level: number;
+  ordered: boolean;
 }
 
 interface DocumentContext {
@@ -68,6 +75,7 @@ interface DocumentContext {
   orderedLists: Map<string, Set<string>>;
   blocks: WordBlock[];
   openList: OpenList | null;
+  listCounts: Map<string, number[]>;
   units: number;
   truncated: boolean;
 }
@@ -281,11 +289,25 @@ function listMembership(
   context: DocumentContext,
   properties: Element | null,
   chain: WordStyle[],
-): { id: string; ordered: boolean } | null {
+): ListMembership | null {
   const id = numberingValue(properties, chain, "numId");
   if (id === null || id === "0") return null;
   const level = numberingValue(properties, chain, "ilvl") ?? "0";
-  return { id, ordered: context.orderedLists.get(id)?.has(level) ?? false };
+  const depth = Number(level);
+  return {
+    id,
+    level: Number.isInteger(depth) && depth >= 0 && depth < 9 ? depth : 0,
+    ordered: context.orderedLists.get(id)?.has(level) ?? false,
+  };
+}
+
+function countListItem(context: DocumentContext, list: ListMembership): number {
+  const counts = context.listCounts.get(list.id) ?? [];
+  const count = (counts[list.level] ?? 0) + 1;
+  counts.length = list.level + 1;
+  counts[list.level] = count;
+  context.listCounts.set(list.id, counts);
+  return count;
 }
 
 function reserveUnit(context: DocumentContext): boolean {
@@ -297,20 +319,27 @@ function reserveUnit(context: DocumentContext): boolean {
   return true;
 }
 
-function addListItem(context: DocumentContext, list: { id: string; ordered: boolean }, runs: WordRun[]): void {
+function addListItem(context: DocumentContext, list: ListMembership, runs: WordRun[]): void {
+  const number = countListItem(context, list);
   const previous = context.blocks.at(-1);
   if (
     previous?.kind === "list" &&
     previous === context.openList?.block &&
     context.openList.id === list.id &&
+    context.openList.level === list.level &&
     previous.ordered === list.ordered
   ) {
     previous.items.push(runs);
     return;
   }
-  const block: WordBlock = { kind: "list", ordered: list.ordered, items: [runs] };
+  const block: WordBlock = {
+    kind: "list",
+    ordered: list.ordered,
+    items: [runs],
+    ...(list.ordered && number > 1 ? { start: number } : {}),
+  };
   context.blocks.push(block);
-  context.openList = { block, id: list.id };
+  context.openList = { block, id: list.id, level: list.level };
 }
 
 function addParagraph(context: DocumentContext, paragraph: Element): void {
@@ -397,6 +426,7 @@ export function parseWordDocument(bytes: Uint8Array): WordDocumentData {
     orderedLists: parseOrderedLists(xmlDocument(files["word/numbering.xml"])),
     blocks: [],
     openList: null,
+    listCounts: new Map(),
     units: 0,
     truncated: false,
   };
