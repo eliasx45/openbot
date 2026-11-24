@@ -2,6 +2,7 @@ import { Marked, type Token, type Tokens } from "marked";
 import { attachmentReferenceAt } from "./attachment-references";
 import { blockChatMath, chatMathBlockStart, chatMathStart, inlineChatMath } from "./chat-math";
 import { chatTagReferences, expandChatTagReferences } from "./chat-tag-references";
+import { texPreviewText } from "./tex-preview-text";
 
 const markdown = new Marked({
   gfm: true,
@@ -44,7 +45,11 @@ const markdown = new Marked({
 
 const WORD_CHARACTER = /[\p{L}\p{N}]/u;
 
-function plainText(token: Token, lineBreak = " "): string {
+type MathText = (tex: string) => string;
+
+const texSource: MathText = (tex) => tex;
+
+function plainText(token: Token, lineBreak = " ", math: MathText = texSource): string {
   switch (token.type) {
     case "space":
     case "hr":
@@ -55,15 +60,21 @@ function plainText(token: Token, lineBreak = " "): string {
       return lineBreak;
     case "html":
       return token.raw.replace(/<[^>]*>/gu, " ");
+    case "inlineMath":
+    case "blockMath":
+      return math(typeof token.text === "string" ? token.text : token.raw);
     case "list":
-      return token.items.map((item: Tokens.ListItem) => plainText(item)).join(" ");
+      return token.items.map((item: Tokens.ListItem) => plainText(item, " ", math)).join(" ");
     case "blockquote":
     case "list_item":
-      return (token.tokens ?? []).map((child) => plainText(child)).join(" ");
+      return (token.tokens ?? []).map((child) => plainText(child, " ", math)).join(" ");
     case "table":
-      return [token.header, ...token.rows].flat().map(plainTextOf).join(" ");
+      return [token.header, ...token.rows]
+        .flat()
+        .map((cell) => inlineText(cell.tokens, " ", math))
+        .join(" ");
   }
-  if ("tokens" in token && Array.isArray(token.tokens)) return inlineText(token.tokens, lineBreak);
+  if ("tokens" in token && Array.isArray(token.tokens)) return inlineText(token.tokens, lineBreak, math);
   return "text" in token && typeof token.text === "string" ? token.text : token.raw;
 }
 
@@ -71,7 +82,7 @@ function plainTextOf(cell: { tokens: Token[] }): string {
   return inlineText(cell.tokens);
 }
 
-function inlineText(tokens: Token[], lineBreak = " "): string {
+function inlineText(tokens: Token[], lineBreak = " ", math: MathText = texSource): string {
   let text = "";
   for (const [index, token] of tokens.entries()) {
     const next = tokens[index + 1];
@@ -79,7 +90,7 @@ function inlineText(tokens: Token[], lineBreak = " "): string {
       token.type === "em" &&
       token.raw.startsWith("*") &&
       (WORD_CHARACTER.test(text.at(-1) ?? "") || WORD_CHARACTER.test(next?.raw.at(0) ?? ""));
-    text += intraword ? token.raw : plainText(token, lineBreak);
+    text += intraword ? token.raw : plainText(token, lineBreak, math);
   }
   return text;
 }
@@ -87,7 +98,7 @@ function inlineText(tokens: Token[], lineBreak = " "): string {
 export function markdownPreviewText(body: string): string {
   return markdown
     .lexer(body)
-    .map((token) => plainText(token))
+    .map((token) => plainText(token, " ", texPreviewText))
     .join(" ")
     .replace(/\s+/gu, " ")
     .trim();

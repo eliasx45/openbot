@@ -38,7 +38,7 @@ describe("text in the Dynamic Island", () => {
         createdAt: "2026-11-24T10:00:00.000Z",
       },
     });
-    expect(descriptions(container)).toEqual(["Summary Done. Run bun test and see the report. x^2"]);
+    expect(descriptions(container)).toEqual(["Summary Done. Run bun test and see the report. x²"]);
   });
 
   it("shows a question without its Markdown marks", () => {
