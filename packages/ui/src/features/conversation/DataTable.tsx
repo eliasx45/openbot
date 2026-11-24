@@ -248,18 +248,18 @@ function parseCodeAt(
   startIndex: number,
   streaming: boolean,
 ): { block: MessageCodeBlock; nextIndex: number } | null {
-  const opening = /^(?: {0,3})(`{3,})([^`]*)$/u.exec(lines[startIndex] ?? "");
+  const opening = /^(?: {0,3})(?:(`{3,})([^`]*)|(~{3,})(.*))$/u.exec(lines[startIndex] ?? "");
   if (!opening) return null;
 
-  const fenceLength = opening[1]?.length ?? 3;
-  const closingPattern = new RegExp(`^(?: {0,3})\`{${fenceLength},}\\s*$`, "u");
+  const fence = opening[1] ?? opening[3] ?? "```";
+  const closingPattern = new RegExp(`^(?: {0,3})${fence[0]}{${fence.length},}\\s*$`, "u");
   let closingIndex = startIndex + 1;
   while (closingIndex < lines.length && !closingPattern.test(lines[closingIndex] ?? "")) closingIndex += 1;
 
   const hasClosingFence = closingIndex < lines.length;
   if (!hasClosingFence && !streaming) return null;
 
-  const { language, filename } = parseCodeInfo(opening[2] ?? "");
+  const { language, filename } = parseCodeInfo(opening[2] ?? opening[4] ?? "");
   return {
     block: {
       type: "code",

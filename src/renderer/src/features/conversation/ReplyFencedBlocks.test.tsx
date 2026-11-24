@@ -1,7 +1,7 @@
 import type { AgentMessage } from "@openbot/ui/data";
 import { MarkdownMessageText } from "@openbot/ui/features/conversation/MarkdownMessageText";
 import { MessageBody } from "@openbot/ui/features/conversation/MessageRendering";
-import { cleanup, render, waitFor } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, waitFor, within } from "@solidjs/testing-library";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 function renderReply(body: string) {
@@ -24,6 +24,14 @@ function typesetTex(element: Element): string[] {
 
 function codeBlocks(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(".message-code-block"));
+}
+
+async function copiedCode(block: HTMLElement): Promise<string> {
+  const writeText = vi.fn(async (_text: string) => undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  fireEvent.click(within(block).getByRole("button", { name: "Copy code" }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+  return writeText.mock.calls[0]?.[0] ?? "";
 }
 
 beforeAll(async () => {
@@ -60,5 +68,27 @@ describe("a math fence in a reply", () => {
       />
     ));
     expect(typesetTex(done.container)).toEqual([TEX]);
+  });
+});
+
+describe("a tilde fence in a reply", () => {
+  it("keeps a table inside the fence as code", async () => {
+    const table = ["| a | b |", "|---|---|", "| 1 | 2 |"];
+    const { container } = renderReply(["Data:", "", "~~~", ...table, "~~~"].join("\n"));
+    expect(container.querySelector("table")).toBeNull();
+    const [block, ...others] = codeBlocks(container);
+    expect(others).toHaveLength(0);
+    if (!block) throw new Error("no code block");
+    expect(await copiedCode(block)).toBe(table.join("\n"));
+  });
+
+  it("keeps a backtick fence inside a tilde fence as code", async () => {
+    const inner = ["```js", "const a = 1;", "```"];
+    const { container } = renderReply(["~~~markdown", ...inner, "~~~", "", "Done."].join("\n"));
+    const [block, ...others] = codeBlocks(container);
+    expect(others).toHaveLength(0);
+    if (!block) throw new Error("no code block");
+    expect(await copiedCode(block)).toBe(inner.join("\n"));
+    expect(container.textContent).toContain("Done.");
   });
 });

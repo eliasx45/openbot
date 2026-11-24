@@ -373,6 +373,27 @@ export const MathFence: Story = {
   render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="560px" />,
 };
 
+export const TildeFence: Story = {
+  args: {
+    message: {
+      ...message,
+      id: "message-tilde-fence",
+      body: [
+        "Paste this table into the README:",
+        "",
+        "~~~markdown",
+        "| Model | Context |",
+        "| --- | --- |",
+        "| small | 128k |",
+        "~~~",
+      ].join("\n"),
+      status: undefined,
+      attachments: [],
+    },
+  },
+  render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="560px" />,
+};
+
 export const DataTableNarrow: Story = {
   args: {
     message: {
