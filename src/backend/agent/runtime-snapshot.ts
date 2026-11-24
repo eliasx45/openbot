@@ -13,6 +13,7 @@ import {
   CONVERSATION_SUBAGENTS_ITEM_TYPE,
   ROUTINE_QUIET_ANSWER_ITEM_TYPE,
 } from "@openbot/contracts/ipc";
+import { markdownPreviewSource } from "@openbot/contracts/markdown-preview-text";
 import type { MailboxStore } from "../mailbox-store";
 import type { OpenBotDatabase } from "../openbot-database";
 import { perfTimed } from "../perf-probe-hooks";
@@ -27,8 +28,8 @@ export function compactRuntimeQuestion(
   return {
     id: question.id,
     header: question.header.slice(0, AGENT_RUNTIME_QUESTION_HEADER_LIMIT),
-    question: question.question.slice(0, AGENT_RUNTIME_TEXT_LIMIT),
-    ...(question.detail ? { detail: question.detail.slice(0, AGENT_RUNTIME_TEXT_LIMIT) } : {}),
+    question: markdownPreviewSource(question.question, AGENT_RUNTIME_TEXT_LIMIT),
+    ...(question.detail ? { detail: markdownPreviewSource(question.detail, AGENT_RUNTIME_TEXT_LIMIT) } : {}),
     isSecret: question.isSecret,
     options:
       question.options?.map((option) => ({
@@ -211,7 +212,7 @@ function buildRuntimeSnapshotNow({
       latestMessages.push({
         agentId: agent.id,
         id: latest.id,
-        text: latest.text.slice(0, AGENT_RUNTIME_TEXT_LIMIT),
+        text: markdownPreviewSource(latest.text, AGENT_RUNTIME_TEXT_LIMIT),
         createdAt: latest.createdAt,
       });
     }

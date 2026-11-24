@@ -68,6 +68,7 @@ import {
   type SidebarLayoutSnapshot,
   type UpdateAgentInput,
 } from "@openbot/contracts/ipc";
+import { markdownPreviewSource } from "@openbot/contracts/markdown-preview-text";
 import { type DynamicRecord, isBoolean, isNumber, isOneOf, isString } from "@openbot/contracts/runtime-values";
 import { isGeneratedAgentId, isUuidV4, legacyAgentId } from "@openbot/contracts/validation";
 import { sourceText } from "@openbot/i18n/source";
@@ -1439,7 +1440,7 @@ export class AgentStore {
   ): Effect.fn.Return<void, StoredStateFailure> {
     try {
       const agent = this.#requireAgent(id);
-      agent.preview = preview.slice(0, AGENT_PREVIEW_MAX_LENGTH);
+      agent.preview = markdownPreviewSource(preview, AGENT_PREVIEW_MAX_LENGTH);
       agent.updatedAt = new Date().toISOString();
       this.#persist("agent.preview-updated");
     } catch (cause) {

@@ -93,6 +93,36 @@ export function markdownPreviewText(body: string): string {
     .trim();
 }
 
+const PREVIEW_SOURCE_FACTOR = 16;
+const graphemeSegmenter =
+  typeof Intl.Segmenter === "function" ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : undefined;
+
+export function textPrefix(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  if (!graphemeSegmenter) {
+    const end = /[\uDC00-\uDFFF]/u.test(text.charAt(limit)) ? limit - 1 : limit;
+    return text.slice(0, end);
+  }
+  let end = 0;
+  for (const { index, segment } of graphemeSegmenter.segment(text)) {
+    if (index + segment.length > limit) break;
+    end = index + segment.length;
+  }
+  return text.slice(0, end);
+}
+
+export function markdownPreviewSource(body: string, limit: number): string {
+  if (body.length <= limit) return body;
+  const whole = markdownPreviewText(body.slice(0, limit * PREVIEW_SOURCE_FACTOR));
+  const fallback = textPrefix(whole, limit);
+  for (let end = textPrefix(body, limit).length; end > 0; end = body.slice(0, end).search(/\s+\S*$/u)) {
+    const text = markdownPreviewText(body.slice(0, end));
+    if (!whole.startsWith(text)) continue;
+    return text.length * 2 >= fallback.length ? body.slice(0, end) : fallback;
+  }
+  return fallback;
+}
+
 export function markdownInlinePlainText(body: string): string {
   return inlineText(new markdown.Lexer(markdown.defaults).inlineTokens(body)).replace(/\s+/gu, " ").trim();
 }
