@@ -470,7 +470,8 @@ function MarkdownBlock(props: {
           </pre>
         );
       const language = token.lang?.trim().split(/\s+/u)[0] ?? "";
-      if (language.toLowerCase() === "math") return <MathFormula tex={token.text} raw={token.raw} display block />;
+      if (language.toLowerCase() === "math" && props.streaming !== true)
+        return <MathFormula tex={token.text} raw={token.raw} display block />;
       const block: MessageCodeBlock = { type: "code", code: token.text, language };
       const preview = chatPreviewKind(language);
       if (preview)

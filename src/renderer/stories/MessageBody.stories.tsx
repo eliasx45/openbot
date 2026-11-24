@@ -352,6 +352,27 @@ export const MathInEmphasis: Story = {
   render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="560px" />,
 };
 
+export const MathFence: Story = {
+  args: {
+    message: {
+      ...message,
+      id: "message-math-fence",
+      body: [
+        "The area under the curve:",
+        "",
+        "```math",
+        String.raw`\int_0^1 x^2 \,dx = \frac{1}{3}`,
+        "```",
+        "",
+        "So the mean value is one third.",
+      ].join("\n"),
+      status: undefined,
+      attachments: [],
+    },
+  },
+  render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="560px" />,
+};
+
 export const DataTableNarrow: Story = {
   args: {
     message: {

@@ -164,6 +164,11 @@ export function messageContentBlocks(body: string, streaming = false): MessageCo
 
   for (let index = 0; index < lines.length; ) {
     const code = parseCodeAt(lines, index, streaming);
+    if (code && isMathFence(code.block)) {
+      textLines.push(...lines.slice(index, code.nextIndex));
+      index = code.nextIndex;
+      continue;
+    }
     if (code) {
       flushText();
       blocks.push(code.block);
@@ -264,6 +269,10 @@ function parseCodeAt(
     },
     nextIndex: hasClosingFence ? closingIndex + 1 : lines.length,
   };
+}
+
+function isMathFence(block: MessageCodeBlock): boolean {
+  return block.language.toLowerCase() === "math";
 }
 
 function parseCodeInfo(info: string): { language: string; filename?: string } {
