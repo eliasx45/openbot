@@ -432,6 +432,7 @@
   width: 100%;
   max-width: var(--conversation-column-width);
   min-height: 100%;
+  flex: none;
   flex-direction: column;
   justify-content: flex-end;
   margin-inline: auto;

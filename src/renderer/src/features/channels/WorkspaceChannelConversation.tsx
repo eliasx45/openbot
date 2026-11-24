@@ -31,6 +31,12 @@ import { ChannelErrorNotice } from "./ChannelConversationParts";
 import { createChannelConversation } from "./channel-conversation";
 import { useChannels } from "./channels-context";
 
+type FocusRequest = { agentId: string; messageId: string; nonce: number } | null;
+
+function newerFocus(feed: FocusRequest, navigation: FocusRequest): FocusRequest {
+  return feed && (!navigation || feed.nonce > navigation.nonce) ? feed : navigation;
+}
+
 export function WorkspaceChannelConversation(props: { account: () => CentralAuthUser }) {
   const channels = useChannels();
   return (
@@ -177,7 +183,7 @@ function DesktopChannelConversation(props: { channelId: string; account: () => C
         quitShortcutHintShown()
       }
       settingsRequest={view.settingsRequest()}
-      messageFocusRequest={messageFocusRequest()}
+      messageFocusRequest={newerFocus(view.chatFocus(), messageFocusRequest())}
       onSelectAgent={selectAgent}
       onUpdateAgent={updateAgent}
       onSetAgentAvatar={setAgentAvatar}

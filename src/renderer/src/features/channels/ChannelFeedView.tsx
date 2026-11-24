@@ -27,14 +27,16 @@ import { ConversationBrowserTakeover } from "../conversation/ConversationBrowser
 import { ConversationQuestionPrompt } from "../conversation/ConversationQuestionPrompt";
 import { useConversationViewScope } from "../conversation/conversation-scope";
 import {
+  escClosesThread,
   FEED_MIN,
   feedRelativeTime,
-  OVERLAY_SELECTOR,
   readThreadPanelWidth,
   resetThreadPanelWidth,
+  saveThreadDraft,
   saveThreadPanelWidth,
   THREAD_PANEL_DEFAULT,
   THREAD_PANEL_MIN,
+  threadDraft,
   threadPanelMaxWidth,
 } from "./channel-feed";
 
@@ -57,6 +59,8 @@ export interface ChannelFeedModel {
 }
 
 const FOOT_PX = 48;
+const OLDER_PX = 240;
+const OLDER_WAIT_MS = 3_000;
 const INTENT_MS = 1_000;
 const LONG_CHARS = 280;
 const LONG_LINES = 4;
@@ -157,7 +161,8 @@ function FeedRow(props: {
   const { props: view, openExternalMessageUrl } = useConversationViewScope();
   const authors = useFeedAuthors();
   const now = useFeedClock();
-  const body = () => props.row?.body ?? props.root.message.text;
+  const source = () => props.row?.body ?? props.root.message.text;
+  const body = () => (props.root.author.kind === "agent" ? markdownPreviewText(source()) : source());
   const attachmentOnly = () => !body().trim();
   const long = () => body().length > LONG_CHARS || body().split("\n").length > LONG_LINES;
   const author = () => authors.name(props.root.author);
@@ -261,6 +266,17 @@ export function ChannelFeedView(props: { model: ChannelFeedModel }) {
   let list: HTMLElement | undefined;
   let atFoot = true;
   let intentAt = 0;
+  let olderAnchor: number | null = null;
+  const loadOlder = () => {
+    if (scroller && !atFoot) {
+      const anchor = scroller.scrollHeight - scroller.scrollTop;
+      olderAnchor = anchor;
+      window.setTimeout(() => {
+        if (olderAnchor === anchor) olderAnchor = null;
+      }, OLDER_WAIT_MS);
+    }
+    props.model.loadOlder();
+  };
   const intent = () => {
     intentAt = Date.now();
   };
@@ -284,11 +300,15 @@ export function ChannelFeedView(props: { model: ChannelFeedModel }) {
     const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
     if (distance <= FOOT_PX) atFoot = true;
     else if (Date.now() - intentAt < INTENT_MS) atFoot = false;
+    if (!atFoot && element.scrollTop < OLDER_PX && olderAnchor === null && props.model.hasOlder()) loadOlder();
   };
   createEffect(
     () => roots().length,
     () => {
+      const anchor = olderAnchor;
+      olderAnchor = null;
       if (atFoot) requestAnimationFrame(toFoot);
+      else if (anchor !== null && scroller) scroller.scrollTop = scroller.scrollHeight - anchor;
     },
   );
   const focusRow = (rootId: string, attempt = 0) => {
@@ -320,7 +340,7 @@ export function ChannelFeedView(props: { model: ChannelFeedModel }) {
         >
           <Show when={props.model.hasOlder()}>
             <div class="conversation-history-status">
-              <Button type="button" variant="ghost" size="xs" onClick={() => props.model.loadOlder()}>
+              <Button type="button" variant="ghost" size="xs" onClick={loadOlder}>
                 {t("channel.feed.loadOlder")}
               </Button>
             </div>
@@ -453,7 +473,7 @@ function ChannelThreadPanel(props: { model: ChannelFeedModel; rootId: string; on
   onSettled(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
-      if (event.target instanceof Element && event.target.closest(OVERLAY_SELECTOR)) return;
+      if (!escClosesThread(event.target, menuMount ?? null)) return;
       event.preventDefault();
       close();
     };
@@ -463,6 +483,10 @@ function ChannelThreadPanel(props: { model: ChannelFeedModel; rootId: string; on
   let messageList: HTMLDivElement | undefined;
   let scroller: HTMLElement | undefined;
   let atEnd = true;
+  let panelIntentAt = 0;
+  const panelIntent = () => {
+    panelIntentAt = Date.now();
+  };
   onSettled(() => {
     const element = scroller;
     if (!element || !messageList) return;
@@ -471,12 +495,18 @@ function ChannelThreadPanel(props: { model: ChannelFeedModel; rootId: string; on
     });
     follow.observe(messageList);
     element.scrollTop = element.scrollHeight;
-    return () => follow.disconnect();
+    const intents = ["wheel", "touchmove", "pointerdown", "keydown"] as const;
+    for (const type of intents) element.addEventListener(type, panelIntent, { passive: true });
+    return () => {
+      follow.disconnect();
+      for (const type of intents) element.removeEventListener(type, panelIntent);
+    };
   });
   const onScroll = () => {
     const element = scroller;
     if (!element) return;
-    atEnd = element.scrollHeight - element.scrollTop - element.clientHeight < FOOT_PX;
+    if (element.scrollHeight - element.scrollTop - element.clientHeight < FOOT_PX) atEnd = true;
+    else if (Date.now() - panelIntentAt < INTENT_MS) atEnd = false;
   };
   const [openHandoffs, setOpenHandoffs] = createSignal<ReadonlySet<string>>(new Set());
   const toggleHandoff = (messageId: string) =>
@@ -685,7 +715,11 @@ function ChannelThreadPanel(props: { model: ChannelFeedModel; rootId: string; on
 function ThreadComposer(props: { model: ChannelFeedModel; rootId: string }) {
   const { t } = useText();
   const { props: view, installedSkills, openTaggedReference } = useConversationViewScope();
-  const [draft, setDraft] = createSignal("");
+  const [draft, setDraft] = createSignal(threadDraft(props.model.channelId, props.rootId));
+  const editDraft = (text: string) => {
+    setDraft(text);
+    saveThreadDraft(props.model.channelId, props.rootId, text);
+  };
   const [sending, setSending] = createSignal(false);
   const empty = () => draft().trim().length === 0;
   const send = async () => {
@@ -693,7 +727,7 @@ function ThreadComposer(props: { model: ChannelFeedModel; rootId: string }) {
     if (!text || sending()) return;
     setSending(true);
     try {
-      if (await props.model.sendReply(props.rootId, text)) setDraft("");
+      if (await props.model.sendReply(props.rootId, text)) editDraft("");
     } finally {
       setSending(false);
     }
@@ -723,7 +757,7 @@ function ThreadComposer(props: { model: ChannelFeedModel; rootId: string }) {
             disabled={sending()}
             sendShortcut={deviceSendShortcut(view.platform)}
             onOpenTag={openTaggedReference}
-            onValueChange={setDraft}
+            onValueChange={editDraft}
             onSubmit={() => void send()}
           />
         </div>

@@ -71,13 +71,16 @@ function taskParentId(
   const task = tasks.get(entry.taskId);
   if (!task) return null;
   let parent: ChannelMessage | undefined;
+  let deletedParent: ChannelMessage | undefined;
   for (const id of taskRequests(task, tasks)) {
     const request = byId.get(id);
     if (!request || request.id === entry.id || request.author.kind !== "member") continue;
     if (request.sequence >= entry.sequence) continue;
-    if (!parent || request.sequence > parent.sequence) parent = request;
+    if (deletedEntry(request)) {
+      if (!deletedParent || request.sequence > deletedParent.sequence) deletedParent = request;
+    } else if (!parent || request.sequence > parent.sequence) parent = request;
   }
-  return parent?.id ?? null;
+  return (parent ?? deletedParent)?.id ?? null;
 }
 
 export function channelThreadRoots(
@@ -89,6 +92,7 @@ export function channelThreadRoots(
   const parents = new Map<string, string | null>();
   for (const entry of entries) parents.set(entry.id, channelThreadParentId(entry, byId, tasksById));
   const rootOf = new Map<string, string>();
+  const orphans = new Map<string, string[]>();
   for (const entry of entries) {
     if (rootOf.has(entry.id)) continue;
     const path: string[] = [];
@@ -111,11 +115,22 @@ export function channelThreadRoots(
       const found = parent === null ? undefined : byId.get(parent);
       if (!found || deletedEntry(found)) {
         root = current;
+        if (found) orphans.set(found.id, [...(orphans.get(found.id) ?? []), current]);
         break;
       }
       current = found.id;
     }
     for (const id of path) rootOf.set(id, root);
+  }
+  for (const tops of orphans.values()) {
+    if (tops.length < 2) continue;
+    const lines = tops.filter((id) => {
+      const top = byId.get(id);
+      return top !== undefined && channelConversationLine(top);
+    });
+    const kept = oldestOf(lines.length ? lines : tops, byId);
+    const merged = new Set(tops);
+    for (const [id, root] of rootOf) if (merged.has(root)) rootOf.set(id, kept);
   }
   return rootOf;
 }

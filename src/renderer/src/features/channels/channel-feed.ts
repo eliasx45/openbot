@@ -24,8 +24,29 @@ export function channelSendCommand(input: {
   };
 }
 
-export function feedReplyTarget(feedShown: boolean, replyToMessageId: string | null): string | null {
-  return feedShown ? null : replyToMessageId;
+export function feedThreadToOpen(messageId: string, rootOf: ReadonlyMap<string, string> | undefined): string {
+  return rootOf?.get(messageId) ?? messageId;
+}
+
+const threadDrafts = new Map<string, string>();
+const draftKey = (channelId: string, rootId: string) => `${channelId}\n${rootId}`;
+
+export function threadDraft(channelId: string, rootId: string): string {
+  return threadDrafts.get(draftKey(channelId, rootId)) ?? "";
+}
+
+export function saveThreadDraft(channelId: string, rootId: string, text: string): void {
+  if (text.trim()) threadDrafts.set(draftKey(channelId, rootId), text);
+  else threadDrafts.delete(draftKey(channelId, rootId));
+}
+
+const OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]';
+
+export function escClosesThread(target: EventTarget | null, panel: Element | null): boolean {
+  if (!(target instanceof Element)) return true;
+  if (target.closest(OVERLAY_SELECTOR)) return false;
+  if (panel?.contains(target)) return true;
+  return !target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
 }
 
 const JUST_NOW_MS = 45_000;
@@ -110,8 +131,6 @@ export function setChannelFeedChosen(channelId: string, feed: boolean): void {
 export function feedWindowWide(): boolean {
   return wideWindow();
 }
-
-export const OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]';
 
 export const THREAD_PANEL_DEFAULT = 440;
 export const THREAD_PANEL_MIN = 360;

@@ -1702,7 +1702,7 @@ export function createConversationViewScope(props: ConversationProps) {
   createEffect(
     () => ({
       request: props.messageFocusRequest,
-      agentId: props.agent?.id,
+      agentId: props.agent?.id ?? channel?.id,
       loaded: props.loaded,
       messageIds: props.messageFocusRequest ? props.messages.map((message) => message.id).join("\u0000") : "",
       index: props.messageFocusRequest ? timelineIndexById().get(props.messageFocusRequest.messageId) : undefined,

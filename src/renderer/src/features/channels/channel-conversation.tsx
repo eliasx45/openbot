@@ -44,7 +44,7 @@ import {
 import {
   channelFeedChosen,
   channelSendCommand,
-  feedReplyTarget,
+  feedThreadToOpen,
   feedWindowWide,
   setChannelFeedChosen,
 } from "./channel-feed";
@@ -101,6 +101,7 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
   const feedShown = () => env.feed !== undefined && feedWindowWide() && channelFeedChosen(channelId);
   const [openRoot, setOpenRoot] = createSignal<string | null>(null);
   const [panelFocus, setPanelFocus] = createSignal(0);
+  const [chatFocus, setChatFocus] = createSignal<{ agentId: string; messageId: string; nonce: number } | null>(null);
   const openThread = (rootId: string, focus: boolean) => {
     setOpenRoot(rootId);
     if (focus) setPanelFocus((current) => current + 1);
@@ -200,12 +201,13 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
           channelId,
           text: body,
           operationId: clientMessageId ?? crypto.randomUUID(),
-          replyToMessageId: feedReplyTarget(startsThread, replyToMessageId),
+          replyToMessageId,
           attachmentDraftIds,
         }),
       );
       const messageId = sentChannelMessageId(after, sequenceBefore, body, env.isOwnSender);
-      if (messageId && startsThread && feedShown()) openThread(messageId, false);
+      if (messageId && startsThread && feedShown())
+        openThread(feedThreadToOpen(messageId, feedThreads()?.rootOf), false);
       return messageId ? { messageId } : { error: t("channel.error.action") };
     } catch (error) {
       const details = errorDetails(error, t("channel.error.action"));
@@ -341,13 +343,6 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
         }
       : undefined,
   };
-  function revealInChat(messageId: string, frame = 0): void {
-    requestAnimationFrame(() => {
-      const target = document.querySelector<HTMLElement>(`[data-chat-search-message="${CSS.escape(messageId)}"]`);
-      if (target) target.scrollIntoView({ block: "center" });
-      else if (frame < 30) revealInChat(messageId, frame + 1);
-    });
-  }
   function feedModel(feed: NonNullable<ChannelConversationEnvironment["feed"]>): ChannelFeedModel {
     return {
       channelId,
@@ -368,7 +363,7 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
       showInChat: (rootId) => {
         setOpenRoot(null);
         setChannelFeedChosen(channelId, false);
-        revealInChat(rootId);
+        setChatFocus({ agentId: channelId, messageId: rootId, nonce: Date.now() });
       },
       hasOlder: () => Boolean(page()?.olderCursor),
       loadOlder: () => void channels.loadOlder(),
@@ -398,6 +393,7 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     approval,
     browserTakeover,
     settingsRequest,
+    chatFocus,
     onSendMessage: sendMessage,
     onMarkRead: async () => {
       const current = page();

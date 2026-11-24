@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import {
   CHANNEL_THREAD_REPLIER_LIMIT,
   channelThreadEntryIds,
@@ -6,7 +7,15 @@ import {
 } from "@openbot/contracts/fork-channel-threads";
 import type { ChannelMessage, ChannelTask } from "@openbot/contracts/ipc";
 import { describe, expect, it } from "vitest";
-import { channelSendCommand, feedRelativeTime, feedReplyTarget, threadPanelMaxWidth } from "./channel-feed";
+import {
+  channelSendCommand,
+  escClosesThread,
+  feedRelativeTime,
+  feedThreadToOpen,
+  saveThreadDraft,
+  threadDraft,
+  threadPanelMaxWidth,
+} from "./channel-feed";
 
 let clock = Date.parse("2026-11-24T10:00:00.000Z");
 
@@ -114,6 +123,27 @@ describe("the thread root resolver", () => {
     const deleted = { ...member("gone", 1, ""), deleted: true };
     const entries = [deleted, member("after", 2, "Still here", { replyTo: "gone" })];
     expect(channelThreadRoots(entries, []).get("after")).toBe("after");
+  });
+
+  it("keeps the answer to a deleted thread reply in the thread of the root", () => {
+    const entries = [
+      member("root", 1, "Write it", { taskId: "t1" }),
+      { ...member("gone", 2, "", { taskId: "t1" }), deleted: true },
+      agent("answer", 3, "Done", { taskId: "t1" }),
+    ];
+    expect(channelThreadRoots(entries, [task("t1", "gone", ["root", "gone"])]).get("answer")).toBe("root");
+  });
+
+  it("keeps the replies of a deleted root together under the oldest one", () => {
+    const entries = [
+      { ...member("gone", 1, "", { taskId: "t1" }), deleted: true },
+      agent("answer", 2, "Done", { taskId: "t1" }),
+      member("reply", 3, "Thanks", { replyTo: "gone" }),
+      agent("next", 4, "Welcome", { replyTo: "reply" }),
+    ];
+    const feed = channelThreads(entries, [task("t1", "gone")]);
+    expect(feed.roots.map((root) => root.id)).toEqual(["answer"]);
+    expect(feed.summaries.get("answer")?.replies).toBe(2);
   });
 
   it("ends a reply cycle at its oldest message", () => {
@@ -277,10 +307,40 @@ describe("the send targets", () => {
     expect(command).toMatchObject({ type: "send", replyToMessageId: "root", recipientAgentId: "ben" });
   });
 
-  it("starts a new root from the feed composer, also with a reply target left in the draft", () => {
-    expect(feedReplyTarget(true, "old-reply")).toBeNull();
-    expect(feedReplyTarget(false, "old-reply")).toBe("old-reply");
-    expect(feedReplyTarget(true, null)).toBeNull();
+  it("opens the thread that a feed send landed in: its own for a new root, the quoted one for a reply", () => {
+    const feed = channelThreads(
+      [member("root", 1, "Plan"), member("fresh", 2, "New"), member("quoted", 3, "Re", { replyTo: "root" })],
+      [],
+    );
+    expect(feedThreadToOpen("fresh", feed.rootOf)).toBe("fresh");
+    expect(feedThreadToOpen("quoted", feed.rootOf)).toBe("root");
+    expect(feedThreadToOpen("unknown", feed.rootOf)).toBe("unknown");
+  });
+});
+
+describe("the thread panel", () => {
+  it("keeps a reply draft per thread until it is sent or emptied", () => {
+    saveThreadDraft("channel", "root", "half a reply");
+    expect(threadDraft("channel", "root")).toBe("half a reply");
+    expect(threadDraft("channel", "other")).toBe("");
+    expect(threadDraft("other-channel", "root")).toBe("");
+    saveThreadDraft("channel", "root", "  ");
+    expect(threadDraft("channel", "root")).toBe("");
+  });
+
+  it("closes on Esc from the panel or the feed, but not from the feed composer or an open menu", () => {
+    document.body.innerHTML = `
+      <section id="feed"><button id="row"></button></section>
+      <div class="composer"><div id="feed-editor" contenteditable="true"></div></div>
+      <aside id="panel"><div id="panel-editor" contenteditable="true"></div>
+        <div role="menu"><div id="item"></div></div></aside>`;
+    const panel = document.getElementById("panel");
+    const at = (id: string) => document.getElementById(id);
+    expect(escClosesThread(at("row"), panel)).toBe(true);
+    expect(escClosesThread(at("panel-editor"), panel)).toBe(true);
+    expect(escClosesThread(document.body, panel)).toBe(true);
+    expect(escClosesThread(at("feed-editor"), panel)).toBe(false);
+    expect(escClosesThread(at("item"), panel)).toBe(false);
   });
 
   it("keeps the feed at least 360 px wide beside the panel", () => {
