@@ -793,6 +793,25 @@ function MarkdownInline(props: {
               );
             }
             if (!url) {
+              const { shared: sharedPath, workspace: workspacePath } = linkFileTargets(writtenLinkTarget(token));
+              if (sharedPath && props.content.onOpenSharedFile)
+                return (
+                  <LocalFileLink
+                    path={sharedPath}
+                    label={token.text}
+                    kind="shared"
+                    onOpen={props.content.onOpenSharedFile}
+                  />
+                );
+              if (workspacePath && props.content.onOpenWorkspaceFile)
+                return (
+                  <LocalFileLink
+                    path={workspacePath}
+                    label={token.text}
+                    kind="workspace"
+                    onOpen={props.content.onOpenWorkspaceFile}
+                  />
+                );
               return <RichText body={token.text || token.raw} content={props.content} streamingTailAfter={after()} />;
             }
             return (
@@ -1435,7 +1454,7 @@ export function messageImageFiles(blocks: readonly string[]): MessageImageFile[]
     void markdown.walkTokens(lexBlockTokens(body, true), (token) => {
       const file = tokenIs(token, "codespan")
         ? mentionedFileTarget(token.text, directory)
-        : tokenIs(token, "link")
+        : tokenIs(token, "link") || tokenIs(token, "image")
           ? linkFileTarget(writtenLinkTarget(token))
           : null;
       if (file && IMAGE_FILE_PATTERN.test(fileReferenceName(file.path)))

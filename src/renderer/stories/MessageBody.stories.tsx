@@ -555,3 +555,17 @@ export const NamedImageFiles: Story = {
   },
   render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="460px" />,
 };
+
+export const MarkdownImageOfFile: Story = {
+  args: {
+    message: {
+      ...message,
+      id: "markdown-image-of-file",
+      body: "Done. The logo is in the shared folder:\n\n![Machete logo](/data/OpenBot/Shared/demo/maczeciarz/logo.svg)",
+      attachments: [],
+    },
+    onOpenSharedFile: fn(),
+    loadImageFile: loadNamedImage,
+  },
+  render: (storyArgs) => <MessageBodySurface args={storyArgs} variant="ghost" width="460px" />,
+};
