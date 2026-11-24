@@ -61,3 +61,14 @@ describe.each([
     expect(row.flatMap(mathIn)).toEqual([]);
   });
 });
+
+describe("a tagged attachment in a message", () => {
+  it("shows the file name without the tag marker", () => {
+    const [paragraph] = parseFinishedChatMarkdown("Review @[report final.pdf](attachment:att-42) before noon");
+    const tokens: Token[] = paragraph?.type === "paragraph" ? (paragraph.tokens ?? []) : [];
+    expect(tokens.map((token) => token.type)).not.toContain("link");
+    expect(tokens.map((token) => ("text" in token ? token.text : token.raw)).join("")).toBe(
+      "Review report final.pdf before noon",
+    );
+  });
+});

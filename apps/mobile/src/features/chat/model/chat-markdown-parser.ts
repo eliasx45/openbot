@@ -1,3 +1,4 @@
+import { attachmentReferenceAt } from "@openbot/contracts/attachment-references";
 import {
   blockChatMath,
   chatMathBlockInterrupts,
@@ -52,6 +53,15 @@ const markdown = new Marked({
         const reference = chatTagReferences(source)[0];
         if (reference?.start === 0 && reference.kind === "agent")
           return { type: "agentMention", raw: source.slice(0, reference.end) };
+      },
+    },
+    {
+      name: "attachmentTag",
+      level: "inline",
+      start: (source) => source.indexOf("@["),
+      tokenizer(source) {
+        const reference = attachmentReferenceAt(source);
+        if (reference) return { type: "text", raw: reference.marker, text: reference.name };
       },
     },
     {
