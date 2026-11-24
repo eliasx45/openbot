@@ -45,6 +45,19 @@ describe("the preview source of a long reply", () => {
     expect(sidebarLine(reply)).not.toContain("`");
   });
 
+  it("ends a cut preview with an ellipsis", () => {
+    const source = markdownPreviewSource(`${LEAD}${LEAD}${LEAD}`, LIMIT);
+    expect(source.endsWith("…")).toBe(true);
+    expect(`${LEAD}${LEAD}${LEAD}`.startsWith(source.slice(0, -1))).toBe(true);
+    expect(source.length).toBeLessThanOrEqual(LIMIT);
+    expect(markdownPreviewSource("Short.", LIMIT)).toBe("Short.");
+  });
+
+  it("adds no ellipsis when the whole text fits", () => {
+    const reply = `See [the design doc](https://example.com/${"very-long-path/".repeat(14)}design) for the details.`;
+    expect(markdownPreviewSource(reply, LIMIT)).toBe("See the design doc for the details.");
+  });
+
   it("does not cut an emoji in half", () => {
     const reply = `${"a".repeat(LIMIT - 1)}👋🏽 and more`;
     const source = markdownPreviewSource(reply, LIMIT);

@@ -94,6 +94,7 @@ export function markdownPreviewText(body: string): string {
 }
 
 const PREVIEW_SOURCE_FACTOR = 16;
+const PREVIEW_ELLIPSIS = "…";
 const graphemeSegmenter =
   typeof Intl.Segmenter === "function" ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : undefined;
 
@@ -113,14 +114,16 @@ export function textPrefix(text: string, limit: number): string {
 
 export function markdownPreviewSource(body: string, limit: number): string {
   if (body.length <= limit) return body;
+  const room = limit - PREVIEW_ELLIPSIS.length;
   const whole = markdownPreviewText(body.slice(0, limit * PREVIEW_SOURCE_FACTOR));
-  const fallback = textPrefix(whole, limit);
-  for (let end = textPrefix(body, limit).length; end > 0; end = body.slice(0, end).search(/\s+\S*$/u)) {
+  const fallback = textPrefix(whole, room).trimEnd();
+  for (let end = textPrefix(body, room).length; end > 0; end = body.slice(0, end).search(/\s+\S*$/u)) {
     const text = markdownPreviewText(body.slice(0, end));
     if (!whole.startsWith(text)) continue;
-    return text.length * 2 >= fallback.length ? body.slice(0, end) : fallback;
+    if (text.length * 2 < fallback.length) break;
+    return text === whole ? body.slice(0, end).trimEnd() : `${body.slice(0, end).trimEnd()}${PREVIEW_ELLIPSIS}`;
   }
-  return fallback;
+  return fallback === whole ? fallback : `${fallback}${PREVIEW_ELLIPSIS}`;
 }
 
 const PLAIN_INLINE_TOKENS = new Set(["text", "escape", "br"]);
