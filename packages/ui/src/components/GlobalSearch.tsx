@@ -1,6 +1,5 @@
 import { agentMentionRank } from "@openbot/contracts/agent-mention-rank";
-import { expandAttachmentReferences } from "@openbot/contracts/attachment-references";
-import { expandChatTagReferences } from "@openbot/contracts/chat-tag-references";
+import { markdownPreviewText } from "@openbot/contracts/markdown-preview-text";
 import type { AppTextKey } from "@openbot/i18n";
 import {
   ArrowDown,
@@ -149,14 +148,8 @@ function isSearchTab(value: string): value is SearchTab {
   return SEARCH_TABS.some((tab) => tab === value);
 }
 
-function messagePreview(message: AgentMessage): string {
-  return expandAttachmentReferences(
-    expandChatTagReferences(message.body, (reference) =>
-      reference.kind === "quote" ? `“${reference.name}”` : undefined,
-    ),
-  )
-    .trim()
-    .replace(/\s+/g, " ");
+export function messagePreview(message: AgentMessage): string {
+  return markdownPreviewText(message.body);
 }
 
 function resultKey(result: ResultData): string {
