@@ -1346,6 +1346,16 @@ export function ConversationTimeline() {
                           : "none",
                       }}
                     >
+                      <Show when={message()?.id === compactionBefore()}>
+                        <CompactionMarker />
+                      </Show>
+                      <Show when={dayMarker()}>
+                        {(label) => (
+                          <div class="time-marker">
+                            <span>{label()}</span>
+                          </div>
+                        )}
+                      </Show>
                       <Show when={message()?.id === unreadBoundaryMessageId()}>
                         <UnreadMessagesDivider
                           animateIn={unreadDividerArrives}

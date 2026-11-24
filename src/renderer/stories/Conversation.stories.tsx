@@ -1739,6 +1739,45 @@ export const ThinkingSettled: Story = {
   },
 };
 
+const lateNight = (day: number, hour: number, minute: number) => new Date(2026, 10, day, hour, minute).toISOString();
+
+export const StoppedTurnAfterMidnight: Story = {
+  args: {
+    messages: [
+      {
+        id: "late-ask",
+        author: "you",
+        body: "Check the release notes before the tag.",
+        time: "23:58",
+        createdAt: lateNight(20, 23, 58),
+        kind: "text",
+      },
+      {
+        id: "thinking:turn-late",
+        turnId: "turn-late",
+        author: "agent",
+        body: "",
+        time: "00:01",
+        createdAt: lateNight(21, 0, 1),
+        itemType: "commentary",
+        kind: "thinking",
+        items: ["Reading the release notes", "Comparing the tag with the changelog"],
+        itemIds: ["turn-late:1", "turn-late:2"],
+        itemCreatedAt: [lateNight(21, 0, 1), lateNight(21, 0, 3)],
+        itemStreaming: [false, false],
+      },
+      {
+        id: "late-next",
+        author: "you",
+        body: "Any news on the tag?",
+        time: "00:05",
+        createdAt: lateNight(21, 0, 5),
+        kind: "text",
+      },
+    ],
+  },
+};
+
 export const Prompt: Story = {
   args: { prompt },
 };
