@@ -323,7 +323,8 @@ function HtmlPreviewFrame(props: { html: string; title: string; fill: boolean; o
     event.preventDefault();
     const href = link.getAttribute("href") ?? "";
     if (href.startsWith("#")) {
-      page.getElementById(decodeURIComponent(href.slice(1)))?.scrollIntoView();
+      const target = page.getElementById(fragmentId(href.slice(1)));
+      if (target) page.defaultView?.scrollBy(0, target.getBoundingClientRect().top);
       return;
     }
     const url = safeBrowserUrl(href);
@@ -349,4 +350,12 @@ function HtmlPreviewFrame(props: { html: string; title: string; fill: boolean; o
       }}
     />
   );
+}
+
+function fragmentId(fragment: string): string {
+  try {
+    return decodeURIComponent(fragment);
+  } catch {
+    return fragment;
+  }
 }
