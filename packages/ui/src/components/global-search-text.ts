@@ -1,3 +1,5 @@
+import { textPrefix } from "@openbot/contracts/markdown-preview-text";
+
 export interface MatchPart {
   text: string;
   match: boolean;
@@ -35,6 +37,6 @@ export function snippetAround(text: string, query: string, lead = 32): string {
   if (index <= lead) return text;
   const start = index - lead;
   const wordStart = text.indexOf(" ", start);
-  const from = wordStart >= 0 && wordStart < index ? wordStart + 1 : start;
+  const from = wordStart >= 0 && wordStart < index ? wordStart + 1 : textPrefix(text, start).length;
   return `…${text.slice(from)}`;
 }

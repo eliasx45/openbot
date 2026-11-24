@@ -7,7 +7,7 @@ import type {
   RoutineCalendarOwner,
   RoutineCalendarRoutine,
 } from "@openbot/contracts/ipc";
-import { markdownPreviewText } from "@openbot/contracts/markdown-preview-text";
+import { markdownPreviewText, textPrefix } from "@openbot/contracts/markdown-preview-text";
 import type { MobileAgent } from "@/features/workspace/context/mobile-workspace-context";
 
 export const MOBILE_SEARCH_FILTERS = [
@@ -328,5 +328,5 @@ export function mobileSearchSnippet(text: string, query: string, lead = 40): str
   if (index <= lead) return text;
   const start = index - lead;
   const wordStart = text.indexOf(" ", start);
-  return `…${text.slice(wordStart >= 0 && wordStart < index ? wordStart + 1 : start)}`;
+  return `…${text.slice(wordStart >= 0 && wordStart < index ? wordStart + 1 : textPrefix(text, start).length)}`;
 }

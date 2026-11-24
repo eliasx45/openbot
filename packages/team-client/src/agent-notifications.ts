@@ -6,7 +6,7 @@ import type {
   ServerNotificationLevel,
   TeamRealtimeEvent,
 } from "@openbot/contracts/ipc";
-import { markdownPreviewText } from "@openbot/contracts/markdown-preview-text";
+import { markdownPreviewText, textPrefix } from "@openbot/contracts/markdown-preview-text";
 import type { AppFormat, AppTranslate } from "@openbot/i18n";
 import { hideRedactionMarks, messageSummary } from "./message-summary";
 
@@ -292,8 +292,6 @@ function previewText(text: string): string | null {
   const characters = Array.from(text.replace(/\s+/gu, " ").trim());
   if (characters.length === 0) return null;
   if (characters.length <= PREVIEW_LIMIT) return characters.join("");
-  return `${characters
-    .slice(0, PREVIEW_LIMIT - 1)
-    .join("")
-    .trimEnd()}…`;
+  const flat = characters.join("");
+  return `${textPrefix(flat, characters.slice(0, PREVIEW_LIMIT - 1).join("").length).trimEnd()}…`;
 }
