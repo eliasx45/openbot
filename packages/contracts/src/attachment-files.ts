@@ -242,6 +242,8 @@ export function attachmentMimeTypeForName(name: string) {
     case "md":
     case "markdown":
       return "text/markdown";
+    case "tsv":
+      return "text/tab-separated-values";
     case "html":
     case "htm":
       return "text/html";
