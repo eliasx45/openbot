@@ -43,6 +43,7 @@ import {
 } from "@openbot/contracts/ipc";
 import type { ConversationUiBlock } from "@openbot/contracts/ui-blocks";
 import type { MobileTextKey } from "@openbot/i18n/mobile";
+import { cleanAgentMessageText } from "@openbot/team-client/agent-message-text";
 import { MOBILE_PLUGINS } from "@/features/marketplace/model/plugin-catalog.generated";
 import { isMobileConnectorId } from "@/features/servers/model/connectors";
 import { thinkingRowId } from "./turn-thinking";
@@ -261,7 +262,7 @@ function progressBubble(id: string, message: ConversationMessage): Extract<ChatM
     id,
     kind: "message",
     author: "agent",
-    body: message.text,
+    body: cleanAgentMessageText(message.text),
     streaming: false,
     status: message.status,
     createdAt: message.createdAt,
@@ -546,7 +547,7 @@ export function projectChatMessages(
           : false;
       thinking.steps.push({
         id: message.id,
-        text: message.text,
+        text: cleanAgentMessageText(message.text),
         createdAt: message.createdAt,
         ...(update ? { progress: true as const } : {}),
       });
@@ -566,7 +567,11 @@ export function projectChatMessages(
             author: message.author === "user" ? "user" : "agent",
             ...(otherMember ? { sender } : {}),
             ...(ownSender ? { mine: true } : {}),
-            body: message.exchange ? "" : message.text,
+            body: message.exchange
+              ? ""
+              : message.author === "user"
+                ? message.text
+                : cleanAgentMessageText(message.text),
             streaming: message.status === "streaming",
             status: message.status,
             attachments: message.attachments,
