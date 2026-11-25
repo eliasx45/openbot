@@ -58,7 +58,8 @@ jobs:
           7z a -tzip -mx=5 fork-release/OpenBot-fork-win-x64.zip ./dist/win-unpacked/*
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item scripts/fork/windows/launcher.ps1 fork-release/
-          Set-Content -NoNewline fork-release/commit.txt $env:GITHUB_SHA
+          Set-Content -LiteralPath fork-release/commit.txt -Value $env:GITHUB_SHA -NoNewline
+          if ((Get-Content -Raw -LiteralPath fork-release/commit.txt) -ne $env:GITHUB_SHA) { throw "commit.txt not written" }
           Get-ChildItem fork-release | Format-Table Name, Length
 
       # The launcher a partner runs, from the staged files: install, shortcuts with OpenBot's app id.
@@ -109,3 +110,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release upload fork-windows fork-release/commit.txt --clobber --repo $env:GITHUB_REPOSITORY
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # What the partner runs, against the release just published: install.ps1 from this checkout
+      # (it fetches launcher.ps1 and the zip over HTTPS, with the progress window), then OpenBot
+      # opens; the step checks it runs from the installed copy and quits it.
+      - name: End-to-end install from the published release
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $root = "$env:LOCALAPPDATA\OpenBotFork"
+          Remove-Item -Recurse -Force $root
+          Get-Content -Raw scripts/fork/windows/install.ps1 | Invoke-Expression
+          Get-Content "$root\launcher.log"
+          if ((Get-Content -Raw "$root\installed-commit") -ne $env:GITHUB_SHA) { throw "installed-commit differs" }
+          Start-Sleep -Seconds 20
+          $running = @(Get-Process -Name OpenBot -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$root\app\*" })
+          Write-Host "OpenBot processes from the install: $($running.Count)"
+          if ($running.Count -eq 0) { throw "OpenBot did not start from $root\app" }
+          $running | Stop-Process -Force

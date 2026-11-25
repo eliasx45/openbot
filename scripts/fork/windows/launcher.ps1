@@ -249,6 +249,7 @@ try {
         }
         Close-Progress
     }
+    if (-not (Test-Path -LiteralPath $Exe)) { throw "OpenBot could not be downloaded (see the log); nothing is installed yet." }
     if ($Install) { Install-Shortcuts }
     Open-OpenBot
     exit 0
