@@ -187,6 +187,10 @@ const ACP_REPEATED_TOOL_FAILURES = 5;
 
 const ACP_STEER_ANSWER_MS = 3_000;
 
+// Fork (docs/fork/FEATURES.md #111): how long a reply gets no new chunk before it counts as written,
+// for an agent that keeps its prompt open while its background work runs.
+const ACP_ANSWER_QUIET_MS = 10_000;
+
 const ACP_MCP_LIST_MARGIN_MS = 1_000;
 
 const ACP_THROWAWAY_DELETE_MS = 3_000;
@@ -272,6 +276,11 @@ interface AcpTurn {
   lastChunkAt: number | null;
   wake: boolean;
   beforeWakeEcho: SessionUpdate[] | null;
+  // Fork (docs/fork/FEATURES.md #111): when the reply's last chunk came, whether a watch for its end
+  // runs, and the reply that went quiet with nothing after it yet (the turn's answer if it ends so).
+  textAt: number;
+  quietWatch: boolean;
+  quietAnswer: ThreadItem | null;
 }
 
 type AcpSessionRestore = Omit<LoadSessionRequest, "sessionId">;
@@ -437,6 +446,8 @@ export interface AcpProviderOptions {
   mcpServers?: McpServerSource | undefined;
   turnStallMs?: number;
   firstUpdateMs?: number;
+  /** Fork (docs/fork/FEATURES.md #111): tests shorten `ACP_ANSWER_QUIET_MS`. */
+  answerQuietMs?: number;
   reportMcpDrops?: McpDropReporter | undefined;
   mcpToolRuntimes?: McpToolRuntimeSource | undefined;
   mcpEndpoint?: McpEndpointSource | undefined;
@@ -2517,6 +2528,9 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       lastChunkAt: null,
       wake,
       beforeWakeEcho: wake ? [] : null,
+      textAt: 0,
+      quietWatch: false,
+      quietAnswer: null,
     };
     thread.activeTurn = turn;
     this.#threads.holdForTurn(thread);
@@ -3438,6 +3452,10 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
         });
       }
       turn.text += text;
+      if (text) {
+        turn.textAt = Date.now();
+        this.#watchQuietAnswer(thread, turn);
+      }
       return;
     }
     if (update.sessionUpdate === "agent_thought_chunk" && update.content.type === "text") {
@@ -3450,6 +3468,7 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       if (update.sessionUpdate === "tool_call") {
         this.#completeThought(thread, turn);
         this.#completeMessage(thread, turn, "commentary");
+        turn.quietAnswer = null;
       }
       const name = update.name ?? update.title ?? turn.toolNames.get(update.toolCallId) ?? "tool";
       turn.toolNames.set(update.toolCallId, name);
@@ -3552,6 +3571,7 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       text: turn.text,
       ...(failureReport ? { failureReport: true } : {}),
     } satisfies ThreadItem;
+    turn.quietAnswer = null;
     turn.messages.push(item);
     this.emit("notification", { method: "item/completed", params: { threadId: thread.id, turnId: turn.id, item } });
     this.#endMessage(turn);
@@ -3567,6 +3587,46 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     turn.messageChunks = 0;
     turn.lastChunkAt = null;
     turn.itemId = `${turn.id}:assistant:${turn.messages.length}`;
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md #111): Antigravity keeps a prompt open while the agent's background
+   * subagents run, and a steer joins that prompt. ACP marks no end of a reply, so a reply after which
+   * the model waits for its subagents stayed "streaming" until the agent's next step, often minutes
+   * later: the chat held it back as unfinished and showed no answer. A reply that gets no new chunk
+   * for `ACP_ANSWER_QUIET_MS` is complete, as the next step would complete it (commentary); if the
+   * turn then ends with nothing after it, `#completeTurn` makes it the answer.
+   */
+  #watchQuietAnswer(thread: AcpThread, turn: AcpTurn): void {
+    if (!this.#flavor.promptOpenForBackgroundTasks || turn.quietWatch) return;
+    turn.quietWatch = true;
+    const quietMs = this.options.answerQuietMs ?? ACP_ANSWER_QUIET_MS;
+    const watch = Effect.gen({ self: this }, function* () {
+      for (;;) {
+        const left = turn.textAt + quietMs - Date.now();
+        if (left <= 0) break;
+        yield* Effect.sleep(left);
+      }
+      this.#completeQuietAnswer(thread, turn);
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          turn.quietWatch = false;
+        }),
+      ),
+    );
+    Effect.runFork(watch.pipe(Effect.forkIn(this.#scope)));
+  }
+
+  #completeQuietAnswer(thread: AcpThread, turn: AcpTurn): void {
+    if (thread.activeTurn !== turn || turn.completing || turn.stopped || !turn.text.trim()) return;
+    // A failure answer, a held text tool call, a paused answer or retry notices wait for the prompt's end.
+    if (turn.sdkFailureAt !== null || turn.textToolCallAt !== null || turn.answerPaused || turn.retryNotices) return;
+    if (turn.providerError !== null || this.#flavor.sdkHarness?.answerIsFailure.test(turn.text)) return;
+    const itemId = turn.itemId;
+    this.#completeMessage(thread, turn, "commentary");
+    const item = turn.messages.at(-1);
+    turn.quietAnswer = item?.id === itemId ? item : null;
   }
 
   #dropStreamedCopy(turn: AcpTurn): void {
@@ -4278,6 +4338,23 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     const answer = turn.text;
     const failureReport = status === "failed" && this.#flavor.failureReport?.test(answer) === true;
     this.#completeMessage(thread, turn, "final_answer", failureReport);
+    // Fork (docs/fork/FEATURES.md #111): a reply that went quiet with nothing after it is the answer.
+    const quiet = turn.quietAnswer;
+    turn.quietAnswer = null;
+    if (quiet?.type === "agentMessage") {
+      const quietText = isString(quiet.text) ? quiet.text : "";
+      const promoted = {
+        ...quiet,
+        phase: "final_answer",
+        ...(status === "failed" && this.#flavor.failureReport?.test(quietText) === true ? { failureReport: true } : {}),
+      } satisfies ThreadItem;
+      const index = turn.messages.indexOf(quiet);
+      if (index >= 0) turn.messages[index] = promoted;
+      this.emit("notification", {
+        method: "item/completed",
+        params: { threadId: thread.id, turnId: turn.id, item: promoted },
+      });
+    }
     if (status === "failed" && error) {
       const detail = this.#redact(failureText(error));
       if (turn.accountVerification || this.#flavor.sdkHarness?.accountVerification?.test(detail)) {
