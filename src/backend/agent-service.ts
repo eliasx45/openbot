@@ -4732,6 +4732,12 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       this.#emit({ type: "waits-changed", snapshot: { agentId, waits: waitStore.list(agentId) } });
     const executionDelivery = (deliveryId: string) =>
       this.channels.store.assignmentForDelivery(deliveryId) !== null || this.messaging.ownsDelivery(deliveryId);
+    // Fork (docs/fork/FEATURES.md #113): the client that reads the agent's subagent transcripts. On its
+    // own process (a second account: its own Claude config folder) it starts that process, which the
+    // wake's turn would start a moment later anyway; a failed start reads nothing.
+    const restartResumeClient = async (agent: AgentSummary) =>
+      this.#providers.clientForAgent(agent) ??
+      (await Effect.runPromise(this.#providers.ensureAgentClient(agent)).catch(() => null));
     return {
       agent: (agentId) => {
         const agent = find(agentId);
@@ -4741,12 +4747,13 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       },
       providerReady: (agentId) => {
         const agent = find(agentId);
-        return Boolean(
-          agent &&
-            this.#providers.isReady() &&
-            !this.#providers.signInRequiredForAgent(agent) &&
-            this.#providers.clientForAgent(agent),
-        );
+        if (!agent || !this.#providers.isReady() || this.#providers.signInRequiredForAgent(agent)) return false;
+        // Fork (docs/fork/FEATURES.md #113): an agent on its own provider process (a second provider
+        // account, a confined workspace) has no client until a turn starts that process, and after a
+        // restart only the wake would start a turn: the wake waited 10 min, then gave up ("was not
+        // ready"). The wake's turn starts the process like any message, so the provider being up is
+        // enough, as for the drain (`ensureAgentClient`).
+        return Boolean(this.#providers.clientForAgent(agent) ?? this.#providers.currentClient(providerForAgent(agent)));
       },
       session: (agentId, threadId) => {
         const agent = find(agentId);
@@ -4754,14 +4761,14 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       },
       subagentIds: async (agentId, externalSessionId) => {
         const agent = find(agentId);
-        const client = agent ? this.#providers.clientForAgent(agent) : null;
+        const client = agent ? await restartResumeClient(agent) : null;
         return agent && client?.forkSubagentIds
           ? client.forkSubagentIds(externalSessionId, agentSessionCwd(agent))
           : new Map<string, string>();
       },
       subagentOutcomes: async (agentId, externalSessionId, agentIds) => {
         const agent = find(agentId);
-        const client = agent ? this.#providers.clientForAgent(agent) : null;
+        const client = agent ? await restartResumeClient(agent) : null;
         return agent && client?.forkSubagentOutcomes
           ? client.forkSubagentOutcomes(externalSessionId, agentSessionCwd(agent), agentIds)
           : new Map<string, { finished: true; result: string }>();

@@ -452,8 +452,18 @@ export function deliveryPromptInput(context: DeliveryContext, sources: DeliveryP
   }
   const voice = sources.liveVoice;
   if (delivery.sender.kind === "user" && voice && delivery.text === voice.shown) text = liveVoicePrompt(voice);
-  if (delivery.sender.kind === "user" && sources.executionText === undefined)
+  if (delivery.sender.kind === "user" && sources.executionText === undefined) {
     text = forkUserPrompt(delivery, displayText, text);
+    // Fork (docs/fork/FEATURES.md #113): the user wrote before the restart's wake ran, so this
+    // message runs instead of it; it tells the agent what the restart stopped (turn, subagent IDs).
+    const restartNote =
+      forkHub.restartResume?.handOverNote({
+        agentId: delivery.recipientAgentId,
+        deliveryId: delivery.id,
+        typed: delivery.text,
+      }) ?? null;
+    if (restartNote) text = `${restartNote}${CURRENT_MESSAGE_SEPARATOR}${text}`;
+  }
   if (
     delivery.sender.kind === "agent" &&
     delivery.sender.agentId === delivery.recipientAgentId &&

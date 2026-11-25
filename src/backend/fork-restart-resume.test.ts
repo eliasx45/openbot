@@ -9,7 +9,14 @@ import { clampConversationSubagents, isConversationSubagents } from "@openbot/co
 import { afterEach, describe, expect, it } from "vitest";
 import { foldClaudeSubagentCall, foldClaudeSubagentResult, newSubagentState } from "./agent/subagent-updates";
 import { carryClaudeTranscript, claudeSubagentAgentIds } from "./claude-history";
-import { parseRunId, restartResumeText, restartResumeTitle } from "./fork-restart-resume";
+import {
+  ForkRestartResume,
+  type ForkRestartResumeHooks,
+  parseRunId,
+  restartHandOverText,
+  restartResumeText,
+  restartResumeTitle,
+} from "./fork-restart-resume";
 
 const folders: string[] = [];
 afterEach(async () => {
@@ -76,6 +83,221 @@ describe("restartResumeText", () => {
       "The request it continues",
     );
     expect(restartResumeText({ ...base, kind: "goal" })).toContain("Your goal turns were stopped at");
+  });
+});
+
+// Fork (docs/fork/FEATURES.md #113): a message of the user that runs before the restart's wake tells
+// the agent what the restart stopped.
+describe("restartHandOverText", () => {
+  const subagents = [
+    { id: "toolu_1", title: "Fork #112 quote in thread pane", providerAgentId: "a8d31d88f5a7d0d48", background: true },
+    { id: "toolu_2", title: "Close 4 remaining #107 leaks", providerAgentId: null, background: true },
+  ];
+  const note = {
+    kind: "subagents" as const,
+    interruptedAt: "2026-11-25T16:40:40.073Z",
+    subagents,
+    requestText: "Inside the thread spin up a new thread",
+  };
+
+  it("names the stopped Claude subagents by agent ID and says to continue them after the message", () => {
+    const text = restartHandOverText({ notes: [note], timezone: "Africa/Algiers", provider: "claude" });
+    expect(text.startsWith("[OpenBot: 🔄 restart note] At 17:40 on 25 Nov (Africa/Algiers)")).toBe(true);
+    expect(text).toContain("your background subagents were stopped while you waited for them");
+    expect(text).toContain("This note is from OpenBot, not from the user.");
+    expect(text).toContain(
+      "These subagents were stopped mid-task: a8d31d88f5a7d0d48 — Fork #112 quote in thread pane; (agent ID unknown: see your Agent call) — Close 4 remaining #107 leaks.",
+    );
+    expect(text).toContain("Answer the user's message first.");
+    expect(text).toContain("SendMessage to its agent ID");
+    expect(text).toContain("do NOT launch it again from scratch");
+    expect(text).toContain("never repeat sends, posts, payments");
+    expect(text).toContain("The request that was stopped:\nInside the thread spin up a new thread");
+    // Not the wake's header: the e2e and the chat tell the two apart.
+    expect(text).not.toContain("[OpenBot: 🔄 restart]");
+  });
+
+  it("words an interrupted turn, and leaves the subagents out for a provider that cannot continue them", () => {
+    const text = restartHandOverText({
+      notes: [{ ...note, kind: "turn" }],
+      timezone: undefined,
+      provider: "codex",
+    });
+    expect(text).toContain("your last turn was interrupted");
+    expect(text).not.toContain("SendMessage");
+    expect(text).not.toContain("a8d31d88f5a7d0d48");
+    const gemini = restartHandOverText({ notes: [note], timezone: undefined, provider: "antigravity" });
+    expect(gemini).toContain("a8d31d88f5a7d0d48 — Fork #112 quote in thread pane");
+    expect(gemini).toContain("invoke_subagent");
+    expect(gemini).not.toContain("SendMessage");
+  });
+});
+
+describe("ForkRestartResume.handOverNote", () => {
+  const agentId = "agent-gotham";
+  const threadId = "openbot-thread-agent-gotham";
+  const lines: string[] = [];
+  const closed: string[] = [];
+  let starting: string[] = [];
+  const hooks = (overrides: Partial<ForkRestartResumeHooks> = {}): ForkRestartResumeHooks => ({
+    agent: (id) => (id === agentId ? { threadId, provider: "claude" } : null),
+    providerReady: () => true,
+    session: () => ({ externalSessionId: "session-1" }),
+    subagentIds: async () => new Map(),
+    subagentOutcomes: async () => new Map(),
+    executionDelivery: () => false,
+    laneBusy: () => false,
+    laneQueued: () => 0,
+    continuationQueued: () => false,
+    delivery: () => null,
+    deliveryOfTurn: () => null,
+    // After the capture: the user's messages that are starting in the agent's own chat.
+    unresolvedOwnDeliveries: () => starting.map(userDelivery),
+    goalWorking: () => false,
+    openWait: () => "wait-1",
+    waitOpen: () => true,
+    closeWait: (_agent, waitId) => closed.push(waitId),
+    enqueue: async () => "wake-delivery",
+    line: (_agent, text) => lines.push(text),
+    timezone: () => "Africa/Algiers",
+    isRunning: () => false,
+    log: () => {},
+    ...overrides,
+  });
+  const userDelivery = (id: string) => ({
+    id,
+    messageId: `message-${id}`,
+    recipientAgentId: agentId,
+    sender: { kind: "user" as const },
+    text: "hi",
+    attachments: [],
+    replyToMessageId: null,
+    status: "starting" as const,
+    position: null,
+    turnId: null,
+    error: null,
+    createdAt: "2026-11-25T16:42:35.000Z",
+  });
+  const capture = (resume: ForkRestartResume) => {
+    starting = [];
+    captureThread(resume);
+    starting = ["delivery-user", "delivery-next", "queued", "u"];
+  };
+  const captureThread = (resume: ForkRestartResume) =>
+    resume.capture({
+      agentId,
+      threadId,
+      ownChat: true,
+      turnId: null,
+      messages: [
+        {
+          id: "turn-1:subagents",
+          turnId: "turn-1",
+          author: "assistant",
+          text: "- Fork #112",
+          createdAt: "2026-11-25T16:30:00.000Z",
+          status: "completed",
+          itemType: "subagents",
+          subagents: [
+            {
+              id: "toolu_1",
+              title: "Fork #112 quote in thread pane",
+              agentType: "general-purpose",
+              prompt: "Fix it.",
+              status: "running",
+              startedAt: "2026-11-25T16:30:00.000Z",
+              endedAt: null,
+              steps: [],
+              error: null,
+              background: true,
+              providerAgentId: "a8d31d88f5a7d0d48",
+            },
+          ],
+        },
+      ],
+    });
+
+  it("gives the pending note to the user's message once, closes the wait, and stops the wake", () => {
+    const resume = new ForkRestartResume({ databasePath: "relative.db", hooks: hooks() });
+    capture(resume);
+    resume.start();
+    expect(resume.entries()[0]?.state).toBe("pending");
+    const input = { agentId, deliveryId: "delivery-user", typed: "why is stuff not auto resuming?" };
+    const text = resume.handOverNote(input);
+    expect(text).toContain("a8d31d88f5a7d0d48 — Fork #112 quote in thread pane");
+    expect(resume.entries()[0]?.state).toBe("skipped");
+    expect(resume.entries()[0]?.reason).toBe("another turn started since the restart");
+    expect(closed).toContain("wait-1");
+    // The same delivery's prompt built again: the same note. Another message: nothing more.
+    expect(resume.handOverNote(input)).toBe(text);
+    expect(resume.handOverNote({ ...input, deliveryId: "delivery-next" })).toBeNull();
+    resume.dispose();
+  });
+
+  it("gives nothing to a slash command, a message of a task thread, or when the switch is off", () => {
+    const resume = new ForkRestartResume({ databasePath: "relative.db", hooks: hooks() });
+    capture(resume);
+    resume.start();
+    const input = { agentId, deliveryId: "delivery-user", typed: "/compact" };
+    expect(resume.handOverNote(input)).toBeNull();
+    expect(resume.handOverNote({ ...input, typed: "hi", deliveryId: "task-delivery" })).toBeNull();
+    expect(resume.entries()[0]?.state).toBe("pending");
+    resume.setEnabled(false);
+    expect(resume.handOverNote({ ...input, typed: "hi" })).toBeNull();
+    resume.dispose();
+  });
+
+  it("a note skipped because a message waited in the queue goes to that message", () => {
+    const resume = new ForkRestartResume({ databasePath: "relative.db", hooks: hooks({ laneQueued: () => 1 }) });
+    capture(resume);
+    expect(resume.entries()[0]?.reason).toBe("a queued message runs instead");
+    expect(resume.handOverNote({ agentId, deliveryId: "queued", typed: "and also do this" })).toContain(
+      "a8d31d88f5a7d0d48",
+    );
+    expect(resume.entries()[0]?.reason).toBe("a queued message runs instead");
+  });
+
+  it("a note still pending from an earlier start (a crash before its wake) goes to the message too", async () => {
+    const folder = await mkdtemp(join(tmpdir(), "openbot-restart-hand-over-"));
+    folders.push(folder);
+    const databasePath = join(folder, "openbot.db");
+    const first = new ForkRestartResume({ databasePath, hooks: hooks() });
+    capture(first);
+    first.start();
+    first.dispose();
+    const second = new ForkRestartResume({ databasePath, hooks: hooks() });
+    second.start();
+    expect(second.entries()[0]?.state).toBe("pending");
+    expect(second.handOverNote({ agentId, deliveryId: "delivery-user", typed: "hi" })).toContain("a8d31d88f5a7d0d48");
+    expect(second.entries()[0]?.handedTo).toBe("delivery-user");
+    second.dispose();
+  });
+
+  it("a note of a routine run is not handed over", () => {
+    const resume = new ForkRestartResume({
+      databasePath: "relative.db",
+      hooks: hooks({
+        unresolvedOwnDeliveries: () => [
+          {
+            id: "run-delivery",
+            messageId: "m",
+            recipientAgentId: agentId,
+            sender: { kind: "routine", routineId: "r", runId: "x", routineName: "Daily", scheduledFor: "" },
+            text: "Daily run",
+            attachments: [],
+            replyToMessageId: null,
+            status: "running",
+            position: null,
+            turnId: "turn-9",
+            error: null,
+            createdAt: "2026-11-25T16:30:00.000Z",
+          },
+        ],
+      }),
+    });
+    resume.capture({ agentId, threadId, ownChat: true, turnId: "turn-9", messages: [] });
+    expect(resume.entries()[0]?.reason).toBe("routine run");
+    expect(resume.handOverNote({ agentId, deliveryId: "u", typed: "hi" })).toBeNull();
   });
 });
 

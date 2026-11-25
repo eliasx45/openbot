@@ -6,6 +6,9 @@
 // I1 starts the agents' turns (held). I2 starts and stops at once (a crash before any wake). I3 runs the
 // wakes and the actions in the grace time (delete, Cancel, a new message). I4 and I5 interrupt a wake
 // twice (one more try, then no more). I5-I8: /autoresume off and on, a turn after a long downtime, a signed-out provider.
+// Fork (docs/fork/FEATURES.md #113): T, an agent on a second provider account (its own process, which
+// no turn has started yet after the restart) is resumed too; K, a message of the user that comes first
+// tells the agent what the restart stopped.
 // `bun scripts/restart-resume-e2e.ts`. Writes .openbot-build/restart-resume-e2e/report.json.
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -49,6 +52,12 @@ const { forkHub } = await import("../src/backend/fork-hub");
 const { FORK_RESTART_RESUME_ROUTINE_ID } = await import("../src/backend/fork-restart-resume");
 const { MailboxStore } = await import("../src/backend/mailbox-store");
 const { OpenBotDatabase } = await import("../src/backend/openbot-database");
+const { ProviderAccountStore } = await import("../src/backend/agent/provider-account-store");
+// Fork (#113): a second Codex account, so one agent runs on its own provider process.
+const accounts = new ProviderAccountStore(
+  join(userData, "openbot-provider-accounts-v1.json"),
+  join(userData, "provider-accounts"),
+);
 
 /**
  * A Codex app-server with the methods the service calls. `control.json`: `hold` holds every turn whose
@@ -267,6 +276,7 @@ async function start(name: string, env: Record<string, string>): Promise<Instanc
     store,
     mailbox,
     browser,
+    providerAccounts: accounts,
     preferredProvider: "codex",
     offProviders: AGENT_PROVIDERS.filter((provider) => provider !== "codex"),
     busyMessageMode: () => "queue",
@@ -378,6 +388,9 @@ let current: Instance | null = null;
 try {
   // ---------- I1: the turns that the restart interrupts ----------
   await control({ hold: "HOLD1", turnMs: 150 });
+  await runCauseEffect(accounts.load());
+  const secondAccount = await runCauseEffect(accounts.create("codex"));
+  if (!secondAccount) throw new Error("The second Codex account was not created.");
   const i1 = await start("I1", { OPENBOT_FORK_RESTART_RESUME_GRACE_MS: "1000" });
   current = i1;
   const basic = await createAgent(i1, "Basic", "HOLD1 Basic: write the quarterly report.");
@@ -391,10 +404,37 @@ try {
   const sessionGone = await createAgent(i1, "Session gone", "HOLD1 SessionGone: its session is lost.");
   const cancel = await createAgent(i1, "Cancel", "HOLD1 Cancel: the user cancels the resume.");
   const takeover = await createAgent(i1, "Takeover", "HOLD1 Takeover: the user writes first.");
+  // Fork (#113): an agent on the second account runs on its own provider process.
+  const accountAgent = await runCauseEffect(
+    i1.agents.createAgent({
+      name: "Account",
+      description: "Restart resume check.",
+      avatarSeed: "account",
+      avatarHue: null,
+      initialMessage: "HOLD1 Account: work on the second account.",
+      provider: "codex",
+      model: "gpt-5.5",
+      providerAccountId: secondAccount.id,
+    }),
+  );
+  const account: Made = { id: accountAgent.id, request: "HOLD1 Account: work on the second account." };
   const routine = await createAgent(i1, "Routine", "Routine: an idle chat.");
   const channelOwner = await createAgent(i1, "Channel owner", "ChannelOwner: an idle chat.");
   const subagents = await createAgent(i1, "Subagents", "Subagents: started a background helper.");
-  const holding = [basic, retry, stopWake, asks, stopped, queued, goal, deleted, sessionGone, cancel, takeover];
+  const holding = [
+    basic,
+    retry,
+    stopWake,
+    asks,
+    stopped,
+    queued,
+    goal,
+    deleted,
+    sessionGone,
+    cancel,
+    takeover,
+    account,
+  ];
   const turnOf = new Map<string, string>();
   for (const made of holding) turnOf.set(made.id, await runningTurn(i1, made));
   for (const made of [routine, channelOwner, subagents]) await idle(i1, made);
@@ -561,6 +601,9 @@ try {
   }
 
   // ---------- I2: starts and stops before any wake (a crash loop) ----------
+  // Fork (#113): the queued message now carries the restart note, which repeats the stopped request
+  // and so its HOLD1: it must not be held.
+  await control({ hold: "HOLD-I2", turnMs: 150 });
   const i2 = await start("I2", { OPENBOT_FORK_RESTART_RESUME_GRACE_MS: "60000" });
   current = i2;
   const capturedInI2 = new Map<string, string>();
@@ -790,6 +833,9 @@ try {
     details.cancel = `${entry(cancel)?.state}:${entry(cancel)?.reason}`;
     details.takeover = entry(takeover)?.reason ?? null;
     details.takeoverRan = turnsWith(takeoverText).length;
+    const takeoverTurn = turnsWith(takeoverText)[0]?.text ?? "";
+    details.takeoverText = takeoverTurn.slice(0, 900);
+    details.takeoverWaits = i3.agents.listWaits(takeover.id).waits.length;
     if (!cancelWait?.note.startsWith("🔄")) return "No resume wait to cancel.";
     if (entry(cancel)?.state !== "cancelled") return "Cancel did not stop the resume.";
     if (wakeTurnsFor(cancel.request).length !== 0) return "The cancelled agent got a wake.";
@@ -797,6 +843,40 @@ try {
       return "The new message did not replace the resume.";
     if (wakeTurnsFor(takeover.request).length !== 0) return "The agent that got a new message got a wake.";
     if (turnsWith(takeoverText).length !== 1) return "The user's new message did not run.";
+    // Fork (#113): the message that came first says what the restart stopped, once.
+    const note = JSON.stringify("[OpenBot: 🔄 restart note]").slice(1, -1);
+    if (!takeoverTurn.includes(note)) return "The user's message does not tell the agent what the restart stopped.";
+    if (!takeoverTurn.includes("Takeover: the user writes first.")) return "The note lacks the stopped request.";
+    if (takeoverTurn.indexOf(note) > takeoverTurn.indexOf("Takeover: the user writes right after"))
+      return "The note does not come before the user's message.";
+    if (details.takeoverWaits !== 0) return "The resume wait stayed open after the user's message.";
+    if (turnsWith("restart note]").length !== 2)
+      return "The note went to a message other than the takeover's and the queued one.";
+    return null;
+  });
+
+  await runCase("T: an agent on its own provider process (a second account) is resumed", "#113", async (details) => {
+    const wakes =
+      (await waitFor(() => {
+        const found = wakeTurnsFor(account.request);
+        return found.length > 0 ? found : null;
+      }, 15_000)) ?? [];
+    details.entry = `${entry(account)?.state}:${entry(account)?.reason}`;
+    details.wakes = wakes.length;
+    details.afterStartMs = wakes[0] ? wakes[0].at - i3Started : null;
+    details.lines = messagesOf(i3, account.id)
+      .filter((message) => message.text.startsWith("🔄 Not resumed"))
+      .map((message) => message.text);
+    details.providerAccountId = i3.store.list().find((agent) => agent.id === account.id)?.providerAccountId ?? null;
+    // Its own process: another fake Codex than the one of the agents on the default account.
+    const firstPid = turnsWith(account.request)[0]?.pid;
+    details.firstTurnOwnProcess = firstPid !== undefined && firstPid !== turnsWith(basic.request)[0]?.pid;
+    details.wakeOwnProcess = wakes[0] !== undefined && wakes[0].pid !== wakeTurnsFor(basic.request)[0]?.pid;
+    if (details.providerAccountId !== secondAccount.id) return "The agent is not on the second account.";
+    if (!details.firstTurnOwnProcess) return "The agent's first turn did not run on its own process.";
+    if (wakes.length !== 1) return `Expected one wake, saw ${wakes.length} (${details.entry}).`;
+    if (!details.wakeOwnProcess) return "The wake did not run on the agent's own process.";
+    if (wakes[0]?.threadId !== firstThread.get(account.id)) return "The wake ran in another provider thread.";
     return null;
   });
 
@@ -978,7 +1058,7 @@ try {
   current = null;
 
   report.passed =
-    report.cases.length === 19 &&
+    report.cases.length === 20 &&
     report.cases.every((item) => item.passed) &&
     !report.errorEvents.some((error) => error.code.includes("restart_resume"));
   if (!report.passed) process.exitCode = 1;

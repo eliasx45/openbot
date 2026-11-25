@@ -70,6 +70,8 @@ const PROVIDER_WAIT_MS = () => envNumber("OPENBOT_FORK_RESTART_RESUME_PROVIDER_W
 /** How long a wake waits for boot recovery to settle the interrupted deliveries. */
 const SETTLE_WAIT_MS = () => envNumber("OPENBOT_FORK_RESTART_RESUME_SETTLE_WAIT_MS", 3 * 60_000);
 const RETRY_MS = 3_000;
+/** The skip reason when a message of the user waits in the queue and runs instead of the wake. */
+const QUEUED_MESSAGE_RUNS = "a queued message runs instead";
 const KEEP_MS = 24 * 60 * 60_000;
 const REQUEST_LIMIT = 4_000;
 /** Fork (#92): the longest task of one stopped subagent that a wake repeats. */
@@ -127,6 +129,11 @@ export interface RestartResumeEntry {
   cause?: "closed" | "crashed" | "interrupted";
   /** For "process": the provider session the subagents ran in. The wake runs only there. */
   externalSessionId?: string;
+  /**
+   * Fork (docs/fork/FEATURES.md #113): the user's delivery that got the note instead of the wake
+   * (`handOverNote`), so a rebuild of its prompt gets the same note once more.
+   */
+  handedTo?: string;
 }
 
 interface SavedState {
@@ -193,6 +200,11 @@ export class ForkRestartResume {
   readonly #firstTry = new Map<string, { settle: number | null; provider: number | null }>();
   /** When a turn last started in each agent's own chat. A note older than that was taken over. */
   readonly #turnStartedAt = new Map<string, number>();
+  /**
+   * Fork (docs/fork/FEATURES.md #113): the notes that a message took over in this run (a queued message
+   * at the restart, or a turn that started before the wake). The next message of the user gets them.
+   */
+  readonly #handOver = new Set<string>();
 
   constructor(options: { databasePath: string; hooks: ForkRestartResumeHooks }) {
     this.#hooks = options.hooks;
@@ -305,6 +317,8 @@ export class ForkRestartResume {
     if (reason) {
       entry.state = "skipped";
       entry.reason = reason;
+      // Fork (docs/fork/FEATURES.md #113): the queued message runs instead, and tells the agent.
+      if (reason === QUEUED_MESSAGE_RUNS) this.#handOver.add(key);
     }
     this.#state.entries = [...this.#state.entries.filter((item) => item.key !== key), entry];
     this.#save();
@@ -325,7 +339,7 @@ export class ForkRestartResume {
       if (routineId === "fork-compact" || routineId === "fork-keepwarm") return "OpenBot upkeep (compact or keep-warm)";
       if (routineId !== WAIT_ROUTINE_ID && routineId !== FORK_RESTART_RESUME_ROUTINE_ID) return "routine run";
     }
-    if (this.#hooks.laneQueued(entry.agentId) > 0) return "a queued message runs instead";
+    if (this.#hooks.laneQueued(entry.agentId) > 0) return QUEUED_MESSAGE_RUNS;
     return null;
   }
 
@@ -523,6 +537,50 @@ export class ForkRestartResume {
     this.#hooks.line(entry.agentId, text);
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md #113): the user wrote in the agent's own chat before the wake ran (or
+   * a message waited in the queue at the restart). That message runs instead of the wake, and without
+   * this the agent never learned that its turn or its background subagents had been stopped, so they
+   * stayed stopped. Gives the note to put before the user's message, once per note: the wait closes,
+   * and the note is not woken any more. The same delivery asking again (its prompt rebuilt) gets the
+   * same note. Null for a slash command (the provider runs it only at the start of the prompt), a task
+   * or channel thread, a note of a process stop (it has its own line), or nothing to tell.
+   */
+  handOverNote(input: { agentId: string; deliveryId: string; typed: string }): string | null {
+    if (!this.enabled() || /^\/[\w:-]+(?=$|\s)/u.test(input.typed.trim())) return null;
+    const agent = this.#hooks.agent(input.agentId);
+    if (!agent?.threadId) return null;
+    const notes = this.#state.entries.filter(
+      (entry) =>
+        entry.agentId === input.agentId &&
+        entry.threadId === agent.threadId &&
+        entry.trigger !== "process" &&
+        (entry.handedTo === input.deliveryId ||
+          (entry.handedTo === undefined &&
+            (entry.state === "pending" || (entry.state === "skipped" && this.#handOver.has(entry.key))))),
+    );
+    if (notes.length === 0) return null;
+    // Only a message of the agent's own chat: not a task thread, a channel or a messaging chat.
+    if (!this.#hooks.unresolvedOwnDeliveries(input.agentId).some((delivery) => delivery.id === input.deliveryId))
+      return null;
+    for (const entry of notes) {
+      if (entry.state === "pending") this.#skip(entry, "another turn started since the restart");
+      this.#handOver.delete(entry.key);
+      entry.handedTo = input.deliveryId;
+    }
+    this.#save();
+    return restartHandOverText({
+      notes: notes.map((entry) => ({
+        kind: entry.kind,
+        interruptedAt: entry.interruptedAt,
+        subagents: entry.subagents,
+        requestText: entry.requestText,
+      })),
+      timezone: this.#hooks.timezone(),
+      provider: agent.provider,
+    });
+  }
+
   /** Whether this wait is a wake that waits for its turn; a routine run does not wake it. */
   ownsWait(waitId: string): boolean {
     return this.#state.entries.some((entry) => entry.state === "pending" && entry.waitId === waitId);
@@ -579,7 +637,11 @@ export class ForkRestartResume {
     }
     const live = entry.trigger === "process";
     const tookOver = (reason: string) => {
-      if (!live) return skip(reason);
+      if (!live) {
+        // Fork (docs/fork/FEATURES.md #113): the message that came first gets the note instead.
+        this.#handOver.add(entry.key);
+        return skip(reason);
+      }
       this.#skipLive(entry, reason, "status.agent.subagentResumeTookOver");
       return "skipped" as const;
     };
@@ -587,7 +649,7 @@ export class ForkRestartResume {
     if ((this.#turnStartedAt.get(entry.agentId) ?? 0) >= Date.parse(entry.capturedAt))
       return tookOver(live ? "another turn started since the stop" : "another turn started since the restart");
     if (entry.kind === "goal" && !this.#hooks.goalWorking(entry.agentId)) return skip("the goal no longer runs");
-    if (this.#hooks.laneQueued(entry.agentId) > 0) return tookOver("a queued message runs instead");
+    if (this.#hooks.laneQueued(entry.agentId) > 0) return tookOver(QUEUED_MESSAGE_RUNS);
     const tries = this.#firstTry.get(entry.key) ?? { settle: null, provider: null };
     this.#firstTry.set(entry.key, tries);
     // A provider that is not ready, or signed out, gets some time; then one quiet line, no loop.
@@ -710,6 +772,55 @@ export class ForkRestartResume {
       renameSync(temporary, this.#file);
     } catch {}
   }
+}
+
+/** The longest request that a hand-over note repeats: the user's own message follows it. */
+const HAND_OVER_REQUEST_LIMIT = 1_000;
+
+/**
+ * Fork (docs/fork/FEATURES.md #113): the note before a message of the user that came before the
+ * restart's wake. It says what the restart stopped, names the stopped subagents as the wake does, and
+ * leaves the order to the agent: the user's message first, then the stopped work if it is still wanted.
+ */
+export function restartHandOverText(input: {
+  notes: ReadonlyArray<Pick<RestartResumeEntry, "kind" | "interruptedAt" | "subagents" | "requestText">>;
+  timezone: string | undefined;
+  provider: string;
+}): string {
+  const first = input.notes[0];
+  const at = localTime(first?.interruptedAt ?? new Date().toISOString(), input.timezone);
+  const kinds = new Set(input.notes.map((note) => note.kind));
+  const what = [
+    kinds.has("turn") ? "your last turn was interrupted" : null,
+    kinds.has("subagents") ? "your background subagents were stopped while you waited for them" : null,
+    kinds.has("goal") ? "your goal turns were stopped between two turns" : null,
+  ].filter((part): part is string => part !== null);
+  const claude = input.provider === "claude";
+  const antigravity = input.provider === "antigravity";
+  const subagents =
+    claude || antigravity
+      ? mergeSubagents(
+          [],
+          input.notes.flatMap((note) => note.subagents),
+        ).filter((subagent) => subagent.title || subagent.providerAgentId)
+      : [];
+  const name = (subagent: RestartResumeSubagent) =>
+    `${subagent.providerAgentId ?? (claude ? "(agent ID unknown: see your Agent call)" : "(conversation ID unknown)")} — ${subagent.title || "(no description)"}`;
+  const request = input.notes.map((note) => note.requestText).find((text) => text.trim() !== "") ?? "";
+  return [
+    `[OpenBot: 🔄 restart note] At ${at} an OpenBot restart stopped your work: ${what.join("; ") || "your last turn was interrupted"}. This note is from OpenBot, not from the user. The user wrote the message below before you were resumed, so it runs now instead of the automatic resume.`,
+    subagents.length > 0 ? `These subagents were stopped mid-task: ${subagents.map(name).join("; ")}.` : null,
+    "Answer the user's message first. Then, unless that message replaces or cancels the stopped work, continue it: check what already happened (files, git, messages already sent), never repeat sends, posts, payments or other outward actions.",
+    subagents.length > 0
+      ? claude
+        ? 'Continue each stopped subagent with SendMessage to its agent ID ("You were interrupted by a restart; check what\'s done and continue") — do NOT launch it again from scratch. Its result comes back to you as before.'
+        : "A stopped subagent does not report back and cannot be continued: check what it already did, then start a new subagent with invoke_subagent only for the work that is left."
+      : null,
+    request ? "The request that was stopped:" : null,
+    request ? request.slice(0, HAND_OVER_REQUEST_LIMIT) : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 }
 
 /** The routine name of the wake, which the chat shows as its line. Within the contract's 80 characters. */
