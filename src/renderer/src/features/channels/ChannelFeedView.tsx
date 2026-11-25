@@ -1,3 +1,4 @@
+import { limitedQuoteText } from "@openbot/contracts/chat-tag-references";
 import {
   type ChannelThreadSummary,
   type ChannelThreads,
@@ -12,17 +13,18 @@ import { AgentAvatar } from "@openbot/ui/features/agents/AgentAvatar";
 import { ChannelActivityIndicator } from "@openbot/ui/features/channels/ChannelActivityIndicator";
 import { ChatActionMarker } from "@openbot/ui/features/conversation/ChatActionMarker";
 import { type ChatMessageAuthor, ChatMessageRow } from "@openbot/ui/features/conversation/ChatMessageRow";
-import { ComposerEditor } from "@openbot/ui/features/conversation/ComposerEditor";
+import { ComposerEditor, type QuoteRequest } from "@openbot/ui/features/conversation/ComposerEditor";
 import { ComposerSendControl } from "@openbot/ui/features/conversation/ComposerSendControl";
 import { ApprovalCard } from "@openbot/ui/features/conversation/ConversationPrompts";
 import { ownMessageAuthor } from "@openbot/ui/features/conversation/own-bubble";
 import { RichMessageText } from "@openbot/ui/features/conversation/RichMessageText";
+import { MessageSelectionActions } from "@openbot/ui/features/conversation/SelectionActions";
 import { TeamPersonAvatar, teamMemberName } from "@openbot/ui/features/team/TeamPersonAvatar";
 import { useText } from "@openbot/ui/text";
 import { UserAvatar } from "@openbot/ui/user-avatar";
 import { createEffect, createMemo, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import { useShowAgentSteps } from "../../agent-steps-preference";
-import { deviceSendShortcut } from "../../send-shortcut-preference";
+import { deviceQuoteShortcut, deviceSendShortcut } from "../../send-shortcut-preference";
 import { ConversationBrowserTakeover } from "../conversation/ConversationBrowserTakeover";
 import { ConversationQuestionPrompt } from "../conversation/ConversationQuestionPrompt";
 import { useConversationViewScope } from "../conversation/conversation-scope";
@@ -410,7 +412,7 @@ export function ChannelFeedView(props: { model: ChannelFeedModel }) {
   );
 }
 
-function ChannelThreadPanel(props: { model: ChannelFeedModel; rootId: string; onClosed: () => void }) {
+export function ChannelThreadPanel(props: { model: ChannelFeedModel; rootId: string; onClosed: () => void }) {
   const { t } = useText();
   const scope = useConversationViewScope();
   const {
@@ -508,6 +510,13 @@ function ChannelThreadPanel(props: { model: ChannelFeedModel; rootId: string; on
     if (element.scrollHeight - element.scrollTop - element.clientHeight < FOOT_PX) atEnd = true;
     else if (Date.now() - panelIntentAt < INTENT_MS) atEnd = false;
   };
+  // Fork (docs/fork/FEATURES.md #112): the panel is its own selection scope. The conversation's bar
+  // ignores text selected here (its quote goes to the feed composer, a new thread); this bar quotes
+  // into the panel's reply box and sends Explain, Improve and a typed edit as a reply to the root.
+  const [selectionScope, setSelectionScope] = createSignal<HTMLElement>();
+  const [quoteRequest, setQuoteRequest] = createSignal<QuoteRequest>();
+  const quoteSelection = (messageId: string, text: string) =>
+    setQuoteRequest((current) => ({ id: (current?.id ?? 0) + 1, messageId, text: limitedQuoteText(text) }));
   const [openHandoffs, setOpenHandoffs] = createSignal<ReadonlySet<string>>(new Set());
   const toggleHandoff = (messageId: string) =>
     setOpenHandoffs((current) => {
@@ -597,6 +606,14 @@ function ChannelThreadPanel(props: { model: ChannelFeedModel; rootId: string; on
       aria-label={t("channel.thread.label", { name: props.model.name() })}
       data-thread-root={props.rootId}
     >
+      <MessageSelectionActions
+        scope={selectionScope()}
+        contextKey={props.rootId}
+        disabled={props.model.readOnly()}
+        onSend={(_messageId, body) => props.model.sendReply(props.rootId, body)}
+        onQuote={quoteSelection}
+        quoteShortcut={deviceQuoteShortcut(view.platform)}
+      />
       <Show when={beside()}>
         <PanelResizer
           class="right-panel-resizer"
@@ -646,8 +663,10 @@ function ChannelThreadPanel(props: { model: ChannelFeedModel; rootId: string; on
       <section
         ref={(element: HTMLElement) => {
           scroller = element;
+          setSelectionScope(element);
         }}
         class="conversation-scroll agent-thread-scroll channel-thread-scroll"
+        data-selection-scope=""
         onScroll={onScroll}
       >
         <div
@@ -706,13 +725,13 @@ function ChannelThreadPanel(props: { model: ChannelFeedModel; rootId: string; on
         </div>
       </section>
       <Show when={!props.model.readOnly()}>
-        <ThreadComposer model={props.model} rootId={props.rootId} />
+        <ThreadComposer model={props.model} rootId={props.rootId} quoteRequest={quoteRequest()} />
       </Show>
     </aside>
   );
 }
 
-function ThreadComposer(props: { model: ChannelFeedModel; rootId: string }) {
+function ThreadComposer(props: { model: ChannelFeedModel; rootId: string; quoteRequest?: QuoteRequest | undefined }) {
   const { t } = useText();
   const { props: view, installedSkills, openTaggedReference } = useConversationViewScope();
   const [draft, setDraft] = createSignal(threadDraft(props.model.channelId, props.rootId));
@@ -754,6 +773,7 @@ function ThreadComposer(props: { model: ChannelFeedModel; rootId: string }) {
             placeholder={t("channel.thread.placeholder")}
             ariaLabel={t("channel.thread.composerLabel")}
             focusRequest={props.model.panelFocus()}
+            quoteRequest={props.quoteRequest}
             disabled={sending()}
             sendShortcut={deviceSendShortcut(view.platform)}
             onOpenTag={openTaggedReference}
