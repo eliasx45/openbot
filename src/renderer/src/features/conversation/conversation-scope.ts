@@ -66,6 +66,7 @@ import {
   stopRevealingFileQuote,
   workspaceAgentOfPath,
 } from "./quoted-text";
+import { createReaderScrollIntent } from "./reader-scroll-intent";
 import type { SkillSuggestionSaveResult } from "./SkillSuggestionChatCard";
 import { createActivityStore } from "./stores/activity-store";
 import { createBrowserStore } from "./stores/browser-store";
@@ -88,8 +89,6 @@ import { createThreadQueue } from "./stores/thread-queue-edit";
 import { createVoiceConversation } from "./stores/voice-conversation-store";
 import { createVoiceStore } from "./stores/voice-store";
 
-const READER_INPUT_WINDOW_MS = 250;
-
 const handledSettingsRequests = new WeakSet<AgentSettingsRequest>();
 
 const handledMessageFocusRequests = new WeakSet<NonNullable<ConversationProps["messageFocusRequest"]>>();
@@ -108,6 +107,8 @@ const CHAT_GLIDE_OPEN_DELAY_MS = 600;
 const MEDIA_SETTLE_MS = 150;
 const MEDIA_LAYOUT_EVENTS = ["load", "error", "loadedmetadata"] as const;
 const SENT_MESSAGE_PIN_MS = 400;
+/** Within this distance of the end the chat counts as at the latest message. */
+const LATEST_MARGIN_PX = 80;
 const WAITING_QUESTION_CARD = '.question-prompt-bubble:not([data-state="done"])';
 
 export function createConversationViewScope(props: ConversationProps) {
@@ -1284,7 +1285,16 @@ export function createConversationViewScope(props: ConversationProps) {
   let lastMaxScrollTop = 0;
   let readerLeftLatest = false;
   let readerDragging = false;
-  let readerIntent: { up: boolean; at: number } | undefined;
+  // Fork (docs/fork/FEATURES.md #115): the reader's last wheel, key or touch, also when its scroll lands late.
+  const readerIntent = createReaderScrollIntent({
+    now: () => performance.now(),
+    requestFrame: (run) => {
+      const view = scrollElement?.ownerDocument.defaultView ?? window;
+      const frame = view.requestAnimationFrame(run);
+      return () => view.cancelAnimationFrame(frame);
+    },
+  });
+  onCleanup(readerIntent.dispose);
   let lastTouchY: number | undefined;
   let currentUnreadCount = 0;
   let unreadOpening: {
@@ -2344,12 +2354,20 @@ export function createConversationViewScope(props: ConversationProps) {
   }
   const followReaderScroll = (element: HTMLElement) => {
     const moved = element.scrollTop - lastScrollTop;
+    const previousMaxScrollTop = lastMaxScrollTop;
     lastScrollTop = element.scrollTop;
     lastMaxScrollTop = element.scrollHeight - element.clientHeight;
-    const intent = readerIntent && performance.now() - readerIntent.at < READER_INPUT_WINDOW_MS ? readerIntent : null;
-    // Fork (docs/fork/FEATURES.md #109): a move up by more than a screen that the reader did not make.
-    if (moved < -element.clientHeight && !readerDragging && !intent)
-      noteScroll("unprompted-move", { moved: Math.round(moved), readerLeftLatest });
+    const intent = readerIntent.current();
+    // Fork (docs/fork/FEATURES.md #109, #115): a move up that the reader did not make, by more than a
+    // screen, or by more than the latest's margin while the chat follows the latest (it then pulls the
+    // view back down). `inputAge` says how long before it the reader's last wheel, key or touch was.
+    if (!readerDragging && !intent && (moved < -element.clientHeight || (stickToLatest && moved < -LATEST_MARGIN_PX)))
+      noteScroll("unprompted-move", {
+        moved: Math.round(moved),
+        readerLeftLatest,
+        inputAge: readerIntent.age(),
+        maxShrunk: Math.round(previousMaxScrollTop - lastMaxScrollTop),
+      });
     if (moved < 0 && (readerDragging || intent?.up === true)) {
       if (stickToLatest) noteScroll("reader-up", { moved: Math.round(moved), dragging: readerDragging });
       leaveLatest();
@@ -2357,12 +2375,12 @@ export function createConversationViewScope(props: ConversationProps) {
       readerLeftLatest = false;
       unreadOpening.holding = false;
     }
-    if (!readerLeftLatest && element.scrollHeight - element.scrollTop - element.clientHeight <= 80) {
+    if (!readerLeftLatest && element.scrollHeight - element.scrollTop - element.clientHeight <= LATEST_MARGIN_PX) {
       stickToLatest = true;
     }
   };
   function noteReaderIntent(up: boolean) {
-    readerIntent = { up, at: performance.now() };
+    readerIntent.note(up);
     stopChatGlides();
   }
   function readerWheel(event: WheelEvent) {

@@ -35,6 +35,10 @@ export interface ChatScrollNote extends Partial<ChatScrollState> {
   moved?: number;
   readerLeftLatest?: boolean;
   dragging?: boolean;
+  /** Fork #115: milliseconds since the reader's last wheel, key or touch on the chat. */
+  inputAge?: number | undefined;
+  /** Fork #115: how far the end of the chat moved up with the move (content that shrank). */
+  maxShrunk?: number;
 }
 
 export function noteChatScroll(reason: string, detail: ChatScrollNote): void {
