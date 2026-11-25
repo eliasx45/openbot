@@ -43,6 +43,7 @@ import {
   type TaskReportState,
 } from "./delivery-content";
 import type { DuplicationGate } from "./duplication-gate";
+import { ForkHandoffRetry, forkProviderDownAtStart, forkSyncMessagingLine } from "./fork-handoff-retry";
 import { handoffHasHistory } from "./handoff-history";
 import type { LiveVoiceRelayed } from "./live-voice";
 import type { MailboxSync } from "./mailbox-sync";
@@ -210,6 +211,7 @@ export class DrainScheduler {
   readonly #startRetry = new RoutineStartRetry({
     retry: (deliveryId, agentId, provider) => Effect.runFork(this.#retryRoutineStart(deliveryId, agentId, provider)),
   });
+  readonly #forkRetry = new ForkHandoffRetry(); // Fork (docs/fork/FEATURES.md #106)
 
   constructor(options: DrainSchedulerOptions) {
     this.#store = options.store;
@@ -642,6 +644,7 @@ export class DrainScheduler {
 
   dispose(): void {
     this.#startRetry.dispose();
+    this.#forkRetry.clear(); // Fork (docs/fork/FEATURES.md #106)
     this.#busyRetries.clear();
     this.#drainingLanes.clear();
     this.#scheduledDrains.clear();
@@ -1095,6 +1098,7 @@ export class DrainScheduler {
       if (!this.#hooks.turnEnded(response.turn.id)) snapshot.activeTurnId = response.turn.id;
       confirmedTurnId = response.turn.id;
       this.#busyRetries.delete(agent.id);
+      for (const item of batch) this.#forkRetry.forget(item.delivery.id); // Fork (docs/fork/FEATURES.md #106)
       this.#turnModels.set(laneKey({ agentId: agent.id, taskId: laneId }), {
         turnId: response.turn.id,
         model: agent.model,
@@ -1222,6 +1226,8 @@ export class DrainScheduler {
               return;
             }
           }
+          // Fork (docs/fork/FEATURES.md #106): the provider was briefly down; the message waits for it.
+          if (yield* this.#forkWaitForProvider(context, batch, error, recipient, laneId, drainCallsAtStart)) return;
           this.#startRetry.forget(delivery.id);
           if (isRequestTimeout(error, "turn/start")) {
             turnMayRun = true;
@@ -1283,6 +1289,8 @@ export class DrainScheduler {
               yield* this.#mailbox.restoreQueued(companion.id).pipe(toDeliveryStartFailed);
           }
           this.#mailboxSync.emitQueue(delivery.recipientAgentId);
+          // Fork (docs/fork/FEATURES.md #106): a messaging message that failed shows as failed in its thread.
+          forkSyncMessagingLine(this.#conversation, this.#mailboxSync, this.#messaging, context, "failed");
           yield* this.#answerFailedRequest(delivery.id, delivery.recipientAgentId);
           const startReason = this.#startReason(recipient, error);
           if (this.#channels)
@@ -1354,6 +1362,47 @@ export class DrainScheduler {
   providerResumed(provider: AgentProvider): void {
     this.#startRetry.providerResumed(provider);
   }
+
+  /**
+   * Fork (docs/fork/FEATURES.md #106): a start that failed because the provider was briefly down puts the
+   * batch back in the queue. While OpenBot quits it only waits (the next start runs it); otherwise the
+   * lane holds until the provider resumes, a new message arrives or the backoff of #retryBusySession
+   * ends, and the message fails as before after FORK_HANDOFF_RETRY's limits.
+   */
+  readonly #forkWaitForProvider = Effect.fn("DrainScheduler.forkWaitForProvider")(function* (
+    this: DrainScheduler,
+    context: DeliveryContext,
+    batch: readonly DeliveryContext[],
+    error: unknown,
+    recipient: AgentSummary | undefined,
+    laneId: string | null,
+    drainCallsAtStart: number,
+  ) {
+    const { delivery } = context;
+    const agentId = delivery.recipientAgentId;
+    const signInRequired = recipient ? this.#providers.signInRequiredForAgent(recipient) : false;
+    if (!forkProviderDownAtStart(error, signInRequired)) return false;
+    const stopping = this.#hooks.isStopping();
+    if (!stopping && !this.#forkRetry.allow(delivery.id)) {
+      logger.warn("A message stopped waiting for its provider.", { agentId, deliveryId: delivery.id });
+      return false;
+    }
+    for (const item of batch) yield* this.#mailbox.restoreQueued(item.delivery.id).pipe(toDeliveryStartFailed);
+    this.#mailboxSync.emitQueue(agentId);
+    forkSyncMessagingLine(this.#conversation, this.#mailboxSync, this.#messaging, context, "queued");
+    logger.warn("A message waits for its provider to come back.", {
+      agentId,
+      deliveryId: delivery.id,
+      attempt: this.#forkRetry.attempts(delivery.id),
+      stopping,
+      reason: this.#hooks.redactMcp(error instanceof Error ? error.message : String(error)),
+    });
+    if (stopping) return true;
+    if ((this.#drainCalls.get(agentId) ?? 0) === drainCallsAtStart)
+      this.#providerTurnHolds.add(laneKey({ agentId, taskId: laneId }));
+    yield* this.#retryBusySession(agentId);
+    return true;
+  });
 
   readonly #retryRoutineStart = Effect.fn("DrainScheduler.retryRoutineStart")(function* (
     this: DrainScheduler,
