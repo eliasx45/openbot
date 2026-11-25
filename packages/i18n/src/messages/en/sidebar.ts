@@ -195,4 +195,8 @@ export const messages = defineMessages("sidebar", {
   "sidebar.sectionDefaults.noMembers": "No agents in this folder yet.",
   "sidebar.sectionDefaults.loadFailed": "Could not load the shared settings.",
   "sidebar.sectionDefaults.saveFailed": "Could not save the shared settings.",
+  "sidebar.sectionDefaults.discardTitle": "Discard changes?",
+  "sidebar.sectionDefaults.discardDescription": "Your unsaved changes to the shared settings of {folder} will be lost.",
+  "sidebar.sectionDefaults.discardConfirm": "Discard changes",
+  "sidebar.sectionDefaults.keepEditing": "Keep editing",
 });

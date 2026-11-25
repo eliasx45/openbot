@@ -80,10 +80,17 @@ function resolveIds(
   kind: string,
 ): { ids: string[] } | { error: string } {
   const result: string[] = [];
+  // The turn block names a skill by its slug ("client-voice"); the library by its name ("Client voice").
+  const slug = (text: string) =>
+    text
+      .toLocaleLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-+|-+$/gu, "");
   for (const value of requested) {
     const choice =
       choices.find((candidate) => candidate.id === value) ??
-      choices.find((candidate) => candidate.name.localeCompare(value, undefined, { sensitivity: "accent" }) === 0);
+      choices.find((candidate) => candidate.name.localeCompare(value, undefined, { sensitivity: "accent" }) === 0) ??
+      choices.find((candidate) => slug(candidate.name) === slug(value));
     if (!choice) return { error: `Unknown ${kind}: ${value}.` };
     if (!result.includes(choice.id)) result.push(choice.id);
   }

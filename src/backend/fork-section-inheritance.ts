@@ -382,10 +382,12 @@ export class ForkSectionInheritance {
     layer: ResolvedSectionLayer,
     names: { skills: SectionDefaultsChoice[]; mcpServers: SectionDefaultsChoice[] },
   ): InheritedSectionLayer {
+    // A skill or MCP server deleted since it was shared is left out, not shown as a bare id.
     const named = (ids: readonly string[], choices: SectionDefaultsChoice[]) =>
-      ids.map((id) => {
+      ids.flatMap((id) => {
         const choice = choices.find((candidate) => candidate.id === id);
-        return { id, name: choice?.name ?? id, ...(choice?.description ? { description: choice.description } : {}) };
+        if (!choice) return [];
+        return [{ id, name: choice.name, ...(choice.description ? { description: choice.description } : {}) }];
       });
     return {
       sectionId: layer.sectionId,
@@ -418,10 +420,19 @@ export class ForkSectionInheritance {
           .filter(([, assigned]) => assigned === sectionId)
           .map(([agentId]) => agentId),
       );
+      const stored = this.store.get(sectionId);
+      // Deleted skills and MCP servers drop out, so the next save removes them. An empty skill list may be a
+      // library that could not be read, so then the skill ids stay.
+      const known = (ids: string[], choices: SectionDefaultsChoice[]) =>
+        choices.length === 0 ? ids : ids.filter((id) => choices.some((choice) => choice.id === id));
       return {
         sectionId,
         path: layout ? sectionPath(layout, sectionId) : [],
-        defaults: this.store.get(sectionId),
+        defaults: {
+          ...stored,
+          skillIds: known(stored.skillIds, names.skills),
+          mcpServerIds: stored.mcpServerIds.filter((id) => names.mcpServers.some((choice) => choice.id === id)),
+        },
         parents: chain.slice(0, -1).map((parentId) => this.#layerView(this.#resolvedLayer(parentId), names)),
         members: this.#agents()
           .filter((agent) => inSection.has(agent.id))
@@ -479,9 +490,14 @@ export class ForkSectionInheritance {
     return Effect.suspend(() => {
       const changed: string[] = [];
       const seen = new Set<string>();
+      // A deleted MCP server still listed by a folder does not count, so it restarts no agent.
+      const servers = new Set(this.#mcpServerChoices().map((server) => server.id));
       for (const agent of this.#agents()) {
         seen.add(agent.id);
-        const next = this.resolve(agent.id).mcpServerIds.toSorted().join("\n");
+        const next = this.resolve(agent.id)
+          .mcpServerIds.filter((id) => servers.has(id))
+          .toSorted()
+          .join("\n");
         const before = this.#mcpSets.get(agent.id);
         this.#mcpSets.set(agent.id, next);
         if (before !== undefined && before !== next) changed.push(agent.id);

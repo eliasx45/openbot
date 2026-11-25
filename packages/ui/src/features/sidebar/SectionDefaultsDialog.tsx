@@ -4,7 +4,7 @@ import {
   type SectionDefaultsEditor,
   type UpdateSectionDefaultsInput,
 } from "@openbot/contracts/fork-section-defaults";
-import { Badge, Button, Checkbox, Dialog, Field, Input, Textarea } from "@openbot/ui";
+import { Badge, Button, Checkbox, ConfirmDialog, Dialog, Field, Input, Textarea } from "@openbot/ui";
 import type { JSX } from "@solidjs/web";
 import { createMemo, createSignal, For, onSettled, Show } from "solid-js";
 import { useText } from "../../text";
@@ -27,6 +27,7 @@ export function SectionDefaultsDialog(props: {
   const [filter, setFilter] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
   const [saving, setSaving] = createSignal(false);
+  const [confirmDiscard, setConfirmDiscard] = createSignal(false);
 
   onSettled(() => {
     props.calls.load(props.sectionId).then(
@@ -52,6 +53,23 @@ export function SectionDefaultsDialog(props: {
         (choice.description ?? "").toLocaleLowerCase().includes(query),
     );
   });
+  // Fork (docs/fork/FEATURES.md #108): Esc or a click outside asks before typed changes are lost.
+  const sameIds = (left: readonly string[], right: readonly string[]) =>
+    left.length === right.length && left.every((id) => right.includes(id));
+  const dirty = () => {
+    const loaded = editor();
+    return (
+      loaded !== null &&
+      (instructions() !== loaded.defaults.instructions ||
+        !sameIds(skillIds(), loaded.defaults.skillIds) ||
+        !sameIds(mcpServerIds(), loaded.defaults.mcpServerIds))
+    );
+  };
+  const requestClose = () => {
+    if (saving()) return;
+    if (dirty()) setConfirmDiscard(true);
+    else props.onClose();
+  };
   const toggle = (list: () => string[], set: (next: string[]) => void, id: string, on: boolean) =>
     set(on ? [...new Set([...list(), id])] : list().filter((candidate) => candidate !== id));
 
@@ -78,7 +96,7 @@ export function SectionDefaultsDialog(props: {
     <Dialog.Root
       open={true}
       onOpenChange={(open) => {
-        if (!open && !saving()) props.onClose();
+        if (!open) requestClose();
       }}
     >
       <Dialog.Portal>
@@ -190,6 +208,19 @@ export function SectionDefaultsDialog(props: {
           </Dialog.Content>
         </Dialog.Overlay>
       </Dialog.Portal>
+      <ConfirmDialog
+        open={confirmDiscard()}
+        onCancel={() => setConfirmDiscard(false)}
+        onConfirm={() => {
+          setConfirmDiscard(false);
+          props.onClose();
+        }}
+        title={t("sidebar.sectionDefaults.discardTitle")}
+        description={t("sidebar.sectionDefaults.discardDescription", { folder: folder() })}
+        confirmLabel={t("sidebar.sectionDefaults.discardConfirm")}
+        cancelLabel={t("sidebar.sectionDefaults.keepEditing")}
+        initialFocus="cancel"
+      />
     </Dialog.Root>
   );
 }

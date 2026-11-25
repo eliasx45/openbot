@@ -223,6 +223,43 @@ describe("section inheritance", () => {
     await runCauseEffect(sections.update({ sectionId: CLIENTS, instructions: "Only text" }));
     expect(refreshed).toHaveLength(2);
   });
+
+  it("leaves out a deleted skill or MCP server and drops it on the next save; keeps both fields of two updates", async () => {
+    const fixture = await sectionsFixture({ tapa: CLIENTS });
+    const { sections, store } = fixture;
+    const deletedSkill = "local-skill-99999999-9999-4999-8999-999999999999";
+    await runCauseEffect(
+      store.update({
+        sectionId: CLIENTS,
+        instructions: "Clients rule",
+        skillIds: [SKILL_ID, deletedSkill],
+        mcpServerIds: ["mcp-frameio", "mcp-deleted"],
+      }),
+    );
+    await runCauseEffect(sections.syncMcpGrants());
+    await runCauseEffect(
+      sections.update({ sectionId: CLIENTS, mcpServerIds: ["mcp-frameio", "mcp-deleted", "mcp-gone"] }),
+    );
+    expect(fixture.refreshed).toEqual([]);
+    const view = await runCauseEffect(sections.agentInheritance("tapa"));
+    expect(view.layers.at(-1)?.skills.map((skill) => skill.id)).toEqual([SKILL_ID]);
+    expect(view.layers.at(-1)?.mcpServers.map((server) => server.name)).toEqual(["Frame.io"]);
+    const editor = await runCauseEffect(sections.editor(CLIENTS));
+    expect(editor.defaults).toMatchObject({ skillIds: [SKILL_ID], mcpServerIds: ["mcp-frameio"] });
+    const { instructions, skillIds, mcpServerIds } = editor.defaults;
+    await runCauseEffect(sections.update({ sectionId: CLIENTS, instructions, skillIds, mcpServerIds }));
+    expect(store.get(CLIENTS)).toMatchObject({ skillIds: [SKILL_ID], mcpServerIds: ["mcp-frameio"] });
+
+    await Promise.all([
+      runCauseEffect(sections.update({ sectionId: CLIENTS, instructions: "Rule two" })),
+      runCauseEffect(sections.update({ sectionId: CLIENTS, skillIds: [OTHER_SKILL_ID] })),
+    ]);
+    expect(store.get(CLIENTS)).toMatchObject({
+      instructions: "Rule two",
+      skillIds: [OTHER_SKILL_ID],
+      mcpServerIds: ["mcp-frameio"],
+    });
+  });
 });
 
 function contextFixture(text: string, skills: SectionDefaultsContext["skills"] = []): SectionDefaultsContext {
@@ -431,6 +468,17 @@ describe("section tools", () => {
       handleForkSectionTool("update_section_defaults", { sectionId: CLIENTS, skillIds: ["nope"] }, options()),
     );
     expect(parse(unknown).error).toContain("list_local_skills");
+    const bySlug = await runCauseEffect(
+      handleForkSectionTool(
+        "update_section_defaults",
+        { sectionId: CLIENTS, skillIds: ["client-voice", "Color Grade"] },
+        options(),
+      ),
+    );
+    expect(parse(bySlug).skillIds).toEqual([SKILL_ID, OTHER_SKILL_ID]);
+    await runCauseEffect(
+      handleForkSectionTool("update_section_defaults", { sectionId: CLIENTS, skillIds: [SKILL_ID] }, options()),
+    );
 
     const own = parse(await runCauseEffect(handleForkSectionTool("read_section", {}, options())));
     expect(own).toMatchObject({

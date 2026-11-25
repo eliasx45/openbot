@@ -2283,16 +2283,19 @@ export class OpenBotToolRouter {
       });
     }
 
-    // Fork (docs/fork/FEATURES.md #108): read and write a section's shared defaults.
-    const forkSectionResult = yield* handleForkSectionTool(params.tool, params.arguments, {
-      sections: forkHub.sections,
-      senderAgentId,
-      requestersCanAdminister: [
-        ...this.#turnRequesters(senderAgentId, params.turnId),
-        ...this.#memberRequesters(senderAgentId, params.turnId),
-      ].every((personId) => this.#personCanAdminister(personId)),
-      approve: (reason) => this.#ownerApproval(client, request, params, senderAgentId, reason),
-    });
+    // Fork (docs/fork/FEATURES.md #108): read and write a section's shared defaults. Only these tools look up
+    // the requesters, which reads the mailbox.
+    const forkSectionResult = FORK_SECTION_TOOL_NAMES.has(params.tool)
+      ? yield* handleForkSectionTool(params.tool, params.arguments, {
+          sections: forkHub.sections,
+          senderAgentId,
+          requestersCanAdminister: [
+            ...this.#turnRequesters(senderAgentId, params.turnId),
+            ...this.#memberRequesters(senderAgentId, params.turnId),
+          ].every((personId) => this.#personCanAdminister(personId)),
+          approve: (reason) => this.#ownerApproval(client, request, params, senderAgentId, reason),
+        })
+      : null;
     if (forkSectionResult) return forkSectionResult;
 
     const sidebarResult = yield* handleSidebarTool(

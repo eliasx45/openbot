@@ -44,6 +44,8 @@ export function createForkSectionLink(agentId: () => string, enabled: () => bool
   );
   return {
     inheritance,
+    /** Changes when a folder is saved here or the sidebar changes; the folder page reloads on it. */
+    revision: () => sectionDefaultsRevision() + layoutRevision(),
     folder: () => {
       const loaded = inheritance();
       if (!loaded?.sectionId) return null;

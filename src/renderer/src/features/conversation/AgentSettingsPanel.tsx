@@ -700,6 +700,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
         <AgentSectionDefaultsView
           agentId={props.agent.id}
           calls={{ ...forkSectionDefaultsCalls, openLink: (url) => props.instructionsFile?.openLink(url) }}
+          revision={sectionLink.revision()}
           onEditSection={openSectionDefaults}
           onBack={() =>
             setDraft((state) => {

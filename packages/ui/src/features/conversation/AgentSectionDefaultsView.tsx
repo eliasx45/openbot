@@ -20,6 +20,8 @@ export interface AgentSectionDefaultsCalls {
 export function AgentSectionDefaultsView(props: {
   agentId: string;
   calls: AgentSectionDefaultsCalls;
+  /** Changes when a folder is saved or the sidebar changes, so the page reads the folders again. */
+  revision?: number;
   onEditSection: (sectionId: string) => void;
   onBack: () => void;
   onClose: () => void;
@@ -29,12 +31,15 @@ export function AgentSectionDefaultsView(props: {
   const [error, setError] = createSignal<string | null>(null);
   const [saving, setSaving] = createSignal<string | null>(null);
   let request = 0;
+  let shownAgentId: string | null = null;
 
   createEffect(
-    () => props.agentId,
-    (agentId) => {
+    () => ({ agentId: props.agentId, revision: props.revision ?? 0 }),
+    ({ agentId }) => {
       const current = ++request;
-      setInheritance(null);
+      // Another agent starts empty; a saved folder keeps the page while it reloads.
+      if (shownAgentId !== agentId) setInheritance(null);
+      shownAgentId = agentId;
       setError(null);
       props.calls.load(agentId).then(
         (loaded) => {
