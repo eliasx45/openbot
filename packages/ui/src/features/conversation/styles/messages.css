@@ -1389,17 +1389,19 @@ button.chat-action-target:active,
   max-width: var(--message-wide-bubble-width);
 }
 
-.message-entry .ui-bubble:has(.image-generation) {
+/* Fork (docs/fork/FEATURES.md entry 114): only a bubble without text takes the size of its image; a
+   reply with text keeps the width of a text reply, and its image block keeps the media size. */
+.message-entry .ui-bubble:has(.image-generation):where(:not(:has(.message-markdown))) {
   width: min(420px, 100%);
   max-width: min(420px, 100%);
 }
 
-.message-entry .ui-bubble:has(.media-generation) {
+.message-entry .ui-bubble:has(.media-generation):where(:not(:has(.message-markdown))) {
   width: min(480px, 100%);
   max-width: min(480px, 100%);
 }
 
-.message-entry .ui-bubble:has(.image-gallery) {
+.message-entry .ui-bubble:has(.image-gallery):where(:not(:has(.message-markdown))) {
   width: min(520px, 100%);
   max-width: min(520px, 100%);
 }
@@ -1427,6 +1429,19 @@ button.chat-action-target:active,
   display: grid;
   min-width: 0;
   gap: 10px;
+}
+
+/* Fork (docs/fork/FEATURES.md entry 114): the media size of an image block in a reply with text. */
+.message-entry .ui-bubble:has(.message-markdown) > .ui-bubble-content > .message-image-attachments {
+  width: min(420px, 100%);
+}
+
+.message-entry .ui-bubble:has(.message-markdown) > .ui-bubble-content > .media-generation {
+  width: min(480px, 100%);
+}
+
+.message-entry .ui-bubble:has(.message-markdown) > .ui-bubble-content > .image-gallery {
+  width: min(520px, 100%);
 }
 
 .media-generation-stage {
