@@ -13,6 +13,8 @@ import {
   decodeChannelPage,
   decodeChannelSummaries,
   decodeHostAnalytics,
+  isSidebarLayoutSnapshot,
+  type SidebarLayoutSnapshot,
 } from "@openbot/contracts/ipc";
 import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { TEAM_API_ROUTES } from "@openbot/contracts/team-api-routes";
@@ -25,11 +27,13 @@ import { AGENT_ACCESS_CODECS, AGENT_ACCESS_ROUTES } from "@openbot/contracts/tea
 import { CHANNEL_PICTURE_ROUTES } from "@openbot/contracts/team-protocol/channel-picture-v1";
 import { CHANNEL_ROUTES } from "@openbot/contracts/team-protocol/channels-v1";
 import { teamCapabilitiesForProtocol } from "@openbot/contracts/team-protocol/current";
+import { SIDEBAR_FOLDERS_ROUTES } from "@openbot/contracts/team-protocol/sidebar-folders-v1";
 import { STORAGE_CHANNEL_ROUTES } from "@openbot/contracts/team-protocol/storage-channel-v1";
 import { TEAM_PROTOCOL_V9 } from "@openbot/contracts/team-protocol/v9";
 import { Effect } from "effect";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { forkMemberProviderView } from "./team-api/fork-member-redaction";
+import { forkMemberSidebarView } from "./team-api/fork-member-sidebar";
 
 vi.mock("@openbot/contracts/input-limits", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@openbot/contracts/input-limits")>()),
@@ -633,5 +637,97 @@ describe("fork #107 channel-only partner access", () => {
     });
     expect(await statuses(get("agency/other.txt"))).toEqual({ owner: 200, chat: 404, view: 404, none: 404 });
     expect(await statuses(get("agency/../agency/other.txt"))).toMatchObject({ chat: 404, view: 404, none: 404 });
+  });
+});
+
+type Layout = SidebarLayoutSnapshot;
+function layoutOf(body: unknown): Layout {
+  if (!isSidebarLayoutSnapshot(body)) throw new Error(`Not a sidebar layout: ${JSON.stringify(body)}`);
+  return body;
+}
+
+describe("fork #117 a member's sidebar folders", () => {
+  const actions = (token: string, body: unknown) => call("POST", SIDEBAR_FOLDERS_ROUTES.actions, token, body);
+  const read = async (who: Who): Promise<Layout> => {
+    const response = await call("POST", SIDEBAR_FOLDERS_ROUTES.read, tokens[who], {});
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    return layoutOf(response.body);
+  };
+  const names = (layout: Layout) => layout.sections.map((section) => section.name).sort();
+
+  it("shows a member only the folders of the chats they see, and none of the others' names", async () => {
+    const folder = async (name: string, chatId?: string, parentId?: string) => {
+      const created = await actions(tokens.owner, {
+        type: "create",
+        name,
+        ...(chatId ? { agentId: chatId } : {}),
+        ...(parentId ? { parentId } : {}),
+      });
+      expect(created.status, JSON.stringify(created.body)).toBe(200);
+      const section = layoutOf(created.body).sections.find((item) => item.name === name);
+      if (!section) throw new Error(`No folder ${name}.`);
+      return section.id;
+    };
+    const agency = await folder("Agency", ids.channel);
+    await folder("Clients", ids.outside);
+    await folder("Private room", ids.other);
+    await folder("School");
+    await folder("Specialists", undefined, agency);
+
+    const owner = await read("owner");
+    expect(names(owner)).toEqual(["Agency", "Clients", "Private room", "School", "Specialists"]);
+
+    for (const who of ["chat", "view"] as const) {
+      const member = await read(who);
+      expect(names(member)).toEqual(["Agency"]);
+      expect(member.agentAssignments).toEqual({ [ids.channel]: agency });
+      expect(member.order.filter((id) => id !== "people" && id !== "unassigned")).toEqual([agency]);
+      expect(member.agentOrder.every((id) => id === ids.channel)).toBe(true);
+      expect(JSON.stringify(member)).not.toMatch(/Clients|School|Specialists|Private room/u);
+    }
+    const none = await read("none");
+    expect(names(none)).toEqual([]);
+    expect(none.agentAssignments).toEqual({});
+  });
+
+  it("refuses a member's folder changes and keeps the owner's", async () => {
+    const before = await read("owner");
+    for (const who of ["chat", "view", "none"] as const) {
+      expect((await actions(tokens[who], { type: "create", name: "Hamza" })).status).toBe(403);
+      for (const section of before.sections) {
+        expect((await actions(tokens[who], { type: "rename", sectionId: section.id, name: "x" })).status).toBe(403);
+        expect((await actions(tokens[who], { type: "delete", sectionId: section.id })).status).toBe(403);
+      }
+    }
+    expect(names(await read("owner"))).toEqual(names(before));
+  });
+
+  it("keeps the parents of a folder whose chat the member sees", () => {
+    const layout: Layout = {
+      revision: 3,
+      sections: [
+        { id: "editing", name: "Editing" },
+        { id: "clients", name: "Clients", parentId: "editing" },
+        { id: "school", name: "School" },
+      ],
+      order: ["people", "editing", "clients", "school", "unassigned"],
+      agentAssignments: { seen: "clients", hidden: "school" },
+      agentOrder: ["hidden", "seen"],
+    };
+    const event = { type: "sidebar-layout-changed", layout };
+    expect(forkMemberSidebarView(event, (chatId) => chatId === "seen")).toEqual({
+      type: "sidebar-layout-changed",
+      layout: {
+        revision: 3,
+        sections: [
+          { id: "editing", name: "Editing" },
+          { id: "clients", name: "Clients", parentId: "editing" },
+        ],
+        order: ["people", "editing", "clients", "unassigned"],
+        agentAssignments: { seen: "clients" },
+        agentOrder: ["seen"],
+      },
+    });
+    expect(forkMemberSidebarView({ other: 1 }, () => false)).toEqual({ other: 1 });
   });
 });

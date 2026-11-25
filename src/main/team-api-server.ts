@@ -331,6 +331,7 @@ import {
   forkSharedFileMentioned,
 } from "./team-api/fork-channel-access";
 import { forkMemberProviderView } from "./team-api/fork-member-redaction";
+import { forkMemberSidebarView } from "./team-api/fork-member-sidebar";
 import { routeChannelWebhook } from "./team-api/fork-route-channel-webhook";
 import { HttpError } from "./team-api/http-error";
 import {
@@ -582,6 +583,7 @@ export class TeamApiServer {
       capabilities: Set<string>;
       hiddenAgentIds?: ReadonlySet<string>;
       memberView?: boolean;
+      sidebarChat?: (chatId: string) => boolean;
     }
   >();
   readonly #duplicateRequests = new Map<
@@ -1141,6 +1143,7 @@ export class TeamApiServer {
       if (responseRoute) {
         responseRoute.hiddenAgentIds = this.#channelRouteHidden(context, hidden);
         responseRoute.memberView = !canAdministerServer(context.member.role);
+        if (responseRoute.memberView) responseRoute.sidebarChat = this.#memberSidebarChat(context.member, hidden);
       }
       const agentId = url.pathname.match(/^\/v1\/agents\/([^/]+)/u)?.[1];
       if (
@@ -1593,7 +1596,9 @@ export class TeamApiServer {
         : hiddenAgentView(value, hidden, protocol, exposedThread, closedThread);
     // Fork (docs/fork/FEATURES.md #107): no provider account identities for a member.
     const visible =
-      blockedMember && !canAdministerServer(blockedMember.role) ? forkMemberProviderView(projected) : projected;
+      blockedMember && !canAdministerServer(blockedMember.role)
+        ? forkMemberSidebarView(forkMemberProviderView(projected), this.#memberSidebarChat(blockedMember, hidden))
+        : projected;
     return capabilities.has(TEAM_REASONING_EFFORTS_CAPABILITY) ? visible : withLegacyReasoningEfforts(visible);
   }
 
@@ -2469,7 +2474,10 @@ export class TeamApiServer {
         ? withLegacyReasoningEfforts(visibleValue)
         : visibleValue;
     // Fork (docs/fork/FEATURES.md #107): no provider account identities for a member.
-    const effortValue = status < 400 && route.memberView ? forkMemberProviderView(legacyValue) : legacyValue;
+    const providerValue = status < 400 && route.memberView ? forkMemberProviderView(legacyValue) : legacyValue;
+    // Fork (docs/fork/FEATURES.md #117): a member's sidebar has only the folders of chats they see.
+    const effortValue =
+      status < 400 && route.sidebarChat ? forkMemberSidebarView(providerValue, route.sidebarChat) : providerValue;
     const sideRoute = teamSideRouteCodec(route.path);
     const encoded = sideRoute
       ? JSON.stringify(sideRoute.response(route.path, status, effortValue, options))
@@ -2637,6 +2645,15 @@ export class TeamApiServer {
     for (const agentId of hiddenProviderAgentIds(this.#options.agents.listAgents(), context.protocol))
       shown.add(agentId);
     return shown;
+  }
+
+  // Fork (docs/fork/FEATURES.md #117): the sidebar chats a member may see: agents they see, channels they see.
+  #memberSidebarChat(member: AccessMember, hidden: ReadonlySet<string>): (chatId: string) => boolean {
+    const agentIds = new Set(this.#options.agents.listAgents().map((agent) => agent.id));
+    const channelIds = new Set(this.#options.channels?.store.ids() ?? []);
+    const visibleChannels = new Set(this.#visibleChannelIds(member));
+    return (chatId) =>
+      channelIds.has(chatId) ? visibleChannels.has(chatId) : agentIds.has(chatId) && !hidden.has(chatId);
   }
 
   #visibleChannelIds(member: AccessMember): string[] {

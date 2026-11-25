@@ -8,7 +8,7 @@ import { parseSidebarFolderAction } from "../ipc/agent-inputs";
 import type { TeamApiAgents, TeamApiSidebarLayout } from "./dependencies";
 import { HttpError } from "./http-error";
 import type { RouteOutcome, TeamApiRequestContext } from "./request-context";
-import { readJson } from "./request-helpers";
+import { readJson, requireAdmin } from "./request-helpers";
 
 export async function routeSidebarFolders(
   context: TeamApiRequestContext,
@@ -23,6 +23,8 @@ export async function routeSidebarFolders(
     throw new HttpError(400, sourceText("error.team.sidebarFoldersUnsupported"));
   const body = await readJson(request);
   if (url.pathname === SIDEBAR_FOLDERS_ROUTES.read) return json(200, sidebarLayout.getSnapshot());
+  // Fork (docs/fork/FEATURES.md #117): the sidebar folders are the server's; a member cannot change them.
+  requireAdmin(context.member);
   const action = parseSidebarFolderAction(body);
   for (const agentId of [
     "agentId" in action ? action.agentId : undefined,
