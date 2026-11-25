@@ -323,7 +323,13 @@ import { RemoteScreenError } from "./remote-screen-gateway";
 import { RemoteWorkflowError, remoteCall, toRemoteWorkflowError } from "./remote-service-effects";
 import { isClientUse } from "./team-api/client-use";
 import type { TeamApiMcpServerOwners, TeamApiOptions, TeamApiSidebarLayout } from "./team-api/dependencies";
-import { forkAttachmentAllowed, forkChannelEventId, forkChannelRoute } from "./team-api/fork-channel-access";
+import {
+  forkAttachmentAllowed,
+  forkChannelEventId,
+  forkChannelRoute,
+  forkSharedFileMention,
+  forkSharedFileMentioned,
+} from "./team-api/fork-channel-access";
 import { routeChannelWebhook } from "./team-api/fork-route-channel-webhook";
 import { HttpError } from "./team-api/http-error";
 import {
@@ -1402,8 +1408,11 @@ export class TeamApiServer {
       if ((await routeInstanceTransfer(context, this.#options.instanceTransfer, newAgentHidden)) === "handled") return;
       if ((await routeInstanceTransferChunks(context, this.#options.instanceTransfer)) === "handled") return;
       if (
-        (await routeLiveActivityPush(context, this.#options.liveActivityPush, () =>
-          this.hiddenAgentIds(context.protocol, context.capabilities, context.member.id),
+        (await routeLiveActivityPush(
+          context,
+          this.#options.liveActivityPush,
+          () => this.hiddenAgentIds(context.protocol, context.capabilities, context.member.id),
+          (threadId) => this.#closedChannelThread(context.member)?.(threadId) ?? false,
         )) === "handled"
       )
         return;
@@ -1501,6 +1510,7 @@ export class TeamApiServer {
       mailbox: this.#options.mailbox,
       attachmentPreviews: this.#options.attachmentPreviews,
       attachmentAllowed: (attachmentId) => this.#attachmentAllowed(context.member, attachmentId),
+      sharedFileAllowed: (sharedPath) => this.#sharedFileAllowed(context.member, sharedPath),
     });
   }
 
@@ -1563,10 +1573,13 @@ export class TeamApiServer {
     const protocol = eventProtocol(capabilities);
     const hidden = new Set(providerHidden ?? hiddenProviderAgentIds(this.#options.agents.listAgents(), protocol));
     for (const id of blocked) hidden.add(id);
-    const blockedMember = blocked.size > 0 ? this.#blockedMembers.get(blocked) : undefined;
-    const exposedThread = blockedMember ? this.#channelThreadExposure(blockedMember) : undefined;
+    const blockedMember = this.#blockedMembers.get(blocked);
+    const exposedThread = blockedMember && blocked.size > 0 ? this.#channelThreadExposure(blockedMember) : undefined;
+    const closedThread = blockedMember ? this.#closedChannelThread(blockedMember) : undefined;
     const visible =
-      protocol === 1 ? legacyProviderView(value, hidden) : hiddenAgentView(value, hidden, protocol, exposedThread);
+      protocol === 1
+        ? legacyProviderView(value, hidden)
+        : hiddenAgentView(value, hidden, protocol, exposedThread, closedThread);
     return capabilities.has(TEAM_REASONING_EFFORTS_CAPABILITY) ? visible : withLegacyReasoningEfforts(visible);
   }
 
@@ -1745,7 +1758,7 @@ export class TeamApiServer {
       if (known) return known;
       const member = this.#connectionMember(connection);
       const blocked = this.#blockedAgentIds(member, agents());
-      const channelKey = blocked.size > 0 ? this.#visibleChannelIds(member).sort().join(",") : "";
+      const channelKey = canAdministerServer(member.role) ? "" : this.#visibleChannelIds(member).sort().join(",");
       const resolved = { member, blocked, key: `${[...blocked].sort().join(",")}|${channelKey}` };
       access.set(connection.memberId, resolved);
       return resolved;
@@ -2568,6 +2581,22 @@ export class TeamApiServer {
     });
   }
 
+  // Fork (docs/fork/FEATURES.md #107): a member who sees no agent reads only the shared files that a message of
+  // one of their channels names. A member who sees an agent keeps the upstream rule (any shared file).
+  #sharedFileAllowed(member: AccessMember, sharedPath: string): boolean {
+    if (canAdministerServer(member.role) || !this.#options.agentAccess) return true;
+    if (this.#options.agents.listAgents().some((agent) => this.agentLevel(member, agent.id) !== "none")) return true;
+    const channels = this.#options.channels;
+    const mention = forkSharedFileMention(sharedPath);
+    if (!channels || mention === null) return false;
+    return this.#visibleChannelIds(member).some((channelId) =>
+      forkSharedFileMentioned(
+        mention,
+        channels.store.messages(channelId).map((entry) => entry.message.text),
+      ),
+    );
+  }
+
   #blockedAgentIds(
     member: AccessMember | string,
     agents: readonly AgentSummary[] = this.#options.agents.listAgents(),
@@ -2579,7 +2608,7 @@ export class TeamApiServer {
     if (!access || !serverId || canAdministerServer(resolved.role)) return blocked;
     const levels = access.levels(serverId);
     for (const agent of agents) if (agentAccessLevel(levels, resolved, agent.id) === "none") blocked.add(agent.id);
-    if (blocked.size > 0) this.#blockedMembers.set(blocked, resolved);
+    this.#blockedMembers.set(blocked, resolved);
     return blocked;
   }
 
@@ -2598,6 +2627,17 @@ export class TeamApiServer {
     const channels = this.#options.channels;
     if (!channels) return [];
     return channels.store.ids().filter((channelId) => this.channelLevel(member, channelId) !== "none");
+  }
+
+  // Fork (docs/fork/FEATURES.md #107): a question or approval of a channel the member cannot see stays
+  // hidden, also when the member sees the agent that asks.
+  #closedChannelThread(member: AccessMember): ((threadId: string) => boolean) | undefined {
+    const channels = this.#options.channels;
+    if (!channels || canAdministerServer(member.role)) return undefined;
+    return (threadId) => {
+      const channelId = channels.store.channelForThread(threadId);
+      return channelId !== null && this.channelLevel(member, channelId) === "none";
+    };
   }
 
   #channelThreadExposure(member: AccessMember): ((threadId: string) => boolean) | undefined {
@@ -3012,7 +3052,7 @@ export class TeamApiServer {
       channelLevel: (channelId) => this.channelLevel(authenticated.member, channelId),
       threadChannelLevel: (threadId) => {
         const channelId = this.#options.channels?.store.channelForThread(threadId) ?? null;
-        return channelId === null ? "none" : this.channelLevel(authenticated.member, channelId);
+        return channelId === null ? null : this.channelLevel(authenticated.member, channelId);
       },
       json: (status, value) => this.#json(response, status, value),
       empty: (status) => this.#empty(response, status),

@@ -44,9 +44,27 @@ export function hiddenAgentView(
   hiddenIds: ReadonlySet<string>,
   protocol: 4 | 5 | 6 | 7 | 8,
   exposedThread?: (threadId: string) => boolean,
+  closedThread?: (threadId: string) => boolean,
 ): TeamProtocolV1JsonValue {
   const json: TeamProtocolV1JsonValue = JSON.parse(JSON.stringify(value));
-  return project(json, hiddenIds, protocol, "", "", exposedThread);
+  return project(json, hiddenIds, protocol, "", "", exposedThread, closedThread);
+}
+
+const CLOSED_THREAD_LISTS: ReadonlySet<string> = new Set(["pendingPrompts", "pendingApprovals"]);
+
+// Fork (docs/fork/FEATURES.md #107): a question or approval of a channel thread that the member cannot see.
+function closedThreadItem(
+  value: TeamProtocolV1JsonObject,
+  key: string,
+  listKey: string,
+  closedThread: ((threadId: string) => boolean) | undefined,
+): boolean {
+  return (
+    closedThread !== undefined &&
+    typeof value.threadId === "string" &&
+    (CLOSED_THREAD_LISTS.has(listKey) || key === "approval" || value.type === "prompt") &&
+    closedThread(value.threadId)
+  );
 }
 
 const EXPOSED_THREAD_LISTS: ReadonlySet<string> = new Set(["pendingPrompts", "pendingApprovals", "activeTurns"]);
@@ -72,15 +90,17 @@ function project(
   key = "",
   listKey = "",
   exposedThread?: (threadId: string) => boolean,
+  closedThread?: (threadId: string) => boolean,
 ): TeamProtocolV1JsonValue {
   if (Array.isArray(value)) {
     return value.flatMap((item) => {
       if ((key === "agentOrder" || key === "agentIds") && typeof item === "string" && hiddenIds.has(item)) return [];
-      const visible = project(item, hiddenIds, protocol, "", key, exposedThread);
+      const visible = project(item, hiddenIds, protocol, "", key, exposedThread, closedThread);
       return visible === null && item !== null ? [] : [visible];
     });
   }
   if (value === null || typeof value !== "object") return value;
+  if (closedThreadItem(value, key, listKey, closedThread)) return null;
   if (!isPeerHiddenProvider(value.provider, protocol) && exposedThreadItem(value, key, listKey, exposedThread))
     return value;
   if (
@@ -107,7 +127,7 @@ function project(
     const visible =
       (field === "typingAgentId" || field === "leadAgentId") && typeof child === "string" && hiddenIds.has(child)
         ? null
-        : project(child, hiddenIds, protocol, field, "", exposedThread);
+        : project(child, hiddenIds, protocol, field, "", exposedThread, closedThread);
     if (visible === null && child !== null && ["snapshot", "page", "approval", "request"].includes(field)) return null;
     result[field] = visible;
   }

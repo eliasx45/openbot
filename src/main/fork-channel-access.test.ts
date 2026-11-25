@@ -2,7 +2,7 @@
 // Fork (docs/fork/FEATURES.md #107): channel-only partner access through the real Team API server.
 
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CHANNEL_WEBHOOK_ROUTES } from "@openbot/contracts/fork-channel-webhooks";
@@ -187,7 +187,19 @@ async function startHost() {
     storage,
   });
   const port = await Effect.runPromise(server.start());
-  return { database, agents, mailbox, team, access, server, storage, port, runCauseEffect, webhooks };
+  return {
+    database,
+    agents,
+    mailbox,
+    team,
+    access,
+    server,
+    storage,
+    port,
+    runCauseEffect,
+    webhooks,
+    sharedRoot: agentStore.sharedRoot,
+  };
 }
 
 async function call(
@@ -530,5 +542,42 @@ describe("fork #107 channel-only partner access", () => {
       enabled: true,
     });
     expect(bad.status).toBe(400);
+    const mapped = await call("POST", CHANNEL_WEBHOOK_ROUTES.set, tokens.owner, {
+      channelId: ids.channel,
+      url: "https://[::ffff:169.254.169.254]/latest/meta-data",
+      enabled: true,
+    });
+    expect(mapped.status).toBe(400);
+  });
+
+  it("keeps hidden agents out of the members' read states", async () => {
+    const reads = async (who: Who) => {
+      const response = await call("GET", TEAM_API_ROUTES.agents.conversationReads, tokens[who]);
+      expect(response.status).toBe(200);
+      return Object.keys(isDynamicRecord(response.body) ? response.body : {}).sort();
+    };
+    expect(await reads("owner")).toEqual([ids.inside, ids.outside].sort());
+    for (const who of ["chat", "view", "none"] as const) expect(await reads(who)).toEqual([]);
+  });
+
+  it("opens a shared file for a member without agents only when a message of their channel names it", async () => {
+    await mkdir(join(host.sharedRoot, "agency"), { recursive: true });
+    await writeFile(join(host.sharedRoot, "agency", "cut.txt"), "cut");
+    await writeFile(join(host.sharedRoot, "agency", "other.txt"), "other");
+    const store = host.agents.channels.store;
+    store.update(store.get(ids.channel), {
+      messages: [agentMessage(ids.channel, ids.inside, "Traf", "The cut is at ~/OpenBot/Shared/agency/cut.txt.")],
+    });
+    const get = (path: string) => (who: Who) =>
+      call("GET", `${TEAM_API_ROUTES.sharedFiles}?path=${encodeURIComponent(path)}`, tokens[who]);
+    expect(await statuses(get("agency/cut.txt"))).toEqual({ owner: 200, chat: 200, view: 200, none: 404 });
+    expect(await statuses(get("~/OpenBot/Shared/agency/cut.txt"))).toEqual({
+      owner: 200,
+      chat: 200,
+      view: 200,
+      none: 404,
+    });
+    expect(await statuses(get("agency/other.txt"))).toEqual({ owner: 200, chat: 404, view: 404, none: 404 });
+    expect(await statuses(get("agency/../agency/other.txt"))).toMatchObject({ chat: 404, view: 404, none: 404 });
   });
 });

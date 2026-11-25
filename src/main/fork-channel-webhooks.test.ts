@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   CHANNEL_WEBHOOK_SIGNATURE_HEADER,
+  channelWebhookBlockedAddress,
   channelWebhookUrlProblem,
   parseChannelWebhookChange,
 } from "@openbot/contracts/fork-channel-webhooks";
@@ -242,6 +243,22 @@ describe("fork #107 outbound channel webhook", () => {
     expect(channelWebhookUrlProblem("https://metadata.google.internal/")).toBe("blocked-host");
     expect(channelWebhookUrlProblem("https://[fe80::1]/")).toBe("blocked-host");
     expect(channelWebhookUrlProblem("https://100.100.100.100/")).toBe("blocked-host");
+    // IPv4 inside IPv6: the URL parser writes [::ffff:169.254.169.254] as [::ffff:a9fe:a9fe].
+    for (const url of [
+      "https://[::ffff:169.254.169.254]/latest",
+      "https://[::ffff:a9fe:a9fe]/latest",
+      "https://[::a9fe:a9fe]/latest",
+      "https://[::ffff:0:a9fe:a9fe]/latest",
+      "https://[64:ff9b::a9fe:a9fe]/latest",
+      "https://[::ffff:100.100.100.100]/",
+      "https://[::ffff:0.0.0.0]/",
+    ])
+      expect(channelWebhookUrlProblem(url), url).toBe("blocked-host");
+    expect(channelWebhookBlockedAddress("::ffff:169.254.169.254")).toBe(true);
+    expect(channelWebhookBlockedAddress("64:ff9b::a9fe:a9fe")).toBe(true);
+    expect(channelWebhookBlockedAddress("::1")).toBe(false);
+    expect(channelWebhookBlockedAddress("2606:4700::6810:84e5")).toBe(false);
+    expect(channelWebhookUrlProblem("https://[2606:4700::6810:84e5]/in")).toBeNull();
     expect(channelWebhookUrlProblem("not a url")).toBe("invalid");
     expect(() =>
       parseChannelWebhookChange({ channelId: "c", url: "http://169.254.169.254/", enabled: true }),

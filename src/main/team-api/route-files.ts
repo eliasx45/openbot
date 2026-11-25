@@ -67,11 +67,12 @@ export interface FileRouteDependencies {
   mailbox: TeamApiMailbox;
   attachmentPreviews?: TeamApiAttachmentPreviews | undefined;
   attachmentAllowed?: ((attachmentId: string) => boolean) | undefined;
+  sharedFileAllowed?: ((sharedPath: string) => boolean) | undefined;
 }
 
 export async function routeFiles(
   context: TeamApiRequestContext,
-  { agents, mailbox, attachmentPreviews, attachmentAllowed }: FileRouteDependencies,
+  { agents, mailbox, attachmentPreviews, attachmentAllowed, sharedFileAllowed }: FileRouteDependencies,
 ): Promise<RouteOutcome> {
   const { method, url, request, response, member, json, empty } = context;
 
@@ -141,6 +142,8 @@ export async function routeFiles(
     if (!sharedPath || sharedPath.length > INPUT_LIMITS.path) {
       throw new HttpError(400, "A valid shared file path is required.");
     }
+    if (sharedFileAllowed && !sharedFileAllowed(sharedPath))
+      throw new HttpError(404, sourceText("error.team.attachmentNotFound"));
     const sharedFile = await runCauseEffect(agents.resolveSharedFile(sharedPath));
     if (sharedFile.size > ATTACHMENT_LIMITS.fileBytes) {
       throw new HttpError(413, sourceText("error.team.sharedFileTooLarge"));

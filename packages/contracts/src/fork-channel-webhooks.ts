@@ -70,9 +70,43 @@ function bareHost(hostname: string): string {
   return lower.startsWith("[") && lower.endsWith("]") ? lower.slice(1, -1) : lower;
 }
 
+// Fork (docs/fork/FEATURES.md #107): the IPv4 address inside an IPv6 one (`::ffff:a9fe:a9fe` is how the
+// URL parser writes `[::ffff:169.254.169.254]`; also `::a.b.c.d`, `::ffff:0:a.b.c.d` and NAT64 `64:ff9b::/96`).
+function embeddedIpv4(host: string): number[] | null {
+  if (!host.includes(":")) return null;
+  const dotted = host.match(/^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/u);
+  let text = host;
+  if (dotted) {
+    const v4 = ipv4Parts(dotted[2] ?? "");
+    if (!v4) return null;
+    text = `${dotted[1]}${(((v4[0] ?? 0) << 8) | (v4[1] ?? 0)).toString(16)}:${(((v4[2] ?? 0) << 8) | (v4[3] ?? 0)).toString(16)}`;
+  }
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const missing = 8 - head.length - tail.length;
+  if (missing < 0 || (halves.length === 1 && missing !== 0)) return null;
+  const groups = [...head, ...Array<string>(missing).fill("0"), ...tail].map((group) =>
+    /^[0-9a-f]{1,4}$/u.test(group) ? Number.parseInt(group, 16) : Number.NaN,
+  );
+  if (groups.length !== 8 || groups.some(Number.isNaN)) return null;
+  const [g0, g1, g2, g3, g4, g5, g6 = 0, g7 = 0] = groups;
+  const mapped =
+    g0 === 0 &&
+    g1 === 0 &&
+    g2 === 0 &&
+    g3 === 0 &&
+    ((g4 === 0 && (g5 === 0 || g5 === 0xffff)) || (g4 === 0xffff && g5 === 0));
+  const nat64 = g0 === 0x64 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0;
+  if (!mapped && !nat64) return null;
+  if (g0 === 0 && g4 === 0 && g5 === 0 && g6 === 0 && g7 <= 1) return null;
+  return [g6 >> 8, g6 & 0xff, g7 >> 8, g7 & 0xff];
+}
+
 export function channelWebhookBlockedAddress(address: string): boolean {
   const host = bareHost(address);
-  const v4 = ipv4Parts(host.startsWith("::ffff:") ? host.slice(7) : host);
+  const v4 = ipv4Parts(host.startsWith("::ffff:") ? host.slice(7) : host) ?? embeddedIpv4(host);
   if (v4) {
     const [a = 0, b = 0] = v4;
     return a === 0 || (a === 169 && b === 254) || (a === 100 && b === 100) || a >= 224;

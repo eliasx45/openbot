@@ -93,6 +93,8 @@ interface PushNotificationOptions {
     startedAt: number | null,
   ): boolean;
   channelForThread?(threadId: string): AgentNotificationChannel | null;
+  /** Fork (docs/fork/FEATURES.md #107): the member cannot see this channel (level `none`). */
+  channelClosed?(memberId: string, channelId: string): boolean;
   randomBytes(size: number): Uint8Array;
   now?: () => number;
   logger?: { warn(message: string, ...values: unknown[]): void };
@@ -334,6 +336,8 @@ export class PushNotificationService {
     for (const registration of targets) {
       const { stored } = registration;
       const { value, memberId, sessionId } = stored;
+      // Fork (docs/fork/FEATURES.md #107): no notice about a channel the member cannot see.
+      if (channel && this.#options.channelClosed?.(memberId, channel.id)) continue;
       const translate = translateFor(resolveLocale("system", value.locale));
       const chosen = this.#options.memberLevels?.(memberId);
       const level = agentNotificationLevel(

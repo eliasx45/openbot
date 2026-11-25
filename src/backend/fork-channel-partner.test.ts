@@ -183,6 +183,30 @@ describe("fork #107 channel turns of a remote member", () => {
     expect(service.store.get(channelId).instructions).toBe("Be kind.");
   });
 
+  it("refuses a channel memory delete that a non-admin member asks an agent for", async () => {
+    const { service, channelId } = await setup({ remote: true, admin: false });
+    const memory = service.memories.saveFromTool(channelId, "Elias's rule.", "turn-0", "seed-memory");
+    const refused = await Effect.runPromise(
+      service.tool(channelId, TRAF.id, "turn-1", "call-forget", "channel_forget_memory", { memoryId: memory.id }),
+    );
+    expect(refused).toMatchObject({ accepted: false, reason: expect.stringContaining("Only an owner or admin") });
+    expect(service.memories.list(channelId).map((item) => item.text)).toEqual(["Elias's rule."]);
+    const remembered = await Effect.runPromise(
+      service.tool(channelId, TRAF.id, "turn-1", "call-remember", "channel_remember", { text: "Partner fact." }),
+    );
+    expect(remembered).toMatchObject({ accepted: true });
+  });
+
+  it("lets an admin's request delete a channel memory", async () => {
+    const { service, channelId } = await setup({ remote: true, admin: true });
+    const memory = service.memories.saveFromTool(channelId, "Old rule.", "turn-0", "seed-memory");
+    const deleted = await Effect.runPromise(
+      service.tool(channelId, TRAF.id, "turn-1", "call-forget", "channel_forget_memory", { memoryId: memory.id }),
+    );
+    expect(deleted).toMatchObject({ accepted: true });
+    expect(service.memories.list(channelId)).toEqual([]);
+  });
+
   it("sends the turn's final answer to the outbound webhook", async () => {
     const { service, channelId, threadId, task } = await setup({ remote: true, admin: false });
     const turnAnswered = vi.fn();

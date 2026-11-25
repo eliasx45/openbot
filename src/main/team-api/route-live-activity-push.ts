@@ -14,6 +14,7 @@ export async function routeLiveActivityPush(
   context: TeamApiRequestContext,
   push: LiveActivityPushService | undefined,
   hiddenAgentIds: () => ReadonlySet<string>,
+  closedThread?: (threadId: string) => boolean,
 ): Promise<RouteOutcome> {
   const { method, url, capabilities, request, json, member, sessionId } = context;
   if (
@@ -32,7 +33,12 @@ export async function routeLiveActivityPush(
   }
   push.register(
     sessionId,
-    { memberId: member.id, hiddenAgentIds, readOptions: markerExclusionsForCapabilities(capabilities) },
+    {
+      memberId: member.id,
+      hiddenAgentIds,
+      ...(closedThread ? { closedThread } : {}),
+      readOptions: markerExclusionsForCapabilities(capabilities),
+    },
     registration(body),
   );
   return json(200, {});

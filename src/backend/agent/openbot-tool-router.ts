@@ -2183,12 +2183,13 @@ export class OpenBotToolRouter {
       return { success: true, contentItems: [{ type: "inputText", text: redactText(JSON.stringify(payload)) }] };
     }
 
-    if (params.tool === "interrupt_agent")
-      return yield* this.#interruptTool.handle(
-        params,
-        senderAgentId,
-        this.#memberRequesters(senderAgentId, params.turnId),
-      );
+    if (params.tool === "interrupt_agent") {
+      const requesterIds = this.#memberRequesters(senderAgentId, params.turnId);
+      // Fork (docs/fork/FEATURES.md #107): an agent outside the requesters' reach reads as unknown.
+      const unreachable = this.#unreachableAgent(params.arguments, senderAgentId, requesterIds, channelId);
+      if (unreachable) return unreachable;
+      return yield* this.#interruptTool.handle(params, senderAgentId, requesterIds);
+    }
 
     if (params.tool === "read_agent") {
       const args = readAgentToolSchema.parse(params.arguments ?? {});
@@ -2213,7 +2214,41 @@ export class OpenBotToolRouter {
 
     if (params.tool === "update_profile") return yield* this.#updateProfile(params, senderAgentId);
 
-    if (params.tool === "update_agents") return yield* handleUpdateAgentsTool(params, senderAgentId, this.#hooks);
+    if (params.tool === "update_agents") {
+      // Fork (docs/fork/FEATURES.md #107): in a member's turn, only agents that every requester manages.
+      const requesterIds = this.#memberRequesters(senderAgentId, params.turnId);
+      if (requesterIds.length === 0) return yield* handleUpdateAgentsTool(params, senderAgentId, this.#hooks);
+      const managed = () =>
+        this.#hooks
+          .listAgents()
+          .filter(
+            (agent) =>
+              agent.id === senderAgentId ||
+              requesterIds.every(
+                (personId) => (this.#channels.hooks.personAgentLevel?.(personId, agent.id) ?? "manage") === "manage",
+              ),
+          );
+      const targets = isRecord(params.arguments) ? params.arguments.agentIds : undefined;
+      if (
+        Array.isArray(targets) &&
+        targets.some((id) => id === senderAgentId) &&
+        !requesterIds.every(
+          (personId) => (this.#channels.hooks.personAgentLevel?.(personId, senderAgentId) ?? "manage") === "manage",
+        )
+      )
+        return openBotToolFailure(
+          "The person who asked cannot change this agent's settings. Tell them to ask an owner or admin.",
+        );
+      return yield* handleUpdateAgentsTool(params, senderAgentId, {
+        listAgents: managed,
+        listModels: () => this.#hooks.listModels(),
+        agentModels: (input) => this.#hooks.agentModels(input),
+        providerAccounts: (provider) => this.#hooks.providerAccounts(provider),
+        providerStatuses: () => this.#hooks.providerStatuses(),
+        updateAgent: (input, actorAgentId) => this.#hooks.updateAgent(input, actorAgentId),
+        redactMcp: (text) => this.#hooks.redactMcp(text),
+      });
+    }
 
     if (params.tool === "start_new_chat") {
       const agent = this.#store.list().find((candidate) => candidate.id === senderAgentId);
@@ -3173,10 +3208,31 @@ export class OpenBotToolRouter {
     );
   }
 
+  #unreachableAgent(
+    args: unknown,
+    senderAgentId: string,
+    requesterIds: readonly string[],
+    channelId: string | null,
+  ): OpenBotToolResponse | null {
+    if (requesterIds.length === 0 || !isRecord(args) || typeof args.agentId !== "string") return null;
+    const targetId = args.agentId.trim();
+    const reachable = this.#reachableAgents(senderAgentId, requesterIds, channelId);
+    if (reachable.some((agent) => agent.id === targetId)) return null;
+    return openBotToolFailure(
+      unknownAgentMessage(
+        targetId,
+        reachable.filter((candidate) => candidate.id !== senderAgentId),
+      ),
+    );
+  }
+
   #fromRemoteMember(agentId: string, turnId: string): boolean {
+    // Fork (docs/fork/FEATURES.md #107): a channel task that a remote member started or continued counts too.
     return this.#mailbox
       .findDeliveriesByTurn(agentId, turnId)
-      .some(({ delivery }) => this.#remoteMember(delivery.messageId));
+      .some(
+        ({ delivery }) => this.#remoteMember(delivery.messageId) || this.#channelTaskPeople(delivery.id).length > 0,
+      );
   }
 
   postVaultNote(agentId: string, threadId: string, turnId: string, text: string): void {

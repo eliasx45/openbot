@@ -22,8 +22,10 @@ export async function routePendingApproval(
   const requestId = body.requestId;
   const approval =
     typeof requestId === "string" || typeof requestId === "number" ? agents.pendingApproval(requestId) : undefined;
-  const inChannel = approval?.agentId === agentId && context.threadChannelLevel(approval.threadId) !== "none";
-  if (!inChannel) {
+  const channelLevel = approval?.agentId === agentId ? context.threadChannelLevel(approval.threadId) : null;
+  // Fork (docs/fork/FEATURES.md #107): an approval of a channel thread follows the channel level alone.
+  if (channelLevel === "none") throw new HttpError(404, sourceText("error.team.agentNotFound"));
+  if (channelLevel === null) {
     if (hiddenAgentIds.has(agentId) || !agents.listAgents().some((agent) => agent.id === agentId))
       throw new HttpError(404, sourceText("error.team.agentNotFound"));
     requireAgentLevel(context, agentId, "chat");

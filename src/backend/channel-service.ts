@@ -133,6 +133,8 @@ export interface ChannelHooks {
 
 const FORK_CHANNEL_SETTINGS_ADMIN_ONLY =
   "Only an owner or admin of this server can change the members, instructions or routines of this channel. The person who asked is not one. Tell them to ask an admin.";
+const FORK_CHANNEL_MEMORY_ADMIN_ONLY =
+  "Only an owner or admin of this server can delete a channel memory. The person who asked is not one. Tell them to ask an admin.";
 
 class ChannelRoutingError extends Schema.TaggedError<ChannelRoutingError>()("ChannelRoutingError", {
   message: Schema.String,
@@ -3561,6 +3563,14 @@ export class ChannelService {
       };
     }
     if (tool === "channel_forget_memory") {
+      // Fork (docs/fork/FEATURES.md #107): channel memories are a setting; a non-admin member cannot delete one.
+      const person = requester();
+      if (
+        person &&
+        (this.hooks.remotePerson?.(person.id) ?? false) &&
+        !(this.hooks.personCanAdminister?.(person.id) ?? true)
+      )
+        return { accepted: false, reason: FORK_CHANNEL_MEMORY_ADMIN_ONLY };
       const givenId = isString(args.memoryId) ? args.memoryId.trim() : "";
       const memoryId = /^\[([^\]\s]+)\]/u.exec(givenId)?.[1] ?? givenId;
       const text = isString(args.text) ? args.text : givenId.replace(/^\[[^\]\s]+\]\s*/u, "");

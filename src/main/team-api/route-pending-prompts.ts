@@ -26,14 +26,12 @@ export async function routePendingPrompts(
       .filter((agentId) => !hiddenAgentIds.has(agentId) && agentAccessRank(context.agentLevel(agentId)) > 0),
   );
   const prompts = pendingPromptsWithinLimits(
-    agents
-      .pendingPrompts()
-      .filter(
-        (prompt) =>
-          shownAgentIds.has(prompt.agentId) ||
-          (!hiddenProviderAgent(agents, prompt.agentId, context) &&
-            context.threadChannelLevel(prompt.threadId) !== "none"),
-      ),
+    agents.pendingPrompts().filter((prompt) => {
+      // Fork (docs/fork/FEATURES.md #107): a channel thread's question follows the channel level alone.
+      const channelLevel = context.threadChannelLevel(prompt.threadId);
+      if (channelLevel === null) return shownAgentIds.has(prompt.agentId);
+      return channelLevel !== "none" && !hiddenProviderAgent(agents, prompt.agentId, context);
+    }),
   );
   return json(200, { prompts });
 }

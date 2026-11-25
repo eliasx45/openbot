@@ -16,7 +16,8 @@ export interface TeamApiRequestContext {
   readonly sessionExpiresAt: string;
   readonly agentLevel: (agentId: string) => AgentAccessLevel;
   readonly channelLevel: (channelId: string) => ChannelAccessLevel;
-  readonly threadChannelLevel: (threadId: string) => ChannelAccessLevel;
+  /** Fork (docs/fork/FEATURES.md #107): the member's level of the thread's channel; null when no channel owns the thread. */
+  readonly threadChannelLevel: (threadId: string) => ChannelAccessLevel | null;
   readonly json: (status: number, value: object | null) => RouteOutcome;
   readonly empty: (status: number) => RouteOutcome;
 }

@@ -96,12 +96,11 @@ export async function routeAgents(
   function requireRequestAgent(agentId: string | undefined, requestId?: string | number): void {
     if (agentId === undefined) return;
     const threadId = requestId === undefined ? undefined : requestThreadId(agents, requestId);
-    const channelLevel = threadId === undefined ? "none" : context.threadChannelLevel(threadId);
+    const channelLevel = threadId === undefined ? null : context.threadChannelLevel(threadId);
     if (channelLevel === "chat") return;
-    if (context.agentLevel(agentId) === "none") {
-      if (channelLevel === "view") throw new HttpError(403, sourceText("error.team.channelViewOnly"));
-      throw new HttpError(404, sourceText("error.team.agentNotFound"));
-    }
+    if (channelLevel === "none") throw new HttpError(404, sourceText("error.team.agentNotFound"));
+    if (channelLevel === "view") throw new HttpError(403, sourceText("error.team.channelViewOnly"));
+    if (context.agentLevel(agentId) === "none") throw new HttpError(404, sourceText("error.team.agentNotFound"));
     requireAgentLevel(context, agentId, "chat");
   }
 
@@ -209,7 +208,14 @@ export async function routeAgents(
     return json(200, agents.listAgents());
   }
   if (method === "GET" && url.pathname === TEAM_API_ROUTES.agents.conversationReads) {
-    return json(200, agents.listConversationReads(member.id, markerExclusionsForCapabilities(capabilities)));
+    // Fork (docs/fork/FEATURES.md #107): the read state is keyed by agent id; leave out the hidden agents.
+    const reads = agents.listConversationReads(member.id, markerExclusionsForCapabilities(capabilities));
+    return json(
+      200,
+      Object.fromEntries(
+        Object.entries(reads).filter(([agentId]) => !hidden.has(agentId) && context.agentLevel(agentId) !== "none"),
+      ),
+    );
   }
   if (method === "POST" && url.pathname === TEAM_API_ROUTES.agents.all) {
     requireCompatibleDefault();

@@ -49,6 +49,8 @@ export interface LiveActivityPushOptions {
 export interface LiveActivityPushViewer {
   memberId: string;
   hiddenAgentIds(): ReadonlySet<string>;
+  /** Fork (docs/fork/FEATURES.md #107): a thread of a channel the member cannot see. */
+  closedThread?(threadId: string): boolean;
   readOptions: ReturnType<typeof markerExclusionsForCapabilities>;
 }
 
@@ -282,7 +284,7 @@ export class LiveActivityPushService {
   #read(registration: Registration) {
     const { value, viewer, coordinator } = registration;
     const hidden = viewer.hiddenAgentIds();
-    const snapshot = visibleSnapshot(this.#options.agents.getRuntimeSnapshot(), hidden);
+    const snapshot = visibleSnapshot(this.#options.agents.getRuntimeSnapshot(), hidden, viewer.closedThread);
     coordinator.applyEvent({ serverId: value.serverId, event: { type: "runtime-snapshot", snapshot } }, value.serverId);
     const reads = this.#options.agents.listConversationReads(viewer.memberId, viewer.readOptions);
     const counts = new Map(
@@ -388,17 +390,24 @@ function away(registration: Registration): boolean {
   return registration.value.away || !registration.connected;
 }
 
-function visibleSnapshot(snapshot: AgentRuntimeSnapshot, hidden: ReadonlySet<string>): AgentRuntimeSnapshot {
-  if (hidden.size === 0) return snapshot;
+function visibleSnapshot(
+  snapshot: AgentRuntimeSnapshot,
+  hidden: ReadonlySet<string>,
+  closedThread?: (threadId: string) => boolean,
+): AgentRuntimeSnapshot {
+  if (hidden.size === 0 && !closedThread) return snapshot;
   const visible = <T extends { agentId: string }>(items: T[]) => items.filter((item) => !hidden.has(item.agentId));
+  // Fork (docs/fork/FEATURES.md #107): no question or approval of a channel the member cannot see.
+  const open = <T extends { agentId: string; threadId: string }>(items: T[]) =>
+    visible(items).filter((item) => !closedThread?.(item.threadId));
   return {
     ...snapshot,
     agents: snapshot.agents.filter((agent) => !hidden.has(agent.id)),
     activeTurns: visible(snapshot.activeTurns),
     work: visible(snapshot.work),
     latestMessages: visible(snapshot.latestMessages),
-    pendingPrompts: visible(snapshot.pendingPrompts),
-    pendingApprovals: visible(snapshot.pendingApprovals),
+    pendingPrompts: open(snapshot.pendingPrompts),
+    pendingApprovals: open(snapshot.pendingApprovals),
     pendingBrowserTakeovers: visible(snapshot.pendingBrowserTakeovers),
     failedTurns: visible(snapshot.failedTurns),
   };

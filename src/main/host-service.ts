@@ -461,6 +461,7 @@ export class HostService extends EventEmitter<HostEvents> {
             liveActivityShows: (sessionId, subject, alert, startedAt) =>
               this.#liveActivityPush?.showsEvent(sessionId, subject, alert, startedAt) ?? false,
             channelForThread: (threadId) => this.channelForThread(threadId),
+            channelClosed: (memberId, channelId) => this.#api.channelLevel(memberId, channelId) === "none",
             logger,
           })
         : undefined;

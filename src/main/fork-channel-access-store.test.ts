@@ -2,7 +2,7 @@
 // Fork (docs/fork/FEATURES.md #107): default-closed levels, channel levels in the roles file, and the
 // prompts of a channel's threads that a channel member sees while the agent itself stays hidden.
 
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect } from "effect";
@@ -48,6 +48,34 @@ describe("fork #107 default-closed roles with channel levels", () => {
     expect(channelAccessLevel(state, MEMBER, "agency")).toBe("chat");
     expect(channelAccessLevel(state, MEMBER, "private")).toBe("none");
     expect(channelAccessLevel(state, { id: "x", role: "member" }, "agency")).toBe("view");
+  });
+
+  it("reads a roles file of an older build, which has no channel levels", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openbot-fork-107-roles-"));
+    roots.push(root);
+    const path = join(root, "openbot-agent-access-v1.json");
+    await writeFile(
+      path,
+      JSON.stringify({
+        version: 1,
+        servers: {
+          server: {
+            revision: 4,
+            everyone: { traf: "manage" },
+            roles: [{ id: "ops", name: "Ops", agents: { nami: "chat" }, memberIds: [MEMBER.id] }],
+          },
+        },
+      }),
+    );
+    const store = new AgentAccessStore(path);
+    await Effect.runPromise(store.load());
+    const state = store.get("server");
+    expect(state.revision).toBe(4);
+    expect(agentAccessLevel(state, MEMBER, "traf")).toBe("manage");
+    expect(agentAccessLevel(state, MEMBER, "nami")).toBe("chat");
+    expect(agentAccessLevel(state, MEMBER, "ichiro")).toBe("none");
+    expect(channelAccessLevel(state, MEMBER, "agency")).toBe("none");
+    expect(channelAccessLevel(state, ADMIN, "agency")).toBe("chat");
   });
 
   it("stores channel levels, keeps them when a change leaves them out and drops deleted channels", async () => {
@@ -135,5 +163,32 @@ describe("fork #107 default-closed roles with channel levels", () => {
         exposed,
       ),
     ).toBeNull();
+  });
+
+  it("drops the questions and approvals of a closed channel's thread, also of an agent the member sees", () => {
+    const closed = (threadId: string) => threadId === "closed-channel-thread";
+    const prompt = {
+      type: "prompt",
+      requestId: 1,
+      agentId: "traf",
+      threadId: "closed-channel-thread",
+      turnId: "t",
+      questions: [],
+    };
+    const direct = { ...prompt, requestId: 2, threadId: "direct-thread" };
+    expect(hiddenAgentView(prompt, new Set(), 8, undefined, closed)).toBeNull();
+    expect(hiddenAgentView(direct, new Set(), 8, undefined, closed)).toEqual(direct);
+    const approval = { requestId: 3, agentId: "traf", threadId: "closed-channel-thread", turnId: "t" };
+    const active = { agentId: "traf", threadId: "closed-channel-thread", turnId: "t" };
+    expect(
+      hiddenAgentView(
+        { pendingPrompts: [prompt, direct], pendingApprovals: [approval], activeTurns: [active] },
+        new Set(),
+        8,
+        undefined,
+        closed,
+      ),
+    ).toEqual({ pendingPrompts: [direct], pendingApprovals: [], activeTurns: [active] });
+    expect(hiddenAgentView({ type: "approval", approval }, new Set(), 8, undefined, closed)).toBeNull();
   });
 });
