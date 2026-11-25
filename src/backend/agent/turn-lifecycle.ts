@@ -38,6 +38,7 @@ import type { BrowserOperationError } from "../browser-effects";
 import type { BrowserDynamicToolHooks } from "../browser-tool-actions";
 import { newAssistantMessage, normalizeCompletionStatus } from "../conversation-snapshots";
 import { causeHelpers, reportOriginalFailure } from "../effect-boundary";
+import { isCompactCommand } from "../fork-cache-compact";
 import { forkHub } from "../fork-hub";
 import { FORK_BACKGROUND_STOPPED_METHOD } from "../fork-restart-resume";
 import {
@@ -915,6 +916,22 @@ export class TurnLifecycle {
     if (taskId !== null) this.#hooks.taskFailed(taskId, failover.message);
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md #110): Claude reports a compaction with `openbot/context-compaction`,
+   * not with the `contextCompaction` item that marks a Codex turn `compacted`, so a `/compact` turn
+   * (the cache-compact routine or a typed `/compact`) that compacted failed the no-answer check. A
+   * compaction that ended in that turn marks it; a failed one unmarks it, so it still fails. Other
+   * turns, also those with an automatic compaction, keep the no-answer check.
+   */
+  #forkCompactCommandEnded(agentId: string, threadId: string, source: AgentClient, compacted: boolean): void {
+    for (const [turnId, running] of this.#runningTurns) {
+      if (running.threadId !== threadId || running.agentId !== agentId || running.client !== source) continue;
+      const deliveries = this.#mailbox.findDeliveriesByTurn(agentId, turnId);
+      if (deliveries.length > 0 && deliveries.every(({ delivery }) => isCompactCommand(delivery.text)))
+        running.compacted = compacted;
+    }
+  }
+
   #holdNoAnswer(agentId: string, threadId: string, turnId: string, source: AgentClient): boolean {
     const running = this.#runningTurns.get(turnId);
     if (
@@ -1553,6 +1570,7 @@ export class TurnLifecycle {
         if (!threadId || !agentId || this.#conversation.openClientFor(threadId) !== source) return;
         const status = getString(params, "status");
         if (status !== "running" && status !== "completed" && status !== "failed") return;
+        if (status !== "running") this.#forkCompactCommandEnded(agentId, threadId, source, status === "completed");
         this.#compaction.observeCompaction(threadId, status, "none");
         return;
       }

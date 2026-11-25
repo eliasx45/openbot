@@ -163,6 +163,14 @@ export class ForkCacheCompact {
   }
 }
 
+/**
+ * Fork (docs/fork/FEATURES.md #110): a prompt that is Claude Code's `/compact` command (this routine's
+ * prompt, or a `/compact` the user typed). Its turn compacts and legitimately ends with no answer.
+ */
+export function isCompactCommand(text: string): boolean {
+  return /^\/compact(?=$|\s)/u.test(text.trimStart());
+}
+
 /** The prompt of the compaction turn. Claude Code runs a prompt that starts with `/compact` as its command. */
 export function forkCompactPrompt(): string {
   return "/compact Keep what the user asked for and decided, the open work and its next steps, file paths, names and numbers. Drop tool output that was only read once.";
