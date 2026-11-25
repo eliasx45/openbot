@@ -44,6 +44,7 @@ import { allowPinchZoom } from "../backend/pinch-zoom";
 import type { HighlightDisplay } from "./computer-use-highlight-window";
 import { shouldShowDevelopmentWindow } from "./development-profile";
 import { dynamicIslandNotchSizeForDisplay } from "./dynamic-island-window";
+import { forwardChatScrollLog } from "./fork-chat-scroll-log";
 import { type InterfaceSizeService, type InterfaceSizeStep, interfaceSizeShortcut } from "./interface-size-service";
 import { withLocalHostSummary } from "./ipc/team-handlers";
 import { desktopLayoutZoomFactor, onTilingLinuxDesktop, windowMinimumSize } from "./linux-tiling-desktop";
@@ -360,6 +361,8 @@ export function createMainWindowController({
     window.webContents.on("did-navigate", () => applyMainWindowZoom(window));
     window.webContents.on("render-process-gone", onRendererGone);
     window.webContents.once("destroyed", onRendererGone);
+    // Fork (docs/fork/FEATURES.md #109): the chat's notes on why it scrolled go into the main log.
+    forwardChatScrollLog(window.webContents);
     window.webContents.on("render-process-gone", (_event, details) => {
       const now = Date.now();
       rendererReloadTimes = rendererReloadTimes.filter((time) => now - time < RENDERER_RELOAD_WINDOW_MS);
@@ -449,6 +452,7 @@ export function createMainWindowController({
     window.webContents.on("render-process-gone", () => {
       if (!window.isDestroyed()) window.destroy();
     });
+    forwardChatScrollLog(window.webContents);
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     window.webContents.on("will-navigate", (event, targetUrl) => {
       if (!isTrustedRendererUrl(targetUrl)) event.preventDefault();

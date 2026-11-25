@@ -43,6 +43,7 @@ import { codexLiveAccess } from "../speech/codex-live-access";
 import { insideOverlay } from "../window/workspace-shortcuts";
 import { createAttachmentImportSounds } from "./attachment-import-sounds";
 import { createChangeMarkerActions } from "./change-marker-actions";
+import { type ChatScrollNote, chatScrollState, noteChatScroll } from "./chat-scroll-log";
 import type { ChatSearchMatch } from "./chat-search";
 import { appendDraftText, EMPTY_DRAFT } from "./composer-draft";
 import { useConversationController } from "./conversation-controller-context";
@@ -1724,6 +1725,7 @@ export function createConversationViewScope(props: ConversationProps) {
           }
           handledMessageFocusRequests.add(request);
           unreadOpening = { ...unreadOpening, pending: false, holding: false };
+          noteScroll("message-focus", { messageId: request.messageId });
           stickToLatest = false;
           if (latestScrollFrame !== undefined) cancelAnimationFrame(latestScrollFrame);
           if (latestScrollSettleFrame !== undefined) cancelAnimationFrame(latestScrollSettleFrame);
@@ -1823,6 +1825,7 @@ export function createConversationViewScope(props: ConversationProps) {
     const blocks = scrollElement ? messageTextBlocks(scrollElement, messageId) : [];
     const firstBlock = blocks[0];
     if (!firstBlock) return false;
+    noteScroll("quote", { messageId });
     stickToLatest = false;
     unreadOpening.holding = false;
     const range = highlightQuotedText(blocks, text);
@@ -1926,6 +1929,7 @@ export function createConversationViewScope(props: ConversationProps) {
       if (boundaryIndex === undefined) return;
       unreadOpening.pending = false;
       unreadOpening.holding = true;
+      noteScroll("unread-opening", { boundaryId, boundaryIndex });
       stickToLatest = false;
       if (latestScrollFrame !== undefined) cancelAnimationFrame(latestScrollFrame);
       if (latestScrollSettleFrame !== undefined) cancelAnimationFrame(latestScrollSettleFrame);
@@ -2283,12 +2287,29 @@ export function createConversationViewScope(props: ConversationProps) {
   };
   function setStickToLatest(value: boolean) {
     if (!value) {
+      noteScroll("set-leave-latest", { caller: new Error().stack?.split("\n").slice(2, 5).join(" | ") });
       leaveLatest();
       return;
     }
     stickToLatest = true;
     readerLeftLatest = false;
     unreadOpening.holding = false;
+  }
+  // Fork (docs/fork/FEATURES.md #109): why the chat left the latest message or jumped (chat-scroll-log.ts).
+  function noteScroll(reason: string, extra: Partial<ChatScrollNote> = {}): void {
+    untrack(() => {
+      const rows = timelineMessages();
+      noteChatScroll(reason, {
+        agentId: conversationOwnerId(props) ?? null,
+        stickToLatest,
+        rows: rows.length,
+        firstRow: rows[0]?.id,
+        lastRow: rows.at(-1)?.id,
+        virtualized: messageVirtualizer.isVirtualized(),
+        ...chatScrollState(scrollElement),
+        ...extra,
+      });
+    });
   }
   function leaveLatest() {
     readerLeftLatest = true;
@@ -2306,6 +2327,7 @@ export function createConversationViewScope(props: ConversationProps) {
   function readerFocusIn() {
     if (readerDragging || !scrollElement) return;
     if (scrollElement.scrollTop < lastScrollTop) {
+      if (stickToLatest) noteScroll("focus-in", { lastScrollTop: Math.round(lastScrollTop) });
       stopFollowingLatest();
       updateScrollFade(scrollElement);
     } else if (scrollElement.scrollTop > lastScrollTop) unreadOpening.holding = false;
@@ -2325,8 +2347,13 @@ export function createConversationViewScope(props: ConversationProps) {
     lastScrollTop = element.scrollTop;
     lastMaxScrollTop = element.scrollHeight - element.clientHeight;
     const intent = readerIntent && performance.now() - readerIntent.at < READER_INPUT_WINDOW_MS ? readerIntent : null;
-    if (moved < 0 && (readerDragging || intent?.up === true)) leaveLatest();
-    else if (moved > 0 && (readerDragging || intent?.up === false)) {
+    // Fork (docs/fork/FEATURES.md #109): a move up by more than a screen that the reader did not make.
+    if (moved < -element.clientHeight && !readerDragging && !intent)
+      noteScroll("unprompted-move", { moved: Math.round(moved), readerLeftLatest });
+    if (moved < 0 && (readerDragging || intent?.up === true)) {
+      if (stickToLatest) noteScroll("reader-up", { moved: Math.round(moved), dragging: readerDragging });
+      leaveLatest();
+    } else if (moved > 0 && (readerDragging || intent?.up === false)) {
       readerLeftLatest = false;
       unreadOpening.holding = false;
     }
