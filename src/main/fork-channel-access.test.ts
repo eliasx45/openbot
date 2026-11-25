@@ -12,6 +12,7 @@ import {
   decodeAgentAccessSnapshot,
   decodeChannelPage,
   decodeChannelSummaries,
+  decodeHostAnalytics,
 } from "@openbot/contracts/ipc";
 import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { TEAM_API_ROUTES } from "@openbot/contracts/team-api-routes";
@@ -28,6 +29,7 @@ import { STORAGE_CHANNEL_ROUTES } from "@openbot/contracts/team-protocol/storage
 import { TEAM_PROTOCOL_V9 } from "@openbot/contracts/team-protocol/v9";
 import { Effect } from "effect";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { forkMemberProviderView } from "./team-api/fork-member-redaction";
 
 vi.mock("@openbot/contracts/input-limits", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@openbot/contracts/input-limits")>()),
@@ -558,6 +560,58 @@ describe("fork #107 channel-only partner access", () => {
     };
     expect(await reads("owner")).toEqual([ids.inside, ids.outside].sort());
     for (const who of ["chat", "view", "none"] as const) expect(await reads(who)).toEqual([]);
+  });
+
+  it("counts only the agents a member sees in the host analytics", async () => {
+    const now = new Date().toISOString();
+    for (const [agentId, output] of [
+      [ids.inside, 10],
+      [ids.outside, 20],
+    ] as const)
+      host.database.usage.record({
+        agentId,
+        sessionId: `session-${agentId}`,
+        turnId: `turn-${agentId}`,
+        provider: "codex",
+        model: "gpt-6-luna",
+        counterId: `counter-${agentId}`,
+        tokens: { uncachedInput: 100, cachedInput: 0, cacheCreation: 0, output },
+        baseline: false,
+        occurredAt: now,
+      });
+    const day = now.slice(0, 10);
+    const path = `${TEAM_API_ROUTES.analytics}?startDate=${day}&endDate=${day}&timeZone=UTC`;
+    const totals = async (who: Who) => {
+      const response = await call("GET", path, tokens[who]);
+      expect(response.status).toBe(200);
+      const report = decodeHostAnalytics(response.body);
+      return { tokens: report.totals.processedTokens, agents: report.agents.map((row) => row.agentId) };
+    };
+    expect(await totals("owner")).toMatchObject({ tokens: 230 });
+    for (const who of ["chat", "view", "none"] as const) expect(await totals(who)).toEqual({ tokens: 0, agents: [] });
+    const hidden = await call("GET", `${path}&agentId=${encodeURIComponent(ids.outside)}`, tokens.chat);
+    expect(hidden.status).toBe(404);
+  });
+
+  it("hides the host's provider sign-in emails from members", async () => {
+    for (const who of WHO) expect((await call("GET", TEAM_API_ROUTES.agents.status, tokens[who])).status).toBe(200);
+    expect(
+      forkMemberProviderView({
+        phase: "ready",
+        auth: { kind: "chatgpt", email: "elias@example.com" },
+        providers: [{ id: "claude", state: "available", version: "2", message: null, email: "elias@example.com" }],
+        accounts: [{ id: "work", label: "Elias work", email: "elias@example.com", state: "connected", message: null }],
+        members: [{ id: "member-1", role: "member", email: "partner@example.com" }],
+        author: { kind: "member", id: "member-1", email: "partner@example.com" },
+      }),
+    ).toEqual({
+      phase: "ready",
+      auth: { kind: "chatgpt", email: null },
+      providers: [{ id: "claude", state: "available", version: "2", message: null, email: null }],
+      accounts: [{ id: "work", label: null, email: null, state: "connected", message: null }],
+      members: [{ id: "member-1", role: "member", email: "partner@example.com" }],
+      author: { kind: "member", id: "member-1", email: "partner@example.com" },
+    });
   });
 
   it("opens a shared file for a member without agents only when a message of their channel names it", async () => {

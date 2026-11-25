@@ -330,6 +330,7 @@ import {
   forkSharedFileMention,
   forkSharedFileMentioned,
 } from "./team-api/fork-channel-access";
+import { forkMemberProviderView } from "./team-api/fork-member-redaction";
 import { routeChannelWebhook } from "./team-api/fork-route-channel-webhook";
 import { HttpError } from "./team-api/http-error";
 import {
@@ -574,7 +575,14 @@ export class TeamApiServer {
   #hostRestart: HostRestartEvent = { type: HOST_RESTART_EVENT, state: "none", version: null };
   readonly #responseRoutes = new WeakMap<
     ServerResponse,
-    { method: string; path: string; protocol: number; capabilities: Set<string>; hiddenAgentIds?: ReadonlySet<string> }
+    {
+      method: string;
+      path: string;
+      protocol: number;
+      capabilities: Set<string>;
+      hiddenAgentIds?: ReadonlySet<string>;
+      memberView?: boolean;
+    }
   >();
   readonly #duplicateRequests = new Map<
     string,
@@ -1130,7 +1138,10 @@ export class TeamApiServer {
       }
       const hidden = this.hiddenAgentIds(context.protocol, context.capabilities, context.member);
       const responseRoute = this.#responseRoutes.get(response);
-      if (responseRoute) responseRoute.hiddenAgentIds = this.#channelRouteHidden(context, hidden);
+      if (responseRoute) {
+        responseRoute.hiddenAgentIds = this.#channelRouteHidden(context, hidden);
+        responseRoute.memberView = !canAdministerServer(context.member.role);
+      }
       const agentId = url.pathname.match(/^\/v1\/agents\/([^/]+)/u)?.[1];
       if (
         (agentId && hidden.has(pathIdentifier(agentId, "agentId"))) ||
@@ -1576,10 +1587,13 @@ export class TeamApiServer {
     const blockedMember = this.#blockedMembers.get(blocked);
     const exposedThread = blockedMember && blocked.size > 0 ? this.#channelThreadExposure(blockedMember) : undefined;
     const closedThread = blockedMember ? this.#closedChannelThread(blockedMember) : undefined;
-    const visible =
+    const projected =
       protocol === 1
         ? legacyProviderView(value, hidden)
         : hiddenAgentView(value, hidden, protocol, exposedThread, closedThread);
+    // Fork (docs/fork/FEATURES.md #107): no provider account identities for a member.
+    const visible =
+      blockedMember && !canAdministerServer(blockedMember.role) ? forkMemberProviderView(projected) : projected;
     return capabilities.has(TEAM_REASONING_EFFORTS_CAPABILITY) ? visible : withLegacyReasoningEfforts(visible);
   }
 
@@ -2450,10 +2464,12 @@ export class TeamApiServer {
               route.protocol < 5 ? 4 : route.protocol < 6 ? 5 : route.protocol < 7 ? 6 : route.protocol < 8 ? 7 : 8,
             )
         : value;
-    const effortValue =
+    const legacyValue =
       status < 400 && !route.capabilities.has(TEAM_REASONING_EFFORTS_CAPABILITY)
         ? withLegacyReasoningEfforts(visibleValue)
         : visibleValue;
+    // Fork (docs/fork/FEATURES.md #107): no provider account identities for a member.
+    const effortValue = status < 400 && route.memberView ? forkMemberProviderView(legacyValue) : legacyValue;
     const sideRoute = teamSideRouteCodec(route.path);
     const encoded = sideRoute
       ? JSON.stringify(sideRoute.response(route.path, status, effortValue, options))

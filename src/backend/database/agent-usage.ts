@@ -294,11 +294,14 @@ export class AgentUsage {
     return { ...report, agentId: raw.agentId };
   }
 
-  readHost(raw: HostAnalyticsInput): HostAnalytics {
+  // Fork (docs/fork/FEATURES.md #107): `onlyAgents` counts only those agents (a member's visible agents).
+  readHost(raw: HostAnalyticsInput, onlyAgents?: ReadonlySet<string>): HostAnalytics {
     const input = parseHostAnalyticsInput(raw);
     const rangeStart = new Date(Date.parse(input.startDate) - 86400000).toISOString();
     const rangeEnd = new Date(Date.parse(input.endDate) + 2 * 86400000).toISOString();
     const readRange = (table: string): DynamicRecord[] =>
+      readAllRange(table).filter((row) => !onlyAgents || onlyAgents.has(String(row.agent_id)));
+    const readAllRange = (table: string): DynamicRecord[] =>
       databaseRows(
         input.agentId
           ? this.#core.connection

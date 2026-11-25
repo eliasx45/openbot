@@ -45,6 +45,9 @@ export const messages = defineMessages("channel", {
   "channel.webhook.save": "Save",
   "channel.webhook.saved": "Saved",
   "channel.webhook.invalid": "Enter an https address. Use http only for this computer or Tailscale.",
+  "channel.webhook.blocked":
+    "OpenBot does not send to this address: it is a link-local, cloud metadata, multicast or unspecified network.",
+  "channel.webhook.credentials": "Remove the user name and password from the address.",
   "channel.webhook.loadFailed": "Could not load the webhook of this channel.",
   "channel.webhook.saveFailed": "Could not save the webhook.",
   "channel.settings.browser": "Browser",

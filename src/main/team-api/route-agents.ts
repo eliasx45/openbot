@@ -120,7 +120,18 @@ export async function routeAgents(
       !agents.listAgents().some((agent) => agent.id === input.agentId)
     )
       throw new HttpError(404, sourceText("error.team.agentNotFound"));
-    const { skills: _localOnly, ...report } = agents.getHostAnalytics(input);
+    // Fork (docs/fork/FEATURES.md #107): a member's totals, days and models count only the agents they see.
+    const onlyAgents = canAdministerServer(member.role)
+      ? undefined
+      : new Set(
+          agents
+            .listAgents()
+            .map((agent) => agent.id)
+            .filter((agentId) => !hidden.has(agentId) && context.agentLevel(agentId) !== "none"),
+        );
+    if (input.agentId && onlyAgents && input.agentId !== WORKFLOWS_USAGE_ID && !onlyAgents.has(input.agentId))
+      throw new HttpError(404, sourceText("error.team.agentNotFound"));
+    const { skills: _localOnly, ...report } = agents.getHostAnalytics(input, onlyAgents);
     return json(
       200,
       workflows ? report : { ...report, agents: report.agents.filter((row) => row.agentId !== WORKFLOWS_USAGE_ID) },

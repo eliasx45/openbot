@@ -585,6 +585,16 @@ try {
       "partner-interrupt-ichiro": { tool: "interrupt_agent", args: { agentId: ichiro } },
       "partner-forget": { tool: "channel_forget_memory", args: { text: "Owner rule." } },
       "owner-update-ichiro": { tool: "update_agents", args: { agentIds: [ichiro], notifications: false } },
+      "partner-create-agent": {
+        tool: "create_agent",
+        args: { name: "Partnerbot", description: "Made for the partner.", initialMessage: "Hello." },
+      },
+      "partner-update-profile": { tool: "update_profile", args: { agentId: traf, name: "Hacked" } },
+      "partner-save-mcp": {
+        tool: "save_mcp_server",
+        args: { name: "evil", transport: "http", url: "https://example.com/mcp" },
+      },
+      "owner-update-profile": { tool: "update_profile", args: { agentId: nami, title: "Editor" } },
     }),
   );
   agents.channels.memories.saveFromTool(agencyId, "Owner rule.", "seed", "seed-owner-rule");
@@ -660,8 +670,9 @@ try {
   await idle();
   transcript.push(`update_agents(Ichiro) for the partner -> ${updateIchiro.text.slice(0, 200)}`);
   pass(
-    "update_agents of a hidden agent fails as unknown and changes nothing",
-    !updateIchiro.text.includes('"ok":true') &&
+    "update_agents of a hidden agent is refused for a non-admin member and changes nothing",
+    !updateIchiro.success &&
+      updateIchiro.text.includes("Only an owner or admin") &&
       !updateIchiro.text.includes("Ichiro") &&
       agents.listAgents().find((agent) => agent.id === ichiro)?.notifications === true,
   );
@@ -679,6 +690,30 @@ try {
     forget.text.includes('"accepted":false') &&
       agents.listChannelMemories(agencyId).some((memory) => memory.text === "Owner rule."),
   );
+  // Fork #107: a non-admin member's turn cannot create or change agents or MCP servers.
+  const agentsBefore = agents.listAgents().length;
+  for (const step of ["partner-create-agent", "partner-update-profile", "partner-save-mcp"]) {
+    await send("partner", agencyId, `@Traf STEP:${step}`);
+    const refused = await stepResult(step);
+    await idle();
+    transcript.push(`${step} for the partner -> ${refused.text.slice(0, 200)}`);
+    pass(
+      `${step} is refused for a non-admin member`,
+      !refused.success && refused.text.includes("Only an owner or admin"),
+    );
+  }
+  pass(
+    "no agent was made or renamed for the partner",
+    agents.listAgents().length === agentsBefore && agents.listAgents().some((agent) => agent.name === "Traf"),
+  );
+  await send("owner", agencyId, "@Traf STEP:owner-update-profile");
+  const ownerProfile = await stepResult("owner-update-profile");
+  await idle();
+  pass(
+    "the owner's turn still changes an agent's profile",
+    ownerProfile.success && agents.listAgents().find((agent) => agent.id === nami)?.title === "Editor",
+  );
+
   await send("owner", agencyId, "@Traf STEP:owner-update-ichiro");
   const ownerUpdate = await stepResult("owner-update-ichiro");
   await idle();
@@ -697,7 +732,7 @@ try {
   const trafMessages = page.messages.filter((item) => item.author.kind === "agent" && item.author.id === traf);
   transcript.push(`partner reads ${page.messages.length} channel messages, ${trafMessages.length} by Traf`);
   pass("the partner sees Traf's answers in the channel", trafMessages.length > 0);
-  pass("one webhook POST per finished answer", received.length >= 9);
+  pass("one webhook POST per finished answer", received.length >= 13);
 } catch (error) {
   failure = error;
   transcript.push(`ERROR ${error instanceof Error ? error.message : String(error)}`);

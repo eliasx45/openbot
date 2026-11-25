@@ -2351,14 +2351,14 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     return this.#store.database.usage.read(input);
   }
 
-  getHostAnalytics(input: HostAnalyticsInput) {
+  getHostAnalytics(input: HostAnalyticsInput, onlyAgents?: ReadonlySet<string>) {
     if (
       input.agentId &&
       input.agentId !== WORKFLOWS_USAGE_ID &&
       !this.listAgents().some((agent) => agent.id === input.agentId)
     )
       throw new Error(sourceText("error.team.agentNotFound"));
-    return this.#store.database.usage.readHost(input);
+    return this.#store.database.usage.readHost(input, onlyAgents);
   }
 
   getTurnUsage(agentId: string, turnId: string, since: string) {

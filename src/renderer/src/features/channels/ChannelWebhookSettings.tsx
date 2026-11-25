@@ -1,4 +1,5 @@
 import {
+  type ChannelWebhookUrlProblem,
   channelWebhookUrlProblem,
   type ChannelWebhookSettings as Settings,
 } from "@openbot/contracts/fork-channel-webhooks";
@@ -47,8 +48,15 @@ export function ChannelWebhookSettings(props: { channelId: string; api: ChannelW
 
   const problem = () => {
     const url = form.url.trim();
-    return url && channelWebhookUrlProblem(url) !== null;
+    return url ? channelWebhookUrlProblem(url) : null;
   };
+  // Fork (docs/fork/FEATURES.md #107): say why the address is refused.
+  const problemText = (kind: ChannelWebhookUrlProblem) =>
+    kind === "blocked-host"
+      ? t("channel.webhook.blocked")
+      : kind === "credentials"
+        ? t("channel.webhook.credentials")
+        : t("channel.webhook.invalid");
   const changed = () => {
     const current = saved();
     return !current || form.url.trim() !== current.url || form.enabled !== current.enabled || form.secret.length > 0;
@@ -56,8 +64,9 @@ export function ChannelWebhookSettings(props: { channelId: string; api: ChannelW
 
   async function save(secret?: string | null): Promise<void> {
     if (busy()) return;
-    if (problem()) {
-      setError(t("channel.webhook.invalid"));
+    const refused = problem();
+    if (refused) {
+      setError(problemText(refused));
       return;
     }
     setBusy(true);

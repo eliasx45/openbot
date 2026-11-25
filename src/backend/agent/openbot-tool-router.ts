@@ -165,8 +165,8 @@ import {
 } from "./delivery-content";
 import type { DrainScheduler } from "./drain-scheduler";
 import type { FeedbackWithdrawal } from "./feedback-withdrawal";
-import { FORK_SECTION_TOOL_NAMES, forkSectionReadAgentView, handleForkSectionTool } from "./fork-section-tools";
 import { forkChannelTaskPeople, forkReachableAgents } from "./fork-channel-reach";
+import { FORK_SECTION_TOOL_NAMES, forkSectionReadAgentView, handleForkSectionTool } from "./fork-section-tools";
 import { HistoryTools, historyCursorThread, isHistoryBrowse, MAIN_CHAT_TASK_ID } from "./history-tools";
 import type { HostedSiteCoordinator } from "./hosted-site-coordinator";
 import { isHostedSiteMutationTool } from "./hosted-site-events";
@@ -378,6 +378,38 @@ function redactedPhone(phone: FeedbackPhone): FeedbackPhone {
     log: maskIdentifiers(redactText(phone.log)).slice(0, FEEDBACK_LIMITS.phoneLog),
   };
 }
+
+// Fork (docs/fork/FEATURES.md #107): tools that set up the server or its agents. Owner and admin turns only.
+const FORK_MEMBER_ADMIN_TOOLS: ReadonlySet<string> = new Set([
+  "create_agent",
+  "update_profile",
+  "update_agents",
+  "delete_agent",
+  "set_browser_profile",
+  "set_commit_co_author",
+  "create_channel",
+  "update_channel",
+  "create_section",
+  "rename_section",
+  "delete_section",
+  "assign_agent_section",
+  "update_section_defaults",
+  "save_mcp_server",
+  "set_mcp_server_enabled",
+  "remove_mcp_server",
+  "save_api_key",
+  "remove_api_key",
+  "create_skill",
+  "revise_skill",
+  "install_local_skill",
+  "uninstall_skill",
+  "set_skill_enabled",
+  "create_routine",
+  "update_routine",
+  "delete_routine",
+]);
+const FORK_MEMBER_ADMIN_TOOL_REFUSAL =
+  "Only an owner or admin of this server can create, change or delete agents, channels, sections, skills, routines, API keys or MCP servers. The person who asked is not one. Tell them to ask an admin.";
 
 function feedbackForm(url: string, next: string): OpenBotToolResponse {
   if (url.length > FEEDBACK_URL_LIMIT)
@@ -933,6 +965,11 @@ export class OpenBotToolRouter {
             if (toolRequest.params.tool === "capture_screen" || toolRequest.params.tool === "list_capture_sources") {
               const result = yield* this.#screenCaptureTool(client, toolRequest, toolRequest.params);
               if (!toolRequest.signal?.aborted && client.running) client.respond(toolRequest.id, result);
+              return;
+            }
+            const memberRefusal = this.#forkMemberAdminRefusal(toolRequest.params);
+            if (memberRefusal) {
+              if (!toolRequest.signal?.aborted && client.running) client.respond(toolRequest.id, memberRefusal);
               return;
             }
             if (API_KEY_TOOLS.has(toolRequest.params.tool)) {
@@ -2214,41 +2251,8 @@ export class OpenBotToolRouter {
 
     if (params.tool === "update_profile") return yield* this.#updateProfile(params, senderAgentId);
 
-    if (params.tool === "update_agents") {
-      // Fork (docs/fork/FEATURES.md #107): in a member's turn, only agents that every requester manages.
-      const requesterIds = this.#memberRequesters(senderAgentId, params.turnId);
-      if (requesterIds.length === 0) return yield* handleUpdateAgentsTool(params, senderAgentId, this.#hooks);
-      const managed = () =>
-        this.#hooks
-          .listAgents()
-          .filter(
-            (agent) =>
-              agent.id === senderAgentId ||
-              requesterIds.every(
-                (personId) => (this.#channels.hooks.personAgentLevel?.(personId, agent.id) ?? "manage") === "manage",
-              ),
-          );
-      const targets = isRecord(params.arguments) ? params.arguments.agentIds : undefined;
-      if (
-        Array.isArray(targets) &&
-        targets.some((id) => id === senderAgentId) &&
-        !requesterIds.every(
-          (personId) => (this.#channels.hooks.personAgentLevel?.(personId, senderAgentId) ?? "manage") === "manage",
-        )
-      )
-        return openBotToolFailure(
-          "The person who asked cannot change this agent's settings. Tell them to ask an owner or admin.",
-        );
-      return yield* handleUpdateAgentsTool(params, senderAgentId, {
-        listAgents: managed,
-        listModels: () => this.#hooks.listModels(),
-        agentModels: (input) => this.#hooks.agentModels(input),
-        providerAccounts: (provider) => this.#hooks.providerAccounts(provider),
-        providerStatuses: () => this.#hooks.providerStatuses(),
-        updateAgent: (input, actorAgentId) => this.#hooks.updateAgent(input, actorAgentId),
-        redactMcp: (text) => this.#hooks.redactMcp(text),
-      });
-    }
+    // Fork (docs/fork/FEATURES.md #107): a non-admin member's turn never gets here (#forkMemberAdminRefusal).
+    if (params.tool === "update_agents") return yield* handleUpdateAgentsTool(params, senderAgentId, this.#hooks);
 
     if (params.tool === "start_new_chat") {
       const agent = this.#store.list().find((candidate) => candidate.id === senderAgentId);
@@ -3206,6 +3210,17 @@ export class OpenBotToolRouter {
       this.#channels,
       (personId, agentId) => this.#channels.hooks.personAgentLevel?.(personId, agentId),
     );
+  }
+
+  // Fork (docs/fork/FEATURES.md #107): a turn that a non-admin member started or joined cannot create,
+  // change or delete agents, channels, sections, skills, routines, keys or MCP servers.
+  #forkMemberAdminRefusal(params: DynamicToolCallParams): OpenBotToolResponse | null {
+    if (!FORK_MEMBER_ADMIN_TOOLS.has(params.tool)) return null;
+    const agentId = this.#conversation.agentForThread(params.threadId);
+    if (!agentId) return null;
+    const requesterIds = this.#memberRequesters(agentId, params.turnId);
+    if (requesterIds.every((personId) => this.#personCanAdminister(personId))) return null;
+    return openBotToolFailure(FORK_MEMBER_ADMIN_TOOL_REFUSAL);
   }
 
   #unreachableAgent(
