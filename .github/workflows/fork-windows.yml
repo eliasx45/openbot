@@ -1,0 +1,111 @@
+name: Fork Windows build
+
+# Builds the fork's main for Windows x64 on every push that changes the app, tests it through the
+# real launcher (scripts/fork/windows/launcher.ps1: install from the build, shortcut app id, package
+# launch check), then publishes it to the rolling `fork-windows` release that the launcher on a
+# partner's PC downloads. Unsigned, like upstream's unsigned dry run. Fork-only.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "apps/**"
+      - "remote/**"
+      - "marketplace/**"
+      - "changelog.d/**"
+      - "plans/**"
+  workflow_dispatch:
+
+concurrency:
+  group: fork-windows
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    if: github.repository == 'eliasx45/openbot'
+    runs-on: windows-2025
+    timeout-minutes: 75
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: ./.github/actions/setup-bun
+
+      # Upstream's `package:win`: runtimes, build, electron-builder --dir (dist/win-unpacked).
+      - name: Package
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          bun run package:win
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Stage release files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force fork-release | Out-Null
+          7z a -tzip -mx=5 fork-release/OpenBot-fork-win-x64.zip ./dist/win-unpacked/*
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item scripts/fork/windows/launcher.ps1 fork-release/
+          Set-Content -NoNewline fork-release/commit.txt $env:GITHUB_SHA
+          Get-ChildItem fork-release | Format-Table Name, Length
+
+      # The launcher a partner runs, from the staged files: install, shortcuts with OpenBot's app id.
+      - name: Install through the launcher
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          & powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fork/windows/launcher.ps1 -Install -NoLaunch -Quiet -Source "$PWD\fork-release"
+          if ($LASTEXITCODE -ne 0) { Get-Content "$env:LOCALAPPDATA\OpenBotFork\launcher.log"; exit 1 }
+          Get-Content "$env:LOCALAPPDATA\OpenBotFork\launcher.log"
+          $root = "$env:LOCALAPPDATA\OpenBotFork"
+          if ((Get-Content -Raw "$root\installed-commit") -ne $env:GITHUB_SHA) { throw "installed-commit differs" }
+          if (-not (Test-Path "$root\app\OpenBot.exe")) { throw "no OpenBot.exe" }
+          $lnk = Join-Path ([Environment]::GetFolderPath("Programs")) "OpenBot.lnk"
+          if (-not (Test-Path $lnk)) { throw "no Start menu shortcut" }
+          # A second run with the same commit must not download or touch the install.
+          $before = (Get-Item "$root\app").CreationTimeUtc
+          & powershell -NoProfile -ExecutionPolicy Bypass -File "$root\launcher.ps1" -NoLaunch -Quiet -Source "$PWD\fork-release"
+          if ($LASTEXITCODE -ne 0) { throw "second run failed" }
+          if ((Get-Item "$root\app").CreationTimeUtc -ne $before) { throw "second run reinstalled" }
+
+      # The launcher logs the app id it reads back from each shortcut after writing it.
+      - name: Check the shortcuts' app id
+        shell: powershell
+        run: |
+          $hits = @(Select-String -Path "$env:LOCALAPPDATA\OpenBotFork\launcher.log" -SimpleMatch "(app id app.openbot.desktop)")
+          if ($hits.Count -ne 2) { throw "expected 2 shortcuts with app id app.openbot.desktop, got $($hits.Count)" }
+
+      # Upstream's package check (it starts the app) on the copy the launcher installed.
+      - name: Launch check on the installed copy
+        shell: pwsh
+        run: |
+          bun run verify:package:win "$env:LOCALAPPDATA\OpenBotFork\app"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # commit.txt last: a launcher sees the new commit only once its zip is up.
+      - name: Publish to the fork-windows release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view fork-windows --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create fork-windows --repo $env:GITHUB_REPOSITORY --prerelease --target $env:GITHUB_SHA --title "OpenBot fork for Windows (latest main)" --notes "Built from main on every push. Install: irm https://raw.githubusercontent.com/eliasx45/openbot/main/scripts/fork/windows/install.ps1 | iex"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          gh release upload fork-windows fork-release/OpenBot-fork-win-x64.zip fork-release/launcher.ps1 --clobber --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          gh release upload fork-windows fork-release/commit.txt --clobber --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
