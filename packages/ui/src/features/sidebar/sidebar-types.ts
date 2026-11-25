@@ -83,6 +83,8 @@ export interface SidebarProps {
   sectionDuplicateSupported?: boolean | undefined;
   duplicatingSectionIds?: ReadonlySet<string> | undefined;
   onDuplicateSection?: ((sectionId: string) => Promise<void>) | undefined;
+  /** Fork (docs/fork/FEATURES.md #108): opens the shared defaults of a custom section. */
+  onOpenSectionSettings?: ((sectionId: string) => void) | undefined;
   onToggleSection: (sectionId: string) => void;
   pinnedItems: SidebarPinnedItem[];
   peopleOrder: string[];

@@ -177,4 +177,22 @@ export const messages = defineMessages("sidebar", {
   "sidebar.community.joinDiscord": "Join the Discord",
   "sidebar.community.followX": "Follow OpenBot on X",
   "sidebar.community.dismiss": "Dismiss the community invitation",
+  "sidebar.section.sharedDefaults": "Shared instructions and skills…",
+  "sidebar.sectionDefaults.title": "Shared in {folder}",
+  "sidebar.sectionDefaults.description":
+    "Every agent in this folder and its subfolders gets these, also agents that you add later. An agent's own instructions come after them and win on a conflict.",
+  "sidebar.sectionDefaults.instructions": "Shared instructions",
+  "sidebar.sectionDefaults.instructionsPlaceholder": "Rules for every agent in this folder, in Markdown",
+  "sidebar.sectionDefaults.skills": "Shared skills",
+  "sidebar.sectionDefaults.skillsEmpty": "No local skills yet. Ask an agent to create one.",
+  "sidebar.sectionDefaults.filter": "Filter",
+  "sidebar.sectionDefaults.mcpServers": "Shared MCP servers",
+  "sidebar.sectionDefaults.mcpServersHint":
+    "An agent gets a server here even when the server is limited to other agents.",
+  "sidebar.sectionDefaults.mcpServersEmpty": "No MCP servers yet.",
+  "sidebar.sectionDefaults.parent": "From {folder}",
+  "sidebar.sectionDefaults.members": "Agents here: {names}",
+  "sidebar.sectionDefaults.noMembers": "No agents in this folder yet.",
+  "sidebar.sectionDefaults.loadFailed": "Could not load the shared settings.",
+  "sidebar.sectionDefaults.saveFailed": "Could not save the shared settings.",
 });

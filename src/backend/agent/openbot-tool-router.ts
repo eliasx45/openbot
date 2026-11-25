@@ -166,6 +166,7 @@ import {
 } from "./delivery-content";
 import type { DrainScheduler } from "./drain-scheduler";
 import type { FeedbackWithdrawal } from "./feedback-withdrawal";
+import { FORK_SECTION_TOOL_NAMES, forkSectionReadAgentView, handleForkSectionTool } from "./fork-section-tools";
 import { HistoryTools, historyCursorThread, isHistoryBrowse, MAIN_CHAT_TASK_ID } from "./history-tools";
 import type { HostedSiteCoordinator } from "./hosted-site-coordinator";
 import { isHostedSiteMutationTool } from "./hosted-site-events";
@@ -968,7 +969,8 @@ export class OpenBotToolRouter {
               tool === "send_message" ||
               tool === "messaging_post" ||
               tool === "web_search" ||
-              tool === "create_server_install_command";
+              tool === "create_server_install_command" ||
+              FORK_SECTION_TOOL_NAMES.has(tool);
             const correctable = (cause: unknown) =>
               correctableTool ||
               ((WORKFLOW_TOOL_NAMES.has(tool) || CRM_TOOL_NAMES.has(tool)) && cause instanceof z.ZodError);
@@ -1813,6 +1815,7 @@ export class OpenBotToolRouter {
       const error = loaded.failure.cause;
       skillsError = error instanceof Error ? error.message : String(error);
     }
+    const section = forkHub.sections?.resolve(agent.id) ?? null; // Fork (docs/fork/FEATURES.md #108)
     const access = workspaceAccessEnforced(agent) ? "workspace" : "full";
     const permissions = agentPermissionLevel({
       access,
@@ -1851,7 +1854,9 @@ export class OpenBotToolRouter {
       mcpServers: mcpServers.map((server) => ({
         name: server.name,
         transport: server.transport,
+        ...(section?.mcpServerIds.includes(server.id) ? { inheritedFrom: section.path.join(" / ") } : {}),
       })),
+      ...(section ? { section: forkSectionReadAgentView(section) } : {}),
     };
   });
 
@@ -2277,6 +2282,18 @@ export class OpenBotToolRouter {
             : "This run ends as failed. Give your answer as usual.",
       });
     }
+
+    // Fork (docs/fork/FEATURES.md #108): read and write a section's shared defaults.
+    const forkSectionResult = yield* handleForkSectionTool(params.tool, params.arguments, {
+      sections: forkHub.sections,
+      senderAgentId,
+      requestersCanAdminister: [
+        ...this.#turnRequesters(senderAgentId, params.turnId),
+        ...this.#memberRequesters(senderAgentId, params.turnId),
+      ].every((personId) => this.#personCanAdminister(personId)),
+      approve: (reason) => this.#ownerApproval(client, request, params, senderAgentId, reason),
+    });
+    if (forkSectionResult) return forkSectionResult;
 
     const sidebarResult = yield* handleSidebarTool(
       params.tool,

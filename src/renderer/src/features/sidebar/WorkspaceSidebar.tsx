@@ -43,6 +43,7 @@ import { SidebarUpdateIsland } from "../updates/SidebarUpdateIsland";
 import { useWindowPage } from "../window/window-page-context";
 import { createCommunityCardVisibility } from "./community-card";
 import { DevWorktreeLabel } from "./DevWorktreeLabel";
+import { openSectionDefaults, SectionDefaultsHost } from "./fork-section-defaults";
 import { createSidebarAlertCards, SidebarAlertCards } from "./SidebarAlertCards";
 import { ServerUpgradeOffer } from "./server-upgrade-offer";
 import { useSidebar } from "./sidebar-context";
@@ -325,6 +326,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
         }
         duplicatingSectionIds={duplicatingSectionIds()}
         onDuplicateSection={duplicateSection}
+        onOpenSectionSettings={activeServer()?.kind === "local" ? openSectionDefaults : undefined}
         onToggleSection={toggleSidebarSection}
         pinnedItems={pinnedSidebarItems()}
         peopleOrder={sidebarPeopleOrder()}
@@ -426,6 +428,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
         blocked={serverSettingsOpen()}
         onFreeUpSpace={(serverId) => openServerSettings(serverId, null, "storage")}
       />
+      <SectionDefaultsHost />
     </>
   );
 }

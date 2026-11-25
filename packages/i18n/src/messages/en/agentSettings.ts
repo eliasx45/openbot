@@ -253,4 +253,16 @@ export const messages = defineMessages("agentSettings", {
   "agentSettings.browserProfile.more": "More profiles",
   "agentSettings.browserProfile.moreHint":
     "The agent can open a tab in any profile you select here, by the account the task needs. The profile above stays the default.",
+  "agentSettings.section.link": "From folder",
+  "agentSettings.section.title": "From {folder}",
+  "agentSettings.section.description":
+    "This agent gets these from its sidebar folder. Its own instructions and skills come after them and win on a conflict.",
+  "agentSettings.section.instructions": "Shared instructions",
+  "agentSettings.section.skills": "Shared skills",
+  "agentSettings.section.mcpServers": "Shared MCP servers",
+  "agentSettings.section.edit": "Edit in {folder}",
+  "agentSettings.section.none": "This folder shares nothing yet.",
+  "agentSettings.section.use": "Use {name} for this agent",
+  "agentSettings.section.readOnly": "Read-only here",
+  "agentSettings.section.loadFailed": "Could not load what this agent gets from its folder.",
 });

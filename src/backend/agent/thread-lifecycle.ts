@@ -25,6 +25,8 @@ import { type AgentClient, type AgentProvider, ProviderStoppedError } from "../a
 import type { AgentStore } from "../agent-store";
 import type { ProviderSession } from "../database/provider-sessions";
 import { causeHelpers } from "../effect-boundary";
+import { forkHub } from "../fork-hub";
+import type { SectionDefaultsContext } from "../fork-section-inheritance";
 import { type HomeSkill, listHomeSkills, skillFolderNames, userSkillFolderNames } from "../home-skills";
 import type { MailboxStore } from "../mailbox-store";
 import type { McpOperationError } from "../mcp-effects";
@@ -733,6 +735,7 @@ export class ThreadLifecycle {
         mcpServers,
         instructionsFile,
         yield* this.#workspaceSkills(agent, client),
+        yield* this.#forkSectionDefaults(agent),
       ),
       serviceName: "openbot",
       dynamicTools: visibleDynamicTools(client.provider),
@@ -1071,6 +1074,7 @@ export class ThreadLifecycle {
       this.#sectionTeammates(agent.id),
       this.#passwordVaultConnected(),
       file && [file.fileName, file.text, file.truncated],
+      forkHub.sections?.key(agent.id) ?? "", // Fork (docs/fork/FEATURES.md #108)
     ]);
   }).bind(this);
 
@@ -1231,6 +1235,7 @@ export class ThreadLifecycle {
     mcpServers: readonly McpServerConfig[],
     instructionsFile: InstructionsFileInPrompt,
     workspaceSkills: readonly string[] = [],
+    sectionDefaults: SectionDefaultsContext | null = null,
   ): DynamicRecord {
     const memoryEnabled = agentMemoryEnabled(agent);
     const memories = memoryEnabled ? this.#memories.essentialFor(agent.id) : [];
@@ -1257,6 +1262,7 @@ export class ThreadLifecycle {
       savedLoginsInTurns: client.turnContext === true,
       instructionsFileInTurns: this.#instructionsFileInTurns(client),
       sectionTeammates: section,
+      sectionDefaults,
       homeSkills,
       workspaceSkills,
       httpMcpServers: mcpServers.some((config) => config.transport === "http"),
@@ -1289,6 +1295,7 @@ export class ThreadLifecycle {
           developerInstructions: instructions,
           ...(options.memoriesInTurns ? { memoryContext: memoryContext(memories, options) } : {}),
           sectionTeammates: section,
+          sectionDefaults,
           savedLogins: options.passwordVault,
           ...(options.instructionsFileInTurns ? { instructionsFile: options.instructionsFile } : {}),
           ...(options.responseStyle === "natural" && client.provider === "claude" ? { turnStyleReminder: true } : {}),
@@ -1304,6 +1311,11 @@ export class ThreadLifecycle {
       for (const name of yield* skillFolderNames(join(agent.workspacePath, folder))) read.add(name);
     return (yield* listHomeSkills()).filter((skill) => !read.has(skill.slug));
   });
+
+  // Fork (docs/fork/FEATURES.md #108): the shared defaults of the agent's sidebar section.
+  #forkSectionDefaults(agent: AgentSummary): Effect.Effect<SectionDefaultsContext | null> {
+    return forkHub.sections?.context(agent) ?? Effect.succeed(null);
+  }
 
   readonly #workspaceSkills = Effect.fn("ThreadLifecycle.workspaceSkills")(function* (
     agent: AgentSummary,
@@ -1383,6 +1395,7 @@ export class ThreadLifecycle {
         configs,
         instructionsFile,
         yield* this.#workspaceSkills(agent, client),
+        yield* this.#forkSectionDefaults(agent),
       ),
       ...(client.provider === "codex" ? {} : { dynamicTools: visibleDynamicTools(client.provider) }),
       ...(yield* this.codexConfigEffect(

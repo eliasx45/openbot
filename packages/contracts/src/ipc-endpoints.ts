@@ -7,6 +7,12 @@ import type { BillingPortalRequest, BillingState, BillingStorageRequest } from "
 import type { BillingDetails, BillingDetailsRequest } from "./billing-details";
 import type { CustomServerCheckoutRequest, CustomServerCheckoutResult } from "./custom-server-plans";
 import type {
+  AgentSectionInheritance,
+  SectionDefaultsEditor,
+  SetSectionOptOutInput,
+  UpdateSectionDefaultsInput,
+} from "./fork-section-defaults";
+import type {
   CreateHostedServerInput,
   DeleteHostedServerInput,
   HostedServerCatalog,
@@ -1932,6 +1938,17 @@ export const IPC_ENDPOINTS = {
     resyncChromeProfile: scopedRequest<string, ChromeSyncCounts>()("agent:admin:resync-chrome-profile"),
     getChromeSignInSite: scopedRequest<string, string | null>()("agent:admin:get-chrome-sign-in-site"),
     signInWithChrome: scopedRequest<string, ChromeSignInResult>()("agent:admin:sign-in-with-chrome"),
+    // Fork (docs/fork/FEATURES.md #108): shared defaults per sidebar section. This computer only.
+    getSectionDefaults: scopedRequest<string, SectionDefaultsEditor>()("agent:admin:fork-get-section-defaults"),
+    updateSectionDefaults: scopedRequest<UpdateSectionDefaultsInput, SectionDefaultsEditor>()(
+      "agent:admin:fork-update-section-defaults",
+    ),
+    getAgentSectionInheritance: scopedRequest<string, AgentSectionInheritance>()(
+      "agent:admin:fork-get-agent-section-inheritance",
+    ),
+    setAgentSectionOptOut: scopedRequest<SetSectionOptOutInput, AgentSectionInheritance>()(
+      "agent:admin:fork-set-agent-section-opt-out",
+    ),
     // Fork (FEATURES.md 36): a photo from the iPhone through Continuity Camera. This computer only.
     takeIphonePhoto: scopedQuery<IphonePhotoResult>()("agent:admin:take-iphone-photo"),
     getAgentBrowserProfileChoices: scopedRequest<string, AgentBrowserProfileChoices>()(

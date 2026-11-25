@@ -25,6 +25,7 @@ import { setCommitCoAuthorToolSchema } from "./agent/commit-co-author-tool";
 import { CRM_TOOL_DEFINITIONS } from "./agent/crm-tool";
 import { DATA_TOOL_DEFINITIONS } from "./agent/data-tools";
 import { deleteAgentToolSchema } from "./agent/delete-agent-tool";
+import { FORK_SECTION_TOOL_DEFINITIONS } from "./agent/fork-section-tools";
 import { HISTORY_TOOL_DEFINITIONS } from "./agent/history-tools";
 import { readImageToolShape } from "./agent/image-reader";
 import {
@@ -520,7 +521,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
   {
     name: "list_sections",
     description:
-      "List sidebar sections (folders), their stable ids, and assigned agents and channels before choosing message recipients or grouping.",
+      "List sidebar sections (folders), their stable ids, assigned agents and channels, and the shared defaults (sectionDefaults) that their agents inherit, before choosing message recipients or grouping.",
     shape: {},
   },
   {
@@ -544,6 +545,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
     description: "Move an agent or channel (id as agentId) into a sidebar section. Null sectionId ungroups it.",
     shape: assignAgentSectionToolSchema.shape,
   },
+  ...FORK_SECTION_TOOL_DEFINITIONS, // Fork (docs/fork/FEATURES.md #108)
   {
     name: "list_channels",
     description:

@@ -10,6 +10,7 @@ import type { ForkComposio } from "./fork-composio";
 import type { ForkGoals } from "./fork-goals";
 import type { ForkMemory } from "./fork-memory";
 import type { ForkRestartResume } from "./fork-restart-resume";
+import type { ForkSectionInheritance } from "./fork-section-inheritance";
 import type { ForkVoiceNotes } from "./fork-voice-notes";
 
 /** Fork (docs/fork/FEATURES.md, "Agents ride out a network drop"): what a turn end of an agent's own chat tells it. */
@@ -33,6 +34,8 @@ export const forkHub: {
   restartResume: ForkRestartResume | null;
   voiceNotes: ForkVoiceNotes | null;
   networkResume: ForkNetworkResume | null;
+  /** Fork (docs/fork/FEATURES.md #108): shared defaults per sidebar section. The main process sets it. */
+  sections: ForkSectionInheritance | null;
 } = {
   goals: null,
   memory: null,
@@ -41,4 +44,5 @@ export const forkHub: {
   restartResume: null,
   voiceNotes: null,
   networkResume: null,
+  sections: null,
 };

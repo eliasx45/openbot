@@ -1,3 +1,4 @@
+import { parseSetSectionOptOutInput, parseUpdateSectionDefaultsInput } from "@openbot/contracts/fork-section-defaults";
 import {
   type AddedAgent,
   type AgentAdminSettings,
@@ -90,6 +91,7 @@ import { SKILLS_ADMIN_CAPABILITY, SKILLS_ADMIN_ROUTES } from "@openbot/contracts
 import { sourceText } from "@openbot/i18n/source";
 import type { Effect } from "effect";
 import { runCauseEffect } from "../../backend/effect-boundary";
+import type { ForkSectionInheritance } from "../../backend/fork-section-inheritance";
 import type { AgentAdminSettingsService } from "../agent-admin-settings";
 import type { AgentDefaultsSettingsService } from "../agent-defaults-settings";
 import type { AgentHostSettingsService } from "../agent-host-settings";
@@ -138,11 +140,17 @@ interface AgentAdminIpcDependencies {
   browserProfiles: BrowserProfileService;
   /** Fork (FEATURES.md 32): Chrome sign-ins of this computer. */
   chromeImport: ChromeImportService;
+  /** Fork (docs/fork/FEATURES.md #108): shared defaults per sidebar section. */
+  sectionDefaults: ForkSectionInheritance;
   iphonePhoto: Pick<IphonePhotoService, "take">;
   skills: Pick<SkillMarketplaceService, "listInstalled" | "install" | "uninstall" | "setEnabled" | "readGithub">;
   marketplaceAgents: Pick<AgentMarketplaceService, "install">;
   agentTemplates: Pick<AgentTemplateService, "install" | "preview" | "publish" | "unpublish">;
   remoteServers: AgentAdminRemoteServers;
+}
+
+function sectionDefaultsOnlyHere(): never {
+  throw new Error(sourceText("error.backend.sectionDefaultsThisComputerOnly"));
 }
 
 /** The Chrome calls read Chrome on this computer; a joined server's host has its own. */
@@ -162,6 +170,7 @@ export function agentAdminIpcHandlers({
   defaultsSettings,
   browserProfiles,
   chromeImport,
+  sectionDefaults,
   iphonePhoto,
   skills,
   marketplaceAgents,
@@ -350,6 +359,22 @@ export function agentAdminIpcHandlers({
       signInWithChrome: scopedHandler((value) => requireString(value, "tabId"), {
         local: (tabId) => chromeImport.signInTab(tabId),
         remote: () => chromeOnlyHere(),
+      }),
+      getSectionDefaults: scopedHandler((value) => requireString(value, "sectionId"), {
+        local: (sectionId) => runCauseEffect(sectionDefaults.editor(sectionId)),
+        remote: () => sectionDefaultsOnlyHere(),
+      }),
+      updateSectionDefaults: scopedHandler(parseUpdateSectionDefaultsInput, {
+        local: (input) => runCauseEffect(sectionDefaults.update(input)),
+        remote: () => sectionDefaultsOnlyHere(),
+      }),
+      getAgentSectionInheritance: scopedHandler((value) => requireString(value, "agentId"), {
+        local: (agentId) => runCauseEffect(sectionDefaults.agentInheritance(agentId)),
+        remote: () => sectionDefaultsOnlyHere(),
+      }),
+      setAgentSectionOptOut: scopedHandler(parseSetSectionOptOutInput, {
+        local: (input) => runCauseEffect(sectionDefaults.setOptOut(input)),
+        remote: () => sectionDefaultsOnlyHere(),
       }),
       takeIphonePhoto: scopedQueryHandler({
         local: () => iphonePhoto.take(),

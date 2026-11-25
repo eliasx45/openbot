@@ -943,6 +943,7 @@ function withoutTurnContextParams(params: unknown): DynamicRecord {
   const {
     memoryContext: _memories,
     sectionTeammates: _section,
+    sectionDefaults: _sectionDefaults,
     savedLogins: _logins,
     turnStyleReminder: _style,
     ...rest

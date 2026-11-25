@@ -25,6 +25,12 @@ import { redactSecrets, redactText } from "@openbot/logging";
 import { automationRunCommand } from "../automation-command";
 import { COMPOSIO_INSTRUCTIONS } from "../fork-composio";
 import { forkHub } from "../fork-hub";
+import {
+  SECTION_DEFAULTS_BLOCK_START,
+  SECTION_DEFAULTS_POINTER,
+  type SectionDefaultsContext,
+  sectionDefaultsLines,
+} from "../fork-section-inheritance";
 import type { HomeSkill } from "../home-skills";
 import { PASSWORD_MANAGER_BRAND_NAMES } from "../password-vault";
 import { COMPUTER_USE_GUIDE_URI, piComputerUseGuideStep } from "../pi-mcp-names";
@@ -98,6 +104,7 @@ export interface DeveloperInstructionOptions {
   teammatesInTurns?: boolean;
   savedLoginsInTurns?: boolean;
   sectionTeammates?: SectionTeammates | null;
+  sectionDefaults?: SectionDefaultsContext | null; // Fork (docs/fork/FEATURES.md #108)
   computerUseInOwnChat?: boolean;
   computerUseNotReady?: boolean;
   sideThread?: boolean;
@@ -332,6 +339,7 @@ export function isTurnContextBlock(text: string): boolean {
     MEMORY_BLOCK_START,
     MEMORY_UPDATE_START,
     TEAMMATES_BLOCK_START,
+    SECTION_DEFAULTS_BLOCK_START,
     INSTRUCTIONS_FILE_BLOCK_START,
     SAVED_LOGINS_BLOCK_START,
     TURN_STYLE_START,
@@ -342,7 +350,7 @@ export function isTurnContextBlock(text: string): boolean {
 
 export function withoutTurnContext(text: string): string {
   return text.replace(
-    /^(?:<(openbot_saved_memories|openbot_saved_memories_update|openbot_section_teammates|openbot_agent_instructions|openbot_saved_logins|openbot_turn_style|openbot_steer|openbot_background_wake)>\n[\s\S]*?\n<\/\1>\n*)+/u,
+    /^(?:<(openbot_saved_memories|openbot_saved_memories_update|openbot_section_teammates|openbot_section_defaults|openbot_agent_instructions|openbot_saved_logins|openbot_turn_style|openbot_steer|openbot_background_wake)>\n[\s\S]*?\n<\/\1>\n*)+/u,
     "",
   );
 }
@@ -471,6 +479,12 @@ export function developerInstructions(
     "<agent_profile>",
     profile,
     "</agent_profile>",
+    // Fork (docs/fork/FEATURES.md #108): section defaults come before the agent's own Instructions.
+    ...(options.teammatesInTurns
+      ? [SECTION_DEFAULTS_POINTER]
+      : options.sectionDefaults
+        ? sectionDefaultsLines(options.sectionDefaults)
+        : []),
     ...(options.instructionsFileInTurns ? [] : instructionsFileSection(options.instructionsFile)),
     ...(options.teammatesInTurns
       ? [

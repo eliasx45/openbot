@@ -2,7 +2,9 @@ import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type { SidebarLayoutAction } from "@openbot/contracts/ipc";
 import { Effect } from "effect";
 import { z } from "zod";
+import { forkHub } from "../fork-hub";
 import type { SidebarLayoutStore } from "../sidebar-layout-store";
+import { forkSectionSummaries } from "./fork-section-tools";
 import { openBotToolFailure, openBotToolResult } from "./routine-tools";
 import { ToolOperationFailed, toolStep, toToolOperationFailed } from "./tool-operation";
 
@@ -57,5 +59,5 @@ export const handleSidebarTool = Effect.fn("SidebarTools.handle")(function* (
   const layout = action
     ? yield* sidebar.mutate(action, new Set([...agentIds(), ...channelIds()])).pipe(toToolOperationFailed)
     : sidebar.getSnapshot();
-  return openBotToolResult(layout);
+  return openBotToolResult(action ? layout : { ...layout, ...forkSectionSummaries(forkHub.sections, layout) });
 });

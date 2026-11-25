@@ -1,6 +1,11 @@
 import { AGENT_INSTRUCTION_FILE_NAMES } from "@openbot/contracts/ipc";
 import { isDynamicRecord, isNumber, isOneOf, isString } from "@openbot/contracts/runtime-values";
 import {
+  readSectionDefaultsContext,
+  type SectionDefaultsContext,
+  sectionDefaultsUpdate,
+} from "../fork-section-inheritance";
+import {
   type InstructionsFileText,
   instructionsFileUpdate,
   MEMORY_OFF_UPDATE,
@@ -23,6 +28,11 @@ export class TurnContext {
     { current: InstructionsFileText | null; delivered: InstructionsFileText | null | undefined }
   >();
   readonly #savedLogins = new Map<string, { current: boolean; delivered: boolean | undefined }>();
+  // Fork (docs/fork/FEATURES.md #108): the shared defaults of the agent's sidebar section.
+  readonly #sectionDefaults = new Map<
+    string,
+    { current: SectionDefaultsContext | null; delivered: SectionDefaultsContext | null | undefined }
+  >();
   readonly #styleReminders = new Set<string>();
   readonly #memoryOff = new Set<string>();
 
@@ -51,6 +61,12 @@ export class TurnContext {
       if (known) known.current = file;
       else this.#instructionsFiles.set(threadId, { current: file, delivered: resume ? undefined : null });
     }
+    if (isDynamicRecord(params) && "sectionDefaults" in params) {
+      const defaults = readSectionDefaultsContext(params.sectionDefaults);
+      const known = this.#sectionDefaults.get(threadId);
+      if (known) known.current = defaults;
+      else this.#sectionDefaults.set(threadId, { current: defaults, delivered: resume ? undefined : null });
+    }
     if (!isDynamicRecord(params) || !("sectionTeammates" in params)) return;
     const section = readSectionTeammates(params.sectionTeammates);
     const teammates = this.#teammates.get(threadId);
@@ -63,12 +79,14 @@ export class TurnContext {
     const teammates = this.#teammates.get(threadId);
     const file = this.#instructionsFiles.get(threadId);
     const logins = this.#savedLogins.get(threadId);
+    const defaults = this.#sectionDefaults.get(threadId);
     const blocks = command
       ? []
       : [
           memory ? memoryContextUpdate(memory.delivered, memory.current) : null,
           this.#memoryOff.has(threadId) ? MEMORY_OFF_UPDATE : null,
           teammates ? sectionTeammatesUpdate(teammates.delivered, teammates.current) : null,
+          defaults ? sectionDefaultsUpdate(defaults.delivered, defaults.current) : null,
           file ? instructionsFileUpdate(file.delivered, file.current) : null,
           logins ? savedLoginsUpdate(logins.delivered, logins.current) : null,
           this.#styleReminders.has(threadId) ? NATURAL_TURN_REMINDER : null,
@@ -78,6 +96,7 @@ export class TurnContext {
     if (teammates) teammates.delivered = command ? undefined : teammates.current;
     if (file) file.delivered = command ? undefined : file.current;
     if (logins) logins.delivered = command ? undefined : logins.current;
+    if (defaults) defaults.delivered = command ? undefined : defaults.current;
     return blocks;
   }
 
@@ -90,6 +109,8 @@ export class TurnContext {
     if (file) file.delivered = undefined;
     const logins = this.#savedLogins.get(threadId);
     if (logins) logins.delivered = undefined;
+    const defaults = this.#sectionDefaults.get(threadId);
+    if (defaults) defaults.delivered = undefined;
   }
 
   forget(threadId: string): void {
@@ -97,6 +118,7 @@ export class TurnContext {
     this.#teammates.delete(threadId);
     this.#instructionsFiles.delete(threadId);
     this.#savedLogins.delete(threadId);
+    this.#sectionDefaults.delete(threadId);
     this.#styleReminders.delete(threadId);
     this.#memoryOff.delete(threadId);
   }

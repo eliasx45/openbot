@@ -14,6 +14,7 @@ import {
   FolderOpen,
   FolderPlus,
   Pencil,
+  SlidersHorizontal,
   Trash2,
 } from "@openbot/ui";
 import { createMemo, For, Show, untrack } from "solid-js";
@@ -198,6 +199,14 @@ export function SidebarSectionHeader(headerProps: { sectionId: string; name: str
                     <Pencil class="agent-context-icon size-4" aria-hidden="true" />
                     <span>{t("common.rename")}</span>
                   </ContextMenu.Item>
+                  <Show when={props.onOpenSectionSettings}>
+                    {(open) => (
+                      <ContextMenu.Item onSelectAfterClose={() => open()(headerProps.sectionId)}>
+                        <SlidersHorizontal class="agent-context-icon size-4" aria-hidden="true" />
+                        <span>{t("sidebar.section.sharedDefaults")}</span>
+                      </ContextMenu.Item>
+                    )}
+                  </Show>
                   <Show when={foldersSupported()}>
                     <ContextMenu.Item disabled={!canHoldFolder()} onSelectAfterClose={createInside}>
                       <FolderPlus class="agent-context-icon size-4" aria-hidden="true" />

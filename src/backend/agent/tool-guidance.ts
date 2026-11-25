@@ -1,6 +1,7 @@
 import { SIDEBAR_FOLDER_LEVELS } from "@openbot/contracts/ipc";
 import { OPENBOT_BROWSER_NAMESPACE } from "../browser-tools";
 import { ROUTINE_INSTRUCTION_RULE } from "../routine-tool-schema";
+import { FORK_SECTION_AGENT_GUIDANCE, FORK_SECTION_GUIDANCE } from "./fork-section-tools";
 
 export interface ToolGuidanceOptions {
   passwordVault?: boolean;
@@ -99,15 +100,19 @@ function openbotGuidance(namespace: string, tool: string): string {
         "To delete agents, call openbot.delete_agent once with all their ids; the owner approves one card. First move what the user wants to keep to an agent that stays. The user deletes you from your sidebar menu.",
         "To keep the sign-ins of clients or teams apart when the user asks, put each team on one browser profile with openbot.set_browser_profile. Reuse a name from read_agent's browserProfileNames. Do not suggest another browser.",
         "To give an agent a local skill, call openbot.list_local_skills, then openbot.install_local_skill with its agentId. Use openbot.set_skill_enabled and openbot.uninstall_skill with the skillId from read_agent. update_profile can limit access to the workspace, turn Computer Use off, or change notifications. Only the user can give Full access, turn Computer Use on, or change auto-approve, so say when a task needs that. Change MCP servers with the MCP server tools, only when the user asks.",
+        FORK_SECTION_AGENT_GUIDANCE,
       ].join("\n");
     case "list_sections":
     case "create_section":
     case "assign_agent_section":
     case "rename_section":
     case "delete_section":
+    case "read_section":
+    case "update_section_defaults":
       return [
         RECIPIENT_RULE,
         `openbot.list_sections shows the sidebar sections (folders), their agents and channels, and the parentId of nested folders, up to ${SIDEBAR_FOLDER_LEVELS} levels. Only the user nests folders. To group them, reuse a matching one or call openbot.create_section, then call openbot.assign_agent_section for each id from openbot.list_agents or openbot.list_channels; sectionId null ungroups it. openbot.delete_section keeps them.`,
+        FORK_SECTION_GUIDANCE,
       ].join("\n");
     case "list_routines":
     case "create_routine":

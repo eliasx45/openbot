@@ -95,6 +95,8 @@ import { stripeSource } from "../backend/crm/crm-stripe";
 import { diskRestoreEnded, diskRestoring } from "../backend/disk-restore";
 import { runCauseEffect } from "../backend/effect-boundary";
 import { prepareForkClaudeHome } from "../backend/fork-claude-home";
+import { forkHub } from "../backend/fork-hub";
+import type { ForkSectionInheritance } from "../backend/fork-section-inheritance";
 import { LIBRARY_FOLDERS_FILE, LibraryFoldersStore } from "../backend/library-folders-store";
 import { MailboxStore } from "../backend/mailbox-store";
 import { McpOAuth } from "../backend/mcp-oauth-provider";
@@ -256,6 +258,7 @@ import {
 import { feedbackFacts, feedbackSender } from "./feedback";
 import { updatesAllowed as forkUpdatesAllowed } from "./fork";
 import { ForkPhoneVideo, forkPhoneVideo } from "./fork-phone-video";
+import { createForkSectionDefaults } from "./fork-section-defaults";
 import { githubAppConfig } from "./github-connector-config";
 import { GitHubConnectorService } from "./github-connector-service";
 import { GitHubConnectorStore } from "./github-connector-store";
@@ -735,6 +738,8 @@ export interface ApplicationServices {
   appBehavior: AppBehaviorService;
   agentInitialization: AgentInitializationGate<AgentLifecycleFailed>;
   sidebarLayout: SidebarLayoutStore;
+  /** Fork (docs/fork/FEATURES.md #108): shared defaults per sidebar section. */
+  sectionDefaults: ForkSectionInheritance;
   host: HostService;
   remoteDesktop: RemoteDesktopManager;
   remoteServers: RemoteServerManager;
@@ -2107,7 +2112,9 @@ export async function createApplicationServices({
       const config = service.listMcpServers().find((saved) => catalogPluginSlug(saved, listed, homedir()) === appId);
       return config ? { config, setupSteps: server.setupSteps } : null;
     },
-    mcpAgentAccess: (mcpServerId, agentId) => mcpAccessStore.allowsAgent(mcpServerId, agentId),
+    mcpAgentAccess: (mcpServerId, agentId) =>
+      mcpAccessStore.allowsAgent(mcpServerId, agentId) ||
+      (agentId !== null && (forkHub.sections?.grantsMcp(agentId, mcpServerId) ?? false)), // Fork (docs/fork/FEATURES.md #108)
     prepareMcpTest: (config) =>
       prepareToolRuntimeForTest(config, {
         startToolRuntimes: () => {
@@ -2672,6 +2679,15 @@ export async function createApplicationServices({
   );
   // Fork: a channel member reads which of its skills the user picked (docs/fork/FEATURES.md, "`$` in channels").
   service.forkChatSkills = (agentId) => skills.listInstalledForChatTags(agentId);
+  // Fork (docs/fork/FEATURES.md #108): shared instructions, skills and MCP servers per sidebar section.
+  const sectionDefaults = await createForkSectionDefaults({
+    userData: app.getPath("userData"),
+    sidebarLayout,
+    library: () => skills.requireLocalLibrary(),
+    agents: () => service.listAgents(),
+    mcpServers: () => service.listMcpServers(),
+    refreshAgent: (agentId) => service.refreshAgentRuntime(agentId),
+  });
   const marketplaceAgents = new AgentMarketplaceService(marketplaceAuth, service, skills);
   const agentTemplates = new AgentTemplateService(centralAuth, service, {
     listTemplateSkills: (agentId) => skills.listTemplateSkills(agentId),
@@ -4098,6 +4114,7 @@ export async function createApplicationServices({
         rosterLoaded,
         beforeProviderStart: Fiber.join(computerUseWarmUp).pipe(Effect.asVoid),
       });
+      yield* sectionDefaults.syncMcpGrants(); // Fork (docs/fork/FEATURES.md #108)
       yield* eventsRuntime.start();
       yield* automation.sync();
       yield* routineFlowRuntime.sweep();
@@ -4398,6 +4415,7 @@ export async function createApplicationServices({
     requiredUpdate,
     describeRestartReadiness,
     sidebarLayout,
+    sectionDefaults,
     host,
     remoteDesktop,
     remoteServers,

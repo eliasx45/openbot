@@ -11,7 +11,18 @@ import {
   type TestRoutineInput,
   userAssignedSkills,
 } from "@openbot/contracts/ipc";
-import { Blocks, BookMarked, CalendarClock, FileText, Folder, Gauge, Puzzle, Table2, Upload } from "@openbot/ui";
+import {
+  Blocks,
+  BookMarked,
+  CalendarClock,
+  FileText,
+  Folder,
+  Gauge,
+  Layers,
+  Puzzle,
+  Table2,
+  Upload,
+} from "@openbot/ui";
 import { SettingsLinkGroup, SettingsLinkRow } from "@openbot/ui/components/SettingsPanel";
 import type { AgentProfile } from "@openbot/ui/data";
 import type { BrowserProfileSelectProfile } from "@openbot/ui/features/browser/BrowserProfileSelect";
@@ -20,6 +31,7 @@ import {
   type AgentInstructionsCalls,
   AgentInstructionsView,
 } from "@openbot/ui/features/conversation/AgentInstructionsView";
+import { AgentSectionDefaultsView } from "@openbot/ui/features/conversation/AgentSectionDefaultsView";
 import {
   AgentSessionSettings,
   type AgentSessionSettingsApi,
@@ -42,11 +54,13 @@ import { createBrowserProfilesStore } from "../browser/stores/browser-profiles-s
 import { type AgentFilesOptions, AgentFilesSettings } from "../files/AgentFilesSettings";
 import { filesPort } from "../files/files-port";
 import { createStorageUsage } from "../files/storage-usage";
+import { openSectionDefaults } from "../sidebar/fork-section-defaults";
 import { AgentMemoriesSettings } from "./AgentMemoriesSettings";
 import { AgentRoutinesSettings, type DetailLeaveGuard, type RoutineSelectionRequest } from "./AgentRoutinesSettings";
 import { AgentSkillsModal, type AgentSkillsMode, type SkillDetail } from "./AgentSkillsModal";
 import { conversationPort, type SharedTableCalls } from "./conversation-port";
 import type { AgentNotificationLevelCalls, ConversationRuntime } from "./conversation-runtime";
+import { createForkSectionLink, forkSectionDefaultsCalls } from "./fork-agent-section";
 import { type AgentMemoriesApi, agentMemoriesPort, type MemoriesPort } from "./memories-port";
 import type { EventRoutinesApi } from "./routine-webhooks-api";
 import {
@@ -158,8 +172,13 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
     routines: { count: 0, open: false },
     files: { open: false },
     instructions: { open: false },
+    section: { open: false },
     skills: { count: 0, open: false, reopenAfterMarketplace: false },
   });
+  const sectionLink = createForkSectionLink(
+    () => props.agent.id,
+    () => props.localHost === true && !props.remoteClient,
+  );
   const browserProfiles = createMemo(() => {
     const calls = props.browserProfileCalls;
     return calls ? createBrowserProfilesStore(() => calls) : undefined;
@@ -492,6 +511,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
       state.skills.open = detail === "skills";
       state.routines.open = detail === "routines";
       state.files.open = false;
+      state.section.open = false;
     });
     setPanelReveal(detail === "skills" ? null : request);
   }
@@ -519,7 +539,9 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
           report: { operation: "settings", source: "action", cause_code: "unknown" },
         })
       }
-      detailOpen={draft.routines.open || draft.files.open || draft.memories.open || draft.instructions.open}
+      detailOpen={
+        draft.routines.open || draft.files.open || draft.memories.open || draft.instructions.open || draft.section.open
+      }
       links={
         <>
           <Show when={sessionSettings()}>
@@ -537,7 +559,8 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
               skillsMode() !== "hidden" ||
               props.tablesVisible !== false ||
               props.files ||
-              props.instructionsFile
+              props.instructionsFile ||
+              sectionLink.folder()
             }
           >
             <SettingsLinkGroup inset title={t("agentSettings.groups.knows")}>
@@ -551,6 +574,20 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                     })
                   }
                 />
+              </Show>
+              <Show when={sectionLink.folder()}>
+                {(folder) => (
+                  <SettingsLinkRow
+                    icon={<Layers aria-hidden="true" />}
+                    label={t("agentSettings.section.link")}
+                    value={folder()}
+                    onClick={() =>
+                      setDraft((state) => {
+                        state.section.open = true;
+                      })
+                    }
+                  />
+                )}
               </Show>
               <Show when={memoriesShown()}>
                 <SettingsLinkRow
@@ -658,6 +695,19 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
             onClose={props.onClose}
           />
         )}
+      </Show>
+      <Show when={draft.section.open && sectionLink.folder()}>
+        <AgentSectionDefaultsView
+          agentId={props.agent.id}
+          calls={{ ...forkSectionDefaultsCalls, openLink: (url) => props.instructionsFile?.openLink(url) }}
+          onEditSection={openSectionDefaults}
+          onBack={() =>
+            setDraft((state) => {
+              state.section.open = false;
+            })
+          }
+          onClose={props.onClose}
+        />
       </Show>
       <Show when={draft.files.open && props.files}>
         {(files) => (

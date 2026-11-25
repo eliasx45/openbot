@@ -9,6 +9,7 @@ export interface FakeCodexOptions {
   corpus?: FakeCodexCorpus;
   reasoning?: boolean;
   commands?: boolean;
+  prompts?: boolean;
 }
 
 export interface FakeCodex {
@@ -102,6 +103,7 @@ const DELTAS = Number(process.env.OPENBOT_BENCH_CODEX_DELTAS || "400");
 const MARKDOWN = process.env.OPENBOT_BENCH_CODEX_CORPUS === "markdown";
 const REASONING = process.env.OPENBOT_BENCH_CODEX_REASONING === "1";
 const COMMANDS = process.env.OPENBOT_BENCH_CODEX_COMMANDS === "1";
+const PROMPTS = process.env.OPENBOT_BENCH_CODEX_PROMPTS === "1";
 const REASONING_DELTAS = 40;
 const COMMAND_COUNT = 5;
 const COMMAND_OUTPUT_DELTAS = 4;
@@ -235,6 +237,7 @@ const answer = (message) => {
     case "thread/read": return write({ id: message.id, result: { thread: { id: params.threadId, turns: [] } } });
     case "turn/start": {
       const turnId = prefix + "turn-" + (++turns);
+      if (PROMPTS) log({ turnInput: params.input, threadId: params.threadId, turnId, at: Date.now() });
       write({ id: message.id, result: { turn: { id: turnId, status: "inProgress", items: [] } } });
       write({ method: "turn/started", params: { threadId: params.threadId, turn: { id: turnId } } });
       if (sideProcess) return answerSideTurn(params.threadId, turnId);
@@ -285,6 +288,7 @@ export async function writeFakeCodex(directory: string, options: FakeCodexOption
       OPENBOT_BENCH_CODEX_CORPUS: options.corpus ?? "words",
       OPENBOT_BENCH_CODEX_REASONING: options.reasoning ? "1" : "0",
       OPENBOT_BENCH_CODEX_COMMANDS: options.commands ? "1" : "0",
+      OPENBOT_BENCH_CODEX_PROMPTS: options.prompts ? "1" : "0",
     },
   };
 }

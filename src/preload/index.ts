@@ -1,3 +1,4 @@
+import { decodeAgentSectionInheritance, decodeSectionDefaultsEditor } from "@openbot/contracts/fork-section-defaults";
 import { ATTACHMENT_LIMITS, INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import {
   type AgentIpcRequest,
@@ -1472,6 +1473,10 @@ const openbotApi: OpenBotDesktopApi = {
       removeMcpSignInApp: decodeMcpSignInAppState,
     }),
     ...bridgeGroup(IPC_ENDPOINTS.agentAdmin, {
+      getSectionDefaults: decodeSectionDefaultsEditor, // Fork (docs/fork/FEATURES.md #108)
+      updateSectionDefaults: decodeSectionDefaultsEditor, // Fork
+      getAgentSectionInheritance: decodeAgentSectionInheritance, // Fork
+      setAgentSectionOptOut: decodeAgentSectionInheritance, // Fork
       getAgentAdminSettings: decodeAgentAdminSettings,
       getAgentHostSettings: decodeAgentHostSettingsFromMain,
       updateAgentHostSettings: decodeAgentHostSettingsFromMain,

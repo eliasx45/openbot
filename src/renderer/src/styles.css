@@ -72,6 +72,7 @@
 @import "./features/files/library.css";
 @import "./features/crm/crm-page.css";
 @import "@openbot/ui/features/settings/opencode-key-dialog.css";
+@import "@openbot/ui/features/sidebar/section-defaults.css";
 @import "./features/settings/settings-mobile-connect.css";
 @import "@openbot/ui/features/settings/settings-hosted-sites.css";
 @import "@openbot/ui/features/settings/integration-layout.css";

@@ -490,4 +490,6 @@ export const messages = defineMessages("error.backend", {
     "This agent cannot use the browser profile “{name}”. Use one of these: {names}.",
   "error.backend.chromeImportConfirm": "import your browser sign-ins",
   "error.backend.chromeImportCancelled": "The import was cancelled. Nothing was imported.",
+  "error.backend.sectionDefaultsThisComputerOnly":
+    "Shared folder settings are only available for the server on this computer.",
 });
