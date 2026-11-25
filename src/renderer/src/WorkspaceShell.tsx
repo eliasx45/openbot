@@ -31,7 +31,7 @@ import { createRoutineTimezonePrompt, desktopRoutineZoneTargets } from "./featur
 import { createHostedUpsellOffline } from "./features/servers/hosted-server-upsell-controller";
 import { createRemoteSyncMarks } from "./features/servers/remote-sync-marks";
 import { renewServerPlan } from "./features/servers/server-actions";
-import { serverCanAdminister } from "./features/servers/server-capabilities";
+import { serverCanAdminister, serverRoleCanAdminister } from "./features/servers/server-capabilities";
 import { createServerConnectionToast } from "./features/servers/server-connection-toast";
 import { useServerScope } from "./features/servers/server-scope";
 import { followsServerUpdate, ServerUpdateDialogHost } from "./features/servers/server-update-flow";
@@ -91,6 +91,17 @@ export function WorkspaceShell(props: {
   const { conversations, retryConversation } = useConversation();
   const activeConversation = () => conversations[activeAgent()?.id ?? ""];
   const { activeDirectMember } = useDirectMessages();
+  // Fork (docs/fork/FEATURES.md #107): a member with channels and no agents lands in the first channel.
+  createEffect(
+    () => {
+      if (chatWindow || channelOpen() || agentSetupOpen() || serverRoleCanAdminister(activeServer())) return null;
+      if (!agentListSettled() || agentList().length > 0 || !channels.state.listed) return null;
+      return channels.state.channels.find((channel) => !channel.archived)?.id ?? null;
+    },
+    (channelId) => {
+      if (channelId) void channels.open(channelId);
+    },
+  );
   const middlePane = createMemo(() => {
     if (chatWindow) return "agent";
     if (windowPage.page() === "tasks") return "tasks";

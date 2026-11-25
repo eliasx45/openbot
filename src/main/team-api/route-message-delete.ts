@@ -7,6 +7,7 @@ import type { TeamApiAgents } from "./dependencies";
 import { HttpError } from "./http-error";
 import type { RouteOutcome, TeamApiRequestContext } from "./request-context";
 import { readJson, requireAgentLevel, stringField } from "./request-helpers";
+import { requireVisibleChannel } from "./route-channels";
 
 const REFUSED_STATUS = { forbidden: 403, "not-found": 404, busy: 409 } as const;
 
@@ -35,6 +36,7 @@ export async function routeMessageDelete(
         throw new HttpError(400, sourceText("error.team.channelsUnsupported"));
       const channelId = stringField(body, "channelId");
       if (!channels.store.exists(channelId)) throw new HttpError(404, sourceText("error.backend.channelNotFound"));
+      requireVisibleChannel(context, channels, channelId, "chat");
       await runMessageDelete(
         channels.deleteMessage(
           { channelId, messageId },

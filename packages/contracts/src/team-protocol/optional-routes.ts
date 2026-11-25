@@ -1,3 +1,4 @@
+import { CHANNEL_WEBHOOK_CODECS } from "../fork-channel-webhooks";
 import { ACP_REGISTRY_CODECS } from "./acp-registry-v1";
 import type { OptionalRouteCodec } from "./admin-wire";
 import { AGENT_ACCESS_CODECS } from "./agent-access-v1";
@@ -301,6 +302,7 @@ const CODECS: ReadonlyMap<string, OptionalRouteCodec> = new Map([
   ...ONEPASSWORD_CONNECTOR_CODECS,
   ...BITWARDEN_CONNECTOR_CODECS,
   ...AGENT_ACCESS_CODECS,
+  ...CHANNEL_WEBHOOK_CODECS,
   ...MCP_ACCESS_CODECS,
   ...AGENT_HIDDEN_CODECS,
   ...AGENT_COLORS_CODECS,

@@ -922,7 +922,10 @@ function ServerSettings() {
           providerEnvironment={{}}
           hostModelVisibility={{}}
           hostDefaultProvider={{}}
-          agentAccess={{ listAgents: () => appPort().agent.listAgents(server().id) }}
+          agentAccess={{
+            listAgents: () => appPort().agent.listAgents(server().id),
+            listChannels: () => appPort().agent.listChannels(server().id),
+          }}
           serverAudit={{ listAgents: () => appPort().agent.listAgents(server().id) }}
           agentDefaults={{ listAgents: () => appPort().agent.listAgents(server().id) }}
           initialSection={serverSettingsSection()}

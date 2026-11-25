@@ -1,3 +1,4 @@
+import type { ChannelWebhookChange, ChannelWebhookSettings } from "@openbot/contracts/fork-channel-webhooks";
 import type { AttachmentSummary, FilePreview, OpenBotDesktopApi } from "@openbot/contracts/ipc";
 import type { AttachmentMediaSource } from "@openbot/ui/features/conversation/AttachmentCards";
 import type { ChannelMemoriesApi } from "../conversation/memories-port";
@@ -5,7 +6,21 @@ import type { EventRoutinesApi } from "../conversation/routine-webhooks-api";
 import type { ChannelRoutinesApi } from "../conversation/routines-port";
 import type { ChannelFoldersApi } from "./channel-folders-port";
 
+export interface ChannelWebhooksApi {
+  read: (channelId: string) => Promise<ChannelWebhookSettings>;
+  save: (change: ChannelWebhookChange) => Promise<ChannelWebhookSettings>;
+}
+
+export function desktopChannelWebhooks(serverId: string): ChannelWebhooksApi {
+  const api = window.openbot.hostAdmin;
+  return {
+    read: (channelId) => api.getChannelWebhook({ channelId }, serverId),
+    save: (change) => api.setChannelWebhook(change, serverId),
+  };
+}
+
 export interface ChannelsPort {
+  webhooks?: ChannelWebhooksApi | undefined;
   agent: Pick<
     OpenBotDesktopApi["agent"],
     | "channelCommand"

@@ -53,7 +53,6 @@ import type {
   UpdateAgentInput,
 } from "@openbot/contracts/ipc";
 import {
-  agentAccessRank,
   agentComputerUseEnabled,
   agentMemoryEnabled,
   agentNewChatAllowed,
@@ -167,6 +166,7 @@ import {
 import type { DrainScheduler } from "./drain-scheduler";
 import type { FeedbackWithdrawal } from "./feedback-withdrawal";
 import { FORK_SECTION_TOOL_NAMES, forkSectionReadAgentView, handleForkSectionTool } from "./fork-section-tools";
+import { forkChannelTaskPeople, forkReachableAgents } from "./fork-channel-reach";
 import { HistoryTools, historyCursorThread, isHistoryBrowse, MAIN_CHAT_TASK_ID } from "./history-tools";
 import type { HostedSiteCoordinator } from "./hosted-site-coordinator";
 import { isHostedSiteMutationTool } from "./hosted-site-events";
@@ -1985,9 +1985,17 @@ export class OpenBotToolRouter {
 
     if (params.tool === "list_channels") {
       const args = listChannelsToolSchema.parse(params.arguments ?? {}, { reportInput: true });
+      const requesterIds = this.#memberRequesters(senderAgentId, params.turnId);
       return openBotToolResult({
         channels: this.#channels
           .handoffTargets(args.archived === true)
+          .filter(
+            (channel) =>
+              channel.id === channelId ||
+              requesterIds.every(
+                (personId) => (this.#channels.hooks.personChannelLevel?.(personId, channel.id) ?? "chat") !== "none",
+              ),
+          )
           .map((channel) => ({ ...channel, instructions: listedDescription(channel.instructions) })),
       });
     }
@@ -2122,7 +2130,7 @@ export class OpenBotToolRouter {
       const unresolved = new Set(this.#mailbox.unresolvedDeliveries().map(({ delivery }) => delivery.recipientAgentId));
       const openWaits = this.#waits.countByAgent();
       const requesterIds = this.#memberRequesters(senderAgentId, params.turnId);
-      const agents = this.#reachableAgents(senderAgentId, requesterIds).map((agent) => {
+      const agents = this.#reachableAgents(senderAgentId, requesterIds, channelId).map((agent) => {
         const deliveries = this.#mailbox.listQueue(agent.id).deliveries;
         const queuedMessages = deliveries.filter((delivery) => delivery.status === "queued").length;
         const working = this.#hooks.runsTurn(agent.id) || unresolved.has(agent.id);
@@ -2184,7 +2192,20 @@ export class OpenBotToolRouter {
 
     if (params.tool === "read_agent") {
       const args = readAgentToolSchema.parse(params.arguments ?? {});
-      const payload = yield* this.#readAgent(args.agentId ?? senderAgentId);
+      const targetId = args.agentId ?? senderAgentId;
+      const reachable = this.#reachableAgents(
+        senderAgentId,
+        this.#memberRequesters(senderAgentId, params.turnId),
+        channelId,
+      );
+      if (!reachable.some((agent) => agent.id === targetId))
+        return openBotToolFailure(
+          unknownAgentMessage(
+            targetId,
+            reachable.filter((candidate) => candidate.id !== senderAgentId),
+          ),
+        );
+      const payload = yield* this.#readAgent(targetId);
       return { success: true, contentItems: [{ type: "inputText", text: redactText(JSON.stringify(payload)) }] };
     }
 
@@ -3127,22 +3148,29 @@ export class OpenBotToolRouter {
       }
       const member = this.#mailbox.senderMember(delivery.messageId);
       if (member && this.#remoteMember(delivery.messageId)) ids.add(member.id);
+      for (const id of this.#channelTaskPeople(delivery.id)) ids.add(id);
     }
     return [...ids];
   }
 
-  #reachableAgents(senderAgentId: string, requesterIds: readonly string[]): AgentSummary[] {
-    return this.#hooks
-      .listAgents()
-      .filter(
-        (agent) =>
-          agent.id === senderAgentId ||
-          requesterIds.every(
-            (personId) =>
-              agentAccessRank(this.#channels.hooks.personAgentLevel?.(personId, agent.id) ?? "manage") >=
-              agentAccessRank("chat"),
-          ),
-      );
+  // Fork (docs/fork/FEATURES.md #107): a channel turn keeps to the levels of the remote people of its task.
+  #channelTaskPeople(deliveryId: string): string[] {
+    return forkChannelTaskPeople(deliveryId, this.#channels);
+  }
+
+  #reachableAgents(
+    senderAgentId: string,
+    requesterIds: readonly string[],
+    channelId: string | null = null,
+  ): AgentSummary[] {
+    return forkReachableAgents(
+      this.#hooks.listAgents(),
+      senderAgentId,
+      requesterIds,
+      channelId,
+      this.#channels,
+      (personId, agentId) => this.#channels.hooks.personAgentLevel?.(personId, agentId),
+    );
   }
 
   #fromRemoteMember(agentId: string, turnId: string): boolean {

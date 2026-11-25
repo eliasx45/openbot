@@ -1,3 +1,8 @@
+import {
+  CHANNEL_WEBHOOK_ROUTES,
+  type ChannelWebhookChange,
+  decodeChannelWebhookSettings,
+} from "@openbot/contracts/fork-channel-webhooks";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type { AgentEvent, AttachmentSummary, TeamRealtimeEvent } from "@openbot/contracts/ipc";
 import { currentText } from "@openbot/ui/text";
@@ -63,7 +68,21 @@ export function createWebChannelsPort(
     }
     return uploaded;
   }
+  const webhooks = admin
+    ? {
+        read: (channelId: string) =>
+          admin.request("POST", CHANNEL_WEBHOOK_ROUTES.read, decodeChannelWebhookSettings, { channelId }),
+        save: (change: ChannelWebhookChange) =>
+          admin.request("POST", CHANNEL_WEBHOOK_ROUTES.set, decodeChannelWebhookSettings, {
+            channelId: change.channelId,
+            url: change.url,
+            enabled: change.enabled,
+            ...(change.secret === undefined ? {} : { secret: change.secret }),
+          }),
+      }
+    : undefined;
   return {
+    webhooks,
     agent: {
       listChannels: channels?.listChannels ?? unavailable,
       readChannel: channels?.readChannel ?? unavailable,

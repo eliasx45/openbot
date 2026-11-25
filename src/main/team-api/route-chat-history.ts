@@ -54,7 +54,7 @@ export async function routeChatHistory(
     const channelId = stringField(body, "channelId");
     if (!channels.store.exists(channelId)) throw new HttpError(404, sourceText("error.backend.channelNotFound"));
     const admin = canAdministerServer(member.role);
-    requireVisibleChannel(channels, channelId, admin ? new Set() : hiddenAgentIds);
+    requireVisibleChannel(context, channels, channelId, "chat");
     if (path === CHAT_HISTORY_ROUTES.channelClear)
       await runCauseEffect(
         agents.clearChannelContext(channelId, { id: member.id, name: member.name ?? "Team member" }),

@@ -93,9 +93,15 @@ export async function routeAgents(
   function requireVisible(id: string | undefined | null): void {
     if (id && hidden.has(id)) throw new HttpError(404, sourceText("error.team.agentNotFound"));
   }
-  function requireRequestAgent(agentId: string | undefined): void {
+  function requireRequestAgent(agentId: string | undefined, requestId?: string | number): void {
     if (agentId === undefined) return;
-    if (context.agentLevel(agentId) === "none") throw new HttpError(404, sourceText("error.team.agentNotFound"));
+    const threadId = requestId === undefined ? undefined : requestThreadId(agents, requestId);
+    const channelLevel = threadId === undefined ? "none" : context.threadChannelLevel(threadId);
+    if (channelLevel === "chat") return;
+    if (context.agentLevel(agentId) === "none") {
+      if (channelLevel === "view") throw new HttpError(403, sourceText("error.team.channelViewOnly"));
+      throw new HttpError(404, sourceText("error.team.agentNotFound"));
+    }
     requireAgentLevel(context, agentId, "chat");
   }
 
@@ -304,7 +310,7 @@ export async function routeAgents(
   if (method === "POST" && url.pathname === TEAM_API_ROUTES.respond.prompt) {
     const body = await readJson(request);
     const requestId = promptRequestId(body.requestId);
-    requireRequestAgent(agents.agentIdForRequest(requestId));
+    requireRequestAgent(agents.agentIdForRequest(requestId), requestId);
     const sender = memberSender(member);
     await runCauseEffect(
       agents.respondToPrompt(
@@ -317,7 +323,7 @@ export async function routeAgents(
   if (method === "POST" && url.pathname === TEAM_API_ROUTES.respond.approval) {
     const body = await readJson(request);
     const requestId = promptRequestId(body.requestId);
-    requireRequestAgent(agents.agentIdForRequest(requestId));
+    requireRequestAgent(agents.agentIdForRequest(requestId), requestId);
     await runCauseEffect(
       agents.respondToApproval(
         { requestId, decision: approvalDecision(body.decision) },
@@ -361,6 +367,18 @@ export async function routeAgents(
   }
 
   return "unmatched";
+}
+
+// Fork (docs/fork/FEATURES.md #107): a prompt or approval of a channel's thread follows the channel level.
+function requestThreadId(
+  agents: Pick<TeamApiAgents, "pendingPrompts" | "pendingApproval">,
+  requestId: string | number,
+): string | undefined {
+  const key = String(requestId);
+  return (
+    agents.pendingPrompts().find((prompt) => String(prompt.requestId) === key)?.threadId ??
+    agents.pendingApproval(requestId)?.threadId
+  );
 }
 
 const OWN_ACTIONS = new Set(["conversation/read", "conversation/unread"]);

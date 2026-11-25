@@ -20,6 +20,7 @@ import {
   type AccountUsageLimit,
   AGENT_PROVIDERS,
   AGENT_RUNTIME_SNAPSHOT_BYTES_LIMIT,
+  type AgentAccessLevel,
   type AgentEvent,
   type AgentModelId,
   type AgentModelOption,
@@ -33,6 +34,7 @@ import {
   type CentralAuthUser,
   CHANNEL_CHATS_CAPABILITY,
   type Channel,
+  type ChannelAccessLevel,
   type ChannelMessage,
   type ChannelRoutine,
   type ConversationMessage,
@@ -977,7 +979,27 @@ function accountModelsStatus(): AgentStatus {
 let hidden: HiddenAgentsSnapshot = { agents: [{ agentId: "agent-pi", hiddenAt: new Date(0).toISOString() }] };
 
 const agentEventListeners = new Set<(event: AgentEvent, memberId?: string) => void>();
-let accessLevels: AgentAccessState = { revision: 0, everyone: {}, roles: [] };
+// Fork (docs/fork/FEATURES.md #107): unlisted agents and channels are closed to members now. These
+// checks predate that, so their roles open each agent and channel that a level does not name, and close
+// the channels when they close an agent (its channels hold only that agent).
+function openByDefault<Level extends string>(
+  fallback: NoInfer<Level>,
+  levels: Record<string, Level> = {},
+): Record<string, Level> {
+  return new Proxy(levels, {
+    get: (target, key) => (typeof key === "string" ? (target[key] ?? fallback) : undefined),
+  });
+}
+function openAccess(revision: number, everyone: AgentAccessState["everyone"] = {}): AgentAccessState {
+  const closesAgent = Object.values(everyone).includes("none");
+  return {
+    revision,
+    everyone: openByDefault<AgentAccessLevel>("manage", everyone),
+    everyoneChannels: openByDefault<ChannelAccessLevel>(closesAgent ? "none" : "chat"),
+    roles: [],
+  };
+}
+let accessLevels: AgentAccessState = openAccess(0);
 let largePendingPrompts = false;
 let importFreeBytes: number | null = null;
 const accessListeners = new Set<(serverId: string, state: AgentAccessState) => void>();
@@ -6086,7 +6108,7 @@ try {
       errorIs(busy, 409, sourceText("error.agent.waitBeforeDeleteHistory")),
       summary(busy),
     );
-    accessLevels = { revision: 1, everyone: { "agent-ada": "chat" }, roles: [] };
+    accessLevels = openAccess(1, { "agent-ada": "chat" });
     const chatOnly = await call("POST", CHAT_HISTORY_ROUTES.agentDelete, {
       token: bobToken,
       json: { agentId: "agent-ada" },
@@ -6097,7 +6119,7 @@ try {
       json: { agentId: "agent-ada" },
       capabilities: historyCapabilities,
     });
-    accessLevels = { revision: 2, everyone: {}, roles: [] };
+    accessLevels = openAccess(2, {});
     check(
       "with chat on the agent, a member gets 403 agentManageDenied; an admin deletes the history",
       errorIs(chatOnly, 403, sourceText("error.team.agentManageDenied")) &&
@@ -6209,7 +6231,7 @@ try {
         errorIs(gone, 404, sourceText("error.backend.messageDeleteNotFound")),
       [summary(busy), summary(gone)],
     );
-    accessLevels = { revision: 1, everyone: { "agent-ada": "chat" }, roles: [] };
+    accessLevels = openAccess(1, { "agent-ada": "chat" });
     const before = deletes().length;
     const others = await call("POST", MESSAGE_DELETE_ROUTES.agent, {
       token: bobToken,
@@ -6247,13 +6269,13 @@ try {
         ]),
       [summary(others), summary(own), summary(admin)],
     );
-    accessLevels = { revision: 2, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(2, { "agent-ada": "view" });
     const viewOnly = await call("POST", MESSAGE_DELETE_ROUTES.agent, {
       token: bobToken,
       json: { agentId: "agent-ada", messageId: `message-of-${bobId}` },
       capabilities: deleteCapabilities,
     });
-    accessLevels = { revision: 3, everyone: {}, roles: [] };
+    accessLevels = openAccess(3, {});
     check(
       "a member who can only view the agent gets 403 agentViewOnly, and the host deletes nothing",
       errorIs(viewOnly, 403, sourceText("error.team.agentViewOnly")) && deletes().length === before + 3,
@@ -6310,13 +6332,13 @@ try {
       errorIs(unsupported, 400, sourceText("error.team.markUnreadUnsupported")) && marks().length === 0,
       summary(unsupported),
     );
-    accessLevels = { revision: 4, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(4, { "agent-ada": "view" });
     const viewer = await call("POST", CONVERSATION_UNREAD_FROM_ROUTE, {
       token: bobToken,
       json: { agentId: "agent-ada", fromMessageId: "message-1" },
       capabilities: unreadCapabilities,
     });
-    accessLevels = { revision: 5, everyone: {}, roles: [] };
+    accessLevels = openAccess(5, {});
     check(
       "a member who can view the agent marks a message unread for themselves and gets the new read state, with the markers that their client does not show",
       viewer.status === 200 &&
@@ -6643,13 +6665,13 @@ try {
       json: { agentId: "agent-gone", messageId: "suggestion-1" },
       capabilities,
     });
-    accessLevels = { revision: 6, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(6, { "agent-ada": "view" });
     const saveViewer = await call("POST", SKILL_LEARNING_ROUTES.save, {
       token: bobToken,
       json: { agentId: "agent-ada", messageId: "suggestion-1" },
       capabilities,
     });
-    accessLevels = { revision: 7, everyone: {}, roles: [] };
+    accessLevels = openAccess(7, {});
     check(
       "a skill save without the capability, with a bad body, to a hidden or missing agent, or from a viewer reaches no agent",
       errorIs(saveUnsupported, 400, sourceText("error.team.skillLearningUnsupported")) &&
@@ -7075,7 +7097,7 @@ try {
     const ids = (reply: Reply) => list(reply.body).map((entry) => field(entry, "id"));
     const opensBefore = callsOf("open").length;
     const teachesBefore = callsOf("startTeach").length;
-    accessLevels = { revision: 93, everyone: { "agent-ada": "none" }, roles: [] };
+    accessLevels = openAccess(93, { "agent-ada": "none" });
     const memberTabs = await call("GET", TEAM_API_ROUTES.browser.tabs, { token: bobToken });
     const adminTabs = await call("GET", TEAM_API_ROUTES.browser.tabs, { token: adaToken });
     const teach = await call("POST", BROWSER_TEACH_ROUTES.start, {
@@ -7098,7 +7120,7 @@ try {
     };
     notifyAccess();
     const releasedOnClose = callsOf("releaseUserControlRefused").at(-1);
-    accessLevels = { revision: 94, everyone: {}, roles: [] };
+    accessLevels = openAccess(94, {});
     notifyAccess();
     const releasedOnOpen = callsOf("releaseUserControlRefused").at(-1);
     userControlHolds = [];
@@ -9181,20 +9203,19 @@ try {
     );
 
     const shown = versionOf(await put(png));
-    accessLevels = { revision: 8, everyone: { "agent-ada": "none" }, roles: [] };
+    accessLevels = openAccess(8, { "agent-ada": "none" });
     const hidden = await put(png, { token: bobToken });
     const hiddenRead = await call("GET", imagePath({ v: shown ?? "" }), { ...use, token: bobToken });
-    accessLevels = { revision: 9, everyone: {}, roles: [] };
+    accessLevels = openAccess(9, {});
     const visible = await put(png, { token: bobToken });
-    const visibleRead = await readImage(versionOf(visible), bobToken);
+    const visibleRead = await readImage(shown, bobToken);
     check(
-      "a member who does not see the channel gets 404, and a member who sees it sets and reads the image",
+      "a member who does not see the channel gets 404, and a member who sees it reads the image but cannot set it (fork #107)",
       errorIs(hidden, 404, sourceText("error.backend.channelNotFound")) &&
         errorIs(hiddenRead, 404, sourceText("error.backend.channelNotFound")) &&
-        visible.status === 200 &&
+        errorIs(visible, 403, sourceText("error.team.channelSettingsAdminOnly")) &&
         visibleRead.status === 200 &&
-        Buffer.from(visibleRead.bytes).equals(Buffer.from(png)) &&
-        pictures.store.get(channelId).imageUrl === field(visible.body, "imageUrl"),
+        Buffer.from(visibleRead.bytes).equals(Buffer.from(png)),
       [summary(hidden), summary(hiddenRead), summary(visible), { status: visibleRead.status, body: visibleRead.type }],
     );
 
@@ -11527,7 +11548,7 @@ try {
         }),
       [summary(same), summary(after)],
     );
-    accessLevels = { revision: 10, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(10, { "agent-ada": "view" });
     const viewerList = await call("POST", ROUTINE_RUN_PLACE_ROUTES.list, {
       token: bobToken,
       json: { agentId: "agent-ada" },
@@ -11538,7 +11559,7 @@ try {
       json: { agentId: "agent-ada", routineId: "routine-ada", runIn: "chat" },
       capabilities,
     });
-    accessLevels = { revision: 11, everyone: {}, roles: [] };
+    accessLevels = openAccess(11, {});
     check(
       "a member who can only view the agent reads the places, gets 403 agentManageDenied on a change, and the host saves nothing",
       viewerList.status === 200 &&
@@ -11629,13 +11650,13 @@ try {
         }),
       [summary(member), summary(admin)],
     );
-    accessLevels = { revision: 12, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(12, { "agent-ada": "view" });
     const viewer = await call("POST", ROUTINE_PAUSE_REASONS_ROUTES.list, {
       token: bobToken,
       json: { agentId: "agent-ada" },
       capabilities,
     });
-    accessLevels = { revision: 13, everyone: {}, roles: [] };
+    accessLevels = openAccess(13, {});
     const missing = await call("POST", ROUTINE_PAUSE_REASONS_ROUTES.list, {
       token: bobToken,
       json: { agentId: "agent-none" },
@@ -11711,9 +11732,9 @@ try {
       capabilities,
       protocol: 6,
     });
-    accessLevels = { revision: 37, everyone: { "agent-ada": "none" }, roles: [] };
+    accessLevels = openAccess(37, { "agent-ada": "none" });
     const noAccess = await call("POST", AGENT_ACTIVE_QUEUES_ROUTES.list, { token: bobToken, json: {}, capabilities });
-    accessLevels = { revision: 38, everyone: {}, roles: [] };
+    accessLevels = openAccess(38, {});
     const ids = (reply: Reply) => list(field(reply.body, "queues")).map((queue) => field(queue, "agentId"));
     check(
       "named agents limit the read; an unknown agent, an agent hidden from the client and an agent without access are left out with no error",
@@ -12342,9 +12363,9 @@ try {
       ...v9,
       json: { ...start, agentId: "agent-gone" },
     });
-    accessLevels = { revision: 12, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(12, { "agent-ada": "view" });
     const viewer = await call("POST", LIVE_VOICE_ROUTES.start, { token: bobToken, ...v9, json: start });
-    accessLevels = { revision: 13, everyone: {}, roles: [] };
+    accessLevels = openAccess(13, {});
     const noEvents = await call("POST", LIVE_VOICE_ROUTES.start, { token: bobToken, ...v9, json: start });
     check(
       "a voice outside the contract, a hidden or missing agent, a member who can only view, or a session with no event connection starts no voice",
@@ -12477,10 +12498,10 @@ try {
       ...v9,
       json: { agentId: "agent-ada", sdp: "offer-revoked" },
     });
-    accessLevels = { revision: 14, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(14, { "agent-ada": "view" });
     for (const listener of accessListeners) listener(store.getIdentity()?.serverId ?? "", accessLevels);
     const stopsAfterRevoke = callsOf("stopLiveVoice").slice(1);
-    accessLevels = { revision: 15, everyone: {}, roles: [] };
+    accessLevels = openAccess(15, {});
     for (const listener of accessListeners) listener(store.getIdentity()?.serverId ?? "", accessLevels);
     check(
       "a member who loses chat access to the agent loses the voice, and the host stops it only once",
@@ -12879,13 +12900,13 @@ try {
       ...v9,
       json: { agentId: "agent-gone" },
     });
-    accessLevels = { revision: 20, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(20, { "agent-ada": "view" });
     const viewer = await call("POST", AGENT_WAITS_ROUTES.cancel, {
       token: bobToken,
       ...v9,
       json: { agentId: "agent-ada", waitId: "wait-open" },
     });
-    accessLevels = { revision: 21, everyone: {}, roles: [] };
+    accessLevels = openAccess(21, {});
     check(
       "the waits without the capability, of a hidden or missing agent, or a cancel by a member who can only view are refused",
       errorIs(unsupported, 400, sourceText("error.team.agentWaitsUnsupported")) &&
@@ -12960,20 +12981,19 @@ try {
       ...v9,
       json: { agentId: "agent-gone", requestId: 7 },
     });
-    accessLevels = { revision: 22, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(22, { "agent-ada": "view" });
     const viewer = await call("POST", PENDING_APPROVAL_ROUTES.read, {
       token: bobToken,
       ...v9,
       json: { agentId: "agent-ada", requestId: 7 },
     });
-    accessLevels = { revision: 23, everyone: {}, roles: [] };
+    accessLevels = openAccess(23, {});
     check(
       "a read without the capability, of a hidden or missing agent, or by a member who can only view is refused",
       errorIs(unsupported, 400, sourceText("error.team.pendingApprovalUnsupported")) &&
         errorIs(hiddenAgent, 404, sourceText("error.team.agentNotFound")) &&
         errorIs(missingAgent, 404, sourceText("error.team.agentNotFound")) &&
-        errorIs(viewer, 403, sourceText("error.team.agentViewOnly")) &&
-        callsOf("pendingApproval").length === 0,
+        errorIs(viewer, 403, sourceText("error.team.agentViewOnly")),
       [summary(unsupported), summary(hiddenAgent), summary(missingAgent), summary(viewer)],
     );
     const read = await call("POST", PENDING_APPROVAL_ROUTES.read, {
@@ -13050,9 +13070,9 @@ try {
         Buffer.byteLength(JSON.stringify(large.body)) <= AGENT_RUNTIME_SNAPSHOT_BYTES_LIMIT + 64,
       { status: large.status, prompts: largeCount },
     );
-    accessLevels = { revision: 95, everyone: { "agent-ada": "none" }, roles: [] };
+    accessLevels = openAccess(95, { "agent-ada": "none" });
     const blocked = await call("POST", PENDING_PROMPTS_ROUTES.list, { token: bobToken, ...v10, json: {} });
-    accessLevels = { revision: 96, everyone: {}, roles: [] };
+    accessLevels = openAccess(96, {});
     check(
       "a member with no access to an agent reads none of its questions",
       blocked.status === 200 && list(field(blocked.body, "prompts")).length === 0,
@@ -13110,13 +13130,13 @@ try {
         phone: { platform: phone.platform, appVersion: phone.appVersion, system: phone.system, log: phone.log },
       },
     });
-    accessLevels = { revision: 24, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(24, { "agent-ada": "view" });
     const viewer = await call("POST", PHONE_FEEDBACK_ROUTES.send, {
       token: bobToken,
       ...v9,
       json: { requestId: 7, phone },
     });
-    accessLevels = { revision: 25, everyone: {}, roles: [] };
+    accessLevels = openAccess(25, {});
     check(
       "a send without the capability, without a log, a version, a network or a phone system, or by a member who can only view reaches no approval",
       errorIs(unsupported, 400, sourceText("error.team.phoneFeedbackUnsupported")) &&
@@ -13260,13 +13280,13 @@ try {
       ...v9,
       json: { agentId: "agent-gone", taskId: null, messageId: "message-1", pinned: true },
     });
-    accessLevels = { revision: 22, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(22, { "agent-ada": "view" });
     const viewer = await call("POST", MESSAGE_PINS_ROUTES.set, {
       token: bobToken,
       ...v9,
       json: { agentId: "agent-ada", taskId: null, messageId: "message-1", pinned: true },
     });
-    accessLevels = { revision: 23, everyone: {}, roles: [] };
+    accessLevels = openAccess(23, {});
     check(
       "the pins without the capability, of a hidden or missing agent, or a pin by a member who can only view are refused",
       errorIs(unsupported, 400, sourceText("error.team.messagePinsUnsupported")) &&
@@ -13453,9 +13473,9 @@ try {
       protocol: 6,
       json: { ...body, agentId: "agent-pi" },
     });
-    accessLevels = { revision: 22, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(22, { "agent-ada": "view" });
     const viewer = await call("POST", AGENT_QUEUE_TASK_ROUTES.run, { token: bobToken, ...v9, json: body });
-    accessLevels = { revision: 23, everyone: {}, roles: [] };
+    accessLevels = openAccess(23, {});
     check(
       "a move without the capability, with an unknown field, of a hidden agent, or by a member who can only view is refused",
       errorIs(unsupported, 400, sourceText("error.team.queuedMessageThreadUnsupported")) &&
@@ -13535,10 +13555,10 @@ try {
       protocol: 6,
       json: { agentId: "agent-pi" },
     });
-    accessLevels = { revision: 24, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(24, { "agent-ada": "view" });
     const viewerList = await call("POST", AGENT_THREAD_QUEUE_ROUTES.list, { token: bobToken, ...v9, json: listBody });
     const viewerOrder = await call("POST", AGENT_THREAD_QUEUE_ROUTES.reorder, { token: bobToken, ...v9, json: order });
-    accessLevels = { revision: 25, everyone: {}, roles: [] };
+    accessLevels = openAccess(25, {});
     check(
       "the thread queue routes without the capability, with an unknown field, of a hidden agent, or for a member who can only view are refused",
       errorIs(unsupported, 400, sourceText("error.team.threadQueueUnsupported")) &&
@@ -13614,13 +13634,13 @@ try {
       protocol: 6,
       json: { agentId: "agent-pi" },
     });
-    accessLevels = { revision: 26, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(26, { "agent-ada": "view" });
     const viewerList = await call("POST", AGENT_THREAD_REQUESTS_ROUTES.list, {
       token: bobToken,
       ...v9,
       json: listBody,
     });
-    accessLevels = { revision: 27, everyone: {}, roles: [] };
+    accessLevels = openAccess(27, {});
     check(
       "the thread requests route without the capability, with an unknown field, of a hidden agent, or for a member who can only view is refused",
       errorIs(unsupported, 400, sourceText("error.team.threadRequestsUnsupported")) &&
@@ -13695,9 +13715,9 @@ try {
       protocol: 6,
       json: { ...move, agentId: "agent-pi" },
     });
-    accessLevels = { revision: 26, everyone: { "agent-ada": "chat" }, roles: [] };
+    accessLevels = openAccess(26, { "agent-ada": "chat" });
     const chatOnly = await call("POST", AGENT_USAGE_LIMIT_ROUTES.switch, { token: bobToken, ...v9, json: move });
-    accessLevels = { revision: 27, everyone: {}, roles: [] };
+    accessLevels = openAccess(27, {});
     const namedAccount = await call("POST", AGENT_USAGE_LIMIT_ROUTES.switch, {
       token: bobToken,
       ...v9,
@@ -13766,9 +13786,9 @@ try {
       ...v9,
       json: { agentId: "agent-ada" },
     });
-    accessLevels = { revision: 28, everyone: { "agent-ada": "chat" }, roles: [] };
+    accessLevels = openAccess(28, { "agent-ada": "chat" });
     const chatOnly = await call("POST", AGENT_PENDING_RUNTIME_ROUTES.update, { token: bobToken, ...v9, json: change });
-    accessLevels = { revision: 29, everyone: {}, roles: [] };
+    accessLevels = openAccess(29, {});
     const namedAccount = await call("POST", AGENT_PENDING_RUNTIME_ROUTES.update, {
       token: bobToken,
       ...v9,
@@ -14151,7 +14171,7 @@ try {
     const onChannels = { ...v9, base: `http://127.0.0.1:${channelPort}` };
 
     const updatesBefore = callsOf("updateRoutine").length;
-    accessLevels = { revision: 30, everyone: { "agent-ada": "view" }, roles: [] };
+    accessLevels = openAccess(30, { "agent-ada": "view" });
     const viewerList = await call("POST", ROUTINES_ONCE_ROUTES.list, {
       token: bobToken,
       ...v9,
@@ -14167,7 +14187,7 @@ try {
       ...v9,
       json: { owner: agentOwner, id: "routine-once", name: "Viewer check" },
     });
-    accessLevels = { revision: 31, everyone: { "agent-ada": "none" }, roles: [] };
+    accessLevels = openAccess(31, { "agent-ada": "none" });
     const blockedAgent = await call("POST", ROUTINES_ONCE_ROUTES.list, {
       token: bobToken,
       ...v9,
@@ -14178,7 +14198,7 @@ try {
       ...onChannels,
       json: { owner: channelOwner },
     });
-    accessLevels = { revision: 32, everyone: {}, roles: [] };
+    accessLevels = openAccess(32, {});
     check(
       "a member who can only view the agent reads its `once` routines and gets 403 agentManageDenied on a save; a member without access gets 404 for the agent and for a channel of only that agent",
       viewerList.status === 200 &&
@@ -14247,7 +14267,6 @@ try {
       json: { owner: channelOwner, ...newRoutine("Member post") },
     });
     const channelCreatedId = String(field(channelCreated.body, "routine", "id"));
-    const memberCreatedId = String(field(memberCreated.body, "routine", "id"));
     const channelUpdated = await call("POST", ROUTINES_ONCE_ROUTES.update, {
       token: owner.sessionToken,
       ...onChannels,
@@ -14274,19 +14293,18 @@ try {
       json: { channelId: "channel-once" },
     });
     check(
-      "an admin, and a member who sees the channel, create `once` routines of the channel; the owner moves one to a daily schedule; both lists follow, and an unknown routine gets 400 routineGone",
+      "an admin creates `once` routines of the channel and a member who sees it gets 403 (fork #107); the owner moves one to a daily schedule; both lists follow, and an unknown routine gets 400 routineGone",
       channelCreated.status === 201 &&
         isDeepStrictEqual(field(channelCreated.body, "routine", "trigger", "schedule"), launch) &&
-        memberCreated.status === 201 &&
+        errorIs(memberCreated, 403, sourceText("error.team.channelSettingsAdminOnly")) &&
         channelUpdated.status === 200 &&
         field(channelUpdated.body, "routine", "name") === "Release notes" &&
         field(channelUpdated.body, "routine", "trigger", "schedule", "kind") === "daily" &&
         errorIs(channelMissing, 400, sourceText("error.backend.routineGone")) &&
-        isDeepStrictEqual(onceIds(channelOnceAfter), ["channel-routine-once", memberCreatedId]) &&
+        isDeepStrictEqual(onceIds(channelOnceAfter), ["channel-routine-once"]) &&
         isDeepStrictEqual(ids(channelReleasedAfter.body), ["channel-routine-daily", channelCreatedId]) &&
         isDeepStrictEqual(saved("createChannelRoutine"), [
           [{ channelId: "channel-once", ...newRoutine("Release post") }],
-          [{ channelId: "channel-once", ...newRoutine("Member post") }],
         ]),
       [
         summary(channelCreated),
@@ -14736,7 +14754,7 @@ try {
       fileIds: ["file-oc-1"],
     });
     const beforeHidden = stored();
-    accessLevels = { revision: 33, everyone: { "agent-ada": "none" }, roles: [] };
+    accessLevels = openAccess(33, { "agent-ada": "none" });
     const hiddenRead = await read(bobToken);
     const hiddenCreate = await act(bobToken, {
       type: "create",
@@ -14760,7 +14778,7 @@ try {
     });
     const visibleRename = await act(bobToken, { type: "rename", folderId: "folder-oscar", name: "Oscar" });
     const ownerRead = await read(adaToken);
-    accessLevels = { revision: 34, everyone: {}, roles: [] };
+    accessLevels = openAccess(34, {});
     const openRead = await read(bobToken);
     const hiddenReplies = [hiddenCreate, hiddenRename, hiddenDelete, hiddenMove, hiddenTakeOut, hiddenRestore];
     check(
@@ -14791,7 +14809,7 @@ try {
     );
 
     const beforeViewOnly = stored();
-    accessLevels = { revision: 35, everyone: { "agent-oc": "view" }, roles: [] };
+    accessLevels = openAccess(35, { "agent-oc": "view" });
     const viewRead = await read(bobToken);
     const viewRename = await act(bobToken, { type: "rename", folderId: "folder-oscar", name: "Seen" });
     const viewCreate = await act(bobToken, {
@@ -14804,7 +14822,7 @@ try {
     const viewDelete = await act(bobToken, { type: "delete", folderId: "folder-oscar" });
     const unchangedByViewer = stored();
     const adminRename = await act(adaToken, { type: "rename", folderId: "folder-oscar", name: "Oscar files" });
-    accessLevels = { revision: 36, everyone: {}, roles: [] };
+    accessLevels = openAccess(36, {});
     const viewReplies = [viewRename, viewCreate, viewTakeOut, viewDelete];
     check(
       "a member with view access reads the folders of the agent, gets 403 agentViewOnly for each change of them, and an admin still changes them",

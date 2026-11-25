@@ -16,7 +16,7 @@ import { useServers } from "../servers/servers-context";
 import { useWindowPage } from "../window/window-page-context";
 import { readChannelSelection, writeChannelSelection } from "./channel-selection";
 import { type ChannelsController, createChannelsController } from "./channels-controller";
-import { type ChannelsPort, channelsPort } from "./channels-port";
+import { type ChannelsPort, channelsPort, desktopChannelWebhooks } from "./channels-port";
 
 const ChannelsContext = createContext<ChannelsController>(undefined, { name: "Channels" });
 
@@ -45,8 +45,10 @@ export function ChannelsProvider(props: ParentProps) {
   };
   const port = (): ChannelsPort => {
     const base = channelsPort();
+    const server = activeServer();
     return {
       ...base,
+      webhooks: server && serverRoleCanAdminister(server) ? desktopChannelWebhooks(server.id) : undefined,
       agent: {
         ...base.agent,
         channelCommand: (command) => {

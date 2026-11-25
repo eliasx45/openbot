@@ -1,4 +1,10 @@
 import {
+  CHANNEL_WEBHOOK_ROUTES,
+  decodeChannelWebhookSettings,
+  parseChannelWebhookChange,
+  parseChannelWebhookRead,
+} from "@openbot/contracts/fork-channel-webhooks";
+import {
   type AgentAccessChange,
   type AgentAccessSnapshot,
   type AgentProviderRef,
@@ -122,6 +128,7 @@ import type { AgentMemoryLimitSetting } from "../agent-memory-limit-preference-s
 import type { BrowsingMemoryPreferenceStore } from "../browsing-memory-preference-store";
 import type { ClaudeCompactWindowControl } from "../claude-compact-window-preference-store";
 import type { ClaudeUserSetupControl } from "../claude-user-setup-preference-store";
+import { type ChannelWebhookService, forkChannelWebhooks } from "../fork-channel-webhooks";
 import type { HostService } from "../host-service";
 import type { HostTurnLimitsPreferenceStore } from "../host-turn-limits-preference-store";
 import type { MachineAlertMonitor } from "../machine-alerts";
@@ -179,6 +186,8 @@ interface HostAdminIpcDependencies {
   serverAudit: Pick<ServerAuditStore, "read">;
   localServerId: () => string | undefined;
   localAgentIds: () => string[];
+  localChannelIds?: () => string[];
+  localChannelExists?: (channelId: string) => boolean;
   localOwner: () => ServerAuditName | null;
 }
 
@@ -206,6 +215,8 @@ export function hostAdminIpcHandlers({
   serverAudit,
   localServerId,
   localAgentIds,
+  localChannelIds,
+  localChannelExists,
   localOwner,
 }: HostAdminIpcDependencies): Pick<IpcGroupHandlers, "hostAdmin"> {
   function remoteUpdate(serverId: string, route: string, body: HostUpdateBody): Promise<HostUpdateStatus> {
@@ -314,6 +325,12 @@ export function hostAdminIpcHandlers({
     if (!remoteServers.supportsCapability(serverId, AGENT_ACCESS_CAPABILITY))
       throw new Error(sourceText("error.team.agentAccessUnsupported"));
     return runCauseEffect(remoteServers.request(serverId, route, decodeAgentAccessSnapshot, { method: "POST", body }));
+  }
+  function localChannelWebhooks(channelId: string): ChannelWebhookService {
+    const webhooks = forkChannelWebhooks.current;
+    if (!webhooks || !(localChannelExists?.(channelId) ?? false))
+      throw new Error(sourceText("error.backend.channelNotFound"));
+    return webhooks;
   }
   const localUpdate = (): never => {
     throw new Error(sourceText("error.team.hostUpdateUnsupported"));
@@ -554,7 +571,7 @@ export function hostAdminIpcHandlers({
       getAgentAccess: scopedQueryHandler({
         local: () => {
           const serverId = localAccessServerId();
-          return agentAccessSnapshot(agentAccess.levels(serverId), LOCAL_OWNER, localAgentIds());
+          return agentAccessSnapshot(agentAccess.levels(serverId), LOCAL_OWNER, localAgentIds(), localChannelIds?.());
         },
         remote: (serverId) => remoteAccess(serverId, AGENT_ACCESS_ROUTES.read, {}),
       }),
@@ -562,16 +579,46 @@ export function hostAdminIpcHandlers({
         local: async (change) => {
           const serverId = localAccessServerId();
           const shown = new Set(localAgentIds());
+          const channelIds = localChannelIds?.();
           const saved = await Effect.runPromise(
-            Effect.result(agentAccess.set(serverId, change, shown, shown, localOwner())),
+            Effect.result(
+              agentAccess.set(
+                serverId,
+                change,
+                shown,
+                shown,
+                localOwner(),
+                channelIds === undefined ? undefined : new Set(channelIds),
+              ),
+            ),
           );
           if (Result.isFailure(saved)) {
             if (saved.failure._tag === "AgentAccessStale") throw new Error(sourceText("error.team.agentAccessStale"));
             throw saved.failure.cause;
           }
-          return agentAccessSnapshot(agentAccess.levels(serverId), LOCAL_OWNER, [...shown]);
+          return agentAccessSnapshot(agentAccess.levels(serverId), LOCAL_OWNER, [...shown], channelIds);
         },
         remote: (change, serverId) => remoteAccess(serverId, AGENT_ACCESS_ROUTES.set, change),
+      }),
+      getChannelWebhook: scopedHandler(parseChannelWebhookRead, {
+        local: ({ channelId }) => localChannelWebhooks(channelId).settings(channelId),
+        remote: (input, serverId) =>
+          runCauseEffect(
+            remoteServers.request(serverId, CHANNEL_WEBHOOK_ROUTES.read, decodeChannelWebhookSettings, {
+              method: "POST",
+              body: input,
+            }),
+          ),
+      }),
+      setChannelWebhook: scopedHandler(parseChannelWebhookChange, {
+        local: (change) => runCauseEffect(localChannelWebhooks(change.channelId).set(change)),
+        remote: (change, serverId) =>
+          runCauseEffect(
+            remoteServers.request(serverId, CHANNEL_WEBHOOK_ROUTES.set, decodeChannelWebhookSettings, {
+              method: "POST",
+              body: change,
+            }),
+          ),
       }),
       getAuditLog: scopedQueryHandler({
         local: (): ServerAuditLog => {

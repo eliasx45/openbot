@@ -454,7 +454,7 @@ try {
   const ownerToken = await login(OWNER);
 
   const setup = await step(
-    "setup: an owner, a member, and four agents; with no roles the member gets every agent",
+    "setup: an owner, a member, and four agents; with no roles the member gets no agent (fork #107)",
     async () => {
       const { agents, team } = current();
       const create = async (name: string) =>
@@ -480,11 +480,7 @@ try {
       const mine = await readAccess(memberToken);
       assert.equal(mine.everyone, undefined, "A member reads the Everyone levels.");
       assert.equal(mine.roles, undefined, "A member reads the roles.");
-      assert.deepEqual(
-        Object.values(mine.mine),
-        ["manage", "manage", "manage", "manage"],
-        "With no roles a member must manage every agent.",
-      );
+      assert.deepEqual(mine.mine, {}, "With no roles a member must get no agent (fork #107 default-closed).");
       return { ids: { legal, finance, ops, general }, memberId, memberToken };
     },
     ({ ids, memberId }) => ({ ids, memberId }),
@@ -502,7 +498,7 @@ try {
   const legalRole = { id: "legal", name: "Legal", agents: { [legal]: "chat" as const }, memberIds: [setup.memberId] };
   const restricted: AgentAccessChange = {
     revision: 0,
-    everyone: { [legal]: "none", [finance]: "none", [ops]: "view" },
+    everyone: { [legal]: "none", [finance]: "none", [ops]: "view", [general]: "manage" },
     roles: [legalRole],
   };
 
@@ -529,9 +525,8 @@ try {
     const memberName = auditName(setup.memberId);
     assert.deepEqual(auditLines(log), [
       "agent-level Legal Legal none->chat",
-      "agent-level Everyone Ops manage->view",
-      "agent-level Everyone Finance manage->none",
-      "agent-level Everyone Legal manage->none",
+      "agent-level Everyone General none->manage",
+      "agent-level Everyone Ops none->view",
       `role-member Legal ${memberName} added`,
       "role-created Legal",
     ]);
@@ -647,7 +642,7 @@ try {
     };
   });
 
-  await step("manage: the member changes an agent that Everyone does not list", async () => {
+  await step("manage: the member changes an agent that Everyone gives manage", async () => {
     const patched = await call("PATCH", TEAM_API_ROUTES.agent.one(general), {
       token: setup.memberToken,
       body: { name: "General 2" },
@@ -711,7 +706,7 @@ try {
     assert.deepEqual(mine, { revision: 1, mine: { [legal]: "chat", [ops]: "view", [general]: "manage" } });
     const { log } = await readAudit(ownerToken);
     assert.ok(log, "The owner cannot read the audit log after a restart.");
-    assert.equal(log.entries.length, 6, "The audit log did not persist.");
+    assert.equal(log.entries.length, 5, "The audit log did not persist.");
     socket = await openEvents(setup.memberToken);
     return { ...mine, auditEntries: log.entries.length };
   });
@@ -730,7 +725,7 @@ try {
     const { log } = await readAudit(ownerToken);
     const memberName = auditName(setup.memberId);
     assert.ok(log, "The owner cannot read the audit log.");
-    assert.equal(log.entries.length, 7);
+    assert.equal(log.entries.length, 6);
     assert.equal(auditLines(log)[0], `role-member Legal ${memberName} removed`);
     return { agents: 2, legal: response.status, audit: auditLines(log)[0] };
   });
@@ -742,10 +737,14 @@ try {
     assert.equal(saved.status, 200, `Saving the roles returned ${saved.status}.`);
     const stored = access.get(team.getIdentity()?.serverId ?? "");
     assert.equal(stored.revision, 3);
-    assert.deepEqual(stored.everyone, { [legal]: "none", [ops]: "view" }, "The deleted agent kept its level.");
+    assert.deepEqual(
+      stored.everyone,
+      { [legal]: "none", [ops]: "view", [general]: "manage" },
+      "The deleted agent kept its level.",
+    );
     const { log } = await readAudit(ownerToken);
     assert.ok(log, "The owner cannot read the audit log.");
-    assert.equal(log.entries.length, 7, `The save of a deleted agent's levels was logged: ${auditLines(log)[0]}.`);
+    assert.equal(log.entries.length, 6, `The save of a deleted agent's levels was logged: ${auditLines(log)[0]}.`);
     return { everyone: stored.everyone, auditEntries: log.entries.length };
   });
 

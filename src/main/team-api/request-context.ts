@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { AgentAccessLevel, TeamMemberSummary } from "@openbot/contracts/ipc";
+import type { AgentAccessLevel, ChannelAccessLevel, TeamMemberSummary } from "@openbot/contracts/ipc";
 
 export type RouteOutcome = "handled" | "unmatched";
 
@@ -15,6 +15,8 @@ export interface TeamApiRequestContext {
   readonly sessionId: string;
   readonly sessionExpiresAt: string;
   readonly agentLevel: (agentId: string) => AgentAccessLevel;
+  readonly channelLevel: (channelId: string) => ChannelAccessLevel;
+  readonly threadChannelLevel: (threadId: string) => ChannelAccessLevel;
   readonly json: (status: number, value: object | null) => RouteOutcome;
   readonly empty: (status: number) => RouteOutcome;
 }

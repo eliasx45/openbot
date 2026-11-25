@@ -5,6 +5,7 @@
  * clears it at stop. See docs/fork/FEATURES.md.
  */
 
+import type { ChannelMessage } from "@openbot/contracts/ipc";
 import type { ForkCacheCompact } from "./fork-cache-compact";
 import type { ForkComposio } from "./fork-composio";
 import type { ForkGoals } from "./fork-goals";
@@ -26,6 +27,16 @@ export interface ForkNetworkResume {
   turnCompleted(agentId: string): void;
 }
 
+/** Fork (docs/fork/FEATURES.md #107): an agent's final answer of a turn in a channel goes to its outbound webhook. */
+export interface ForkChannelWebhooks {
+  turnAnswered(input: {
+    channelId: string;
+    channelName: string;
+    message: ChannelMessage;
+    origin: "member" | "routine" | "other";
+  }): void;
+}
+
 export const forkHub: {
   goals: ForkGoals | null;
   memory: ForkMemory | null;
@@ -36,6 +47,7 @@ export const forkHub: {
   networkResume: ForkNetworkResume | null;
   /** Fork (docs/fork/FEATURES.md #108): shared defaults per sidebar section. The main process sets it. */
   sections: ForkSectionInheritance | null;
+  channelWebhooks: ForkChannelWebhooks | null;
 } = {
   goals: null,
   memory: null,
@@ -45,4 +57,5 @@ export const forkHub: {
   voiceNotes: null,
   networkResume: null,
   sections: null,
+  channelWebhooks: null,
 };

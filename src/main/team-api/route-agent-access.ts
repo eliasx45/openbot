@@ -15,6 +15,7 @@ export async function routeAgentAccess(
   agents: Pick<TeamApiAgents, "listAgents">,
   serverId: string | undefined,
   hiddenAgentIds: ReadonlySet<string>,
+  channelIds?: () => readonly string[],
 ): Promise<RouteOutcome> {
   const { method, url, capabilities, member, request, json } = context;
   if (method !== "POST" || (url.pathname !== AGENT_ACCESS_ROUTES.read && url.pathname !== AGENT_ACCESS_ROUTES.set))
@@ -24,8 +25,9 @@ export async function routeAgentAccess(
   const existing = agents.listAgents().map((agent) => agent.id);
   const shown = existing.filter((agentId) => !hiddenAgentIds.has(agentId));
   const body = await readJson(request);
+  const channels = channelIds?.();
   if (url.pathname === AGENT_ACCESS_ROUTES.read)
-    return json(200, agentAccessSnapshot(access.levels(serverId), member, shown));
+    return json(200, agentAccessSnapshot(access.levels(serverId), member, shown, channels));
   requireAdmin(member);
   let change: ReturnType<typeof parseAgentAccessChange>;
   try {
@@ -34,11 +36,20 @@ export async function routeAgentAccess(
     throw new HttpError(400, "Invalid agent access change.");
   }
   const saved = await Effect.runPromise(
-    Effect.result(access.set(serverId, change, new Set(shown), new Set(existing), memberAuditName(member))),
+    Effect.result(
+      access.set(
+        serverId,
+        change,
+        new Set(shown),
+        new Set(existing),
+        memberAuditName(member),
+        channels === undefined ? undefined : new Set(channels),
+      ),
+    ),
   );
   if (Result.isFailure(saved)) {
     if (saved.failure._tag === "AgentAccessStale") throw new HttpError(409, sourceText("error.team.agentAccessStale"));
     throw saved.failure.cause;
   }
-  return json(200, agentAccessSnapshot(access.levels(serverId), member, shown));
+  return json(200, agentAccessSnapshot(access.levels(serverId), member, shown, channels));
 }

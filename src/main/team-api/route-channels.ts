@@ -5,11 +5,13 @@ import {
   CHANNEL_CHATS_CAPABILITY,
   CHANNEL_DELETE_CAPABILITY,
   CHANNEL_TASK_CANCEL_CAPABILITY,
+  type ChannelAccessLevel,
   type ChannelCommand,
   type ChannelMessage,
   type ChannelTask,
   type ChannelTaskWait,
   canAdministerServer,
+  channelAccessRank,
   isReleasedRoutineSchedule,
   parseChannelCommand,
   parseChannelRead,
@@ -84,19 +86,18 @@ export async function routeChannels(
   if (!list && !read && !command && !remove && !settings && !image) return "unmatched";
   if (!channels || !capabilities.has(CHANNEL_CHATS_CAPABILITY))
     throw new HttpError(400, sourceText("error.team.channelsUnsupported"));
-  const channelHiddenAgentIds: ReadonlySet<string> = canAdministerServer(member.role) ? new Set() : hiddenAgentIds;
-  if (image) return routeChannelImage(context, channels, channelHiddenAgentIds);
+  if (image) return routeChannelImage(context, channels);
   if (list)
     return json(
       200,
       channels.store
         .list(member.id)
-        .filter((channel) => seesChannel(channel.members, channelHiddenAgentIds))
+        .filter((channel) => context.channelLevel(channel.id) !== "none")
         .map(peerChannel),
     );
   if (read) {
     const input = parseChannelRead(channelRequest(url.pathname, await readJson(request)));
-    requireVisibleChannel(channels, input.channelId, channelHiddenAgentIds);
+    requireVisibleChannel(context, channels, input.channelId);
     const seenSubtasks = capabilities.has(CHANNEL_SEEN_SUBTASKS_CAPABILITY);
     const taskWaits = capabilities.has(CHANNEL_TASK_WAITS_CAPABILITY) && input.beforeSequence === undefined;
     const newest = channels.store.pageWithoutExtent(input.channelId, input.beforeSequence, 100);
@@ -105,7 +106,7 @@ export async function routeChannels(
         ? channels.store.withSeenDependencies(input.channelId, newest.tasks)
         : newest.tasks;
     const waits = taskWaits
-      ? visibleWaits(channels, channels.taskWaits(input.channelId, newest.tasks), hiddenAgentIds, channelHiddenAgentIds)
+      ? visibleWaits(context, channels.taskWaits(input.channelId, newest.tasks), hiddenAgentIds)
       : [];
     const withWaits = <Page extends { tasks: ChannelTask[] }>(value: Page): Page & { waits?: ChannelTaskWait[] } => {
       const kept = waits.filter((wait) => value.tasks.some((task) => task.id === wait.taskId));
@@ -155,13 +156,14 @@ export async function routeChannels(
     await runCauseEffect(channels.deleteChannel(channelId(body)));
     return empty(204);
   }
-  if (settings) return routeChannelSettings(context, agents, channels, channelHiddenAgentIds);
+  if (settings) return routeChannelSettings(context, agents, channels);
   const input = parseChannelCommand(await readJson(request));
-  requireVisibleChannel(channels, input.channelId, channelHiddenAgentIds);
+  requireVisibleChannel(context, channels, input.channelId, input.type === "read" ? "view" : "chat");
   if (input.type === "archive" && !canAdministerServer(member.role))
     throw new HttpError(403, sourceText("error.team.membersCannotArchiveChannels"));
   if (input.type === "restore" && !canAdministerServer(member.role))
     throw new HttpError(403, sourceText("error.team.membersCannotRestoreChannels"));
+  if (input.type === "save") requireChannelAdmin(context);
   if (input.type === "cancel" && !capabilities.has(CHANNEL_TASK_CANCEL_CAPABILITY))
     throw new HttpError(400, sourceText("error.team.channelTaskCancelUnsupported"));
   if (input.type === "save") requireChatForAddedAgents(context, input, channels, hiddenAgentIds);
@@ -177,31 +179,35 @@ export async function routeChannels(
   );
 }
 
-function seesChannel(members: readonly { agentId: string }[], hiddenAgentIds: ReadonlySet<string>): boolean {
-  return members.length === 0 || members.some((item) => !hiddenAgentIds.has(item.agentId));
-}
-
 function visibleWaits(
-  channels: Pick<ChannelService, "store">,
+  context: Pick<TeamApiRequestContext, "channelLevel">,
   waits: readonly ChannelTaskWait[],
   hiddenAgentIds: ReadonlySet<string>,
-  channelHiddenAgentIds: ReadonlySet<string>,
 ): ChannelTaskWait[] {
   return waits.filter(
     (wait) =>
       !hiddenAgentIds.has(wait.agentId) &&
-      (wait.reason !== "agent-busy" || seesChannel(channels.store.get(wait.channelId).members, channelHiddenAgentIds)),
+      (wait.reason !== "agent-busy" || context.channelLevel(wait.channelId) !== "none"),
   );
 }
 
+// Fork (docs/fork/FEATURES.md #107): a member reaches a channel through its channel level, not its agents.
 export function requireVisibleChannel(
+  context: Pick<TeamApiRequestContext, "channelLevel">,
   channels: Pick<ChannelService, "store">,
   channelId: string,
-  hiddenAgentIds: ReadonlySet<string>,
+  required: Exclude<ChannelAccessLevel, "none"> = "view",
 ): void {
-  if (hiddenAgentIds.size === 0 || !channels.store.exists(channelId)) return;
-  if (!seesChannel(channels.store.get(channelId).members, hiddenAgentIds))
-    throw new HttpError(404, sourceText("error.backend.channelNotFound"));
+  if (!channels.store.exists(channelId)) return;
+  const level = context.channelLevel(channelId);
+  if (level === "none") throw new HttpError(404, sourceText("error.backend.channelNotFound"));
+  if (channelAccessRank(level) < channelAccessRank(required))
+    throw new HttpError(403, sourceText("error.team.channelViewOnly"));
+}
+
+export function requireChannelAdmin(context: Pick<TeamApiRequestContext, "member">): void {
+  if (!canAdministerServer(context.member.role))
+    throw new HttpError(403, sourceText("error.team.channelSettingsAdminOnly"));
 }
 
 function pageTasks(tasks: readonly ChannelTask[], messages: readonly ChannelMessage[]): ChannelTask[] {
@@ -270,15 +276,21 @@ function requireChatForAddedAgents(
   }
 }
 
+const CHANNEL_SETTINGS_READS: ReadonlySet<string> = new Set([
+  CHANNEL_ROUTES.memories,
+  CHANNEL_ROUTES.routines,
+  CHANNEL_ROUTES.routineRuns,
+]);
+
 async function routeChannelSettings(
   context: TeamApiRequestContext,
   agents: ChannelSettingsAgents,
   channels: ChannelService,
-  hiddenAgentIds: ReadonlySet<string>,
 ): Promise<RouteOutcome> {
   const { url, request, json, empty } = context;
   const body = await readJson(request);
-  requireVisibleChannel(channels, channelId(body), hiddenAgentIds);
+  requireVisibleChannel(context, channels, channelId(body));
+  if (!CHANNEL_SETTINGS_READS.has(url.pathname)) requireChannelAdmin(context);
   switch (url.pathname) {
     case CHANNEL_ROUTES.memories:
       return json(200, agents.listChannelMemories(channelId(body)));
@@ -323,16 +335,13 @@ async function routeChannelSettings(
   }
 }
 
-async function routeChannelImage(
-  context: TeamApiRequestContext,
-  channels: ChannelService,
-  hiddenAgentIds: ReadonlySet<string>,
-): Promise<RouteOutcome> {
+async function routeChannelImage(context: TeamApiRequestContext, channels: ChannelService): Promise<RouteOutcome> {
   const { method, url, request, response, json } = context;
   const id = url.searchParams.get("channelId") ?? "";
   if (!id || id.length > INPUT_LIMITS.identifier) throw new HttpError(400, "channelId is required.");
   if (!channels.store.exists(id)) throw new HttpError(404, sourceText("error.backend.channelNotFound"));
-  requireVisibleChannel(channels, id, hiddenAgentIds);
+  requireVisibleChannel(context, channels, id);
+  if (method !== "GET") requireChannelAdmin(context);
   if (method === "GET") {
     const file = channels.images.resolve(channels.store.get(id));
     if (!file || file.version !== url.searchParams.get("v"))

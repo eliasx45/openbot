@@ -5,6 +5,10 @@ import {
   type AgentAccessLevels,
   type AgentAccessRole,
   agentAccessRank,
+  CHANNEL_ACCESS_LEVELS,
+  type ChannelAccessLevel,
+  type ChannelAccessLevels,
+  channelAccessRank,
 } from "@openbot/contracts/ipc";
 import type { AppTextKey } from "@openbot/i18n";
 import {
@@ -51,7 +55,81 @@ const LEVEL_LABELS = {
 } as const satisfies Record<AgentAccessLevel, AppTextKey>;
 
 export function everyoneLevel(everyone: AgentAccessLevels, agentId: string): AgentAccessLevel {
-  return everyone[agentId] ?? "manage";
+  return everyone[agentId] ?? "none";
+}
+
+export type RoleChannel = { id: string; name: string };
+
+type ChannelLevelOption = ChannelAccessLevel | "everyone";
+
+function ChannelAccessRow(props: {
+  channel: RoleChannel;
+  label: string;
+  level: ChannelAccessLevel;
+  everyone: ChannelAccessLevel | undefined;
+  disabled: boolean;
+  menuMount: HTMLElement | undefined;
+  onChange: (level: ChannelAccessLevel) => void;
+  onOpenEveryone: () => void;
+}) {
+  const { t } = useText();
+  const options = (): ChannelLevelOption[] =>
+    props.everyone === undefined ? [...CHANNEL_ACCESS_LEVELS] : [...CHANNEL_ACCESS_LEVELS, "everyone"];
+  const below = (option: ChannelLevelOption) => {
+    const everyone = props.everyone;
+    return option !== "everyone" && everyone !== undefined && channelAccessRank(option) < channelAccessRank(everyone);
+  };
+  const fromEveryone = () =>
+    props.everyone !== undefined && props.everyone !== "none" && props.level === props.everyone;
+  return (
+    <Item class="settings-modal-row">
+      <ItemContent>
+        <ItemTitle>{`# ${props.channel.name}`}</ItemTitle>
+      </ItemContent>
+      <ItemActions>
+        <Select<ChannelLevelOption>
+          options={options()}
+          value={props.level}
+          disabled={props.disabled}
+          placement="bottom-end"
+          optionDisabled={below}
+          disallowEmptySelection={true}
+          allowDuplicateSelectionEvents={true}
+          onChange={(option) => {
+            if (option === "everyone") props.onOpenEveryone();
+            else if (option) props.onChange(option);
+          }}
+          itemComponent={(item) => {
+            const option = item.item.rawValue;
+            return option === "everyone" ? (
+              <SelectItem item={item.item} class="server-roles-open-everyone">
+                {t("server.roles.changeInEveryone")}
+              </SelectItem>
+            ) : (
+              <SelectItem item={item.item}>{t(LEVEL_LABELS[option])}</SelectItem>
+            );
+          }}
+        >
+          <SelectTrigger size="sm" class="server-roles-level server-roles-agent-level" aria-label={props.label}>
+            <SelectValue<ChannelLevelOption>>
+              {() => (
+                <>
+                  {t(LEVEL_LABELS[props.level])}
+                  <Show when={fromEveryone()}>
+                    <span class="server-roles-level-source">
+                      {" · "}
+                      {t("server.roles.everyone")}
+                    </span>
+                  </Show>
+                </>
+              )}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent mount={props.menuMount} class="server-roles-level-menu" />
+        </Select>
+      </ItemActions>
+    </Item>
+  );
 }
 
 export function roleLevel(role: AgentAccessRole, agentId: string): AgentAccessLevel {
@@ -266,6 +344,10 @@ export interface ServerRolesPanelProps {
   agents: RoleAgent[];
   everyone: AgentAccessLevels;
   roles: AgentAccessRole[];
+  channels?: RoleChannel[] | undefined;
+  everyoneChannels?: ChannelAccessLevels | undefined;
+  onSetEveryoneChannelLevels?: (levels: ReadonlyMap<string, ChannelAccessLevel>) => void;
+  onSetRoleChannelLevels?: (roleId: string, levels: ReadonlyMap<string, ChannelAccessLevel>) => void;
   page: ServerRolePage;
   disabled: boolean;
   menuMount: HTMLElement | undefined;
@@ -356,6 +438,60 @@ export function ServerRolesPanel(props: ServerRolesPanelProps) {
     );
   };
 
+  const channelList = (
+    title: string,
+    level: (channelId: string) => ChannelAccessLevel,
+    onChange: ((levels: ReadonlyMap<string, ChannelAccessLevel>) => void) | undefined,
+    everyone?: (channelId: string) => ChannelAccessLevel,
+  ) => (
+    <Show when={props.channels && onChange ? props.channels : null}>
+      {(channels) => {
+        const shown = (channelId: string) => {
+          const floor = everyone?.(channelId);
+          const own = level(channelId);
+          return floor !== undefined && channelAccessRank(floor) > channelAccessRank(own) ? floor : own;
+        };
+        const give = (channelId: string, next: ChannelAccessLevel) => {
+          const floor = everyone?.(channelId);
+          const kept = floor !== undefined && channelAccessRank(next) <= channelAccessRank(floor) ? "none" : next;
+          if (kept !== level(channelId)) onChange?.(new Map([[channelId, kept]]));
+        };
+        return (
+          <SettingsSection title={t("server.roles.channels")}>
+            <ItemGroup class="settings-modal-card">
+              <For
+                each={channels()}
+                fallback={
+                  <Item class="server-settings-empty-row">
+                    <ItemContent>
+                      <Text variant="caption" tone="muted">
+                        {t("server.roles.noChannels")}
+                      </Text>
+                    </ItemContent>
+                  </Item>
+                }
+              >
+                {(channel) => (
+                  <ChannelAccessRow
+                    channel={channel}
+                    label={t("server.roles.channelLevel", { role: title, channel: channel.name })}
+                    level={shown(channel.id)}
+                    everyone={everyone?.(channel.id)}
+                    disabled={props.disabled}
+                    menuMount={props.menuMount}
+                    onChange={(next) => give(channel.id, next)}
+                    onOpenEveryone={() => props.onPage({ kind: "everyone" })}
+                  />
+                )}
+              </For>
+            </ItemGroup>
+          </SettingsSection>
+        );
+      }}
+    </Show>
+  );
+  const everyoneChannelLevel = (channelId: string): ChannelAccessLevel => props.everyoneChannels?.[channelId] ?? "none";
+
   const list = () => (
     <>
       <ItemGroup class="settings-modal-card">
@@ -412,6 +548,7 @@ export function ServerRolesPanel(props: ServerRolesPanelProps) {
               (agentId) => everyoneLevel(props.everyone, agentId),
               props.onSetEveryoneLevels,
             )}
+            {channelList(t("server.roles.everyone"), everyoneChannelLevel, props.onSetEveryoneChannelLevels)}
           </Show>
         }
       >
@@ -438,6 +575,12 @@ export function ServerRolesPanel(props: ServerRolesPanelProps) {
               (agentId) => roleLevel(role(), agentId),
               (levels) => props.onSetRoleLevels(role().id, levels),
               (agentId) => everyoneLevel(props.everyone, agentId),
+            )}
+            {channelList(
+              role().name,
+              (channelId) => role().channels?.[channelId] ?? "none",
+              props.onSetRoleChannelLevels ? (levels) => props.onSetRoleChannelLevels?.(role().id, levels) : undefined,
+              everyoneChannelLevel,
             )}
           </>
         )}

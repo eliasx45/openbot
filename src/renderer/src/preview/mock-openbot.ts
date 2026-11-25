@@ -1,5 +1,6 @@
 import { AGENT_MEMORY_CONTEXT_BUDGET_BYTES, essentialMemoryBytes } from "@openbot/contracts/agent-memory-context";
 import { feedbackSentIssue, feedbackWithdrawnItemType } from "@openbot/contracts/feedback";
+import { type ChannelWebhookSettings, parseChannelWebhookChange } from "@openbot/contracts/fork-channel-webhooks";
 import type {
   AcpRegistryEntry,
   AgentProviderRef,
@@ -511,7 +512,8 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
     { name: string; value: string; sensitive: boolean }[]
   >();
   const shownModels = new Map<string, readonly string[]>();
-  let agentAccess: AgentAccessChange = { revision: 0, everyone: {}, roles: [] };
+  let agentAccess: AgentAccessChange = { revision: 0, everyone: {}, roles: [], everyoneChannels: {} };
+  const channelWebhooks = new Map<string, ChannelWebhookSettings>();
   let serverAudit: ServerAuditEntry[] = clone(STORY_SERVER_AUDIT_ENTRIES);
   const agentMemoryLimitListeners = new Set<(preference: AgentMemoryLimitPreference) => void>();
   let remoteSessionReuse: RemoteSessionReusePreference = { ...DEFAULT_REMOTE_SESSION_REUSE_PREFERENCE };
@@ -3850,6 +3852,20 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         };
       },
       getAuditLog: async () => ({ entries: clone(serverAudit) }),
+      getChannelWebhook: async ({ channelId }) =>
+        clone(channelWebhooks.get(channelId) ?? { channelId, url: "", enabled: false, hasSecret: false }),
+      setChannelWebhook: async (input) => {
+        const change = parseChannelWebhookChange(input);
+        const previous = channelWebhooks.get(change.channelId);
+        const saved = {
+          channelId: change.channelId,
+          url: change.url,
+          enabled: change.enabled,
+          hasSecret: change.secret === undefined ? (previous?.hasSecret ?? false) : change.secret !== null,
+        };
+        channelWebhooks.set(change.channelId, saved);
+        return clone(saved);
+      },
     },
     storage: createMockStorage(() => emitAgentEvent({ type: "library-folders-changed" })),
     agentImport: {

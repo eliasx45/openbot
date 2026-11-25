@@ -255,12 +255,12 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
         deletedChannels={sidebarChannels().filter((channel) => channel.archived)}
         activeChannelId={channels.state.selectedId}
         onSelectChannel={(id) => void channels.open(id)}
-        onEditChannel={(id) => void channels.editChannel(id)}
+        onEditChannel={serverRoleCanAdminister(activeServer()) ? (id) => void channels.editChannel(id) : undefined}
         onDeleteChannel={channels.deletionSupported() ? channels.remove : undefined}
         onRestoreChannel={channels.deletionSupported() ? channels.restore : undefined}
         showingArchivedChannels={channelsListed() && channels.state.archived}
         onToggleArchivedChannels={channelsListed() ? channels.toggleArchived : undefined}
-        onCreateChannel={channelsListed() ? channels.create : undefined}
+        onCreateChannel={channelsListed() && serverRoleCanAdminister(activeServer()) ? channels.create : undefined}
         onMarkAllRead={() => {
           void markAllAgentMessagesRead();
           void channels.markAllRead();
@@ -407,7 +407,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
         onOpenMarketplace={() => setSkillsMarketplaceOpen(true)}
         agentsConnecting={agentListConnecting()}
         emptyAction={
-          agentList().length === 0 && agentListSettled()
+          agentList().length === 0 && agentListSettled() && serverRoleCanAdminister(activeServer())
             ? {
                 label: t("sidebar.empty.firstAgent"),
                 avatarSeed: agentSetupDraft().avatarSeed,

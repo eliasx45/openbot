@@ -1431,6 +1431,13 @@ set on desktop and web. The role menu of each member row on the Members page set
 (Member or Admin, through the same confirmation as before) and the custom roles. The tab shows for the
 local server and for a joined server whose host advertises the capability to an owner or admin.
 
+Fork (docs/fork/FEATURES.md #107): an agent or channel that Everyone does not list is closed (`none`)
+to members, roles also hold channel levels (`none`, `view`, `chat`) that alone decide which channels a
+member sees, channel settings are owner/admin only, attachment reads check the agent or channel of the
+attachment, and channel messages show to each member who sees the channel. In a turn that a remote
+member started (also a channel turn), `list_agents`, `read_agent` and `list_channels` keep to that
+member's levels plus the channel's own agents. The limits below describe upstream.
+
 Known limits:
 
 - The composer does not show that a `view` agent is read only; the host refuses the send.

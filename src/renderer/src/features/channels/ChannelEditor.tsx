@@ -31,6 +31,7 @@ import { ChannelPictureEditor } from "@openbot/ui/features/channels/ChannelPictu
 import { ContentExitMotion } from "@openbot/ui/menu-motion";
 import { useText } from "@openbot/ui/text";
 import { createEffect, createMemo, createStore, For, onSettled, Show } from "solid-js";
+import { ChannelWebhookSettings } from "./ChannelWebhookSettings";
 import { useChannels } from "./channels-context";
 import { matchesAgentSearch, toggleChannelMember } from "./channels-draft";
 
@@ -395,6 +396,13 @@ export function ChannelEditor(props: ChannelEditorProps) {
           {(folders) => <ChannelFoldersRow folders={folders()} onOpen={props.onOpenFolders} />}
         </Show>
       </SettingsLinkGroup>
+      <Show when={channels.port().webhooks}>
+        {(api) => (
+          <Show when={channel()}>
+            {(current) => <ChannelWebhookSettings channelId={current().id} api={api()} disabled={current().archived} />}
+          </Show>
+        )}
+      </Show>
       <Show when={channels.contextActionsSupported() && !channel()?.archived && channel()}>
         {(current) => (
           <ChannelContextActions

@@ -1,4 +1,5 @@
 import { decodeAgentSectionInheritance, decodeSectionDefaultsEditor } from "@openbot/contracts/fork-section-defaults";
+import { decodeChannelWebhookSettings } from "@openbot/contracts/fork-channel-webhooks";
 import { ATTACHMENT_LIMITS, INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import {
   type AgentIpcRequest,
@@ -1369,6 +1370,8 @@ const openbotApi: OpenBotDesktopApi = {
     getAgentAccess: decodeAgentAccessSnapshot,
     setAgentAccess: decodeAgentAccessSnapshot,
     getAuditLog: decodeServerAuditLog,
+    getChannelWebhook: decodeChannelWebhookSettings,
+    setChannelWebhook: decodeChannelWebhookSettings,
   }),
   agentImport: bridgeGroup(IPC_ENDPOINTS.agentImport, {
     choose: decodeAgentImportPreview,

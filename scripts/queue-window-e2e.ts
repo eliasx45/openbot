@@ -132,6 +132,8 @@ function requestContext(request: IncomingMessage, response: ServerResponse, url:
     member,
     token: "token",
     agentLevel: () => "manage",
+    channelLevel: () => "chat",
+    threadChannelLevel: () => "none",
     sessionId: "session",
     sessionExpiresAt: new Date(Date.now() + 60_000).toISOString(),
     json: (status, value) => {

@@ -5,6 +5,9 @@ import {
   type AgentAccessRole,
   type AgentAccessSnapshot,
   agentAccessRank,
+  type ChannelAccessLevel,
+  type ChannelAccessLevels,
+  channelAccessRank,
   parseAgentAccessChange,
   type ServerAuditName,
   type TeamMemberSummary,
@@ -20,6 +23,7 @@ export interface AgentAccessState {
   revision: number;
   everyone: AgentAccessLevels;
   roles: AgentAccessRole[];
+  everyoneChannels?: ChannelAccessLevels;
 }
 
 export type AgentAccessAudit = (
@@ -40,7 +44,7 @@ export function agentAccessLevel(
 ): AgentAccessLevel {
   if (member.role !== "member") return "manage";
   if (state === "closed") return "none";
-  let level: AgentAccessLevel = state.everyone[agentId] ?? "manage";
+  let level: AgentAccessLevel = state.everyone[agentId] ?? "none";
   for (const role of state.roles) {
     if (level === "manage") break;
     if (!role.memberIds.includes(member.id)) continue;
@@ -50,10 +54,29 @@ export function agentAccessLevel(
   return level;
 }
 
+// Fork (docs/fork/FEATURES.md #107): channel levels; unlisted agents and channels are closed to members.
+export function channelAccessLevel(
+  state: AgentAccessState | "closed",
+  member: Pick<TeamMemberSummary, "id" | "role">,
+  channelId: string,
+): ChannelAccessLevel {
+  if (member.role !== "member") return "chat";
+  if (state === "closed") return "none";
+  let level: ChannelAccessLevel = state.everyoneChannels?.[channelId] ?? "none";
+  for (const role of state.roles) {
+    if (level === "chat") break;
+    if (!role.memberIds.includes(member.id)) continue;
+    const granted = role.channels?.[channelId];
+    if (granted && channelAccessRank(granted) > channelAccessRank(level)) level = granted;
+  }
+  return level;
+}
+
 export function agentAccessSnapshot(
   state: AgentAccessState | "closed",
   member: Pick<TeamMemberSummary, "id" | "role">,
   shown: readonly string[],
+  channelIds?: readonly string[],
 ): AgentAccessSnapshot {
   const mine: AgentAccessLevels = {};
   for (const agentId of shown) {
@@ -61,15 +84,30 @@ export function agentAccessSnapshot(
     if (level !== "none") mine[agentId] = level;
   }
   const stored = state === "closed" ? EMPTY : state;
-  if (member.role === "member") return { revision: stored.revision, mine };
+  const mineChannels: ChannelAccessLevels = {};
+  for (const channelId of channelIds ?? []) {
+    const level = channelAccessLevel(state, member, channelId);
+    if (level !== "none") mineChannels[channelId] = level;
+  }
+  const withChannels = channelIds !== undefined;
+  if (member.role === "member") return { revision: stored.revision, mine, ...(withChannels ? { mineChannels } : {}) };
   const visible = new Set(shown);
   const only = (levels: AgentAccessLevels) =>
     Object.fromEntries(Object.entries(levels).filter(([agentId]) => visible.has(agentId)));
+  const existingChannels = new Set(channelIds ?? []);
+  const onlyChannels = (levels: ChannelAccessLevels | undefined): ChannelAccessLevels =>
+    Object.fromEntries(Object.entries(levels ?? {}).filter(([channelId]) => existingChannels.has(channelId)));
   return {
     revision: stored.revision,
     mine,
     everyone: only(stored.everyone),
-    roles: stored.roles.map((role) => ({ ...role, agents: only(role.agents), memberIds: [...role.memberIds] })),
+    roles: stored.roles.map(({ channels, ...role }) => ({
+      ...role,
+      agents: only(role.agents),
+      memberIds: [...role.memberIds],
+      ...(withChannels ? { channels: onlyChannels(channels) } : {}),
+    })),
+    ...(withChannels ? { mineChannels, everyoneChannels: onlyChannels(stored.everyoneChannels) } : {}),
   };
 }
 
@@ -86,6 +124,17 @@ function mergeShown(
   return merged;
 }
 
+function mergeChannels(
+  stored: ChannelAccessLevels | undefined,
+  sent: ChannelAccessLevels | undefined,
+  existing: ReadonlySet<string> | undefined,
+): ChannelAccessLevels | undefined {
+  const next = sent ?? stored;
+  if (next === undefined) return undefined;
+  if (existing === undefined) return { ...next };
+  return Object.fromEntries(Object.entries(next).filter(([channelId]) => existing.has(channelId)));
+}
+
 function onlyAgents(state: AgentAccessState, agents: ReadonlySet<string>): AgentAccessState {
   const only = (levels: AgentAccessLevels) =>
     Object.fromEntries(Object.entries(levels).filter(([agentId]) => agents.has(agentId)));
@@ -96,11 +145,21 @@ function onlyAgents(state: AgentAccessState, agents: ReadonlySet<string>): Agent
   };
 }
 
+function copyRoleState(role: AgentAccessRole): AgentAccessRole {
+  return {
+    ...role,
+    agents: { ...role.agents },
+    memberIds: [...role.memberIds],
+    ...(role.channels === undefined ? {} : { channels: { ...role.channels } }),
+  };
+}
+
 function copyState(state: AgentAccessState): AgentAccessState {
   return {
     revision: state.revision,
     everyone: { ...state.everyone },
-    roles: state.roles.map((role) => ({ ...role, agents: { ...role.agents }, memberIds: [...role.memberIds] })),
+    roles: state.roles.map(copyRoleState),
+    ...(state.everyoneChannels === undefined ? {} : { everyoneChannels: { ...state.everyoneChannels } }),
   };
 }
 
@@ -109,12 +168,18 @@ function decodeServers(parsed: unknown): Map<string, AgentAccessState> | null {
   const servers = new Map<string, AgentAccessState>();
   for (const [serverId, value] of Object.entries(parsed.servers)) {
     if (!isDynamicRecord(value) || !isNumber(value.revision)) return null;
-    const { everyone, roles } = parseAgentAccessChange({
+    const { everyone, roles, everyoneChannels } = parseAgentAccessChange({
       revision: value.revision,
       everyone: value.everyone,
       roles: value.roles,
+      ...(value.everyoneChannels === undefined ? {} : { everyoneChannels: value.everyoneChannels }),
     });
-    servers.set(serverId, { revision: value.revision, everyone, roles });
+    servers.set(serverId, {
+      revision: value.revision,
+      everyone,
+      roles,
+      ...(everyoneChannels === undefined ? {} : { everyoneChannels }),
+    });
   }
   return servers;
 }
@@ -161,18 +226,26 @@ export class AgentAccessStore {
     shown: ReadonlySet<string>,
     existing: ReadonlySet<string>,
     actor: ServerAuditName | null,
+    existingChannels?: ReadonlySet<string>,
   ) {
     let before: AgentAccessState | undefined;
     const saved = yield* this.#replace(serverId, (current) => {
       before = copyState(current);
       if (change.revision !== current.revision) return null;
       const storedRoles = new Map(current.roles.map((role) => [role.id, role]));
+      const everyoneChannels = mergeChannels(current.everyoneChannels, change.everyoneChannels, existingChannels);
       return {
         everyone: mergeShown(current.everyone, change.everyone, shown, existing),
-        roles: change.roles.map((role) => ({
-          ...role,
-          agents: mergeShown(storedRoles.get(role.id)?.agents ?? {}, role.agents, shown, existing),
-        })),
+        roles: change.roles.map((role) => {
+          const { channels: sentChannels, ...rest } = role;
+          const channels = mergeChannels(storedRoles.get(role.id)?.channels, sentChannels, existingChannels);
+          return {
+            ...rest,
+            agents: mergeShown(storedRoles.get(role.id)?.agents ?? {}, role.agents, shown, existing),
+            ...(channels === undefined ? {} : { channels }),
+          };
+        }),
+        ...(everyoneChannels === undefined ? {} : { everyoneChannels }),
       };
     });
     if (before && this.#audit && saved.revision !== before.revision)
@@ -193,6 +266,7 @@ export class AgentAccessStore {
               ...role,
               memberIds: role.memberIds.filter((id) => id !== memberId),
             })),
+            ...(state.everyoneChannels === undefined ? {} : { everyoneChannels: state.everyoneChannels }),
           }
         : "unchanged",
     );
@@ -214,7 +288,13 @@ export class AgentAccessStore {
       const roles = state.roles.map((role) => ({ ...role, agents: copy(role.agents) }));
       const changed =
         everyone !== state.everyone || roles.some((role, index) => role.agents !== state.roles[index]?.agents);
-      return changed ? { everyone, roles } : "unchanged";
+      return changed
+        ? {
+            everyone,
+            roles,
+            ...(state.everyoneChannels === undefined ? {} : { everyoneChannels: state.everyoneChannels }),
+          }
+        : "unchanged";
     });
   }).bind(this);
 

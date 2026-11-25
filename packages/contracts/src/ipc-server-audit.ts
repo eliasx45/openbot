@@ -179,7 +179,7 @@ export function agentAccessAuditChanges(
       if (old !== level) levels.push({ kind: "agent-level", role, agent: agent(agentId), from: old, to: level });
     }
   };
-  levelChanges(null, before.everyone, after.everyone, "manage");
+  levelChanges(null, before.everyone, after.everyone, "none");
   for (const role of after.roles) {
     const old = previous.get(role.id);
     if (!old) named.push({ kind: "role-created", role: roleName(role) });

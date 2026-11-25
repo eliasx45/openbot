@@ -58,35 +58,47 @@ export function ChannelErrorNotice() {
   );
 }
 
-export function ChannelHeaderTitle(props: { channelId: string; onOpenSettings: () => void }) {
+export function ChannelHeaderTitle(props: { channelId: string; onOpenSettings: () => void; settingsLocked?: boolean }) {
   const channels = useChannels();
   const { t } = useText();
   const page = useOpenChannel(props.channelId);
   return (
     <Show when={page()}>
-      {(current) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          class="conversation-title channel-title no-drag"
-          aria-label={t("channel.settings.title")}
-          onClick={props.onOpenSettings}
-          disabled={current().channel.archived}
-        >
-          <ChannelAvatar
-            members={current().channel.members}
-            agents={channels.agents()}
-            icon={current().channel.icon}
-            imageUrl={current().channel.imageUrl}
-          />
-          <span class="channel-header-copy">
-            <h1>{current().channel.name}</h1>
-            <Show when={current().channel.title.trim()}>
-              {(title) => <span class="channel-header-title">{title()}</span>}
-            </Show>
-          </span>
-        </Button>
-      )}
+      {(current) => {
+        const content = () => (
+          <>
+            <ChannelAvatar
+              members={current().channel.members}
+              agents={channels.agents()}
+              icon={current().channel.icon}
+              imageUrl={current().channel.imageUrl}
+            />
+            <span class="channel-header-copy">
+              <h1>{current().channel.name}</h1>
+              <Show when={current().channel.title.trim()}>
+                {(title) => <span class="channel-header-title">{title()}</span>}
+              </Show>
+            </span>
+          </>
+        );
+        return (
+          <Show
+            when={!props.settingsLocked}
+            fallback={<div class="conversation-title channel-title no-drag">{content()}</div>}
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              class="conversation-title channel-title no-drag"
+              aria-label={t("channel.settings.title")}
+              onClick={props.onOpenSettings}
+              disabled={current().channel.archived}
+            >
+              {content()}
+            </Button>
+          </Show>
+        );
+      }}
     </Show>
   );
 }

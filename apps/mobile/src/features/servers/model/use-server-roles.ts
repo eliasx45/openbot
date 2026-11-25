@@ -16,7 +16,7 @@ import { queryKeys } from "@/features/workspace/model/query-keys";
 import { haptics } from "@/shared/lib/haptics";
 
 export function everyoneLevel(everyone: AgentAccessLevels, agentId: string): AgentAccessLevel {
-  return everyone[agentId] ?? "manage";
+  return everyone[agentId] ?? "none";
 }
 
 export function roleLevel(role: AgentAccessRole, agentId: string): AgentAccessLevel {

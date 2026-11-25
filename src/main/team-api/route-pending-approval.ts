@@ -19,12 +19,15 @@ export async function routePendingApproval(
     throw new HttpError(400, sourceText("error.team.pendingApprovalUnsupported"));
   const body = await readJson(request);
   const agentId = stringField(body, "agentId");
-  if (hiddenAgentIds.has(agentId) || !agents.listAgents().some((agent) => agent.id === agentId))
-    throw new HttpError(404, sourceText("error.team.agentNotFound"));
-  requireAgentLevel(context, agentId, "chat");
   const requestId = body.requestId;
   const approval =
     typeof requestId === "string" || typeof requestId === "number" ? agents.pendingApproval(requestId) : undefined;
+  const inChannel = approval?.agentId === agentId && context.threadChannelLevel(approval.threadId) !== "none";
+  if (!inChannel) {
+    if (hiddenAgentIds.has(agentId) || !agents.listAgents().some((agent) => agent.id === agentId))
+      throw new HttpError(404, sourceText("error.team.agentNotFound"));
+    requireAgentLevel(context, agentId, "chat");
+  }
   if (!approval || approval.agentId !== agentId) throw new HttpError(409, sourceText("error.backend.approvalInactive"));
   return json(200, { approval });
 }

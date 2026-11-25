@@ -2001,7 +2001,26 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
   );
   const channelOpen = () => channels.state.selectedId !== null;
   const createSupported = () => workspace.state.status === "online" && workspace.state.host !== null;
-  const firstAgent = () => workspace.state.agentsLoaded && workspace.profiles().length === 0 && createSupported();
+  // Fork (docs/fork/FEATURES.md #107): a member with channels and no agents lands in the first channel.
+  const memberWithoutAgents = () =>
+    workspace.state.agentsLoaded &&
+    workspace.profiles().length === 0 &&
+    !canAdministerServer(workspace.state.host?.role);
+  const channelOnlyLanding = () =>
+    memberWithoutAgents() ? (sidebarChannels().find((channel) => !channel.archived)?.id ?? null) : null;
+  const memberChannelsPending = () => memberWithoutAgents() && channelsListed() && !channels.state.listed;
+  const firstAgent = () =>
+    workspace.state.agentsLoaded &&
+    workspace.profiles().length === 0 &&
+    createSupported() &&
+    !memberChannelsPending() &&
+    channelOnlyLanding() === null;
+  createEffect(
+    () => (!channelOpen() && !creating() ? channelOnlyLanding() : null),
+    (channelId) => {
+      if (channelId) untrack(() => openChannel(channelId));
+    },
+  );
   const agentFormOpen = () => creating() || (firstAgent() && !channelOpen());
   const agentChatOpen = () => !tasksOpen() && !agentFormOpen() && !channelOpen() && !noHost() && !hostOffline();
   const [serverSetupChoices, setServerSetupChoices] = createSignal<Record<string, CreationPreference>>({});
@@ -3102,12 +3121,18 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
                       deletedChannels={sidebarChannels().filter((channel) => channel.archived)}
                       activeChannelId={tasksOpen() ? null : channels.state.selectedId}
                       onSelectChannel={openChannel}
-                      onEditChannel={(id) => openChannel(id, true)}
+                      onEditChannel={
+                        canAdministerServer(workspace.state.host?.role) ? (id) => openChannel(id, true) : undefined
+                      }
                       onDeleteChannel={channels.deletionSupported() ? channels.remove : undefined}
                       onRestoreChannel={channels.deletionSupported() ? channels.restore : undefined}
                       showingArchivedChannels={channelsListed() && channels.state.archived}
                       onToggleArchivedChannels={channelsListed() ? channels.toggleArchived : undefined}
-                      onCreateChannel={channelsListed() ? channels.create : undefined}
+                      onCreateChannel={
+                        channelsListed() && canAdministerServer(workspace.state.host?.role)
+                          ? channels.create
+                          : undefined
+                      }
                       onMarkAllRead={
                         workspace.state.status === "online"
                           ? () => {
@@ -3430,7 +3455,11 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
                         providerEnvironment={{ calls: hostProviderEnvironmentCalls }}
                         hostModelVisibility={{ calls: hostModelVisibilityCalls }}
                         hostDefaultProvider={{ calls: providerAdmin.hostDefaultProviderCalls }}
-                        agentAccess={{ calls: hostAgentAccessCalls, listAgents: () => workspace.runtime.listAgents() }}
+                        agentAccess={{
+                          calls: hostAgentAccessCalls,
+                          listAgents: () => workspace.runtime.listAgents(),
+                          listChannels: async () => (await workspace.runtime.channels?.listChannels()) ?? [],
+                        }}
                         serverAudit={{ calls: hostServerAuditCalls, listAgents: () => workspace.runtime.listAgents() }}
                         agentDefaults={{
                           calls: hostAgentDefaultsCalls,
@@ -3645,6 +3674,7 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
                       takeovers: () => workspace.state.takeovers,
                       prompts: () => workspace.state.prompts,
                       pausedAgentIds,
+                      canEditSettings: () => canAdministerServer(workspace.state.host?.role),
                     });
                     return (
                       <Conversation

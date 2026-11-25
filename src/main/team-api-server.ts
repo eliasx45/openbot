@@ -10,6 +10,7 @@ import {
   type AgentSummary,
   AnalyticsInputError,
   agentAccessRank,
+  type ChannelAccessLevel,
   type ChatColors,
   canAdministerServer,
   type DirectConversationPage,
@@ -313,7 +314,8 @@ import { perfCount } from "../backend/perf-probe-hooks";
 import { canConfineProcesses } from "../backend/process-confinement";
 import { StoredStateFailure } from "../backend/stored-state-effects";
 import type { TeamChatStore } from "../backend/team-chat-store";
-import { agentAccessLevel } from "./agent-access-store";
+import { agentAccessLevel, channelAccessLevel } from "./agent-access-store";
+import { forkChannelWebhooks } from "./fork-channel-webhooks";
 import { LifecycleGate } from "./lifecycle-gate";
 import { listenLoopback } from "./listen-loopback";
 import { mcpAccessLevel } from "./mcp-access-store";
@@ -321,6 +323,8 @@ import { RemoteScreenError } from "./remote-screen-gateway";
 import { RemoteWorkflowError, remoteCall, toRemoteWorkflowError } from "./remote-service-effects";
 import { isClientUse } from "./team-api/client-use";
 import type { TeamApiMcpServerOwners, TeamApiOptions, TeamApiSidebarLayout } from "./team-api/dependencies";
+import { forkAttachmentAllowed, forkChannelEventId, forkChannelRoute } from "./team-api/fork-channel-access";
+import { routeChannelWebhook } from "./team-api/fork-route-channel-webhook";
 import { HttpError } from "./team-api/http-error";
 import {
   hiddenAgentView,
@@ -558,6 +562,7 @@ export class TeamApiServer {
   readonly #options: Omit<TeamApiOptions, "sidebarLayout"> & { sidebarLayout: TeamApiSidebarLayout };
   readonly #rateLimits = new Map<string, RateEntry>();
   readonly #eventClients = new Map<Ws.WebSocket, EventClientState>();
+  readonly #blockedMembers = new WeakMap<ReadonlySet<string>, AccessMember>();
   readonly #pendingLegacyConversationReads = new Map<string, PendingLegacyConversationRead>();
   #legacyConversationScope = Scope.makeUnsafe();
   #hostRestart: HostRestartEvent = { type: HOST_RESTART_EVENT, state: "none", version: null };
@@ -1119,7 +1124,7 @@ export class TeamApiServer {
       }
       const hidden = this.hiddenAgentIds(context.protocol, context.capabilities, context.member);
       const responseRoute = this.#responseRoutes.get(response);
-      if (responseRoute) responseRoute.hiddenAgentIds = hidden;
+      if (responseRoute) responseRoute.hiddenAgentIds = this.#channelRouteHidden(context, hidden);
       const agentId = url.pathname.match(/^\/v1\/agents\/([^/]+)/u)?.[1];
       if (
         (agentId && hidden.has(pathIdentifier(agentId, "agentId"))) ||
@@ -1137,7 +1142,19 @@ export class TeamApiServer {
       if ((await this.#routeDirect(context)) === "handled") return;
       if ((await this.#routeBrowser(context)) === "handled") return;
       if ((await this.#routeFiles(context)) === "handled") return;
-      if ((await routeChannels(context, this.#options.channels, this.#options.agents, hidden)) === "handled") return;
+      if ((await routeChannelWebhook(context, this.#options.channels, forkChannelWebhooks.current)) === "handled")
+        return;
+      if (
+        (await routeChannels(
+          context,
+          this.#options.channels,
+          this.#options.agents,
+          canAdministerServer(context.member.role)
+            ? hidden
+            : this.hiddenAgentIds(context.protocol, context.capabilities),
+        )) === "handled"
+      )
+        return;
       const { mcpServers } = this.#options;
       const mcpServerOwners = this.#mcpServerOwners();
       if (
@@ -1320,6 +1337,7 @@ export class TeamApiServer {
           this.#options.agents,
           this.#options.store.getIdentity()?.serverId,
           hidden,
+          this.#options.channels ? () => this.#options.channels?.store.ids() ?? [] : undefined,
         )) === "handled"
       )
         return;
@@ -1482,6 +1500,7 @@ export class TeamApiServer {
       agents: this.#options.agents,
       mailbox: this.#options.mailbox,
       attachmentPreviews: this.#options.attachmentPreviews,
+      attachmentAllowed: (attachmentId) => this.#attachmentAllowed(context.member, attachmentId),
     });
   }
 
@@ -1544,7 +1563,10 @@ export class TeamApiServer {
     const protocol = eventProtocol(capabilities);
     const hidden = new Set(providerHidden ?? hiddenProviderAgentIds(this.#options.agents.listAgents(), protocol));
     for (const id of blocked) hidden.add(id);
-    const visible = protocol === 1 ? legacyProviderView(value, hidden) : hiddenAgentView(value, hidden, protocol);
+    const blockedMember = blocked.size > 0 ? this.#blockedMembers.get(blocked) : undefined;
+    const exposedThread = blockedMember ? this.#channelThreadExposure(blockedMember) : undefined;
+    const visible =
+      protocol === 1 ? legacyProviderView(value, hidden) : hiddenAgentView(value, hidden, protocol, exposedThread);
     return capabilities.has(TEAM_REASONING_EFFORTS_CAPABILITY) ? visible : withLegacyReasoningEfforts(visible);
   }
 
@@ -1723,7 +1745,8 @@ export class TeamApiServer {
       if (known) return known;
       const member = this.#connectionMember(connection);
       const blocked = this.#blockedAgentIds(member, agents());
-      const resolved = { member, blocked, key: [...blocked].sort().join(",") };
+      const channelKey = blocked.size > 0 ? this.#visibleChannelIds(member).sort().join(",") : "";
+      const resolved = { member, blocked, key: `${[...blocked].sort().join(",")}|${channelKey}` };
       access.set(connection.memberId, resolved);
       return resolved;
     };
@@ -1758,6 +1781,8 @@ export class TeamApiServer {
       }
       const { member, blocked, key: blockedKey } = accessFor(connection);
       if (event.type === "crm-changed" && !canAdministerServer(member.role)) continue;
+      const eventChannelId = forkChannelEventId(event);
+      if (eventChannelId !== null && this.channelLevel(member, eventChannelId) === "none") continue;
       const protocol = eventProtocol(connection.capabilities);
       const encodeEvent = (event: AgentEvent, options: { preserveSemanticTags?: boolean } = {}, sharedAs?: string) => {
         const key =
@@ -2515,6 +2540,34 @@ export class TeamApiServer {
     return agentAccessLevel(access.levels(serverId), this.#accessMember(member), agentId);
   }
 
+  // Fork (docs/fork/FEATURES.md #107): channel levels of a member.
+  channelLevel(member: AccessMember | string, channelId: string): ChannelAccessLevel {
+    const access = this.#options.agentAccess;
+    const serverId = this.#options.store.getIdentity()?.serverId;
+    if (!access || !serverId) return "chat";
+    return channelAccessLevel(access.levels(serverId), this.#accessMember(member), channelId);
+  }
+
+  #attachmentAllowed(member: AccessMember, attachmentId: string): boolean {
+    if (canAdministerServer(member.role)) return true;
+    const channels = this.#options.channels;
+    return forkAttachmentAllowed(attachmentId, {
+      scope: (id) => this.#options.mailbox.forkAttachmentScope?.(id) ?? null,
+      agentLevel: (agentId) => this.agentLevel(member, agentId),
+      channelLevel: (channelId) => this.channelLevel(member, channelId),
+      channelForThread: (threadId) => channels?.store.channelForThread(threadId) ?? null,
+      channelIds: () => channels?.store.ids() ?? [],
+      channelHasAttachment: (channelId, id) =>
+        channels?.store
+          .messages(channelId)
+          .some(
+            (entry) =>
+              entry.message.attachments?.some((attachment) => attachment.id === id) === true ||
+              entry.message.voiceRecording?.id === id,
+          ) ?? false,
+    });
+  }
+
   #blockedAgentIds(
     member: AccessMember | string,
     agents: readonly AgentSummary[] = this.#options.agents.listAgents(),
@@ -2526,7 +2579,35 @@ export class TeamApiServer {
     if (!access || !serverId || canAdministerServer(resolved.role)) return blocked;
     const levels = access.levels(serverId);
     for (const agent of agents) if (agentAccessLevel(levels, resolved, agent.id) === "none") blocked.add(agent.id);
+    if (blocked.size > 0) this.#blockedMembers.set(blocked, resolved);
     return blocked;
+  }
+
+  #channelRouteHidden(context: TeamApiRequestContext, hidden: Set<string>): ReadonlySet<string> {
+    const channels = this.#options.channels;
+    if (!channels || canAdministerServer(context.member.role) || !forkChannelRoute(context.url.pathname)) return hidden;
+    const shown = new Set(hidden);
+    for (const channelId of this.#visibleChannelIds(context.member))
+      for (const item of channels.store.get(channelId).members) shown.delete(item.agentId);
+    for (const agentId of hiddenProviderAgentIds(this.#options.agents.listAgents(), context.protocol))
+      shown.add(agentId);
+    return shown;
+  }
+
+  #visibleChannelIds(member: AccessMember): string[] {
+    const channels = this.#options.channels;
+    if (!channels) return [];
+    return channels.store.ids().filter((channelId) => this.channelLevel(member, channelId) !== "none");
+  }
+
+  #channelThreadExposure(member: AccessMember): ((threadId: string) => boolean) | undefined {
+    const channels = this.#options.channels;
+    const visible = new Set(this.#visibleChannelIds(member));
+    if (!channels || visible.size === 0) return undefined;
+    return (threadId) => {
+      const channelId = channels.store.channelForThread(threadId);
+      return channelId !== null && visible.has(channelId);
+    };
   }
 
   #roles(): readonly AgentAccessRole[] {
@@ -2928,6 +3009,11 @@ export class TeamApiServer {
       sessionId: authenticated.sessionId,
       sessionExpiresAt: authenticated.sessionExpiresAt,
       agentLevel: (agentId) => this.agentLevel(authenticated.member, agentId),
+      channelLevel: (channelId) => this.channelLevel(authenticated.member, channelId),
+      threadChannelLevel: (threadId) => {
+        const channelId = this.#options.channels?.store.channelForThread(threadId) ?? null;
+        return channelId === null ? "none" : this.channelLevel(authenticated.member, channelId);
+      },
       json: (status, value) => this.#json(response, status, value),
       empty: (status) => this.#empty(response, status),
     };

@@ -60,6 +60,7 @@ export interface ChannelConversationEnvironment {
   prompts: () => readonly Extract<AgentEvent, { type: "prompt" }>[];
   pausedAgentIds: () => ReadonlySet<string>;
   feed?: { account: () => CentralAuthUser } | undefined;
+  canEditSettings?: () => boolean;
 }
 
 export function createChannelConversation(env: ChannelConversationEnvironment) {
@@ -315,7 +316,11 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     },
     HeaderTitle: (props) => (
       <>
-        <ChannelHeaderTitle channelId={channelId} onOpenSettings={props.onOpenSettings} />
+        <ChannelHeaderTitle
+          channelId={channelId}
+          onOpenSettings={props.onOpenSettings}
+          settingsLocked={env.canEditSettings?.() === false}
+        />
         <Show when={env.feed && feedWindowWide()}>
           <ChannelFeedToggle
             feed={channelFeedChosen(channelId)}

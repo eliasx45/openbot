@@ -25,12 +25,22 @@ const levels: AdminDecoder = (input) => {
   if (entries.length > 1000) throw new Error("Invalid agent access levels.");
   return Object.fromEntries(entries.map(([agentId, value]) => [identifier(agentId), level(value)]));
 };
-const role = fields({
-  id: identifier,
-  name: string(100),
-  agents: levels,
-  memberIds: list(identifier, 1000),
-});
+const channelLevel = oneOf("none", "view", "chat");
+const channelLevels: AdminDecoder = (input) => {
+  if (!isDynamicRecord(input)) throw new Error("Invalid channel access levels.");
+  const entries = Object.entries(input);
+  if (entries.length > 1000) throw new Error("Invalid channel access levels.");
+  return Object.fromEntries(entries.map(([channelId, value]) => [identifier(channelId), channelLevel(value)]));
+};
+const role = fields(
+  {
+    id: identifier,
+    name: string(100),
+    agents: levels,
+    memberIds: list(identifier, 1000),
+  },
+  { channels: channelLevels },
+);
 const roles = list(role, 100);
 const exact =
   (names: string[], decode: AdminDecoder): AdminDecoder =>
@@ -39,14 +49,20 @@ const exact =
       throw new Error("Invalid agent access request.");
     return decode(input);
   };
-const snapshot = fields({ revision: count, mine: levels }, { everyone: levels, roles });
+const snapshot = fields(
+  { revision: count, mine: levels },
+  { everyone: levels, roles, mineChannels: channelLevels, everyoneChannels: channelLevels },
+);
 
 export const AGENT_ACCESS_CODECS: ReadonlyMap<string, OptionalRouteCodec> = new Map([
   [AGENT_ACCESS_ROUTES.read, adminRoute(empty, snapshot)],
   [
     AGENT_ACCESS_ROUTES.set,
     adminRoute(
-      exact(["revision", "everyone", "roles"], fields({ revision: count, everyone: levels, roles })),
+      exact(
+        ["revision", "everyone", "roles", "everyoneChannels"],
+        fields({ revision: count, everyone: levels, roles }, { everyoneChannels: channelLevels }),
+      ),
       snapshot,
     ),
   ],

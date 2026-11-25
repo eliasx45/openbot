@@ -127,7 +127,7 @@ function ChannelForm({
   const valid = isChannelDraft(draft);
   const choices = useMemo(() => agents.filter((agent) => agent.serverId === serverId), [agents, serverId]);
   const agentsById = useMemo(() => new Map(choices.map((agent) => [agent.id, agent])), [choices]);
-  const disabled = saving || !available || finished || Boolean(channel?.archived);
+  const disabled = !canManage || saving || !available || finished || Boolean(channel?.archived);
   const [discarding, setDiscarding] = useState(false);
   usePreventRemove(!discarding && !finished && (dirty || saving), ({ repeat }) => {
     if (lock.current) return;
@@ -222,7 +222,7 @@ function ChannelForm({
         onSave={save}
       />
       {!create && channel ? (
-        pictureSupported && !channel.archived ? (
+        pictureSupported && canManage && !channel.archived ? (
           <Pressable
             className="self-center"
             accessibilityRole="button"

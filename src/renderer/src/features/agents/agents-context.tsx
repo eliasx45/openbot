@@ -25,7 +25,7 @@ import { createSimpleContext } from "../../simple-context";
 import { useUiErrors } from "../../ui-errors";
 import type { AgentSettingsRequest } from "../conversation/conversation-types";
 import { useDirectMessages } from "../conversation/direct-messages-context";
-import { remoteAdminServer } from "../servers/server-capabilities";
+import { remoteAdminServer, serverRoleCanAdminister } from "../servers/server-capabilities";
 import { useServers } from "../servers/servers-context";
 import { useWindowPage } from "../window/window-page-context";
 import type { CreationPreference, DevelopmentCreation } from "./agent-creation-model";
@@ -187,7 +187,7 @@ const Agents = createSimpleContext({
         const hidden = untrack(userHiddenAgentIds);
         return (profiles.find((agent) => !hidden.has(agent.id)) ?? profiles[0])?.id ?? "";
       });
-      if (profiles.length === 0 && !agentSetupOpen()) {
+      if (profiles.length === 0 && !agentSetupOpen() && serverRoleCanAdminister(untrack(activeServer))) {
         setAgentSetupDraft(createFirstAgentDraft());
         setAgentSetupError(null);
         setAgentSetupOpen(true);

@@ -257,6 +257,7 @@ import {
 } from "./external-link-opener";
 import { feedbackFacts, feedbackSender } from "./feedback";
 import { updatesAllowed as forkUpdatesAllowed } from "./fork";
+import { CHANNEL_WEBHOOKS_FILE, ChannelWebhookService, forkChannelWebhooks } from "./fork-channel-webhooks";
 import { ForkPhoneVideo, forkPhoneVideo } from "./fork-phone-video";
 import { createForkSectionDefaults } from "./fork-section-defaults";
 import { githubAppConfig } from "./github-connector-config";
@@ -1670,6 +1671,16 @@ export async function createApplicationServices({
     ),
   );
   const secretCipher = safeStorageCipher("error.app.secretStorageUnavailable");
+  // Fork (docs/fork/FEATURES.md #107): outbound channel webhooks.
+  const channelWebhooks = new ChannelWebhookService({
+    path: join(app.getPath("userData"), CHANNEL_WEBHOOKS_FILE),
+    cipher: secretCipher,
+  });
+  await Effect.runPromise(channelWebhooks.load()).catch((error: unknown) =>
+    logger.warn("The channel webhooks did not load.", toLogValue(error)),
+  );
+  forkChannelWebhooks.current = channelWebhooks;
+  forkHub.channelWebhooks = channelWebhooks;
   const customProviders = new CustomProviderStore({
     path: join(app.getPath("userData"), CUSTOM_PROVIDERS_FILE),
     cipher: secretCipher,
@@ -2242,6 +2253,7 @@ export async function createApplicationServices({
     extraRoutineSources: () => (workflowTriggers ? [workflowTriggers] : []),
     channelPersonAgentLevel: (personId, agentId) => host.channelPersonAgentLevel(personId, agentId),
     channelRemotePerson: (personId) => host.channelPersonIsRemote(personId),
+    channelPersonChannelLevel: (personId, channelId) => host.channelPersonChannelLevel(personId, channelId),
     deleteWithRevokedApproval: (agentId, remove) =>
       Effect.suspend(() => {
         const workflowIds = workflowStore.workflowsOfAgent(agentId);

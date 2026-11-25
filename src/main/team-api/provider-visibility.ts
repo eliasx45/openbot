@@ -43,9 +43,26 @@ export function hiddenAgentView(
   value: unknown,
   hiddenIds: ReadonlySet<string>,
   protocol: 4 | 5 | 6 | 7 | 8,
+  exposedThread?: (threadId: string) => boolean,
 ): TeamProtocolV1JsonValue {
   const json: TeamProtocolV1JsonValue = JSON.parse(JSON.stringify(value));
-  return project(json, hiddenIds, protocol);
+  return project(json, hiddenIds, protocol, "", "", exposedThread);
+}
+
+const EXPOSED_THREAD_LISTS: ReadonlySet<string> = new Set(["pendingPrompts", "pendingApprovals", "activeTurns"]);
+
+function exposedThreadItem(
+  value: TeamProtocolV1JsonObject,
+  key: string,
+  listKey: string,
+  exposedThread: ((threadId: string) => boolean) | undefined,
+): boolean {
+  return (
+    exposedThread !== undefined &&
+    typeof value.threadId === "string" &&
+    (EXPOSED_THREAD_LISTS.has(listKey) || key === "approval" || value.type === "prompt") &&
+    exposedThread(value.threadId)
+  );
 }
 
 function project(
@@ -54,15 +71,18 @@ function project(
   protocol: number,
   key = "",
   listKey = "",
+  exposedThread?: (threadId: string) => boolean,
 ): TeamProtocolV1JsonValue {
   if (Array.isArray(value)) {
     return value.flatMap((item) => {
       if ((key === "agentOrder" || key === "agentIds") && typeof item === "string" && hiddenIds.has(item)) return [];
-      const visible = project(item, hiddenIds, protocol, "", key);
+      const visible = project(item, hiddenIds, protocol, "", key, exposedThread);
       return visible === null && item !== null ? [] : [visible];
     });
   }
   if (value === null || typeof value !== "object") return value;
+  if (!isPeerHiddenProvider(value.provider, protocol) && exposedThreadItem(value, key, listKey, exposedThread))
+    return value;
   if (
     isPeerHiddenProvider(value.provider, protocol) ||
     isPeerHiddenId(value, protocol, listKey) ||
@@ -87,7 +107,7 @@ function project(
     const visible =
       (field === "typingAgentId" || field === "leadAgentId") && typeof child === "string" && hiddenIds.has(child)
         ? null
-        : project(child, hiddenIds, protocol, field);
+        : project(child, hiddenIds, protocol, field, "", exposedThread);
     if (visible === null && child !== null && ["snapshot", "page", "approval", "request"].includes(field)) return null;
     result[field] = visible;
   }

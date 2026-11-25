@@ -6,7 +6,12 @@ import type {
 } from "@openbot/contracts/ipc";
 import { AGENT_ACCESS_CAPABILITY } from "@openbot/contracts/team-protocol/agent-access-v1";
 import { Alert, AlertContent, AlertDescription } from "@openbot/ui";
-import { type RoleAgent, type ServerRolePage, ServerRolesPanel } from "@openbot/ui/features/servers/ServerRoles";
+import {
+  type RoleAgent,
+  type RoleChannel,
+  type ServerRolePage,
+  ServerRolesPanel,
+} from "@openbot/ui/features/servers/ServerRoles";
 import { useText } from "@openbot/ui/text";
 import type { JSX } from "@solidjs/web";
 import { createEffect, createStore, Show, untrack } from "solid-js";
@@ -18,11 +23,13 @@ export type HostAgentAccessCalls = Pick<OpenBotDesktopApi["hostAdmin"], "getAgen
 export interface ServerAgentAccessOptions {
   calls?: HostAgentAccessCalls;
   listAgents: () => Promise<readonly RoleAgent[]>;
+  listChannels?: () => Promise<readonly RoleChannel[]>;
 }
 
 interface RolesState {
   snapshot: AgentAccessSnapshot | null;
   agents: readonly RoleAgent[];
+  channels: readonly RoleChannel[];
   loadError: string | null;
   page: ServerRolePage;
 }
@@ -44,7 +51,9 @@ function copyChange(snapshot: AgentAccessSnapshot): AgentAccessChange {
       ...role,
       agents: { ...role.agents },
       memberIds: [...role.memberIds],
+      ...(role.channels === undefined ? {} : { channels: { ...role.channels } }),
     })),
+    ...(snapshot.everyoneChannels === undefined ? {} : { everyoneChannels: { ...snapshot.everyoneChannels } }),
   };
 }
 
@@ -55,6 +64,7 @@ export function createServerRolesSection(host: ServerSettingsSectionHost, visibl
   const [state, setState] = createStore<RolesState>({
     snapshot: null,
     agents: [],
+    channels: [],
     loadError: null,
     page: { kind: "list" },
   });
@@ -70,12 +80,17 @@ export function createServerRolesSection(host: ServerSettingsSectionHost, visibl
     const options = props.agentAccess;
     if (!options) return;
     const current = ++generation;
-    Promise.all([calls().getAgentAccess(serverId), options.listAgents()]).then(
-      ([snapshot, agents]) => {
+    Promise.all([
+      calls().getAgentAccess(serverId),
+      options.listAgents(),
+      options.listChannels?.().catch(() => []) ?? Promise.resolve([]),
+    ]).then(
+      ([snapshot, agents, channels]) => {
         if (current !== generation) return;
         setState((draft) => {
           draft.snapshot = snapshot;
           draft.agents = [...agents];
+          draft.channels = channels.map(({ id, name }) => ({ id, name }));
           draft.loadError = null;
         });
       },
@@ -148,6 +163,22 @@ export function createServerRolesSection(host: ServerSettingsSectionHost, visibl
               agents={[...state.agents]}
               everyone={snapshot().everyone ?? {}}
               roles={snapshot().roles ?? []}
+              channels={snapshot().everyoneChannels === undefined ? undefined : [...state.channels]}
+              everyoneChannels={snapshot().everyoneChannels}
+              onSetEveryoneChannelLevels={(levels) =>
+                save((change) => {
+                  const everyoneChannels = { ...change.everyoneChannels };
+                  for (const [channelId, level] of levels) everyoneChannels[channelId] = level;
+                  change.everyoneChannels = everyoneChannels;
+                })
+              }
+              onSetRoleChannelLevels={(roleId, levels) =>
+                editRole(roleId, (role) => {
+                  const channels = { ...role.channels };
+                  for (const [channelId, level] of levels) channels[channelId] = level;
+                  role.channels = channels;
+                })
+              }
               page={state.page}
               disabled={Boolean(busy())}
               menuMount={host.menuMount()}
@@ -215,6 +246,7 @@ export function createServerRolesSection(host: ServerSettingsSectionHost, visibl
       setState((draft) => {
         draft.snapshot = null;
         draft.agents = [];
+        draft.channels = [];
         draft.loadError = null;
         draft.page = { kind: "list" };
       });

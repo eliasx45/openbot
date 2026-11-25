@@ -26,7 +26,7 @@ import type { TeamApiLibraryFolders, TeamApiStorage } from "./dependencies";
 import { HttpError } from "./http-error";
 import type { RouteOutcome, TeamApiRequestContext } from "./request-context";
 import { readJson, requireAdmin, requireVisibleBodyAgent } from "./request-helpers";
-import { hiddenAuthor, requireVisibleChannel } from "./route-channels";
+import { requireVisibleChannel } from "./route-channels";
 
 export async function routeStorage(
   context: TeamApiRequestContext,
@@ -44,23 +44,10 @@ export async function routeStorage(
     const { channelId, force } = await readJson(request);
     if (!isString(channelId)) throw new HttpError(400, sourceText("error.team.storageUnsupported"));
     const body = parseGetStorageUsageInput({ scope: "channel", channelId, force });
-    requireVisibleChannel(channels, channelId, canAdministerServer(member.role) ? new Set() : hiddenAgentIds);
+    requireVisibleChannel(context, channels, channelId);
     try {
       const usage = await runCauseEffect(storage.usage(body));
-      const hiddenMessages = new Set(
-        hiddenAgentIds.size === 0
-          ? []
-          : channels.store
-              .messages(channelId)
-              .filter((message) => hiddenAuthor(message, hiddenAgentIds))
-              .map((message) => message.id),
-      );
-      const files = usage.files.filter(
-        (file) =>
-          !(file.messageId && hiddenMessages.has(file.messageId)) &&
-          !(file.agentId && hiddenAgentIds.has(file.agentId)),
-      );
-      return json(200, { channelId, scannedAt: usage.scannedAt, files, truncated: usage.truncated });
+      return json(200, { channelId, scannedAt: usage.scannedAt, files: usage.files, truncated: usage.truncated });
     } catch (error) {
       if (error instanceof StorageNotFoundError) throw new HttpError(404, error.message);
       throw error;

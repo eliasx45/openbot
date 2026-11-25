@@ -43,6 +43,7 @@ import type {
 } from "@openbot/contracts/ipc";
 import {
   type AgentAccessLevel,
+  type ChannelAccessLevel,
   canAdministerServer,
   conversationMessageSender,
   DEFAULT_REMOTE_CONTROL_POLICY,
@@ -2000,6 +2001,13 @@ export class HostService extends EventEmitter<HostEvents> {
     const member = this.#options.store.getMember(personId);
     if (!member || member.disabled) return "none";
     return this.#api.agentLevel(member, agentId);
+  }
+
+  channelPersonChannelLevel(personId: string, channelId: string): ChannelAccessLevel {
+    if (!this.channelPersonIsRemote(personId)) return "chat";
+    const member = this.#options.store.getMember(personId);
+    if (!member || member.disabled) return "none";
+    return this.#api.channelLevel(member, channelId);
   }
 
   agentVisibleToMembers(agentId: string): boolean {

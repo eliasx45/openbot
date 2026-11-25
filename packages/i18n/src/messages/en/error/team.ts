@@ -145,6 +145,10 @@ export const messages = defineMessages("error.team", {
   "error.team.agentAccessStale": "Someone changed the roles. Open them again and make your change.",
   "error.team.serverAuditUnsupported": "The audit log is not supported by this connection.",
   "error.team.agentViewOnly": "You can only view this agent.",
+  "error.team.channelViewOnly": "You can only read this channel.",
+  "error.team.channelWebhookInvalid":
+    "Enter an https address for the webhook (http only for this computer or Tailscale).",
+  "error.team.channelSettingsAdminOnly": "Only an owner or admin can change the settings of this channel.",
   "error.team.agentManageDenied": "You cannot change this agent.",
   "error.team.attachmentNameRequired": "A safe attachment name is required.",
   "error.team.attachmentNotFound": "Attachment not found.",

@@ -13,6 +13,7 @@ import {
   CHANNEL_CHANGE_ITEM_TYPE,
   CHANNEL_PARALLEL_LIMIT,
   type Channel,
+  type ChannelAccessLevel,
   type ChannelCommand,
   type ChannelDraft,
   type ChannelMemory,
@@ -70,6 +71,7 @@ import { ChannelMemoryStore } from "./channel-memory-store";
 import { CHANNEL_REPLY_ID_PREFIX, channelReplyExpectedResult, checkChannelReply, isReplyTask } from "./channel-replies";
 import { type ChannelAssignment, type ChannelContext, ChannelStore } from "./channel-store";
 import { pickedSkillsLine } from "./fork-agent-skills";
+import { forkHub } from "./fork-hub";
 import type { DeliveryContext, MailboxStore } from "./mailbox-store";
 import { type MessageDeleteAccess, MessageDeleteRefused } from "./message-delete";
 import type { OpenBotDatabase } from "./openbot-database";
@@ -120,12 +122,17 @@ export interface ChannelHooks {
   memoriesChanged?(channelId: string): void;
   personAgentLevel?(personId: string, agentId: string): AgentAccessLevel;
   remotePerson?(personId: string): boolean;
+  personChannelLevel?(personId: string, channelId: string): ChannelAccessLevel;
+  personCanAdminister?(personId: string): boolean;
   routines?: ChannelRoutineToolPort;
   error(error: unknown): void;
   routingFailed?(failure: { channelId: string; taskId: string; lead: AgentSummary | undefined; error: unknown }): void;
   /** Fork (docs/fork/FEATURES.md, "`$` in channels"): the skills of a member, as its `$` list has them. */
   skillsOf?(agentId: string): Effect.Effect<readonly InstalledSkill[], unknown>;
 }
+
+const FORK_CHANNEL_SETTINGS_ADMIN_ONLY =
+  "Only an owner or admin of this server can change the members, instructions or routines of this channel. The person who asked is not one. Tell them to ask an admin.";
 
 class ChannelRoutingError extends Schema.TaggedError<ChannelRoutingError>()("ChannelRoutingError", {
   message: Schema.String,
@@ -2901,8 +2908,53 @@ export class ChannelService {
       );
       this.resolveAssignmentTerminal(assignment.id);
       this.publish(channelId);
+      if (state === "completed") this.#forkAnnounceAnswer(channelId, assignment, turnId, tasks);
       yield* this.#releaseHeldAgents([assignment.agentId]);
     });
+  }
+
+  // Fork (docs/fork/FEATURES.md #107): the newest answer of the turn goes to the channel's outbound webhook.
+  #forkAnnounceAnswer(
+    channelId: string,
+    assignment: ChannelAssignment,
+    turnId: string,
+    tasks: readonly ChannelTask[],
+  ): void {
+    const webhooks = forkHub.channelWebhooks;
+    if (!webhooks) return;
+    try {
+      const resultId = channelResultId(assignment);
+      const answer = this.store
+        .messages(channelId, Number.MAX_SAFE_INTEGER, 50)
+        .filter(
+          (entry) =>
+            entry.author.kind === "agent" &&
+            entry.author.id === assignment.agentId &&
+            entry.taskId === assignment.taskId &&
+            (entry.id === resultId || entry.message.turnId === turnId) &&
+            entry.message.author === "assistant" &&
+            entry.message.source !== "system" &&
+            entry.message.status !== "streaming" &&
+            entry.message.itemType !== "commentary" &&
+            entry.message.text.trim().length > 0,
+        )
+        .at(-1);
+      if (!answer) return;
+      const task = tasks.find((item) => item.id === assignment.taskId);
+      const root = task ? (tasks.find((item) => item.id === task.rootTaskId) ?? task) : undefined;
+      const request = root ? this.store.message(channelId, root.requestMessageId) : null;
+      const origin =
+        request?.author.kind === "member"
+          ? request.author.id.startsWith("routine:")
+            ? "routine"
+            : request.author.id.startsWith("agent:")
+              ? "other"
+              : "member"
+          : "other";
+      webhooks.turnAnswered({ channelId, channelName: this.store.get(channelId).name, message: answer, origin });
+    } catch (error) {
+      logger.warn("The channel answer did not reach its webhook.", { error: String(error) });
+    }
   }
 
   #runningSubagentTurns(taskId: string, agentId: string, turnId: string): Array<{ agentId: string; turnId: string }> {
@@ -3273,6 +3325,22 @@ export class ChannelService {
       : channelRequester(task, tasks, (messageId) => this.store.message(channelId, messageId));
   }
 
+  // Fork (docs/fork/FEATURES.md #107): the people whose messages started or continued a channel task.
+  forkTaskPeople(channelId: string, taskId: string): string[] {
+    if (!this.store.exists(channelId)) return [];
+    const tasks = this.store.tasks(channelId);
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) return [];
+    const root = tasks.find((item) => item.id === task.rootTaskId) ?? task;
+    const people = new Set<string>();
+    for (const item of [task, root])
+      for (const messageId of [item.requestMessageId, ...item.sourceMessageIds]) {
+        const person = requestPerson(this.store.message(channelId, messageId));
+        if (person) people.add(person.id);
+      }
+    return [...people];
+  }
+
   readonly requestedByLocalPerson = Effect.fn("ChannelService.requestedByLocalPerson")(function* (
     this: ChannelService,
     channelId: string,
@@ -3339,6 +3407,12 @@ export class ChannelService {
     if (CHANNEL_MANAGEMENT_TOOLS.has(tool)) {
       const person = requester();
       if (!person) return yield* channelFailure(new Error(PERSON_REQUEST_REQUIRED));
+      if (
+        tool !== "channel_list_routines" &&
+        (this.hooks.remotePerson?.(person.id) ?? false) &&
+        !(this.hooks.personCanAdminister?.(person.id) ?? true)
+      )
+        return yield* channelFailure(new Error(FORK_CHANNEL_SETTINGS_ADMIN_ONLY));
       return yield* this.#manage(channelId, task.id, agentId, `tool:${turnId}:${callId}`, person, tool, args);
     }
     if (tool === "channel_history") {

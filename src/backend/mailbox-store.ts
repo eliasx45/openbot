@@ -3349,6 +3349,32 @@ export class MailboxStore {
     }
   }, Effect.uninterruptible).bind(this);
 
+  // Fork (docs/fork/FEATURES.md #107): the agents, channel and thread that an attachment belongs to.
+  forkAttachmentScope(
+    id: string,
+  ): { draft: true } | { draft: false; agentIds: string[]; channelId: string | null; threadId: string | null } | null {
+    if (this.#state.drafts.some((candidate) => candidate.id === id)) return { draft: true };
+    for (const message of this.#state.messages) {
+      if (!messageFiles(message).some((candidate) => candidate.id === id)) continue;
+      const agentIds = new Set(
+        this.#state.deliveries
+          .filter((delivery) => delivery.messageId === message.id)
+          .map((delivery) => delivery.recipientAgentId),
+      );
+      if (message.sender.kind === "agent") agentIds.add(message.sender.agentId);
+      return { draft: false, agentIds: [...agentIds], channelId: message.channelId ?? null, threadId: null };
+    }
+    const generated = this.#state.generatedAttachments.find((candidate) => candidate.id === id);
+    if (generated)
+      return {
+        draft: false,
+        agentIds: generated.ownerAgentId ? [generated.ownerAgentId] : [],
+        channelId: null,
+        threadId: generated.ownerThreadId ?? null,
+      };
+    return null;
+  }
+
   resolveAttachment = Effect.fn("MailboxStore.resolveAttachment")(function* (
     this: MailboxStore,
     id: string,

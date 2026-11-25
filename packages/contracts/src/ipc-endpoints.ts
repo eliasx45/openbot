@@ -6,6 +6,7 @@ import type { AppLogoColorPreference, SetAppLogoColorPreferenceInput } from "./a
 import type { BillingPortalRequest, BillingState, BillingStorageRequest } from "./billing";
 import type { BillingDetails, BillingDetailsRequest } from "./billing-details";
 import type { CustomServerCheckoutRequest, CustomServerCheckoutResult } from "./custom-server-plans";
+import type { ChannelWebhookChange, ChannelWebhookSettings } from "./fork-channel-webhooks";
 import type {
   AgentSectionInheritance,
   SectionDefaultsEditor,
@@ -1313,6 +1314,12 @@ export const IPC_ENDPOINTS = {
     getAgentAccess: scopedQuery<AgentAccessSnapshot, "required">()("host-admin:get-agent-access"),
     setAgentAccess: scopedRequest<AgentAccessChange, AgentAccessSnapshot, "required">()("host-admin:set-agent-access"),
     getAuditLog: scopedQuery<ServerAuditLog, "required">()("host-admin:get-audit-log"),
+    getChannelWebhook: scopedRequest<{ channelId: string }, ChannelWebhookSettings, "required">()(
+      "host-admin:get-channel-webhook",
+    ),
+    setChannelWebhook: scopedRequest<ChannelWebhookChange, ChannelWebhookSettings, "required">()(
+      "host-admin:set-channel-webhook",
+    ),
   },
   githubConnector: {
     status: request<undefined, GitHubConnectorStatus>()("github-connector:status"),

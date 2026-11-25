@@ -8,6 +8,7 @@
     "./fork-channel-handoffs": "./src/fork-channel-handoffs.ts",
     "./fork-channel-threads": "./src/fork-channel-threads.ts",
     "./fork-section-defaults": "./src/fork-section-defaults.ts",
+    "./fork-channel-webhooks": "./src/fork-channel-webhooks.ts",
     "./notification-relay": "./src/notification-relay.ts",
     "./agent-mention-rank": "./src/agent-mention-rank.ts",
     "./agent-providers": "./src/agent-providers.ts",

@@ -66,11 +66,12 @@ export interface FileRouteDependencies {
   >;
   mailbox: TeamApiMailbox;
   attachmentPreviews?: TeamApiAttachmentPreviews | undefined;
+  attachmentAllowed?: ((attachmentId: string) => boolean) | undefined;
 }
 
 export async function routeFiles(
   context: TeamApiRequestContext,
-  { agents, mailbox, attachmentPreviews }: FileRouteDependencies,
+  { agents, mailbox, attachmentPreviews, attachmentAllowed }: FileRouteDependencies,
 ): Promise<RouteOutcome> {
   const { method, url, request, response, member, json, empty } = context;
 
@@ -102,6 +103,8 @@ export async function routeFiles(
       return empty(204);
     }
     if (method === "GET") {
+      if (attachmentAllowed && !attachmentAllowed(attachmentId))
+        throw new HttpError(404, sourceText("error.team.attachmentNotFound"));
       // Fork ("Videos play on the phone"): a phone copy's id names the copy, not a mailbox file.
       const attachment =
         forkPhoneVideo.current?.resolveCopy(attachmentId) ??
@@ -117,6 +120,8 @@ export async function routeFiles(
   const previewMatch = url.pathname.match(/^\/v1\/attachments\/([^/]+)\/preview$/);
   if (previewMatch && method === "GET" && attachmentPreviews) {
     const attachmentId = pathIdentifier(previewMatch[1], "attachmentId");
+    if (attachmentAllowed && !attachmentAllowed(attachmentId))
+      throw new HttpError(404, sourceText("error.team.attachmentNotFound"));
     const attachment = await runCauseEffect(mailbox.resolveAttachment(attachmentId));
     if (!attachment) throw new HttpError(404, sourceText("error.team.attachmentNotFound"));
     if (!attachment.mimeType.startsWith("image/")) throw new HttpError(415, "The attachment is not an image.");

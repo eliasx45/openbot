@@ -1,4 +1,4 @@
-import { CHANNEL_CHATS_CAPABILITY, canAdministerServer, isReleasedRoutineSchedule } from "@openbot/contracts/ipc";
+import { CHANNEL_CHATS_CAPABILITY, isReleasedRoutineSchedule } from "@openbot/contracts/ipc";
 import { type DynamicRecord, isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
 import { ROUTINES_ONCE_CAPABILITY, ROUTINES_ONCE_ROUTES } from "@openbot/contracts/team-protocol/routines-once-v1";
 import { sourceText } from "@openbot/i18n/source";
@@ -14,7 +14,7 @@ import type { TeamApiAgents } from "./dependencies";
 import { HttpError } from "./http-error";
 import type { RouteOutcome, TeamApiRequestContext } from "./request-context";
 import { readJson, requireAgentLevel, requireListedAgent } from "./request-helpers";
-import { requireVisibleChannel } from "./route-channels";
+import { requireChannelAdmin, requireVisibleChannel } from "./route-channels";
 
 export type RoutinesOnceAgents = Pick<
   TeamApiAgents,
@@ -35,7 +35,7 @@ export async function routeRoutinesOnce(
   channels: ChannelService | undefined,
   hiddenAgentIds: ReadonlySet<string>,
 ): Promise<RouteOutcome> {
-  const { method, url, capabilities, member, request, json } = context;
+  const { method, url, capabilities, request, json } = context;
   if (method !== "POST" || !ROUTE_PATHS.has(url.pathname)) return "unmatched";
   if (!capabilities.has(ROUTINES_ONCE_CAPABILITY))
     throw new HttpError(400, sourceText("error.team.routinesOnceUnsupported"));
@@ -63,9 +63,10 @@ export async function routeRoutinesOnce(
     if (!channels || !capabilities.has(CHANNEL_CHATS_CAPABILITY))
       throw new HttpError(400, sourceText("error.team.channelsUnsupported"));
     const channelId = owner.id;
-    requireVisibleChannel(channels, channelId, canAdministerServer(member.role) ? new Set() : hiddenAgentIds);
+    requireVisibleChannel(context, channels, channelId);
     if (path === ROUTINES_ONCE_ROUTES.list)
       return json(200, { routines: agents.listChannelRoutines(channelId).filter((routine) => !isReleased(routine)) });
+    requireChannelAdmin(context);
     if (path === ROUTINES_ONCE_ROUTES.create) {
       const input = parseCreateChannelRoutine({ ...fieldsOf(body), channelId });
       requireOnce(input.schedule);

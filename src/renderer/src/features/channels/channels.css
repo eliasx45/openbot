@@ -59,6 +59,19 @@
   font-weight: var(--openbot-weight-regular);
 }
 
+.channel-webhook {
+  display: flex;
+  margin-top: var(--settings-panel-section-gap);
+  flex-direction: column;
+  gap: var(--openbot-space-2);
+  min-width: 0;
+}
+.channel-webhook-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--openbot-space-2);
+}
+
 .channel-member-list:is(.ui-item-group) {
   border: 0;
   overflow: visible;

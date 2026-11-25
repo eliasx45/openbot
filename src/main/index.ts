@@ -1031,6 +1031,8 @@ function registerIpcHandlers({
       serverAudit,
       localServerId: () => teamStore.getIdentity()?.serverId,
       localAgentIds: () => service.listAgents().map((agent) => agent.id),
+      localChannelIds: () => service.channels.store.ids(),
+      localChannelExists: (channelId) => service.channels.store.exists(channelId),
       localOwner: () => {
         const owner = teamStore.configured
           ? teamStore.listMembers().find((member) => member.role === "owner")

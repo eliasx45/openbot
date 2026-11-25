@@ -30,10 +30,12 @@ export function SidebarChannelContextMenu(menuProps: { channel: ChannelSummary; 
           <span>{menuProps.pinned ? t("sidebar.unpin") : t("sidebar.pin")}</span>
         </ContextMenu.Item>
         <SidebarMoveToSubmenu chatId={menuProps.channel.id} />
-        <ContextMenu.Item onSelect={() => props.onEditChannel?.(menuProps.channel.id)}>
-          <EditIcon />
-          <span>{t("sidebar.channelMenu.edit")}</span>
-        </ContextMenu.Item>
+        <Show when={props.onEditChannel}>
+          <ContextMenu.Item onSelect={() => props.onEditChannel?.(menuProps.channel.id)}>
+            <EditIcon />
+            <span>{t("sidebar.channelMenu.edit")}</span>
+          </ContextMenu.Item>
+        </Show>
         <Show when={props.onDeleteChannel}>
           <ContextMenu.Separator />
           <ContextMenu.Item

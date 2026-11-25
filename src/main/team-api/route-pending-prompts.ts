@@ -7,6 +7,7 @@ import {
 import { sourceText } from "@openbot/i18n/source";
 import type { TeamApiAgents } from "./dependencies";
 import { HttpError } from "./http-error";
+import { hiddenProviderAgentIds } from "./provider-visibility";
 import type { RouteOutcome, TeamApiRequestContext } from "./request-context";
 
 export async function routePendingPrompts(
@@ -25,7 +26,22 @@ export async function routePendingPrompts(
       .filter((agentId) => !hiddenAgentIds.has(agentId) && agentAccessRank(context.agentLevel(agentId)) > 0),
   );
   const prompts = pendingPromptsWithinLimits(
-    agents.pendingPrompts().filter((prompt) => shownAgentIds.has(prompt.agentId)),
+    agents
+      .pendingPrompts()
+      .filter(
+        (prompt) =>
+          shownAgentIds.has(prompt.agentId) ||
+          (!hiddenProviderAgent(agents, prompt.agentId, context) &&
+            context.threadChannelLevel(prompt.threadId) !== "none"),
+      ),
   );
   return json(200, { prompts });
+}
+
+function hiddenProviderAgent(
+  agents: Pick<TeamApiAgents, "listAgents">,
+  agentId: string,
+  context: Pick<TeamApiRequestContext, "protocol">,
+): boolean {
+  return hiddenProviderAgentIds(agents.listAgents(), context.protocol).has(agentId);
 }
