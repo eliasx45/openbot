@@ -9,7 +9,7 @@ import {
 
 export type ConversationPageMerge = "replace" | "older" | "latest";
 
-export function mergeConversationPage<Message extends { id: string }>(
+export function mergeConversationPage<Message extends { id: string; kind?: string | undefined }>(
   loaded: readonly Message[],
   page: readonly Message[],
   merge: ConversationPageMerge,
@@ -17,8 +17,12 @@ export function mergeConversationPage<Message extends { id: string }>(
   if (merge === "replace") return [...page];
   const pageIds = new Set(page.map((message) => message.id));
   if (merge === "latest") {
-    const firstShared = loaded.findIndex((message) => pageIds.has(message.id));
-    if (firstShared !== -1) return [...loaded.slice(0, firstShared), ...page];
+    // Fork #121: a turn's steps row stands at the turn's first step, so a page that holds only the end of
+    // a turn (#119) does not start there. The page starts at its first other shared row, and the loaded
+    // rows before that stay, the user's steers early in the turn too. The caller places the steps row.
+    const firstShared = loaded.findIndex((message) => message.kind !== "thinking" && pageIds.has(message.id));
+    if (firstShared !== -1)
+      return [...loaded.slice(0, firstShared).filter((message) => !pageIds.has(message.id)), ...page];
   }
   const kept = loaded.filter((message) => !pageIds.has(message.id));
   return merge === "older" ? [...page, ...kept] : [...kept, ...page];

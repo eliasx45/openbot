@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { placeTurnStepRows, toAgentMessages } from "./app-message-projection";
 import {
   type ConversationPageMerge,
+  mergeConversationPage,
   pageMeetsLoaded,
   pageRows,
   pageWindow,
@@ -89,6 +90,18 @@ class Host {
     };
   }
 
+  /**
+   * Which turn a page may cut after other groups. Upstream: none. The fork (#119, #121): a turn of more
+   * than a page, and the open turn.
+   */
+  constructor(readonly cutRule: "upstream" | "fork" = "upstream") {}
+
+  #cuts(group: string, sorted: readonly ConversationMessage[]): boolean {
+    if (this.cutRule === "upstream") return false;
+    if (group === this.activeTurnId) return true;
+    return sorted.filter((message) => message.turnId === group).length > PAGE_CAP;
+  }
+
   /** `readConversationPage` with `wholeGroups`: whole turns, and a part of one turn larger than a page. */
   page(before?: string): ConversationPage {
     const sorted = this.sorted();
@@ -104,7 +117,7 @@ class Host {
       let stop = start + 1;
       while (stop < rows.length && group(rows[stop]) === group(rows[start])) stop += 1;
       if (stop > PAGE_CAP) {
-        if (taken.length === 0) taken.push(...rows.slice(0, PAGE_CAP));
+        if (taken.length === 0 || this.#cuts(group(rows[start]), sorted)) taken.push(...rows.slice(start, PAGE_CAP));
         break;
       }
       taken.push(...rows.slice(start, stop));
@@ -207,8 +220,8 @@ function watcher(provider: AgentProviderRef) {
  * into it; the agent answers each steer with commentary, as Antigravity does, and attaches files. A
  * teammate's queued reply comes last, so the latest page holds only that reply.
  */
-function longTurnChat(ids: ProviderIds, cycles = 60) {
-  const host = new Host();
+function longTurnChat(ids: ProviderIds, cycles = 60, cutRule: Host["cutRule"] = "upstream") {
+  const host = new Host(cutRule);
   for (let turn = 0; turn < 3; turn += 1) {
     const turnId = `done-${turn}`;
     host.add({ id: `done-${turn}-ask`, turnId, author: "user", text: `Question ${turn}`, status: "completed" });
@@ -305,140 +318,175 @@ function longTurnChat(ids: ProviderIds, cycles = 60) {
 }
 
 describe("replies in a long running turn", () => {
-  for (const [name, ids] of Object.entries(PROVIDERS)) {
-    it(`${name}: no earlier reply leaves the chat while a reply streams, a page loads or the chat scrolls back`, () => {
-      const { host, turnId, next } = longTurnChat(ids);
-      expect(host.page().messages.map((message) => message.id)).toEqual(["explorer-reply"]);
-      const client = new Client();
-      const check = watcher(ids.provider);
-      // Open: the latest page, then the snapshot that the host sends with each change.
-      client.applyPage(host.page(), "replace", "latest");
-      client.applySnapshot(host.snapshot());
-      const opened = check(client, host, "open");
-      expect(opened.has(ids.reply(turnId, 2))).toBe(true);
-
-      // A new step and a new reply stream in. The provider sends the reply as the answer at first.
-      const thought = ids.thought(turnId, next());
-      host.add({
-        id: thought,
-        turnId,
-        author: "assistant",
-        text: "Looking at the frames",
-        status: "streaming",
-        itemType: "commentary",
-      });
-      client.applySnapshot(host.snapshot());
-      check(client, host, "step streams");
-      host.update(thought, { status: "completed" });
-      const reply = ids.reply(turnId, next());
-      host.add({
-        id: reply,
-        turnId,
-        author: "assistant",
-        text: "### 1. Hook 3",
-        status: "streaming",
-        itemType: "final_answer",
-      });
-      client.applySnapshot(host.snapshot());
-      check(client, host, "reply streams as the answer");
-
-      // The agent's state changes: the chat reads the latest page again.
-      client.applyPage(host.page(), "replace", "latest");
-      check(client, host, "latest page while the reply streams");
-
-      // The reply ends, and the next step makes it commentary.
-      host.update(reply, { status: "completed", itemType: "commentary" });
-      host.add({
-        id: ids.thought(turnId, next()),
-        turnId,
-        author: "assistant",
-        text: "Next",
-        status: "completed",
-        itemType: "commentary",
-      });
-      client.applySnapshot(host.snapshot());
-      expect(check(client, host, "reply becomes commentary").has(reply)).toBe(true);
-
-      // The user scrolls back through the turn and older chats, page by page.
-      for (let page = 0; page < 6 && client.page?.olderCursor; page += 1) {
-        client.loadOlder(host);
-        check(client, host, `older page ${page + 1}`);
+  for (const [name, ids] of Object.entries(PROVIDERS))
+    for (const cutRule of ["upstream", "fork"] as const) {
+      it(`${name}, ${cutRule} pages: no earlier reply leaves the chat while a reply streams, a page loads or the chat scrolls back`, () => {
+        const { host, turnId, next } = longTurnChat(ids, 60, cutRule);
+        const opening = host.page().messages.map((message) => message.id);
+        if (cutRule === "upstream") expect(opening).toEqual(["explorer-reply"]);
+        else expect([opening.length, opening.at(-1)]).toEqual([100, "explorer-reply"]);
+        const client = new Client();
+        const check = watcher(ids.provider);
+        // Open: the latest page, then the snapshot that the host sends with each change.
+        client.applyPage(host.page(), "replace", "latest");
         client.applySnapshot(host.snapshot());
-        check(client, host, `snapshot after older page ${page + 1}`);
-      }
-      expect(check(client, host, "scrolled back").has("done-0-answer")).toBe(true);
+        const opened = check(client, host, "open");
+        expect(opened.has(ids.reply(turnId, 2))).toBe(true);
 
-      // A steer while the turn runs, and another state change.
-      host.add({
-        id: "steer-late",
-        turnId,
-        author: "user",
-        text: "Also save both",
-        status: "completed",
-        steered: true,
+        // A new step and a new reply stream in. The provider sends the reply as the answer at first.
+        const thought = ids.thought(turnId, next());
+        host.add({
+          id: thought,
+          turnId,
+          author: "assistant",
+          text: "Looking at the frames",
+          status: "streaming",
+          itemType: "commentary",
+        });
+        client.applySnapshot(host.snapshot());
+        check(client, host, "step streams");
+        host.update(thought, { status: "completed" });
+        const reply = ids.reply(turnId, next());
+        host.add({
+          id: reply,
+          turnId,
+          author: "assistant",
+          text: "### 1. Hook 3",
+          status: "streaming",
+          itemType: "final_answer",
+        });
+        client.applySnapshot(host.snapshot());
+        check(client, host, "reply streams as the answer");
+
+        // The agent's state changes: the chat reads the latest page again.
+        client.applyPage(host.page(), "replace", "latest");
+        check(client, host, "latest page while the reply streams");
+
+        // The reply ends, and the next step makes it commentary.
+        host.update(reply, { status: "completed", itemType: "commentary" });
+        host.add({
+          id: ids.thought(turnId, next()),
+          turnId,
+          author: "assistant",
+          text: "Next",
+          status: "completed",
+          itemType: "commentary",
+        });
+        client.applySnapshot(host.snapshot());
+        expect(check(client, host, "reply becomes commentary").has(reply)).toBe(true);
+
+        // The user scrolls back through the turn and older chats, page by page.
+        for (let page = 0; page < 6 && client.page?.olderCursor; page += 1) {
+          client.loadOlder(host);
+          check(client, host, `older page ${page + 1}`);
+          client.applySnapshot(host.snapshot());
+          check(client, host, `snapshot after older page ${page + 1}`);
+        }
+        expect(check(client, host, "scrolled back").has("done-0-answer")).toBe(true);
+
+        // A steer while the turn runs, and another state change.
+        host.add({
+          id: "steer-late",
+          turnId,
+          author: "user",
+          text: "Also save both",
+          status: "completed",
+          steered: true,
+        });
+        client.applySnapshot(host.snapshot());
+        client.applyPage(host.page(), "replace", "latest");
+        check(client, host, "steer and latest page");
+
+        // A joined server sends the latest page as an event, merged at the end.
+        client.applyPage(host.page(), "latest", "latest");
+        check(client, host, "conversation-page event");
+
+        // The turn ends with an answer.
+        host.add({
+          id: "long-answer",
+          turnId,
+          author: "assistant",
+          text: "All done",
+          status: "completed",
+          itemType: "final_answer",
+        });
+        host.activeTurnId = null;
+        client.applySnapshot(host.snapshot());
+        client.applyPage(host.page(), "replace", "latest");
+        expect(check(client, host, "turn ends").has("long-answer")).toBe(true);
       });
-      client.applySnapshot(host.snapshot());
-      client.applyPage(host.page(), "replace", "latest");
-      check(client, host, "steer and latest page");
 
-      // A joined server sends the latest page as an event, merged at the end.
-      client.applyPage(host.page(), "latest", "latest");
-      check(client, host, "conversation-page event");
-
-      // The turn ends with an answer.
-      host.add({
-        id: "long-answer",
-        turnId,
-        author: "assistant",
-        text: "All done",
-        status: "completed",
-        itemType: "final_answer",
-      });
-      host.activeTurnId = null;
-      client.applySnapshot(host.snapshot());
-      client.applyPage(host.page(), "replace", "latest");
-      expect(check(client, host, "turn ends").has("long-answer")).toBe(true);
-    });
-
-    it(`${name}: the steps row keeps the replies of the turn that a page or snapshot does not reach`, () => {
-      const { host, turnId } = longTurnChat(ids);
-      const client = new Client();
-      client.applyPage(host.page(), "replace", "latest");
-      client.applySnapshot(host.snapshot());
-      const all = client.messages.find((message) => message.kind === "thinking" && message.turnId === turnId);
-      // An older page that holds the last 100 rows of the turn.
-      client.loadOlder(host);
-      const steps = client.messages.find((message) => message.kind === "thinking" && message.turnId === turnId);
-      expect(steps?.itemIds).toEqual(all?.itemIds);
-      // The rows keep the shown order, and the steps row stays where the turn's first step is.
-      const shown = shownRows(client.messages, ids.provider, host.activeTurnId).map((row) => row.id);
-      const whole = shownRows(toAgentMessages(host.sorted(), "agent"), ids.provider, host.activeTurnId)
-        .map((row) => row.id)
-        .filter((id) => shown.includes(id));
-      expect(shown).toEqual(whole);
-    });
-
-    it(`${name}: a chat that opens on the one-message latest page and scrolls back keeps every reply in order`, () => {
-      // The chat of a dev instance with the seeded thread: no snapshot comes, only pages.
-      const { host } = longTurnChat(ids);
-      host.activeTurnId = null;
-      const client = new Client();
-      const check = watcher(ids.provider);
-      client.applyPage(host.page(), "replace", "latest");
-      check(client, host, "open");
-      const whole = shownRows(toAgentMessages(host.sorted(), "agent"), ids.provider, null).map((row) => row.id);
-      for (let page = 1; client.page?.olderCursor; page += 1) {
+      it(`${name}, ${cutRule} pages: the steps row keeps the replies of the turn that a page or snapshot does not reach`, () => {
+        const { host, turnId } = longTurnChat(ids, 60, cutRule);
+        const client = new Client();
+        client.applyPage(host.page(), "replace", "latest");
+        client.applySnapshot(host.snapshot());
+        const all = client.messages.find((message) => message.kind === "thinking" && message.turnId === turnId);
+        // An older page that holds the last 100 rows of the turn.
         client.loadOlder(host);
-        const shown = shownRows(client.messages, ids.provider, null).map((row) => row.id);
-        check(client, host, `older page ${page}`);
-        expect(shown, `older page ${page}`).toEqual(whole.filter((id) => shown.includes(id)));
-      }
-      expect(shownRows(client.messages, ids.provider, null).map((row) => row.id)).toEqual(whole);
-      // Opening the chat again reads the latest page again.
-      client.applyPage(host.page(), "replace", "latest");
-      expect(shownRows(client.messages, ids.provider, null).map((row) => row.id)).toEqual(whole);
+        const steps = client.messages.find((message) => message.kind === "thinking" && message.turnId === turnId);
+        expect(steps?.itemIds).toEqual(all?.itemIds);
+        // The rows keep the shown order, and the steps row stays where the turn's first step is.
+        const shown = shownRows(client.messages, ids.provider, host.activeTurnId).map((row) => row.id);
+        const whole = shownRows(toAgentMessages(host.sorted(), "agent"), ids.provider, host.activeTurnId)
+          .map((row) => row.id)
+          .filter((id) => shown.includes(id));
+        expect(shown).toEqual(whole);
+      });
+
+      it(`${name}, ${cutRule} pages: a chat that opens on the latest page and scrolls back keeps every reply in order`, () => {
+        // The chat of a dev instance with the seeded thread: no snapshot comes, only pages.
+        const { host } = longTurnChat(ids, 60, cutRule);
+        host.activeTurnId = null;
+        const client = new Client();
+        const check = watcher(ids.provider);
+        client.applyPage(host.page(), "replace", "latest");
+        check(client, host, "open");
+        const whole = shownRows(toAgentMessages(host.sorted(), "agent"), ids.provider, null).map((row) => row.id);
+        for (let page = 1; client.page?.olderCursor; page += 1) {
+          client.loadOlder(host);
+          const shown = shownRows(client.messages, ids.provider, null).map((row) => row.id);
+          check(client, host, `older page ${page}`);
+          expect(shown, `older page ${page}`).toEqual(whole.filter((id) => shown.includes(id)));
+        }
+        expect(shownRows(client.messages, ids.provider, null).map((row) => row.id)).toEqual(whole);
+        // Opening the chat again reads the latest page again.
+        client.applyPage(host.page(), "replace", "latest");
+        expect(shownRows(client.messages, ids.provider, null).map((row) => row.id)).toEqual(whole);
+      });
+    }
+
+  // Fork #121: an open turn of exactly one page with messages after it. Pages that stop before the turn
+  // (#119 cut only a turn of more than 100 rows) leave the chat without the user's steers in it.
+  it("shows the user's steers of an open turn of 100 rows when messages come after it", () => {
+    const { host, turnId, next } = longTurnChat(ANTIGRAVITY, 37, "fork");
+    host.add({ id: "health-note", author: "assistant", text: "Health check", status: "completed" });
+    const turnRows = host.messages.filter((message) => message.turnId === turnId).length;
+    expect(turnRows).toBe(100);
+    const steers = host.messages.filter((message) => message.steered).map((message) => message.id);
+    const client = new Client();
+    const check = watcher(ANTIGRAVITY.provider);
+    client.applyPage(host.page(), "replace", "latest");
+    client.applySnapshot(host.snapshot());
+    const opened = check(client, host, "open");
+    expect(steers.filter((id) => !opened.has(id))).toEqual([]);
+    // New rows arrive in the open turn: a step, a page read on the state change, a steer.
+    host.add({
+      id: ANTIGRAVITY.thought(turnId, next()),
+      turnId,
+      author: "assistant",
+      text: "Rendering",
+      status: "completed",
+      itemType: "commentary",
     });
-  }
+    client.applySnapshot(host.snapshot());
+    client.applyPage(host.page(), "replace", "latest");
+    check(client, host, "a step and a latest page");
+    host.add({ id: "steer-new", turnId, author: "user", text: "And the poster", status: "completed", steered: true });
+    client.applySnapshot(host.snapshot());
+    client.applyPage(host.page(), "latest", "latest");
+    expect(check(client, host, "a new steer").has("steer-new")).toBe(true);
+  });
 
   it("keeps a finished turn as it was: steps folded above the answer, the same order", () => {
     const { host } = longTurnChat(ANTIGRAVITY, 3);
@@ -479,6 +527,34 @@ describe("replies in a long running turn", () => {
       "c",
       "d",
     ]);
+  });
+
+  // Fork #121: a latest page with only the end of a turn (#119) shares the turn's steps row, which stands at
+  // the turn's first step. The page joins at its first other shared row; the steers before it stay.
+  it("joins a latest page that holds the end of a turn after the steers before it", () => {
+    const row = (id: string, kind?: string) => ({ id, ...(kind ? { kind } : {}) });
+    const loaded = [
+      row("older"),
+      row("ask"),
+      row("thinking:t", "thinking"),
+      row("steer-1"),
+      row("steer-2"),
+      row("steer-3"),
+    ];
+    const page = [row("thinking:t", "thinking"), row("steer-3"), row("note")];
+    expect(mergeConversationPage(loaded, page, "latest").map((message) => message.id)).toEqual([
+      "older",
+      "ask",
+      "steer-1",
+      "steer-2",
+      "thinking:t",
+      "steer-3",
+      "note",
+    ]);
+    // A page that shares only the steps row adds its rows after the loaded ones.
+    expect(
+      mergeConversationPage(loaded, [row("thinking:t", "thinking"), row("note")], "latest").map((m) => m.id),
+    ).toEqual(["older", "ask", "steer-1", "steer-2", "steer-3", "thinking:t", "note"]);
   });
 
   it("joins a latest page that shows nothing, shares a row or is not newer than the chat", () => {

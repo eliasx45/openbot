@@ -33,6 +33,7 @@ import {
   requiredNumberColumn,
   requiredStringColumn,
 } from "./database-rows";
+import { cachedStatement } from "./statement-cache";
 
 export interface ConversationQueriesOptions {
   core: DatabaseCore;
@@ -289,7 +290,7 @@ export class ConversationQueries {
         )
         .get(threadId, agentId),
     );
-    const rows = this.#conversationPageRows(threadId, anchor, limit, options);
+    const rows = this.#conversationPageRows(threadId, anchor, limit, options, thread?.active_turn_id ?? null);
     const messages = rows.map((row) => decodeConversationMessageJson(requiredStringColumn(row, "message_json")));
     const messageIds = new Set(messages.map((message) => message.id));
     const referenceIdSet = new Set<string>();
@@ -531,8 +532,9 @@ export class ConversationQueries {
     anchor: ConversationPageAnchor,
     limit: number,
     exclusions: ConversationMarkerExclusions,
+    activeTurnId: string | null,
   ): DynamicRecord[] {
-    const rows = this.#conversationPageKeys(threadId, anchor, limit, exclusions);
+    const rows = this.#conversationPageKeys(threadId, anchor, limit, exclusions, activeTurnId);
     if (rows.length === 0) return [];
     const json = new Map(
       databaseRows(
@@ -552,13 +554,10 @@ export class ConversationQueries {
     anchor: ConversationPageAnchor,
     limit: number,
     exclusions: ConversationMarkerExclusions,
+    activeTurnId: string | null,
   ): DynamicRecord[] {
     const routineFilter = conversationMarkerSqlFilter(exclusions);
-    const groupSize = this.#core.connection.prepare(
-      `SELECT COUNT(*) AS size FROM projection_thread_messages WHERE thread_id = ? AND group_id = ? ${routineFilter}`,
-    );
-    const oversized = (groupId: string): boolean =>
-      requiredNumberColumn(databaseRow(groupSize.get(threadId, groupId)) ?? {}, "size") > PAGE_MESSAGE_LIMIT;
+    const cuttable = this.#cutGroup(threadId, routineFilter, activeTurnId);
     if (anchor.type === "latest") {
       const rows = databaseRows(
         this.#core.connection
@@ -570,7 +569,7 @@ export class ConversationQueries {
           )
           .all(threadId, PAGE_MESSAGE_LIMIT + 1),
       );
-      return wholeGroups(rows, limit, PAGE_MESSAGE_LIMIT, oversized).reverse();
+      return wholeGroups(rows, limit, PAGE_MESSAGE_LIMIT, cuttable).reverse();
     }
     if (anchor.type === "before") {
       const cursor = this.#pageCursor(threadId, anchor.cursor);
@@ -585,7 +584,7 @@ export class ConversationQueries {
           )
           .all(threadId, ...pageKeyValues(cursor), PAGE_MESSAGE_LIMIT + 1),
       );
-      return wholeGroups(rows, limit, PAGE_MESSAGE_LIMIT, oversized).reverse();
+      return wholeGroups(rows, limit, PAGE_MESSAGE_LIMIT, cuttable).reverse();
     }
     const anchorRow = databaseRow(
       this.#core.connection
@@ -627,11 +626,36 @@ export class ConversationQueries {
         )
         .all(threadId, ...anchorKey, olderCap + 1),
     );
-    const older = wholeGroups(olderRows, Math.floor(limit / 2) + 1, olderCap, oversized).reverse();
+    const older = wholeGroups(olderRows, Math.floor(limit / 2) + 1, olderCap, cuttable).reverse();
     return [
       ...older,
-      ...wholeGroups(newerRows, Math.max(limit - older.length, 1), PAGE_MESSAGE_LIMIT - older.length, oversized),
+      ...wholeGroups(newerRows, Math.max(limit - older.length, 1), PAGE_MESSAGE_LIMIT - older.length, cuttable),
     ];
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md #119, #121): the groups that a page may cut to fill it, also after other
+   * groups. A turn of more than one page, and the open turn: the chat shows the open turn's messages from
+   * its live state only from the first loaded row of the turn, so the newest page must reach into it.
+   * A one-message group is never more than one page; a turn's rows are counted on the turn index and only
+   * up to one row past a page.
+   */
+  #cutGroup(threadId: string, routineFilter: string, activeTurnId: string | null): (groupId: string) => boolean {
+    const openGroup = activeTurnId ? `turn:${activeTurnId}` : null;
+    return (groupId) => {
+      if (groupId === openGroup) return true;
+      if (!groupId.startsWith("turn:")) return false;
+      const size = cachedStatement(
+        this.#core.connection,
+        `SELECT COUNT(*) AS size FROM (
+           SELECT 1 FROM projection_thread_messages
+           WHERE thread_id = ? AND turn_id = ? AND group_id = ? ${routineFilter}
+           LIMIT ${PAGE_MESSAGE_LIMIT + 1}
+         )`,
+      );
+      const row = databaseRow(size.get(threadId, groupId.slice("turn:".length), groupId));
+      return requiredNumberColumn(row ?? {}, "size") > PAGE_MESSAGE_LIMIT;
+    };
   }
 
   #pageCursor(threadId: string, value: string): ConversationPageCursor {
@@ -695,7 +719,7 @@ function wholeGroups(
   rows: readonly DynamicRecord[],
   target: number,
   cap: number,
-  oversized: (groupId: string) => boolean = () => false,
+  cuttable: (groupId: string) => boolean = () => false,
 ): DynamicRecord[] {
   const taken: DynamicRecord[] = [];
   let start = 0;
@@ -704,7 +728,7 @@ function wholeGroups(
     let end = start + 1;
     while (end < rows.length && requiredStringColumn(rows[end] ?? {}, "group_id") === groupId) end += 1;
     if (end > cap) {
-      if (taken.length === 0 || oversized(groupId)) taken.push(...rows.slice(start, cap));
+      if (taken.length === 0 || cuttable(groupId)) taken.push(...rows.slice(start, cap));
       break;
     }
     taken.push(...rows.slice(start, end));
