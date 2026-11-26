@@ -554,6 +554,11 @@ export class ConversationQueries {
     exclusions: ConversationMarkerExclusions,
   ): DynamicRecord[] {
     const routineFilter = conversationMarkerSqlFilter(exclusions);
+    const groupSize = this.#core.connection.prepare(
+      `SELECT COUNT(*) AS size FROM projection_thread_messages WHERE thread_id = ? AND group_id = ? ${routineFilter}`,
+    );
+    const oversized = (groupId: string): boolean =>
+      requiredNumberColumn(databaseRow(groupSize.get(threadId, groupId)) ?? {}, "size") > PAGE_MESSAGE_LIMIT;
     if (anchor.type === "latest") {
       const rows = databaseRows(
         this.#core.connection
@@ -565,7 +570,7 @@ export class ConversationQueries {
           )
           .all(threadId, PAGE_MESSAGE_LIMIT + 1),
       );
-      return wholeGroups(rows, limit, PAGE_MESSAGE_LIMIT).reverse();
+      return wholeGroups(rows, limit, PAGE_MESSAGE_LIMIT, oversized).reverse();
     }
     if (anchor.type === "before") {
       const cursor = this.#pageCursor(threadId, anchor.cursor);
@@ -580,7 +585,7 @@ export class ConversationQueries {
           )
           .all(threadId, ...pageKeyValues(cursor), PAGE_MESSAGE_LIMIT + 1),
       );
-      return wholeGroups(rows, limit, PAGE_MESSAGE_LIMIT).reverse();
+      return wholeGroups(rows, limit, PAGE_MESSAGE_LIMIT, oversized).reverse();
     }
     const anchorRow = databaseRow(
       this.#core.connection
@@ -622,8 +627,11 @@ export class ConversationQueries {
         )
         .all(threadId, ...anchorKey, olderCap + 1),
     );
-    const older = wholeGroups(olderRows, Math.floor(limit / 2) + 1, olderCap).reverse();
-    return [...older, ...wholeGroups(newerRows, Math.max(limit - older.length, 1), PAGE_MESSAGE_LIMIT - older.length)];
+    const older = wholeGroups(olderRows, Math.floor(limit / 2) + 1, olderCap, oversized).reverse();
+    return [
+      ...older,
+      ...wholeGroups(newerRows, Math.max(limit - older.length, 1), PAGE_MESSAGE_LIMIT - older.length, oversized),
+    ];
   }
 
   #pageCursor(threadId: string, value: string): ConversationPageCursor {
@@ -683,7 +691,12 @@ export const ORDER_KEY_DESC =
 
 const PAGE_MESSAGE_LIMIT = 100;
 
-function wholeGroups(rows: readonly DynamicRecord[], target: number, cap: number): DynamicRecord[] {
+function wholeGroups(
+  rows: readonly DynamicRecord[],
+  target: number,
+  cap: number,
+  oversized: (groupId: string) => boolean = () => false,
+): DynamicRecord[] {
   const taken: DynamicRecord[] = [];
   let start = 0;
   while (start < rows.length && taken.length < target) {
@@ -691,7 +704,7 @@ function wholeGroups(rows: readonly DynamicRecord[], target: number, cap: number
     let end = start + 1;
     while (end < rows.length && requiredStringColumn(rows[end] ?? {}, "group_id") === groupId) end += 1;
     if (end > cap) {
-      if (taken.length === 0) taken.push(...rows.slice(0, cap));
+      if (taken.length === 0 || oversized(groupId)) taken.push(...rows.slice(start, cap));
       break;
     }
     taken.push(...rows.slice(start, end));
