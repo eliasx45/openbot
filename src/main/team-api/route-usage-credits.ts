@@ -17,6 +17,8 @@ export async function routeUsageCredits(
   if (!capabilities.has(USAGE_CREDITS_CAPABILITY))
     throw new HttpError(400, sourceText("error.team.providersUnsupported"));
   await readJson(request);
+  // Fork (docs/fork/FEATURES.md #118): members never see the owner's AI account credits.
+  if (!canAdministerServer(member.role)) return json(200, { accounts: [] });
   const signIns = (await runCauseEffect(agents.getUsage())).limits.filter((limit) => limit.accountId === undefined);
   const others =
     providerAccounts && canAdministerServer(member.role)

@@ -6980,8 +6980,15 @@ try {
       secondary: null,
       groups: ANTIGRAVITY_GROUPS,
     };
+    // Fork (docs/fork/FEATURES.md #118): only the owner and admins read the AI account usage.
     const read = (headers?: Record<string, string>, protocol: number = TEAM_PROTOCOL_V10) =>
-      call("GET", path, { token: bobToken, protocol, ...(headers ? { headers } : {}) });
+      call("GET", path, { token: adaToken, protocol, ...(headers ? { headers } : {}) });
+    const memberUsage = await call("GET", path, { token: bobToken, protocol: TEAM_PROTOCOL_V10 });
+    check(
+      "a member reads no AI account usage",
+      memberUsage.status === 200 && isDeepStrictEqual(memberUsage.body, { limits: [] }),
+      summary(memberUsage),
+    );
     const antigravityGroups = (body: unknown) =>
       isDynamicRecord(body) && Array.isArray(body.limits)
         ? (body.limits.find((limit) => isDynamicRecord(limit) && limit.id === "antigravity") ?? { groups: "no limit" })
@@ -9817,11 +9824,9 @@ try {
       capabilities: [USAGE_CREDITS_CAPABILITY],
     });
     check(
-      "a member reads the credit state of the provider's own sign-ins only, and no provider that reports none",
-      memberList.status === 200 &&
-        isDeepStrictEqual(memberList.body, {
-          accounts: [{ provider: "codex", accountId: "default", available: true }],
-        }),
+      // Fork (docs/fork/FEATURES.md #118): a member reads none of the owner's AI account credits.
+      "a member reads no credit state",
+      memberList.status === 200 && isDeepStrictEqual(memberList.body, { accounts: [] }),
       summary(memberList),
     );
   }
@@ -12752,7 +12757,7 @@ try {
 
   {
     const importCapabilities = [AGENT_HIDDEN_CAPABILITY, AGENT_IMPORT_CAPABILITY, AGENT_IMPORT_V2_CAPABILITY];
-    const asMember = { token: bobToken, capabilities: importCapabilities, protocol: TEAM_PROTOCOL_V9 };
+    const asMember = { token: adaToken, capabilities: importCapabilities, protocol: TEAM_PROTOCOL_V9 };
     const exported = zipSync(
       {
         "grok-export/openbot-import.json": strToU8(
@@ -12790,7 +12795,7 @@ try {
       [summary(compatibility), summary(older)],
     );
     const unsupported = await call("POST", AGENT_IMPORT_V2_ROUTES.open, {
-      token: bobToken,
+      token: adaToken,
       json: { size: exported.length },
     });
     check(
@@ -12809,21 +12814,21 @@ try {
     const opened = await call("POST", AGENT_IMPORT_V2_ROUTES.open, { ...asMember, json: { size: exported.length } });
     const uploadId = String(field(opened.body, "uploadId"));
     check("open answers an upload id", opened.status === 200 && uploadId.length > 0, summary(opened));
-    const send = (offset: number, bytes: Uint8Array<ArrayBuffer>, token = bobToken) =>
+    const send = (offset: number, bytes: Uint8Array<ArrayBuffer>, token = adaToken) =>
       call("POST", agentImportV2ChunkPath(uploadId, offset), { ...asMember, token, bytes });
     const early = await call("POST", AGENT_IMPORT_V2_ROUTES.stage, { ...asMember, json: { uploadId } });
     const skipped = await send(AGENT_IMPORT_V2_CHUNK_BYTES, exported.slice(0, 1024));
-    const otherMember = await send(0, exported.slice(0, 1024), adaToken);
+    const otherMember = await send(0, exported.slice(0, 1024), bobToken);
     check(
       "stage before the last part, a part at the wrong offset, and a part from another member are refused",
       early.status === 400 &&
         skipped.status === 409 &&
-        errorIs(otherMember, 409, sourceText("error.import.exportClosed")),
+        errorIs(otherMember, 403, sourceText("error.team.adminRequired")), // Fork #118: only admins import
       [summary(early), summary(skipped), summary(otherMember)],
     );
     const tooLarge = await rawCall(
       agentImportV2ChunkPath(uploadId, 0),
-      bobToken,
+      adaToken,
       AGENT_IMPORT_V2_CHUNK_BYTES + 1,
       null,
       asMember,
@@ -13733,14 +13738,26 @@ try {
         callsOf("updateAgentModel").length === movesBefore,
       [summary(unsupported), summary(extraField), summary(hiddenAgent), summary(chatOnly), summary(namedAccount)],
     );
-    const listed = await call("POST", AGENT_USAGE_LIMIT_ROUTES.list, {
+    // Fork (docs/fork/FEATURES.md #118): a member reads no usage limits; an admin reads them.
+    const memberListed = await call("POST", AGENT_USAGE_LIMIT_ROUTES.list, {
       token: bobToken,
       capabilities,
       protocol: 6,
       json: {},
     });
+    const listed = await call("POST", AGENT_USAGE_LIMIT_ROUTES.list, {
+      token: adaToken,
+      capabilities,
+      protocol: 6,
+      json: {},
+    });
     check(
-      "a member reads the usage limits without an agent or a model of a provider that the peer's protocol does not know",
+      "a member reads no usage limits",
+      isDeepStrictEqual(memberListed.body, { usageLimits: [], usageLimitedModels: [], failedModels: [] }),
+      [summary(memberListed)],
+    );
+    check(
+      "an admin reads the usage limits without an agent or a model of a provider that the peer's protocol does not know",
       listed.status === 200 &&
         isDeepStrictEqual(field(listed.body, "usageLimits"), [{ agentId: "agent-ada", resetsAt: 1_900_000_000 }]) &&
         isDeepStrictEqual(field(listed.body, "usageLimitedModels"), [

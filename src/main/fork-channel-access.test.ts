@@ -731,3 +731,35 @@ describe("fork #117 a member's sidebar folders", () => {
     expect(forkMemberSidebarView({ other: 1 }, () => false)).toEqual({ other: 1 });
   });
 });
+
+describe("fork #118 members cannot add agents or see the owner's AI limits", () => {
+  const body = {
+    name: "Bruce wayne",
+    description: "General-purpose assistant",
+    avatarSeed: "first-bot:face:129",
+    avatarHue: 215,
+    initialMessage: "Hi",
+  };
+  const agentCount = () => host.agents.listAgents().length;
+
+  it("refuses a member's new, copied or imported agent", async () => {
+    const before = agentCount();
+    for (const who of ["chat", "view", "none"] as const) {
+      const created = await call("POST", TEAM_API_ROUTES.agents.all, tokens[who], body);
+      expect(created.status, JSON.stringify(created.body)).toBe(403);
+      const copied = await call("POST", `/v1/agents/${ids.inside}/duplicate`, tokens[who], { operationId: "op-1" });
+      expect(copied.status).toBeGreaterThanOrEqual(403);
+      expect(copied.status).toBeLessThan(405);
+    }
+    expect(agentCount()).toBe(before);
+  });
+
+  it("shows a member no AI account limits", async () => {
+    for (const who of ["chat", "view", "none"] as const) {
+      const usage = await call("GET", TEAM_API_ROUTES.agents.usage, tokens[who]);
+      expect(usage.status, JSON.stringify(usage.body)).toBe(200);
+      expect(usage.body).toEqual({ limits: [] });
+    }
+    expect((await call("GET", TEAM_API_ROUTES.agents.usage, tokens.owner)).status).toBe(200);
+  });
+});

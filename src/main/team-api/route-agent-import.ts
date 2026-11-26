@@ -15,7 +15,7 @@ import { runCauseEffect } from "../../backend/effect-boundary";
 import type { TeamApiAgentImport } from "./dependencies";
 import { HttpError } from "./http-error";
 import type { RouteOutcome, TeamApiRequestContext } from "./request-context";
-import { pathIdentifier, readBinary, readJson, stringField } from "./request-helpers";
+import { pathIdentifier, readBinary, readJson, requireAdmin, stringField } from "./request-helpers";
 
 export async function routeAgentImport(
   context: TeamApiRequestContext,
@@ -24,6 +24,9 @@ export async function routeAgentImport(
 ): Promise<RouteOutcome> {
   const { method, url, capabilities, member, request, json } = context;
   const route = method === "POST" ? url.pathname : null;
+  // Fork (docs/fork/FEATURES.md #118): only the owner and admins import agents.
+  const importRoutes: string[] = [...Object.values(AGENT_IMPORT_ROUTES), ...Object.values(AGENT_IMPORT_V2_ROUTES)];
+  if (route !== null && importRoutes.includes(route)) requireAdmin(member);
   if (
     route === AGENT_IMPORT_V2_ROUTES.open ||
     route === AGENT_IMPORT_V2_ROUTES.chunk ||

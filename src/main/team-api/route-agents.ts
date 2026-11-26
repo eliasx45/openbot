@@ -51,6 +51,7 @@ import {
   promptRequestId,
   readBinary,
   readJson,
+  requireAdmin,
   requireAgentLevel,
   stringField,
 } from "./request-helpers";
@@ -200,6 +201,8 @@ export async function routeAgents(
     return json(200, layout);
   }
   if (method === "GET" && url.pathname === TEAM_API_ROUTES.agents.usage) {
+    // Fork (docs/fork/FEATURES.md #118): members never see the owner's AI account limits.
+    if (!canAdministerServer(member.role)) return json(200, { limits: [] });
     const usage = await runCauseEffect(agents.getUsage());
     return json(200, { ...usage, limits: usage.limits.filter((limit) => limit.accountId === undefined) });
   }
@@ -229,6 +232,8 @@ export async function routeAgents(
     );
   }
   if (method === "POST" && url.pathname === TEAM_API_ROUTES.agents.all) {
+    // Fork (docs/fork/FEATURES.md #118): only the owner and admins add agents; a member's would run on the owner's accounts.
+    requireAdmin(member);
     requireCompatibleDefault();
     const input = agentCreate(await readJson(request));
     requireVisibleProvider(input);
@@ -271,6 +276,7 @@ export async function routeAgents(
       return json(200, await runCauseEffect(agents.updateAgent(input, undefined, false)));
     }
     if (method === "POST" && action === "duplicate") {
+      requireAdmin(member); // Fork (docs/fork/FEATURES.md #118)
       const body = await readJson(request);
       return json(201, await runCauseEffect(duplicateAgent(agentId, stringField(body, "operationId"))));
     }

@@ -1,4 +1,5 @@
 import {
+  canAdministerServer,
   DEFAULT_PROVIDER_ACCOUNT_ID,
   isAgentModel,
   isAgentProvider,
@@ -33,6 +34,9 @@ export async function routeAgentUsageLimit(
     throw new HttpError(400, sourceText("error.team.usageLimitUnsupported"));
   const body = await readJson(request);
   if (url.pathname === AGENT_USAGE_LIMIT_ROUTES.list) {
+    // Fork (docs/fork/FEATURES.md #118): members never see the owner's AI account limits.
+    if (!canAdministerServer(member.role))
+      return json(200, { usageLimits: [], usageLimitedModels: [], failedModels: [] });
     const snapshot = agents.getRuntimeSnapshot();
     const visible = (choice: { provider: string }) => !isPeerHiddenProvider(choice.provider, protocol);
     return json(200, {

@@ -7,6 +7,7 @@ import {
   type AgentAccessLevel,
   type AgentAccessRole,
   type AgentEvent,
+  type AgentRuntimeSnapshot,
   type AgentSummary,
   AnalyticsInputError,
   agentAccessRank,
@@ -1970,7 +1971,7 @@ export class TeamApiServer {
       const completionSnapshot = encodeEvent(
         {
           type: "runtime-snapshot",
-          snapshot: runtimeSnapshot(),
+          snapshot: this.#memberRuntimeSnapshot(connection, runtimeSnapshot()),
         },
         encodingOptions,
         "runtime-snapshot",
@@ -2028,7 +2029,20 @@ export class TeamApiServer {
     client.send(JSON.stringify(this.#eventFor(connection, { type: "browser-page-state-changed", tabs })));
   }
 
+  // Fork (docs/fork/FEATURES.md #118): members never see the owner's AI account limits.
+  #memberRuntimeSnapshot(
+    connection: EventClientState,
+    snapshot: AgentRuntimeSnapshot = this.#options.agents.getRuntimeSnapshot(),
+  ): AgentRuntimeSnapshot {
+    if (canAdministerServer(this.#connectionMember(connection).role)) return snapshot;
+    const { usageLimits: _limits, usageLimitedModels: _models, failedModels: _failed, ...rest } = snapshot;
+    return rest;
+  }
+
   #eventFor(connection: EventClientState, event: AgentEvent, access?: () => EventAccess): AgentEvent {
+    // Fork (docs/fork/FEATURES.md #118): members never see the owner's AI account limits.
+    if (event.type === "usage-changed" && !canAdministerServer(this.#connectionMember(connection).role))
+      return { ...event, usage: { ...event.usage, limits: [] } };
     if (event.type === "usage-changed" && event.usage.limits.some((limit) => limit.accountId !== undefined))
       return {
         ...event,
@@ -2239,7 +2253,7 @@ export class TeamApiServer {
       const payload = this.#encodeProviderEvent(
         {
           type: "runtime-snapshot",
-          snapshot: this.#options.agents.getRuntimeSnapshot(),
+          snapshot: this.#memberRuntimeSnapshot(connection),
         },
         connection.capabilities,
         {},
