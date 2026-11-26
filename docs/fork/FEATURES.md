@@ -1403,3 +1403,14 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Tests:** `src/renderer/src/fork-reader-video-play.test.ts`: a play of a nested video calls back once with that video; audio, a video outside the chat and a play after cleanup do not.
 - **Not done:** not tried in Elias's running app (it needs the rebuild); a video you scroll away from yourself still unloads with its row, as before.
 - **Check:** in a chat whose agent is working, at the bottom, play the newest video: new output arrives below, the view and the video stay, the jump button shows; scroll to the bottom: the chat follows new output again.
+
+## 122. A flowchart with an email or other special text in a label draws instead of failing
+
+- **What:** when a Mermaid flowchart in a chat does not parse, the chat retries it once with every unquoted node label (`A[…]`, `A(…)`, `A{…}`, `A((…))`, `A([…])`, `A[[…]]`, `A[(…)]`, `A{{…}}`) and arrow label (`-->|…|`) wrapped in quotes. If that copy draws, it is shown; if not, the error of the diagram as written shows, as before.
+- **Why:** Elias, 26 Nov 2026 (screenshot, Agency chat): Franky's DNS diagram showed "Cannot draw the diagram. Parse error on line 5" because of `MAIL[hello@immunity-media.com → your Gmail]`.
+- **Cause:** Mermaid 12 reads `@` (and other characters) in an unquoted label as syntax; agents seldom quote labels.
+- **How (portable):** `quoteFlowchartLabels` (`mermaid-label-repair.ts`) only for `flowchart`/`graph` sources (after front matter and `%%` comments); quoted strings are matched first and kept, so text inside quotes is never rewritten. `drawDiagram` in `mermaid-diagram.ts` calls it only after the first render fails, so diagrams that already draw are unchanged.
+- **Here:** `packages/ui/src/features/conversation/mermaid-label-repair.ts` (new), `mermaid-diagram.ts`.
+- **Tests:** `src/renderer/src/fork-mermaid-label-repair.dom.test.ts` (real Mermaid parser): Franky's diagram and an email arrow label fail as written and parse repaired; all 8 shapes; subgraph/class/style lines; quoted labels and plain arrows untouched; sequence and pie diagrams untouched; front matter.
+- **Not done:** other diagram types (sequence, class, …) are not repaired; `-- text -->` arrow labels and `>` / `[/…/]` shapes are not quoted.
+- **Check:** after the rebuild, open the Agency chat: Franky's 10:27 PM plan shows a drawn diagram.

@@ -1,5 +1,6 @@
 import { CHAT_MERMAID_FONT_FAMILY, mermaidImageUrl } from "@openbot/contracts/chat-preview";
 import type { DocumentColorScheme } from "../../document-color-scheme";
+import { quoteFlowchartLabels } from "./mermaid-label-repair";
 
 type Mermaid = typeof import("mermaid")["default"];
 
@@ -75,6 +76,15 @@ async function drawDiagram(
     const { svg } = await api.render(id, source);
     return { status: "ready", url: mermaidImageUrl(svg) };
   } catch (error) {
+    const repaired = quoteFlowchartLabels(source);
+    if (repaired !== undefined) {
+      try {
+        const { svg } = await api.render(`${id}-quoted`, repaired);
+        return { status: "ready", url: mermaidImageUrl(svg) };
+      } catch {
+        // Show the error of the diagram as written, not of the repaired copy.
+      }
+    }
     return { status: "invalid", message: mermaidErrorMessage(error) };
   }
 }
