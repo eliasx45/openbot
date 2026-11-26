@@ -67,6 +67,7 @@ import {
   workspaceAgentOfPath,
 } from "./quoted-text";
 import { createReaderScrollIntent } from "./reader-scroll-intent";
+import { watchReaderVideoPlay } from "./reader-video-play";
 import type { SkillSuggestionSaveResult } from "./SkillSuggestionChatCard";
 import { createActivityStore } from "./stores/activity-store";
 import { createBrowserStore } from "./stores/browser-store";
@@ -1653,6 +1654,7 @@ export function createConversationViewScope(props: ConversationProps) {
     readerInput?.addEventListener("pointerdown", readerPointerDown);
     readerInput?.addEventListener("focusin", readerFocusIn);
     for (const type of MEDIA_LAYOUT_EVENTS) readerInput?.addEventListener(type, mediaLoaded, true);
+    const stopWatchingVideos = readerInput ? watchReaderVideoPlay(readerInput, readerVideoPlay) : undefined;
     keyboardTarget.addEventListener("keydown", readerKeyDown);
     keyboardWindow.addEventListener("pointerup", endReaderDrag);
     keyboardWindow.addEventListener("pointercancel", endReaderDrag);
@@ -1704,6 +1706,7 @@ export function createConversationViewScope(props: ConversationProps) {
       readerInput?.removeEventListener("pointerdown", readerPointerDown);
       readerInput?.removeEventListener("focusin", readerFocusIn);
       for (const type of MEDIA_LAYOUT_EVENTS) readerInput?.removeEventListener(type, mediaLoaded, true);
+      stopWatchingVideos?.();
       keyboardTarget.removeEventListener("keydown", readerKeyDown);
       keyboardWindow.removeEventListener("pointerup", endReaderDrag);
       keyboardWindow.removeEventListener("pointercancel", endReaderDrag);
@@ -2407,6 +2410,12 @@ export function createConversationViewScope(props: ConversationProps) {
   }
   function readerTouchEnd() {
     lastTouchY = undefined;
+  }
+  // Fork (docs/fork/FEATURES.md #120): a video the reader starts holds the view where it is.
+  function readerVideoPlay() {
+    if (stickToLatest) noteScroll("video-play");
+    leaveLatest();
+    if (scrollElement) updateScrollFade(scrollElement);
   }
   function readerPointerDown(event: PointerEvent) {
     if (event.button === 0) {

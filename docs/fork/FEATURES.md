@@ -1392,3 +1392,14 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Here:** `src/backend/database/conversation-queries.ts`.
 - **Tests:** `src/backend/fork-long-turn-page.test.ts`: the #95 case now expects 100 rows (99 of the turn, the steers 60–150, then the message after it); paging back reads every row once, with the first message and steer 10; a 3-turn thread of 40-row turns keeps whole turns (80 rows). Fails without the fix (`expected [ 'teammate-reply' ] to have a length of 100 but got 1`).
 - **Check:** in a chat whose agent runs a turn of more than 100 rows with a message after it, your messages in that turn show; scrolling up shows the earlier ones.
+
+## 120. A video you start in the chat holds the view: new output no longer scrolls it away or stops it
+
+- **What:** pressing play on a video in a chat stops the chat from following the latest message. A working agent's new replies, steps and attachments then add below without moving the view, and the jump-to-latest button shows. Scrolling back to the bottom (or the button) follows the latest again.
+- **Why:** Elias, 26 Nov 2026: "when im viewing a video and it ouputs again it stops me/scrolls me back down.. i hate it its super annoying" (Vegapunk's chat, a turn that posts videos and replies for hours).
+- **Cause:** at the bottom the chat follows the latest message (`stickToLatest`); each new row glides the view down (`glideConversationBottom` from the resize observer), so the playing video moved up and out of view, and the virtual list then dropped its row, which ended the playback. Playing a video was not reader input (only wheel, key, touch, drag and focus moving up were).
+- **How (portable):** `watchReaderVideoPlay` (`reader-video-play.ts`, a capture-phase `play` listener on the chat's scroll element, videos only) calls `readerVideoPlay` in `conversation-scope.ts`: `leaveLatest()` (as a scroll up does), a `[chat-scroll] video-play` log line, and the scroll fade/jump button update.
+- **Here:** `src/renderer/src/features/conversation/reader-video-play.ts` (new), `conversation-scope.ts`.
+- **Tests:** `src/renderer/src/fork-reader-video-play.test.ts`: a play of a nested video calls back once with that video; audio, a video outside the chat and a play after cleanup do not.
+- **Not done:** not tried in Elias's running app (it needs the rebuild); a video you scroll away from yourself still unloads with its row, as before.
+- **Check:** in a chat whose agent is working, at the bottom, play the newest video: new output arrives below, the view and the video stay, the jump button shows; scroll to the bottom: the chat follows new output again.
