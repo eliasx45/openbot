@@ -23,6 +23,7 @@ import { forkTeammatePrompt, forkUserPrompt } from "../fork-commands";
 // Fork (docs/fork/FEATURES.md #130): the team follow-through wake is its own whole prompt.
 import { FORK_FOLLOW_THROUGH_ROUTINE_ID } from "../fork-follow-through";
 import { forkHub } from "../fork-hub";
+import { forkRetryPromptLine } from "../fork-never-lose";
 import { FORK_RESTART_RESUME_ROUTINE_ID } from "../fork-restart-resume";
 // Fork (docs/fork/FEATURES.md #135): the team watchdog's and team check's messages are their own whole prompt.
 import { isForkTeamRoutine } from "../fork-team-routines";
@@ -667,6 +668,9 @@ export function deliveryPromptInput(context: DeliveryContext, sources: DeliveryP
     ].join("\n\n");
     text = `${continuation}${CURRENT_MESSAGE_SEPARATOR}${text}`;
   }
+  // Fork (docs/fork/FEATURES.md #136): a delivery that OpenBot queued again after its turn failed.
+  const retryLine = forkRetryPromptLine(context.forkRetry);
+  if (retryLine) text = `${retryLine}${CURRENT_MESSAGE_SEPARATOR}${text}`;
   return [
     { type: "text", text },
     ...managedAttachments.map(

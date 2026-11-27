@@ -40,6 +40,7 @@ import { newAssistantMessage, normalizeCompletionStatus } from "../conversation-
 import { causeHelpers, reportOriginalFailure } from "../effect-boundary";
 import { isCompactCommand } from "../fork-cache-compact";
 import { forkHub } from "../fork-hub";
+import { forkListedMessages, forkRetriesTurn, forkRetryCause, forkRetryReason } from "../fork-never-lose";
 import { type ForkProviderRestart, readForkProviderRestart } from "../fork-provider-hang";
 import { FORK_BACKGROUND_STOPPED_METHOD } from "../fork-restart-resume";
 import {
@@ -2301,10 +2302,35 @@ export class TurnLifecycle {
       if (routineSession && !this.#subagentsWork(agentId, turnId)) this.#archivableRoutineSessions.add(threadId);
       for (const [childId, parent] of this.#codexChildren)
         if (parent.turnId === turnId && !working.has(childId)) this.#codexChildren.delete(childId);
+      // Fork (docs/fork/FEATURES.md #136): a teammate's hand-off that failed on a temporary cause runs once more.
+      const forkRetry = forkRetriesTurn({
+        agentId,
+        status,
+        cause: failureCause,
+        otherPath:
+          !ownChat ||
+          refused ||
+          limited ||
+          repeatable ||
+          resumed !== null ||
+          compactionContinuation !== null ||
+          failedOver ||
+          runsAgainHere,
+        providerRestart: forkRestart !== undefined,
+        deliveries: deliveries.map(({ delivery, channelId, forkRetry: marker }) => ({
+          id: delivery.id,
+          senderAgentId: delivery.sender.kind === "agent" ? delivery.sender.agentId : null,
+          expectsReply: this.#mailbox.expectsReply(delivery.messageId),
+          channel: channelId !== undefined,
+          retried: marker !== undefined,
+        })),
+      });
       for (const message of snapshot.messages) {
         if (this.#itemTurns.get(message.id) !== turnId || message.status !== "streaming") continue;
         message.status = normalizeCompletionStatus(
-          repeatable || resumed || failedOver || runsAgainHere || compactionContinuation ? "interrupted" : status,
+          repeatable || resumed || failedOver || runsAgainHere || compactionContinuation || forkRetry
+            ? "interrupted"
+            : status,
         );
         markIncompleteMediaGeneration(message, message.status);
       }
@@ -2359,6 +2385,13 @@ export class TurnLifecycle {
         );
         if (failedOver || (channelRunsAgain && backupTakes())) this.#markFailed(agentId, model, failover);
         if (failingSession) yield* this.#dropFailingSession(agentId, threadId, running.client.provider);
+        this.#hooks.scheduleDrain(agentId);
+        return;
+      }
+      if (forkRetry) {
+        // Fork (docs/fork/FEATURES.md #136): the requester hears nothing of this failure; the retry answers.
+        const reason = forkRetryReason(reportedError ?? failover?.message, failureCause);
+        yield* this.#forkRetryTurn(agentId, threadId, turnId, snapshot, deliveries, reason);
         this.#hooks.scheduleDrain(agentId);
         return;
       }
@@ -2577,11 +2610,47 @@ export class TurnLifecycle {
       if (deliveries.length > 0) {
         const terminal = outcome === "failed" ? "failed" : outcome === "interrupted" ? "interrupted" : "completed";
         const resulted: DeliveryContext[] = [];
+        // Fork (docs/fork/FEATURES.md #136, GAPS R3-3): another agent's message without a request that came
+        // into this failed turn runs in the next one (once), when the cause can be temporary or the chat
+        // resumes by itself (#131); else its sender's failure note lists it.
+        const steeredAgain =
+          !continuation &&
+          terminal === "failed" &&
+          !refused &&
+          !limited &&
+          (forkRestartWait !== null || forkRetryCause(failureCause))
+            ? new Set(
+                deliveries
+                  .filter(
+                    ({ delivery, channelId, forkRetry: marker }) =>
+                      marker === undefined &&
+                      channelId === undefined &&
+                      delivery.sender.kind === "agent" &&
+                      delivery.sender.agentId !== agentId &&
+                      !this.#mailbox.expectsReply(delivery.messageId) &&
+                      this.#mailbox.steeredIntoOtherWork(delivery.id),
+                  )
+                  .map(({ delivery }) => delivery.id),
+              )
+            : new Set<string>();
+        const steeredReason = forkRetryReason(failure ? this.#hooks.redactMcp(failure) : undefined, failureCause);
         for (const delivery of deliveries) {
           this.#refusedRetries.delete(delivery.delivery.id);
           this.#failoverRetries.delete(delivery.delivery.id);
           if (continuation) {
             yield* this.#mailbox.requeueForPlan(delivery.delivery.id, turnId).pipe(toTurnOperationFailed);
+            continue;
+          }
+          if (steeredAgain.has(delivery.delivery.id)) {
+            yield* this.#mailbox
+              .forkRequeueForRetry(delivery.delivery.id, {
+                kind: "steered",
+                turnId,
+                reason: steeredReason,
+                at: new Date().toISOString(),
+              })
+              .pipe(toTurnOperationFailed);
+            this.#mailboxSync.syncDeliveryMessage(snapshot, delivery.delivery.id);
             continue;
           }
           const reason =
@@ -2621,9 +2690,7 @@ export class TurnLifecycle {
             forkRestartWait !== null && terminal === "failed"
               ? new Set(this.#teammateRequests(agentId, deliveries).map(({ delivery }) => delivery.id))
               : new Set<string>();
-          for (const { delivery } of deliveries)
-            if (held.has(delivery.id)) yield* this.#noteProviderRestart(agentId, delivery.id);
-            else yield* this.#answerFailedRequest(agentId, delivery.id, temporary);
+          yield* this.#forkFailureNotes(agentId, deliveries, terminal, temporary, held, steeredAgain, steeredReason);
           if (forkRestartWait !== null && held.size > 0) {
             const earlier = this.#forkRestartPending.get(agentId)?.deliveryIds ?? [];
             this.#forkRestartPending.set(agentId, { waitId: forkRestartWait, deliveryIds: [...earlier, ...held] });
@@ -2986,6 +3053,55 @@ export class TurnLifecycle {
     this.#hooks.scheduleDrain(agentId);
   }, Effect.uninterruptible);
 
+  /**
+   * Fork (docs/fork/FEATURES.md #136): queues a failed teammate turn's deliveries again, each with its
+   * marker: the teammate's requests run once more with the retry line, the other messages of the turn
+   * start with them (`MailboxStore.forkRetryCompanions`).
+   */
+  readonly #forkRetryTurn = Effect.fn("TurnLifecycle.forkRetryTurn")(function* (
+    this: TurnLifecycle,
+    agentId: string,
+    threadId: string,
+    turnId: string,
+    snapshot: ConversationSnapshot,
+    deliveries: readonly DeliveryContext[],
+    reason: string,
+  ) {
+    logger.warn("A teammate's turn failed on a temporary cause; its hand-off runs once more.", {
+      agentId,
+      turnId,
+      deliveries: deliveries.length,
+    });
+    const at = new Date().toISOString();
+    for (const { delivery } of deliveries) {
+      const request =
+        delivery.sender.kind === "agent" &&
+        delivery.sender.agentId !== agentId &&
+        this.#mailbox.expectsReply(delivery.messageId);
+      yield* this.#mailbox
+        .forkRequeueForRetry(delivery.id, { kind: request ? "retry" : "steered", turnId, reason, at })
+        .pipe(toTurnOperationFailed);
+      this.#mailboxSync.syncDeliveryMessage(snapshot, delivery.id);
+    }
+    for (let index = snapshot.messages.length - 1; index >= 0; index -= 1)
+      if (isEmptyAttemptText(snapshot.messages[index], turnId)) snapshot.messages.splice(index, 1);
+    this.#conversation.emitConversation(snapshot, "turn.completed", { turnId, status: "interrupted" });
+    try {
+      this.#mailboxSync.emitQueue(agentId);
+    } catch (error) {
+      this.#hooks.emitError("delivery_reconciliation_pending", error, agentId);
+      this.#mailboxSync.retryDeliveryReconciliation(agentId);
+    }
+    this.#hooks.emit({
+      type: "turn-completed",
+      agentId,
+      threadId: this.#conversation.publicThreadId(agentId, threadId),
+      turnId,
+      status: "interrupted",
+      origin: deliveries[0]?.delivery.sender.kind ?? "unknown",
+    });
+  }, Effect.uninterruptible);
+
   readonly #requeueTurn = Effect.fn("TurnLifecycle.requeueTurn")(function* (
     this: TurnLifecycle,
     agentId: string,
@@ -3148,7 +3264,12 @@ export class TurnLifecycle {
       );
   }
 
-  #answerFailedRequest(agentId: string, deliveryId: string, temporary: boolean): Effect.Effect<void> {
+  #answerFailedRequest(
+    agentId: string,
+    deliveryId: string,
+    temporary: boolean,
+    extra: readonly string[] = [],
+  ): Effect.Effect<boolean> {
     return this.#mailbox
       .answerFailedRequest(
         deliveryId,
@@ -3156,16 +3277,99 @@ export class TurnLifecycle {
         (id) => this.#store.has(id),
         false,
         temporary,
+        extra,
       )
       .pipe(
         Effect.match({
-          onFailure: (failure) => this.#hooks.emitError("failed_request_answer_failed", failure.cause, agentId),
+          onFailure: (failure) => {
+            this.#hooks.emitError("failed_request_answer_failed", failure.cause, agentId);
+            return false;
+          },
           onSuccess: (requesterId) => {
             if (requesterId) this.#mailboxSync.emitQueue(requesterId);
+            return requesterId !== null;
           },
         }),
       );
   }
+
+  /**
+   * The notes to the agents whose messages a failed or stopped turn held. Fork (docs/fork/FEATURES.md
+   * #136, GAPS R3-3): on a failure, each sender gets one note: the first of its requests that gets one
+   * lists its other messages of the turn (and says which run again); a sender with only messages that
+   * need no answer gets one note that lists them. Before, each request had its own note and the others
+   * were dropped without a word.
+   */
+  readonly #forkFailureNotes = Effect.fn("TurnLifecycle.forkFailureNotes")(function* (
+    this: TurnLifecycle,
+    agentId: string,
+    deliveries: readonly DeliveryContext[],
+    terminal: string,
+    temporary: boolean,
+    held: ReadonlySet<string>,
+    steeredAgain: ReadonlySet<string>,
+    reason: string,
+  ) {
+    const failed = terminal === "failed";
+    const noted = new Set<string>();
+    const senderOf = (delivery: QueueDelivery) =>
+      delivery.sender.kind === "agent" && delivery.sender.agentId !== agentId ? delivery.sender.agentId : null;
+    for (const { delivery, forkRetry: marker } of deliveries) {
+      if (held.has(delivery.id)) {
+        yield* this.#noteProviderRestart(agentId, delivery.id);
+        continue;
+      }
+      const sender = senderOf(delivery);
+      if (failed && steeredAgain.has(delivery.id)) continue;
+      if (failed && sender !== null && noted.has(sender)) continue;
+      const others = failed
+        ? deliveries.filter(
+            (other) => other.delivery.id !== delivery.id && sender !== null && senderOf(other.delivery) === sender,
+          )
+        : [];
+      const listed = others.filter((other) => !steeredAgain.has(other.delivery.id) && !held.has(other.delivery.id));
+      const again = others.filter((other) => steeredAgain.has(other.delivery.id));
+      const extra = [
+        ...(failed && marker?.kind === "retry"
+          ? [`OpenBot already ran this request once more by itself (the first attempt failed: ${marker.reason}).`]
+          : []),
+        ...forkListedMessages(
+          listed.map(({ delivery: item }) => item),
+          "Your other messages in that turn were not handled either:",
+        ),
+        ...forkListedMessages(
+          again.map(({ delivery: item }) => item),
+          "These messages of yours from that turn are queued again for the teammate's next turn:",
+        ),
+      ];
+      if ((yield* this.#answerFailedRequest(agentId, delivery.id, temporary, extra)) && sender !== null)
+        noted.add(sender);
+    }
+    if (!failed) return;
+    // Senders whose messages in the failed turn needed no answer, so no note covered them. Not a reply
+    // (a teammate's report or OpenBot's own note): a note about that would go back and forth.
+    const unnoted = new Map<string, string[]>();
+    for (const { delivery, channelId } of deliveries) {
+      const sender = senderOf(delivery);
+      if (sender === null || noted.has(sender) || channelId !== undefined || delivery.replyToMessageId !== null)
+        continue;
+      if (steeredAgain.has(delivery.id) || held.has(delivery.id)) continue;
+      unnoted.set(sender, [...(unnoted.get(sender) ?? []), delivery.id]);
+    }
+    for (const ids of unnoted.values()) {
+      const requesterId = yield* this.#mailbox
+        .forkNoteUnhandled(ids, reason, (id) => this.#store.has(id))
+        .pipe(
+          Effect.catch((failure) =>
+            Effect.sync(() => {
+              this.#hooks.emitError("failed_request_answer_failed", failure.cause, agentId);
+              return null;
+            }),
+          ),
+        );
+      if (requesterId) this.#mailboxSync.emitQueue(requesterId);
+    }
+  });
 
   #sendsResult(
     agentId: string,

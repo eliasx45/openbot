@@ -93,6 +93,7 @@ import type { ChannelService } from "../channel-service";
 import type { CrmHandle } from "../crm/crm";
 import type { ProviderSession } from "../database/provider-sessions";
 import { forkHub } from "../fork-hub";
+import { FORK_SEND_DEDUPE_MS, forkDuplicateSendResult, forkSendKey } from "../fork-never-lose";
 // Fork (docs/fork/FEATURES.md #134): the team board and the status of a report.
 import { reportFields, TEAM_BOARD_TOOL, teamBoardHours, teamBoardToolResult } from "../fork-team-board";
 import { SEND_VOICE_NOTE_TOOL } from "../fork-voice-notes";
@@ -3737,6 +3738,27 @@ export class OpenBotToolRouter {
       }
       // Fork (docs/fork/FEATURES.md #134): the status (and next step) of a teammate's report.
       const report = reportFields({ status: params.arguments.status, next: params.arguments.next });
+      // Fork (docs/fork/FEATURES.md #136, GAPS R2-5): a repeated hand-off is not sent again.
+      const sendKey = forkSendKey(senderAgentId, params.arguments.idempotencyKey);
+      if (params.arguments.rework !== true) {
+        const earlier =
+          (sendKey ? this.#mailbox.forkSentWithKey(sendKey) : null) ??
+          (expectsReply === false
+            ? null
+            : this.#mailbox.forkOpenDuplicate({
+                senderAgentId,
+                recipientAgentIds: recipientValues,
+                text: params.arguments.text,
+                withinMs: FORK_SEND_DEDUPE_MS,
+              }));
+        if (earlier) {
+          const byKey = sendKey !== null && this.#mailbox.forkSentWithKey(sendKey)?.messageId === earlier.messageId;
+          return {
+            success: true,
+            contentItems: [{ type: "inputText", text: JSON.stringify(forkDuplicateSendResult({ ...earlier, byKey })) }],
+          };
+        }
+      }
 
       const turnDeliveries = this.#mailbox.findDeliveriesByTurn(senderAgentId, params.turnId);
       const messagingReturn = turnDeliveries
@@ -3838,7 +3860,7 @@ export class OpenBotToolRouter {
           ...(messagingReturn ? { messagingReturn } : {}),
           ...(senderTaskId ? { senderTaskId } : {}),
           ...(taskId ? { taskId } : {}),
-          idempotencyKey: toolCallIdempotencyKey(params),
+          idempotencyKey: (params.arguments.rework === true ? null : sendKey) ?? toolCallIdempotencyKey(params), // Fork (#136)
         })
         .pipe(toToolOperationFailed);
       if (teamPlan && "meta" in teamPlan) teamGuards?.recordSend(receipt.messageId, teamPlan); // Fork (docs/fork/FEATURES.md #135).

@@ -1099,6 +1099,17 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
           "For a request: plain code that OpenBot runs when the reply says Status: done. A failed check sends the reply back to the recipient once; a second failure reaches you marked as failed.",
         )
         .optional(),
+      // Fork (docs/fork/FEATURES.md #136): repeated hand-offs are not sent again.
+      rework: z
+        .boolean()
+        .describe("True to send again a request that is the same as an open one; it is not sent twice otherwise.")
+        .optional(),
+      idempotencyKey: z
+        .string()
+        .min(1)
+        .max(200)
+        .describe("Your own key for this hand-off: a later send with the same key is not sent again.")
+        .optional(),
     },
   },
   // Fork (docs/fork/FEATURES.md #134): the lead's team board.

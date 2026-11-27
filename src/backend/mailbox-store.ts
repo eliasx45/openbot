@@ -56,6 +56,7 @@ import { routineNameInLimit } from "./database/legacy-conversation-message";
 import { mailboxReactionRowKey } from "./database/mailbox-projection";
 // Fork (docs/fork/FEATURES.md #130): the shape of the mail that team follow-through reads.
 import type { FollowThroughReceived, FollowThroughTraffic } from "./fork-follow-through";
+import { forkListedMessages, forkSendText } from "./fork-never-lose";
 // Fork (docs/fork/FEATURES.md #134): the shape of the mail that the team board reads.
 import type { TeamBoardMessage } from "./fork-team-board";
 // Fork (docs/fork/FEATURES.md #135): the shape of the requests that the team guards and watchdog read.
@@ -69,6 +70,8 @@ import { recordRestartActivity } from "./restart-activity";
 const MAX_ATTACHMENTS = INPUT_LIMITS.attachments;
 const FAILED_REQUEST_REASON_LIMIT = 2_000;
 const FAILED_REQUEST_KEY_PREFIX = "failed-request:";
+/** Fork (docs/fork/FEATURES.md #136): the note that messages sent into a failed turn were not handled. */
+const FORK_UNHANDLED_KEY_PREFIX = "fork-unhandled:";
 /** Fork (docs/fork/FEATURES.md #131): the note that a teammate's provider was restarted. */
 const PROVIDER_RESTART_NOTE_KEY_PREFIX = "fork-provider-restart:";
 export const AUTO_RESULT_KEY_PREFIX = "auto-result:";
@@ -139,6 +142,20 @@ interface StoredDelivery {
   steerFallback?: QueueSteerFallback;
   resumeAfterUsageLimit?: UsageLimitContinuation;
   planContinuation?: PlanContinuationMarker;
+  /** Fork (docs/fork/FEATURES.md #136): queued again after the turn it ran in failed. */
+  forkRetry?: ForkRetryMarker;
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md #136): a delivery that OpenBot queued again after its turn failed on a cause
+ * that can be temporary. "retry": a teammate's request, run once more; "steered": a message that came
+ * into that turn and was not handled. `turnId` is the failed turn: a retry starts with the others of it.
+ */
+export interface ForkRetryMarker {
+  kind: "retry" | "steered";
+  turnId: string;
+  reason: string;
+  at: string;
 }
 
 export interface TaskWork {
@@ -236,6 +253,8 @@ export interface DeliveryContext {
   channelId?: string;
   senderTaskId?: string;
   restartedResult?: true;
+  /** Fork (docs/fork/FEATURES.md #136). */
+  forkRetry?: ForkRetryMarker;
 }
 
 const EMPTY_STATE: StoredState = {
@@ -2496,6 +2515,8 @@ export class MailboxStore {
     agentExists: (agentId: string) => boolean,
     recovered = false,
     temporary = false,
+    /** Fork (docs/fork/FEATURES.md #136): lines about the requester's other messages of the same turn. */
+    extra: readonly string[] = [],
   ): Effect.fn.Return<string | null, StoredStateFailure> {
     const delivery = this.#state.deliveries.find((candidate) => candidate.id === deliveryId);
     const request = delivery && this.#state.messages.find((message) => message.id === delivery.messageId);
@@ -2530,6 +2551,7 @@ export class MailboxStore {
           : steered
             ? "Result: OpenBot note, not written by this teammate: the request went into a running turn of the teammate, and that turn ended before the teammate answered."
             : "Result: OpenBot note, not written by this teammate: the teammate's turn stopped when OpenBot or its provider restarted, before the teammate answered. Part of the work can be done.",
+        ...extra,
         "Evidence: none",
         outcome === "failed" && temporary
           ? "Unblock: The failure can be temporary. Send the request again one time if you still need the result. If it fails again, tell the user."
@@ -2545,6 +2567,52 @@ export class MailboxStore {
       idempotencyKey: `${FAILED_REQUEST_KEY_PREFIX}${deliveryId}`,
     });
     return requesterId;
+  }, Effect.uninterruptible).bind(this);
+
+  /**
+   * Fork (docs/fork/FEATURES.md #136, GAPS R3-3): messages that another agent sent into a teammate's turn
+   * that then failed, when no failure note to that agent covers them (updates sent with expectsReply
+   * false get none). One note lists them, so the sender knows they were not delivered. Returns the
+   * sender's id when a note was queued.
+   */
+  forkNoteUnhandled = Effect.fn("MailboxStore.forkNoteUnhandled")(function* (
+    this: MailboxStore,
+    deliveryIds: readonly string[],
+    reason: string,
+    agentExists: (agentId: string) => boolean,
+  ): Effect.fn.Return<string | null, StoredStateFailure> {
+    const items = deliveryIds.flatMap((id) => {
+      const delivery = this.#state.deliveries.find((candidate) => candidate.id === id);
+      const message = delivery && this.#state.messages.find((candidate) => candidate.id === delivery.messageId);
+      return delivery &&
+        message &&
+        message.sender.kind === "agent" &&
+        !message.channelId &&
+        message.replyToMessageId === null
+        ? [{ delivery, message, senderId: message.sender.agentId }]
+        : [];
+    });
+    const first = items[0];
+    if (!first) return null;
+    const teammateId = first.delivery.recipientAgentId;
+    const senderId = first.senderId;
+    if (senderId === teammateId || !agentExists(senderId) || items.some((item) => item.senderId !== senderId))
+      return null;
+    yield* this.enqueue({
+      sender: { kind: "agent", agentId: teammateId },
+      recipientAgentIds: [senderId],
+      text: [
+        "Status: blocked",
+        `Result: OpenBot note, not written by this teammate: ${items.length === 1 ? "a message you sent" : `${items.length} messages you sent`} into this teammate's running turn did not reach it: that turn failed before the teammate handled ${items.length === 1 ? "it" : "them"}. ${reason.slice(0, FAILED_REQUEST_REASON_LIMIT)}`,
+        ...forkListedMessages(items.map(({ message }) => message)),
+        "Evidence: none",
+        "Unblock: Send what still matters again.",
+      ].join("\n"),
+      replyToMessageId: first.message.id,
+      expectsReply: false,
+      idempotencyKey: `${FORK_UNHANDLED_KEY_PREFIX}${first.delivery.id}`,
+    });
+    return senderId;
   }, Effect.uninterruptible).bind(this);
 
   /**
@@ -3292,6 +3360,83 @@ export class MailboxStore {
     return true;
   }, Effect.uninterruptible).bind(this);
 
+  /**
+   * Fork (docs/fork/FEATURES.md #136): a delivery of a turn that failed on a cause that can be temporary
+   * goes back to the queue with its marker; its queue order stays, so the request runs before the
+   * messages that came into its turn.
+   */
+  forkRequeueForRetry = Effect.fn("MailboxStore.forkRequeueForRetry")(function* (
+    this: MailboxStore,
+    deliveryId: string,
+    marker: ForkRetryMarker,
+  ): Effect.fn.Return<void, StoredStateFailure> {
+    yield* this.#updateDeliveryEffect(deliveryId, ["starting", "running"], {
+      status: "queued",
+      turnId: null,
+      error: null,
+      forkRetry: marker,
+    });
+  }, Effect.uninterruptible).bind(this);
+
+  /** Fork (#136): the other queued deliveries of the same failed turn, which start with this one. */
+  forkRetryCompanions(deliveryId: string): DeliveryContext[] {
+    const first = this.#state.deliveries.find((candidate) => candidate.id === deliveryId);
+    const turnId = first?.forkRetry?.turnId;
+    if (!first || !turnId) return [];
+    const messages = this.#messagesById();
+    const lane = this.#laneOf(first, messages);
+    return this.#contexts(
+      this.#queuedFor(first.recipientAgentId).filter(
+        (candidate) =>
+          candidate.id !== first.id &&
+          candidate.forkRetry?.turnId === turnId &&
+          this.#mayStart(candidate) &&
+          this.#laneOf(candidate, messages) === lane,
+      ),
+    );
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md #136, GAPS R2-5): the sender's earlier request with the same recipients
+   * and the same text (spaces aside) that is still open: no reply from a recipient whose delivery did not
+   * end (failed, cancelled), sent less than `withinMs` ago.
+   */
+  forkOpenDuplicate(input: {
+    senderAgentId: string;
+    recipientAgentIds: readonly string[];
+    text: string;
+    withinMs: number;
+    now?: number;
+  }): { messageId: string; createdAt: string } | null {
+    const normal = forkSendText(input.text);
+    const recipients = [...new Set(input.recipientAgentIds)].sort().join("\u0000");
+    const since = (input.now ?? Date.now()) - input.withinMs;
+    for (let index = this.#state.messages.length - 1; index >= 0; index -= 1) {
+      const message = this.#state.messages[index];
+      if (!message || Date.parse(message.createdAt) < since) continue;
+      if (message.sender.kind !== "agent" || message.sender.agentId !== input.senderAgentId) continue;
+      if (message.expectsReply === false || message.channelId || forkSendText(message.text) !== normal) continue;
+      const deliveries = this.#state.deliveries.filter((delivery) => delivery.messageId === message.id);
+      const to = [...new Set(deliveries.map((delivery) => delivery.recipientAgentId))].sort().join("\u0000");
+      if (to !== recipients) continue;
+      const open = deliveries.some(
+        (delivery) =>
+          delivery.status !== "failed" &&
+          delivery.status !== "cancelled" &&
+          !this.hasReplyFrom(delivery.recipientAgentId, message.id),
+      );
+      if (open) return { messageId: message.id, createdAt: message.createdAt };
+    }
+    return null;
+  }
+
+  /** Fork (#136): the message an idempotency key was sent with, if any. */
+  forkSentWithKey(key: string): { messageId: string; createdAt: string } | null {
+    const messageId = this.#state.idempotency[key];
+    const message = messageId ? this.#state.messages.find((candidate) => candidate.id === messageId) : undefined;
+    return message ? { messageId: message.id, createdAt: message.createdAt } : null;
+  }
+
   requeueForPlan = Effect.fn("MailboxStore.requeueForPlan")(function* (
     this: MailboxStore,
     deliveryId: string,
@@ -3862,6 +4007,7 @@ export class MailboxStore {
       delivery: this.#publicDelivery(delivery, positions, message),
       ...(delivery.resumeAfterUsageLimit ? { resumeAfterUsageLimit: delivery.resumeAfterUsageLimit } : {}),
       ...(delivery.planContinuation ? { planContinuation: delivery.planContinuation } : {}),
+      ...(delivery.forkRetry ? { forkRetry: delivery.forkRetry } : {}), // Fork (docs/fork/FEATURES.md #136)
       ...(message.channelId ? { channelId: message.channelId } : {}),
       ...(message.senderTaskId ? { senderTaskId: message.senderTaskId } : {}),
       ...(this.#state.idempotency[`${RESTARTED_RESULT_KEY_PREFIX}${delivery.id}`] !== undefined &&
@@ -3896,6 +4042,7 @@ export class MailboxStore {
       steerFallback,
       resumeAfterUsageLimit: _resumeAfterUsageLimit,
       planContinuation: _planContinuation,
+      forkRetry: _forkRetry,
       ...publicDelivery
     } = delivery;
     if (waitsForPlanContinuation(delivery)) {
@@ -4346,7 +4493,13 @@ function isStoredDelivery(value: unknown): value is StoredDelivery {
       (isRecord(value.planContinuation) &&
         Array.isArray(value.planContinuation.turnIds) &&
         value.planContinuation.turnIds.every(isString) &&
-        (value.planContinuation.queued === undefined || value.planContinuation.queued === true)))
+        (value.planContinuation.queued === undefined || value.planContinuation.queued === true))) &&
+    (value.forkRetry === undefined ||
+      (isRecord(value.forkRetry) &&
+        (value.forkRetry.kind === "retry" || value.forkRetry.kind === "steered") &&
+        isString(value.forkRetry.turnId) &&
+        isString(value.forkRetry.reason) &&
+        isString(value.forkRetry.at)))
   );
 }
 

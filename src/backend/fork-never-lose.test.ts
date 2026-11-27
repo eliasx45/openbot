@@ -1,12 +1,25 @@
 // @vitest-environment node
 // Fork (docs/fork/FEATURES.md #136, "Never lose work"): the restart wake of an agent whose turn a quit
-// stopped. The flow with the real service and the fake `agy` is scripts/antigravity-quit-resume-e2e.ts.
+// stopped, a teammate's failed turn, and a repeated send. With the real service and a fake `agy`:
+// scripts/antigravity-quit-resume-e2e.ts and scripts/fork-never-lose-e2e.ts.
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ConversationMessage, QueueDelivery } from "@openbot/contracts/ipc";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { runCauseEffect } from "./effect-boundary";
+import {
+  FORK_SEND_DEDUPE_MS,
+  forkDuplicateSendResult,
+  forkListedMessages,
+  forkRetriesTurn,
+  forkRetryPromptLine,
+  forkRetryReason,
+  forkSendKey,
+} from "./fork-never-lose";
 import { ForkRestartResume, type ForkRestartResumeHooks, restartResumeText } from "./fork-restart-resume";
+import { MailboxStore } from "./mailbox-store";
+import { OpenBotDatabase } from "./openbot-database";
 
 const folders: string[] = [];
 beforeEach(() => {
@@ -295,5 +308,219 @@ describe("#136 tries of a resume that restarts stop again", () => {
     expect(restartResumeText({ ...base, attempt: 2, provider: "antigravity", lastTry: false })).toContain(
       "this is automatic try 2",
     );
+  });
+});
+
+describe("#136 one automatic retry of a failed hand-off", () => {
+  const request = { id: "d-1", senderAgentId: "vega", expectsReply: true, channel: false, retried: false };
+  const base = {
+    agentId: "shadow",
+    status: "failed",
+    cause: "network" as const,
+    otherPath: false,
+    providerRestart: false,
+    deliveries: [request],
+  };
+
+  it("retries a teammate's request that failed on a temporary cause", () => {
+    for (const cause of ["timeout", "stalled", "network", "provider_unavailable", "empty_answer"] as const)
+      expect(forkRetriesTurn({ ...base, cause }), cause).toBe(true);
+  });
+
+  it("does not retry a permanent cause, a stop, a second failure, #131's resume or the user's own turn", () => {
+    for (const cause of ["authentication", "usage_limit", "rate_limit", "content_blocked", "unknown"] as const)
+      expect(forkRetriesTurn({ ...base, cause }), cause).toBe(false);
+    expect(forkRetriesTurn({ ...base, cause: undefined })).toBe(false);
+    // The user pressed Stop: the turn is interrupted, not failed.
+    expect(forkRetriesTurn({ ...base, status: "interrupted" })).toBe(false);
+    expect(forkRetriesTurn({ ...base, deliveries: [{ ...request, retried: true }] })).toBe(false);
+    expect(forkRetriesTurn({ ...base, providerRestart: true })).toBe(false);
+    expect(forkRetriesTurn({ ...base, otherPath: true })).toBe(false);
+    expect(forkRetriesTurn({ ...base, deliveries: [{ ...request, senderAgentId: null }] })).toBe(false);
+    expect(forkRetriesTurn({ ...base, deliveries: [{ ...request, expectsReply: false }] })).toBe(false);
+    expect(forkRetriesTurn({ ...base, deliveries: [{ ...request, channel: true }] })).toBe(false);
+  });
+
+  it("words the retry and the resent message", () => {
+    expect(forkRetryPromptLine({ kind: "retry", reason: "connection reset by peer" })).toContain(
+      "OpenBot retry: your previous attempt at this request failed: connection reset by peer. Continue from what's already done",
+    );
+    expect(forkRetryPromptLine({ kind: "steered", reason: "x" })).toContain("[OpenBot: 🔁 resent]");
+    expect(forkRetryPromptLine(undefined)).toBeNull();
+    expect(forkRetryReason(undefined, "timeout")).toBe("the provider failed (timeout)");
+  });
+});
+
+describe("#136 mailbox: requeue, companions, failure notes, repeated sends", () => {
+  async function mailboxOf() {
+    const folder = await mkdtemp(join(tmpdir(), "openbot-never-lose-mailbox-"));
+    folders.push(folder);
+    const database = new OpenBotDatabase(folder);
+    await runCauseEffect(database.initialize());
+    const mailbox = new MailboxStore(folder, join(folder, "shared"), database);
+    await runCauseEffect(mailbox.initialize());
+    const send = (from: string, to: string[], text: string, expectsReply?: boolean, idempotencyKey?: string) =>
+      runCauseEffect(
+        mailbox.enqueue({
+          sender: { kind: "agent", agentId: from },
+          recipientAgentIds: to,
+          text,
+          replyToMessageId: null,
+          ...(expectsReply === undefined ? {} : { expectsReply }),
+          ...(idempotencyKey ? { idempotencyKey } : {}),
+        }),
+      );
+    return { mailbox, database, send };
+  }
+  const within = FORK_SEND_DEDUPE_MS;
+
+  it("finds an open identical request; not after a reply, a failure, for other recipients or text, or 6 h later", async () => {
+    const { mailbox, database, send } = await mailboxOf();
+    const first = await send("vega", ["shadow"], "Render  the\nclips");
+    const open = mailbox.forkOpenDuplicate({
+      senderAgentId: "vega",
+      recipientAgentIds: ["shadow"],
+      text: "Render the clips",
+      withinMs: within,
+    });
+    expect(open?.messageId).toBe(first.messageId);
+    expect(
+      mailbox.forkOpenDuplicate({
+        senderAgentId: "vega",
+        recipientAgentIds: ["shadow", "owl"],
+        text: "Render the clips",
+        withinMs: within,
+      }),
+    ).toBeNull();
+    expect(
+      mailbox.forkOpenDuplicate({
+        senderAgentId: "vega",
+        recipientAgentIds: ["shadow"],
+        text: "Render other clips",
+        withinMs: within,
+      }),
+    ).toBeNull();
+    expect(
+      mailbox.forkOpenDuplicate({
+        senderAgentId: "vega",
+        recipientAgentIds: ["shadow"],
+        text: "Render the clips",
+        withinMs: within,
+        now: Date.now() + within + 60_000,
+      }),
+    ).toBeNull();
+    // The teammate's reply closes it.
+    await runCauseEffect(
+      mailbox.enqueue({
+        sender: { kind: "agent", agentId: "shadow" },
+        recipientAgentIds: ["vega"],
+        text: "Status: done",
+        replyToMessageId: first.messageId,
+        expectsReply: false,
+      }),
+    );
+    expect(
+      mailbox.forkOpenDuplicate({
+        senderAgentId: "vega",
+        recipientAgentIds: ["shadow"],
+        text: "Render the clips",
+        withinMs: within,
+      }),
+    ).toBeNull();
+    // A failed delivery is not open either.
+    const second = await send("vega", ["owl"], "Mix the sound");
+    const deliveryId = second.deliveries[0]?.id ?? "";
+    await runCauseEffect(mailbox.markStarting(deliveryId));
+    await runCauseEffect(mailbox.markTerminal(deliveryId, "failed", "boom"));
+    expect(
+      mailbox.forkOpenDuplicate({
+        senderAgentId: "vega",
+        recipientAgentIds: ["owl"],
+        text: "Mix the sound",
+        withinMs: within,
+      }),
+    ).toBeNull();
+    // An agent's own key.
+    const key = forkSendKey("vega", "brief-7");
+    expect(key).toBe("fork-send:vega:brief-7");
+    const keyed = await send("vega", ["owl"], "Brief 7", true, key ?? "");
+    expect(mailbox.forkSentWithKey(key ?? "")?.messageId).toBe(keyed.messageId);
+    expect(() => forkSendKey("vega", "")).toThrow();
+    expect(forkSendKey("vega", undefined)).toBeNull();
+    expect(forkDuplicateSendResult({ messageId: "m", createdAt: "t", byKey: false }).note).toBe(
+      "Not sent again: already sent at t (message m), still open — wait, or pass rework:true to send again.",
+    );
+    database.close();
+  });
+
+  it("queues a failed turn's deliveries again with their marker; the others start with the request", async () => {
+    const { mailbox, database, send } = await mailboxOf();
+    const request = await send("vega", ["shadow"], "fail-once: build the toolkit");
+    const update = await send("vega", ["shadow"], "Use the new load guard", false);
+    const requestId = request.deliveries[0]?.id ?? "";
+    const updateId = update.deliveries[0]?.id ?? "";
+    for (const id of [requestId, updateId]) {
+      await runCauseEffect(mailbox.markStarting(id));
+      await runCauseEffect(mailbox.markRunning(id, "turn-1"));
+    }
+    const marker = { turnId: "turn-1", reason: "connection reset by peer", at: new Date().toISOString() };
+    await runCauseEffect(mailbox.forkRequeueForRetry(requestId, { ...marker, kind: "retry" }));
+    await runCauseEffect(mailbox.forkRequeueForRetry(updateId, { ...marker, kind: "steered" }));
+    expect(mailbox.getDelivery(requestId)?.delivery.status).toBe("queued");
+    expect(mailbox.getDelivery(requestId)?.forkRetry?.kind).toBe("retry");
+    expect(mailbox.forkRetryCompanions(requestId).map(({ delivery }) => delivery.id)).toEqual([updateId]);
+    // The public delivery does not carry the marker.
+    expect(Object.keys(mailbox.getDelivery(requestId)?.delivery ?? {})).not.toContain("forkRetry");
+    database.close();
+  });
+
+  it("gives the sender one failure note that lists its other messages, or one note for updates only", async () => {
+    const { mailbox, database, send } = await mailboxOf();
+    const request = await send("vega", ["shadow"], "fail-always: build the toolkit");
+    const requestId = request.deliveries[0]?.id ?? "";
+    await runCauseEffect(mailbox.markStarting(requestId));
+    await runCauseEffect(mailbox.markRunning(requestId, "turn-1"));
+    await runCauseEffect(mailbox.markTerminal(requestId, "failed", "connection reset by peer"));
+    const extra = forkListedMessages(
+      [{ text: "Use the new load guard", createdAt: "2026-11-27T14:28:00.000Z" }],
+      "Your other messages in that turn were not handled either:",
+    );
+    const noted = await runCauseEffect(
+      mailbox.answerFailedRequest(
+        requestId,
+        () => false,
+        () => true,
+        false,
+        true,
+        extra,
+      ),
+    );
+    expect(noted).toBe("vega");
+    const updates = [
+      await send("owl", ["shadow"], "Toolkit moved", false),
+      await send("owl", ["shadow"], "Guardrail: max 2 renders", false),
+    ].map((receipt) => receipt.deliveries[0]?.id ?? "");
+    for (const id of updates) {
+      await runCauseEffect(mailbox.markStarting(id));
+      await runCauseEffect(mailbox.markRunning(id, "turn-1"));
+      await runCauseEffect(mailbox.markTerminal(id, "failed", "connection reset by peer"));
+    }
+    expect(await runCauseEffect(mailbox.forkNoteUnhandled(updates, "connection reset by peer", () => true))).toBe(
+      "owl",
+    );
+    // Again: the same note is not queued twice.
+    await runCauseEffect(mailbox.forkNoteUnhandled(updates, "connection reset by peer", () => true));
+    const notes = database.connection
+      .prepare("SELECT text FROM projection_mailbox_messages WHERE sender_agent_id = 'shadow' ORDER BY created_at")
+      .all()
+      .map((row) => String(row.text));
+    expect(notes).toHaveLength(2);
+    expect(notes[0]).toContain(
+      "Your other messages in that turn were not handled either:\n- 14:28 UTC: Use the new load guard",
+    );
+    expect(notes[1]).toContain("2 messages you sent into this teammate's running turn did not reach it");
+    expect(notes[1]).toContain("- ");
+    expect(notes[1]).toContain("Guardrail: max 2 renders");
+    database.close();
   });
 });

@@ -814,9 +814,13 @@ export class DrainScheduler {
         : channelDelivery || ownSession || messagingDelivery
           ? []
           : this.#mailbox.userMessagesToStartWith(delivery.id);
-    const companions = [...replies, ...laterMessages];
+    // Fork (docs/fork/FEATURES.md #136): a retried turn's other messages start with its request.
+    const retried = planNote === undefined ? this.#mailbox.forkRetryCompanions(delivery.id) : [];
+    const companions = [...replies, ...laterMessages, ...retried];
     let batch =
       planNote !== undefined || delivery.sender.kind === "user" ? [context, ...laterMessages] : [context, ...replies];
+    for (const item of retried)
+      if (!batch.some((member) => member.delivery.id === item.delivery.id)) batch = [...batch, item];
     let confirmedTurnId: string | null = null;
     let routineThreadId: string | null = null;
     const claimed = this.#deliveryProviders(delivery.recipientAgentId);
