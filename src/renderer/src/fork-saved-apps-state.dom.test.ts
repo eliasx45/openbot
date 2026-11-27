@@ -153,3 +153,22 @@ describe("Save as app", () => {
     expect(await screen.findByRole("alert", { hidden: true })).toHaveTextContent("This page could not be read.");
   });
 });
+
+describe("Save as app of a page already saved", () => {
+  it("starts as Saved · Open and opens that app without saving again", () => {
+    const save = vi.fn(async () => "app_BBBBBBBBBBBBBBBB");
+    const open = vi.fn();
+    render(() =>
+      ChatVisual({
+        html: "<p>count</p>",
+        title: "Counter",
+        onOpenLink: vi.fn(),
+        saveAsApp: { save, open, savedAppId: () => "app_AAAAAAAAAAAAAAAA" },
+      }),
+    );
+    const button = screen.getByRole("button", { name: "Saved · Open", hidden: true });
+    button.click();
+    expect(open).toHaveBeenCalledWith("app_AAAAAAAAAAAAAAAA");
+    expect(save).not.toHaveBeenCalled();
+  });
+});

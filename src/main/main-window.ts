@@ -526,24 +526,23 @@ export function createMainWindowController({
     followWindowGlass(window, MAIN_WINDOW_DARK_BACKGROUND);
     savedAppWindows.set(id, window);
     window.once("ready-to-show", () => window.show());
-    window.on("close", () => {
-      if (window.isMinimized() || window.isFullScreen()) return;
+    // The size to keep: the last one the user gave it, written when the window is gone (a page's
+    // window.close() emits no "close").
+    let keptSize: { width: number; height: number } | null = null;
+    window.on("resize", () => {
+      if (window.isMinimized() || window.isFullScreen() || window.isMaximized()) return;
       const [shownWidth, shownHeight] = window.getSize();
-      const apps = getServices()?.savedApps;
-      if (!shownWidth || !shownHeight || !apps) return;
-      try {
-        writeSavedAppWindowSize(
-          dir,
-          id,
-          { width: shownWidth, height: shownHeight },
-          new Set(apps.list().map((app) => app.id)),
-        );
-      } catch (error) {
-        reportError("Could not keep the app window size", error);
-      }
+      if (shownWidth && shownHeight) keptSize = { width: shownWidth, height: shownHeight };
     });
     window.on("closed", () => {
       if (savedAppWindows.get(id) === window) savedAppWindows.delete(id);
+      const apps = getServices()?.savedApps;
+      if (!keptSize || !apps) return;
+      try {
+        writeSavedAppWindowSize(dir, id, keptSize, new Set(apps.list().map((app) => app.id)));
+      } catch (error) {
+        reportError("Could not keep the app window size", error);
+      }
     });
     window.webContents.on("render-process-gone", () => {
       if (!window.isDestroyed()) window.destroy();

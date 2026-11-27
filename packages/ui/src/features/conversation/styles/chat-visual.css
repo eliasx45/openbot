@@ -163,7 +163,7 @@
   background: var(--openbot-bg-control);
   box-shadow: 0 0 0 1px var(--openbot-border-strong);
   color: var(--openbot-danger-text);
-  font-size: var(--openbot-text-xs);
+  font-size: var(--openbot-text-sm);
 }
 
 /* Keep the toolbar shown while saving and after a failure, so the result is seen. */

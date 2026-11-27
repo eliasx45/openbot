@@ -150,7 +150,9 @@ function SavedAppVersionMenu(props: { app: SavedApp }) {
                 </span>
                 <span class="saved-app-version-text">
                   <span>{t("app.savedApps.version", { rev: version().rev })}</span>
-                  <small>{new Date(version().at).toLocaleString()}</small>
+                  <small>
+                    {new Date(version().at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                  </small>
                 </span>
               </DropdownMenu.Item>
             )}

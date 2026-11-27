@@ -93,6 +93,8 @@ export interface SaveAsAppAction {
   /** Saves the page and answers the app's id. */
   save: () => Promise<string>;
   open: (appId: string) => void;
+  /** The app already saved from this page, if any: the button starts as "Saved · Open". */
+  savedAppId?: (() => string | null) | undefined;
 }
 
 export function ChatVisual(props: ChatVisualProps) {
@@ -419,8 +421,16 @@ function SaveAsAppButton(props: { action: SaveAsAppAction }) {
     latest = next;
     setState(next);
   };
+  const known = (): SaveAsAppState | null => {
+    const appId = props.action.savedAppId?.();
+    return appId ? { kind: "saved", appId } : null;
+  };
+  const shown = () => {
+    const current = state();
+    return current.kind === "idle" ? (known() ?? current) : current;
+  };
   const click = () => {
-    const current = latest;
+    const current = latest.kind === "idle" ? (known() ?? latest) : latest;
     if (current.kind === "busy") return;
     if (current.kind === "saved") return props.action.open(current.appId);
     show({ kind: "busy" });
@@ -430,28 +440,28 @@ function SaveAsAppButton(props: { action: SaveAsAppAction }) {
     );
   };
   const failure = () => {
-    const current = state();
+    const current = shown();
     return current.kind === "failed" ? current.error : undefined;
   };
   const label = () => {
-    const current = state().kind;
+    const current = shown().kind;
     if (current === "busy") return t("chat.visual.savingAsApp");
     return current === "saved" ? t("chat.visual.savedAsApp") : t("chat.visual.saveAsApp");
   };
   return (
-    <div class="chat-visual-save-app" data-state={state().kind}>
+    <div class="chat-visual-save-app" data-state={shown().kind}>
       <Button
         variant="secondary"
         size="sm"
         type="button"
-        aria-busy={state().kind === "busy" ? "true" : undefined}
-        title={state().kind === "saved" ? t("chat.visual.openSavedApp") : label()}
+        aria-busy={shown().kind === "busy" ? "true" : undefined}
+        title={shown().kind === "saved" ? t("chat.visual.openSavedApp") : label()}
         onClick={click}
       >
         <Show
-          when={state().kind === "busy"}
+          when={shown().kind === "busy"}
           fallback={
-            <Show when={state().kind === "saved"} fallback={<AppWindow aria-hidden="true" />}>
+            <Show when={shown().kind === "saved"} fallback={<AppWindow aria-hidden="true" />}>
               <Check aria-hidden="true" />
             </Show>
           }

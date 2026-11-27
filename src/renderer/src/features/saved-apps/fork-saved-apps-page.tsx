@@ -301,7 +301,6 @@ function SavedAppCard(props: {
                 class="saved-app-card-name"
                 title={props.app.name}
                 onClick={() => props.onOpen()}
-                onDblClick={startRename}
               >
                 {props.app.name}
               </Button>

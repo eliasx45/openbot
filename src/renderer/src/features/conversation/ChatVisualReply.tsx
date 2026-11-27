@@ -5,7 +5,14 @@ import type { AgentMessage } from "@openbot/ui/data";
 import { ChatVisual } from "@openbot/ui/features/conversation/ChatVisual";
 import { createSignal, onCleanup, untrack } from "solid-js";
 import { deviceQuoteShortcut } from "../../send-shortcut-preference";
-import { openSavedAppPage, pageStateHost, saveChatPageAsApp, savedAppsPort } from "../saved-apps/fork-saved-apps-store";
+import {
+  openSavedAppPage,
+  pageStateHost,
+  saveChatPageAsApp,
+  savedApps,
+  savedAppsPort,
+  watchSavedApps,
+} from "../saved-apps/fork-saved-apps-store";
 import { isChatVisualAppShortcut } from "./chat-visual-shortcuts";
 import { chatVisualPageUrl } from "./chat-visual-url";
 import { conversationRuntime } from "./conversation-runtime";
@@ -68,8 +75,18 @@ export function ChatVisualReply(props: {
   const saveAsApp = () => {
     const source = pageSource();
     if (!source || !savedAppsPort()) return undefined;
+    watchSavedApps();
     return {
       save: () => saveChatPageAsApp({ ...source, messageId: props.message.id }),
+      savedAppId: () => {
+        const page = pageSource();
+        const saved = page
+          ? savedApps().find(
+              (app) => app.serverId === page.serverId && app.agentId === page.agentId && app.title === page.title,
+            )
+          : undefined;
+        return saved?.id ?? null;
+      },
       open: (appId: string) => {
         if (inChatWindow) void savedAppsPort()?.forkOpenSavedAppWindow(appId);
         else openSavedAppPage(appId);

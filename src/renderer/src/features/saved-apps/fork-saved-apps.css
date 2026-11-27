@@ -18,7 +18,7 @@
   min-height: 0;
   flex: 1;
   overflow-y: auto;
-  padding: var(--openbot-space-2) var(--openbot-space-6) var(--openbot-space-6);
+  padding: var(--openbot-space-4) var(--openbot-space-6) var(--openbot-space-6);
 }
 
 .saved-apps-grid {
@@ -235,9 +235,10 @@
 
 .saved-app-card-meta {
   margin: 0;
+  line-height: var(--openbot-leading-sm, 1.4);
   overflow: hidden;
   color: var(--openbot-text-muted);
-  font-size: var(--openbot-text-xs);
+  font-size: var(--openbot-text-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -318,7 +319,7 @@
   margin: 0;
   overflow: hidden;
   color: var(--openbot-text-muted);
-  font-size: var(--openbot-text-xs);
+  font-size: var(--openbot-text-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -389,7 +390,7 @@
 
 .saved-app-version-text small {
   color: var(--openbot-text-muted);
-  font-size: var(--openbot-text-xs);
+  font-size: var(--openbot-text-sm);
 }
 
 .saved-app-version-separator {
@@ -424,4 +425,78 @@
   margin: 20vh auto 0;
   color: var(--openbot-text-muted);
   text-align: center;
+}
+
+/* In the main window the page header sits in the window's top row, after the sidebar's top buttons, as the
+   other rail pages do; the window page lets clicks through except where a page takes them. */
+.app-window > .app-frame-edge[data-window-page-kind="titled"] > .window-page > .saved-apps-page {
+  display: grid;
+  grid-template-rows: var(--left-header-height) minmax(0, 1fr);
+}
+
+.app-frame-edge[data-window-page-kind="titled"]
+  > .window-page
+  > .saved-apps-page
+  :is(.saved-apps-body, .saved-app-view-body) {
+  pointer-events: auto;
+}
+
+.app-window > .app-frame-edge[data-window-page-kind="titled"] > .window-page > .saved-apps-page > .saved-app-view {
+  display: contents;
+}
+
+.app-window > .app-frame-edge[data-window-page-kind="titled"] > .window-page .saved-app-view-header {
+  box-sizing: border-box;
+  height: var(--left-header-height);
+  margin-inline-start: var(--top-row-tabs-start, var(--left-panel-width));
+  padding-block: 0;
+  padding-inline: var(--openbot-space-2) var(--openbot-space-3);
+  border-bottom: 0;
+  pointer-events: auto;
+  -webkit-app-region: drag;
+}
+
+.app-window > .app-frame-edge[data-window-page-kind="titled"] > .window-page .saved-app-view-header > * {
+  -webkit-app-region: no-drag;
+}
+
+.app-window > .app-frame-edge[data-window-page-kind="titled"] > .window-page .saved-app-view-titles,
+.saved-app-view[data-in-window] .saved-app-view-titles {
+  display: flex;
+  align-items: baseline;
+  gap: var(--openbot-space-2);
+}
+
+.app-window > .app-frame-edge[data-window-page-kind="titled"] > .window-page .saved-app-view-header .saved-app-mark {
+  width: 22px;
+  height: 22px;
+  font-size: var(--openbot-text-sm);
+}
+
+.app-window
+  > .app-frame-edge[data-window-page-kind="titled"]
+  > .window-page
+  .saved-app-view-header
+  :is(.ui-button, .ui-icon-button) {
+  height: var(--openbot-control-sm);
+  color: var(--openbot-text-secondary);
+}
+
+.app-window > .app-frame-edge[data-window-page-kind="titled"] > .window-page > .saved-apps-page > .saved-apps-body {
+  grid-row: 2;
+}
+
+.ui-action-menu .saved-app-card-remove,
+.ui-action-menu .saved-app-card-remove svg {
+  color: var(--openbot-danger-text);
+}
+
+.ui-action-menu.saved-app-version-menu [role="menuitem"].saved-app-version-item {
+  height: auto;
+  align-items: flex-start;
+  white-space: normal;
+}
+
+.ui-action-menu.saved-app-version-menu {
+  max-width: 320px;
 }
