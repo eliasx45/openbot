@@ -35,12 +35,11 @@ import {
 import { FORK_TEAM_WATCHDOG_ROUTINE_ID } from "./fork-team-routines";
 import type { ThreadItem } from "./protocol";
 
-export { FORK_TEAM_WATCHDOG_ROUTINE_ID, FORK_TEAM_WATCHDOG_ROUTINE_NAME } from "./fork-team-routines";
-export const FORK_TEAM_WATCHDOG_HEADER = "[OpenBot: 🐕 team watchdog]";
+const FORK_TEAM_WATCHDOG_HEADER = "[OpenBot: 🐕 team watchdog]";
 
 /** Test switches: `OPENBOT_FORK_TEAM_WATCHDOG_SWEEP_MS`, `..._QUIET_MS`, `..._GAP_MS`, `..._LOOP_REPEATS`, `..._LOOP_FAILURES`. */
 const SWEEP_MS = () => envNumber("OPENBOT_FORK_TEAM_WATCHDOG_SWEEP_MS", 60_000);
-export const watchdogThresholds = () => ({
+const watchdogThresholds = () => ({
   quietMs: envNumber("OPENBOT_FORK_TEAM_WATCHDOG_QUIET_MS", 20 * 60_000),
   repeats: Math.max(2, envNumber("OPENBOT_FORK_TEAM_WATCHDOG_LOOP_REPEATS", 4)),
   failures: Math.max(1, envNumber("OPENBOT_FORK_TEAM_WATCHDOG_LOOP_FAILURES", 3)),
@@ -50,11 +49,11 @@ const TOOL_LOG_TURNS = 200;
 const TOOL_LOG_STEPS = 64;
 const SIGNATURE_KEYS = ["arguments", "input", "rawInput", "command", "path", "file_path", "pattern", "query", "url"];
 
-export function teamWatchdogEnabled(): boolean {
+function teamWatchdogEnabled(): boolean {
   return process.env.OPENBOT_FORK_TEAM_WATCHDOG !== "0";
 }
 
-export type WatchPattern = "quiet" | "looping" | "overdue";
+type WatchPattern = "quiet" | "looping" | "overdue";
 
 /** One tool call of a running turn. */
 export interface WatchToolStep {
@@ -166,7 +165,7 @@ export interface WatchFlag {
   evidence: string;
 }
 
-export function flagKey(requestId: string, teammateId: string, pattern: WatchPattern): string {
+function flagKey(requestId: string, teammateId: string, pattern: WatchPattern): string {
   return `${requestId}:${teammateId}:${pattern}`;
 }
 
@@ -261,7 +260,7 @@ const ACTIONS: Record<WatchPattern, string> = {
 };
 
 /** The wake: the whole prompt of the lead's turn. */
-export function watchdogText(input: {
+function watchdogText(input: {
   flags: ReadonlyArray<WatchFlag & { teammateName: string }>;
   timezone: string | undefined;
 }): string {

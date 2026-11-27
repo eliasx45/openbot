@@ -26,7 +26,7 @@ const OUTPUT_LIMIT = 1_200;
 const OUTPUT_KEEP = 64_000;
 
 /** Test switch `OPENBOT_FORK_TEAM_CHECK_TIMEOUT_MS`; 2 minutes by default. */
-export function teamCheckTimeoutMs(): number {
+function teamCheckTimeoutMs(): number {
   const value = Number(process.env.OPENBOT_FORK_TEAM_CHECK_TIMEOUT_MS);
   return Number.isFinite(value) && value > 0 ? value : 120_000;
 }

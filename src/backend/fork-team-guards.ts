@@ -35,8 +35,9 @@ import {
 } from "./fork-team-check";
 import { FORK_TEAM_CHECK_ROUTINE_ID } from "./fork-team-routines";
 
-export { FORK_TEAM_CHECK_ROUTINE_ID, FORK_TEAM_CHECK_ROUTINE_NAME } from "./fork-team-routines";
-export const FORK_TEAM_CHECK_HEADER = "[OpenBot: 🐕 team check]";
+export { FORK_TEAM_CHECK_ROUTINE_NAME } from "./fork-team-routines";
+
+const FORK_TEAM_CHECK_HEADER = "[OpenBot: 🐕 team check]";
 export const TEAM_DONE_WHEN_LIMIT = 1_000;
 export const TEAM_DUE_MINUTES_MAX = 7 * 24 * 60;
 const FILE = "fork-team-watchdog.json";
@@ -45,7 +46,7 @@ const KEEP_FLAGS_MS = 3 * 24 * 60 * 60_000;
 const EXCERPT_LIMIT = 120;
 
 /** Test switches: `OPENBOT_FORK_TEAM_MAX_HOPS`, `..._MAX_OPEN_PER_SENDER`, `..._MAX_OPEN_PER_TREE`, `..._OPEN_WINDOW_MS`. */
-export const teamLimits = () => ({
+const teamLimits = () => ({
   hops: envNumber("OPENBOT_FORK_TEAM_MAX_HOPS", 8),
   perSender: envNumber("OPENBOT_FORK_TEAM_MAX_OPEN_PER_SENDER", 16),
   perTree: envNumber("OPENBOT_FORK_TEAM_MAX_OPEN_PER_TREE", 64),
@@ -53,7 +54,7 @@ export const teamLimits = () => ({
 /** A request older than this no longer counts as open work (a lost reply must not block forever). */
 export const teamOpenWindowMs = () => envNumber("OPENBOT_FORK_TEAM_OPEN_WINDOW_MS", 24 * 60 * 60_000);
 
-export function teamGuardsEnabled(): boolean {
+function teamGuardsEnabled(): boolean {
   return process.env.OPENBOT_FORK_TEAM_GUARDS !== "0";
 }
 
@@ -549,7 +550,7 @@ export class ForkTeamGuards {
   }
 }
 
-export function checkFailedText(input: {
+function checkFailedText(input: {
   leadId: string;
   leadName: string;
   requestId: string;
