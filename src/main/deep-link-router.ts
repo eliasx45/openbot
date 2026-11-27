@@ -1,4 +1,5 @@
 import { parseAgentTemplateUrl } from "@openbot/contracts/agent-template-links";
+import { parseSavedAppLink } from "@openbot/contracts/fork-saved-apps";
 import { type InviteLinkOptions, parseInviteUrl } from "@openbot/contracts/invite-links";
 import { type MarketplaceListingLink, parseMarketplaceUrl } from "@openbot/contracts/marketplace-links";
 import { parsePluginUrl } from "@openbot/contracts/plugin-links";
@@ -10,7 +11,8 @@ export type DeepLink =
   | { kind: "marketplace"; link: MarketplaceListingLink }
   | { kind: "mcp-auth"; state: string; code: string }
   | { kind: "slack-workspace"; nonce: string; grant: string }
-  | { kind: "discord-guild"; nonce: string; grant: string };
+  | { kind: "discord-guild"; nonce: string; grant: string }
+  | { kind: "app"; id: string; window: boolean }; // Fork (docs/fork/FEATURES.md #123)
 
 export const MCP_OAUTH_REDIRECT_URL = "openbot://mcp-auth";
 
@@ -35,6 +37,10 @@ export function parseDeepLink(value: string, options: InviteLinkOptions = {}): D
   try {
     return { kind: "marketplace", link: parseMarketplaceUrl(value) };
   } catch {}
+
+  // Fork (docs/fork/FEATURES.md #123): openbot://app/<id>[?window=1], a saved app.
+  const savedApp = parseSavedAppLink(value);
+  if (savedApp) return { kind: "app", ...savedApp };
 
   return parseMcpAuthUrl(value) ?? parseSlackUrl(value);
 }
