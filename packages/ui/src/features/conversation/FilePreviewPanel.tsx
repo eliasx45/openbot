@@ -194,7 +194,10 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
         setPreviewUrl(null);
         return;
       }
-      const blob = new Blob([new Uint8Array(preview.bytes).buffer], { type: preview.mimeType });
+      // Fork (docs/fork/FEATURES.md #124): a framed blob: has the app's origin, so a PDF is only ever framed as a PDF.
+      const blob = new Blob([new Uint8Array(preview.bytes).buffer], {
+        type: preview.previewKind === "pdf" ? "application/pdf" : preview.mimeType,
+      });
       if (preview.previewKind === "image") {
         let current = true;
         setPreviewUrl(null);
