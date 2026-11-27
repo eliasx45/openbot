@@ -17,6 +17,8 @@ import type { ForkMemory } from "./fork-memory";
 import type { ForkProviderRestart } from "./fork-provider-hang";
 import type { ForkRestartResume } from "./fork-restart-resume";
 import type { ForkSectionInheritance } from "./fork-section-inheritance";
+import type { ForkTeamGuards } from "./fork-team-guards";
+import type { ForkTeamWatchdog } from "./fork-team-watchdog";
 import type { ForkVoiceNotes } from "./fork-voice-notes";
 
 /** Fork (docs/fork/FEATURES.md, "Agents ride out a network drop"): what a turn end of an agent's own chat tells it. */
@@ -79,6 +81,9 @@ export const forkHub: {
   restartResume: ForkRestartResume | null;
   /** Fork (docs/fork/FEATURES.md #130): team follow-through. */
   followThrough: ForkFollowThrough | null;
+  /** Fork (docs/fork/FEATURES.md #135): guards on agent-to-agent messages, and the team watchdog. */
+  teamGuards: ForkTeamGuards | null;
+  teamWatchdog: ForkTeamWatchdog | null;
   voiceNotes: ForkVoiceNotes | null;
   networkResume: ForkNetworkResume | null;
   /** Fork (docs/fork/FEATURES.md #108): shared defaults per sidebar section. The main process sets it. */
@@ -94,6 +99,8 @@ export const forkHub: {
   cacheCompact: null,
   restartResume: null,
   followThrough: null,
+  teamGuards: null,
+  teamWatchdog: null,
   voiceNotes: null,
   networkResume: null,
   sections: null,

@@ -58,6 +58,8 @@ import { mailboxReactionRowKey } from "./database/mailbox-projection";
 import type { FollowThroughReceived, FollowThroughTraffic } from "./fork-follow-through";
 // Fork (docs/fork/FEATURES.md #134): the shape of the mail that the team board reads.
 import type { TeamBoardMessage } from "./fork-team-board";
+// Fork (docs/fork/FEATURES.md #135): the shape of the requests that the team guards and watchdog read.
+import type { TeamRequestRecord } from "./fork-team-guards";
 import { MailboxDeliveryGate } from "./mailbox-delivery-gate";
 import { runIdOrigins } from "./message-run-ids";
 import type { OpenBotDatabase } from "./openbot-database";
@@ -4052,6 +4054,46 @@ export class MailboxStore {
       }
     }
   }, Effect.uninterruptible);
+
+  /**
+   * Fork (docs/fork/FEATURES.md #135): agents' requests to other agents since `since`, for the team
+   * guards and watchdog: each recipient's delivery and when it replied.
+   */
+  forkTeamRequests(since: string): TeamRequestRecord[] {
+    const cutoff = Date.parse(since);
+    const requests = this.#state.messages.filter(
+      (message) =>
+        message.sender.kind === "agent" && message.expectsReply !== false && !(Date.parse(message.createdAt) < cutoff),
+    );
+    if (requests.length === 0) return [];
+    const ids = new Set(requests.map((message) => message.id));
+    const replies = new Map<string, string>();
+    for (const message of this.#state.messages) {
+      if (message.sender.kind !== "agent" || !message.replyToMessageId || !ids.has(message.replyToMessageId)) continue;
+      const key = `${message.replyToMessageId}\u0000${message.sender.agentId}`;
+      if (!replies.has(key)) replies.set(key, message.createdAt);
+    }
+    const deliveries = new Map<string, StoredDelivery[]>();
+    for (const delivery of this.#state.deliveries)
+      if (ids.has(delivery.messageId))
+        deliveries.set(delivery.messageId, [...(deliveries.get(delivery.messageId) ?? []), delivery]);
+    return requests.map((message) => ({
+      id: message.id,
+      senderAgentId: message.sender.kind === "agent" ? message.sender.agentId : "",
+      text: message.text,
+      createdAt: message.createdAt,
+      channel: message.channelId !== undefined,
+      deliveries: (deliveries.get(message.id) ?? []).map((delivery) => ({
+        id: delivery.id,
+        recipientAgentId: delivery.recipientAgentId,
+        status: delivery.status,
+        turnId: delivery.turnId,
+        createdAt: delivery.createdAt,
+        steeredAt: delivery.steeredAt ?? null,
+        repliedAt: replies.get(`${message.id}\u0000${delivery.recipientAgentId}`) ?? null,
+      })),
+    }));
+  }
 }
 
 function normalizeStoredState(value: StoredState): StoredState {

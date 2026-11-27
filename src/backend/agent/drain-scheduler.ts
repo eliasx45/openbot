@@ -27,6 +27,8 @@ import { isForkCacheRoutine } from "../fork-cache-compact";
 // Fork (docs/fork/FEATURES.md #130): the team follow-through wake runs in the lead's own session.
 import { FORK_FOLLOW_THROUGH_ROUTINE_ID } from "../fork-follow-through";
 import { FORK_RESTART_RESUME_ROUTINE_ID } from "../fork-restart-resume";
+// Fork (docs/fork/FEATURES.md #135): the team watchdog's and team check's messages run in the agent's own session.
+import { isForkTeamRoutine } from "../fork-team-routines";
 import { channelLane, type DeliveryContext, laneChannelId, type MailboxStore, MESSAGING_LANE } from "../mailbox-store";
 import type { MessagingThreads } from "../messaging/messaging-threads";
 import { decodeTurnResponse } from "../protocol";
@@ -1441,6 +1443,7 @@ export class DrainScheduler {
       routineId === FORK_WAIT_ROUTINE_ID ||
       routineId === FORK_RESTART_RESUME_ROUTINE_ID ||
       routineId === FORK_FOLLOW_THROUGH_ROUTINE_ID || // Fork (docs/fork/FEATURES.md #130): team follow-through.
+      isForkTeamRoutine(routineId) || // Fork (docs/fork/FEATURES.md #135): team watchdog and team check.
       isForkCacheRoutine(routineId)
     )
       return false;

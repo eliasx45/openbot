@@ -3792,7 +3792,39 @@ export class OpenBotToolRouter {
         throw new Error(
           "status and next are only for your reply to a request: pass replyToMessageId with the id of the request that you answer, or leave them out.",
         );
-      const text = report ? withReportStatus(params.arguments.text, report.status, report.next) : params.arguments.text;
+      // Fork (docs/fork/FEATURES.md #135): the hop count, open-request caps and mutual waits of agent
+      // messages, the request's dueMinutes/doneWhen/check, and the check of a "Status: done" reply.
+      const teamGuards = forkHub.teamGuards;
+      const writtenText = report
+        ? withReportStatus(params.arguments.text, report.status, report.next)
+        : params.arguments.text;
+      const teamPlan = teamGuards?.planSend({
+        senderAgentId,
+        recipientAgentIds: recipientValues,
+        expectsReply: expectsReply !== false,
+        replyTo: replyTo || null,
+        turnDeliveries: turnDeliveries.map(({ delivery }) => ({
+          messageId: delivery.messageId,
+          sender: delivery.sender,
+          replyToMessageId: delivery.replyToMessageId,
+          expectsReply: delivery.expectsReply !== false,
+        })),
+        args: params.arguments,
+      });
+      if (teamPlan && "refusal" in teamPlan) return openBotToolFailure(teamPlan.refusal);
+      const replyGate = teamGuards
+        ? yield* Effect.promise(() =>
+            teamGuards.gateReply({
+              teammateId: senderAgentId,
+              requestId: replyTo || null,
+              recipientAgentIds: recipientValues,
+              text: writtenText,
+              via: "tool",
+            }),
+          )
+        : null;
+      if (replyGate?.kind === "refuse") return openBotToolFailure(replyGate.message);
+      const text = replyGate?.kind === "send" ? replyGate.text : writtenText;
       const receipt = yield* this.#mailbox
         .enqueue({
           sender: { kind: "agent", agentId: senderAgentId },
@@ -3809,6 +3841,7 @@ export class OpenBotToolRouter {
           idempotencyKey: toolCallIdempotencyKey(params),
         })
         .pipe(toToolOperationFailed);
+      if (teamPlan && "meta" in teamPlan) teamGuards?.recordSend(receipt.messageId, teamPlan); // Fork (docs/fork/FEATURES.md #135).
       const deliveries = yield* Effect.forEach(
         receipt.deliveries,
         (delivery) =>

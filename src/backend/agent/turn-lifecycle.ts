@@ -3276,6 +3276,21 @@ export class TurnLifecycle {
     recipientAgentId: string,
     text: string,
   ) {
+    // Fork (docs/fork/FEATURES.md #135): a "Status: done" answer to a request with a check runs it first;
+    // the first failure goes back to the teammate instead of to the requester.
+    const teamGuards = forkHub.teamGuards;
+    const gate = teamGuards
+      ? yield* Effect.promise(() =>
+          teamGuards.gateReply({
+            teammateId: agentId,
+            requestId: messageId,
+            recipientAgentIds: [recipientAgentId],
+            text,
+            via: "auto",
+          }),
+        )
+      : null;
+    if (gate?.kind === "held" || gate?.kind === "refuse") return;
     const answerTaskId = this.#mailbox.answerTaskId(agentId, messageId, [recipientAgentId]);
     const taskId = answerTaskId && this.#hooks.taskOpen(answerTaskId) ? answerTaskId : undefined;
     const receipt = yield* this.#mailbox
@@ -3283,7 +3298,7 @@ export class TurnLifecycle {
         sender: { kind: "agent", agentId },
         requesterIds: this.#mailbox.requesterIds(messageId),
         recipientAgentIds: [recipientAgentId],
-        text,
+        text: gate?.kind === "send" ? gate.text : text,
         replyToMessageId: messageId,
         ...(taskId ? { taskId } : {}),
         expectsReply: false,
@@ -3632,6 +3647,8 @@ export class TurnLifecycle {
       if (isNoUpdateToolCall(item))
         this.#noUpdateSteps.set(turnId, (this.#noUpdateSteps.get(turnId) ?? new Set()).add(item.id));
       const failed = completed && toolFailed(item);
+      // Fork (docs/fork/FEATURES.md #135): the team watchdog sees the tool calls of running turns.
+      forkHub.teamWatchdog?.tools.observe(turnId, item, completed, failed);
       this.#traces.observe(turnId, item.id, "tool", {
         completed,
         failed,

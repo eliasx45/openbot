@@ -364,6 +364,14 @@ import { ForkMemory } from "./fork-memory";
 import { FORK_RESTART_RESUME_ROUTINE_ID, ForkRestartResume, type ForkRestartResumeHooks } from "./fork-restart-resume";
 // Fork (docs/fork/FEATURES.md #134): the team board.
 import { buildTeamBoard, teamBoardHours, teamBoardOverdueMs } from "./fork-team-board";
+// Fork (docs/fork/FEATURES.md #135): team watchdogs and guards.
+import { FORK_TEAM_CHECK_ROUTINE_NAME, ForkTeamGuards, type ForkTeamGuardsHooks } from "./fork-team-guards";
+import {
+  FORK_TEAM_CHECK_ROUTINE_ID,
+  FORK_TEAM_WATCHDOG_ROUTINE_ID,
+  FORK_TEAM_WATCHDOG_ROUTINE_NAME,
+} from "./fork-team-routines";
+import { ForkTeamWatchdog, type ForkTeamWatchdogHooks } from "./fork-team-watchdog";
 import { ForkVoiceNotes } from "./fork-voice-notes";
 import type { HostMemory } from "./host-memory";
 import type { SignInRegion } from "./kimi-region";
@@ -1070,6 +1078,15 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     forkHub.followThrough = new ForkFollowThrough({ hooks: this.#followThroughHooks(restartResumeHooks) });
     // Fork (docs/fork/FEATURES.md #134): the team board of openbot.team_board.
     forkHub.teamBoard = (leadId, hours) => this.#forkTeamBoard(leadId, hours);
+    // Fork (docs/fork/FEATURES.md #135): guards on agent-to-agent messages, and the team watchdog.
+    const teamGuards = new ForkTeamGuards({
+      databasePath: store.database.path,
+      hooks: this.#teamGuardsHooks(restartResumeHooks),
+    });
+    forkHub.teamGuards = teamGuards;
+    forkHub.teamWatchdog = new ForkTeamWatchdog({
+      hooks: this.#teamWatchdogHooks(restartResumeHooks, waitStore, teamGuards),
+    });
     // Fork (docs/fork/FEATURES.md, "Voice notes").
     forkHub.voiceNotes = new ForkVoiceNotes({
       databasePath: store.database.path,
@@ -2157,6 +2174,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         quietRoutineDelivery: (deliveryId) =>
           this.#forkKeepWarmDelivery(deliveryId) ||
           this.#forkFollowThroughDelivery(deliveryId) ||
+          this.#forkTeamWatchdogDelivery(deliveryId) || // Fork (docs/fork/FEATURES.md #135).
           this.#routines.quietRunForDelivery(deliveryId),
         closeRoutineSession: (externalThreadId, archive) => this.#threads.closeRoutineThread(externalThreadId, archive),
         conversationTurnEnded: (agentId, sideThreadId, counts, memoryCommitted) =>
@@ -4946,6 +4964,90 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     };
   }
 
+  /** Fork (docs/fork/FEATURES.md #135): an OpenBot message to an agent in its own chat, as a routine wake. */
+  #forkTeamEnqueue(
+    routine: { id: string; name: string },
+    input: { agentId: string; runId: string; text: string; idempotencyKey: string },
+  ): Promise<string> {
+    return Effect.runPromise(
+      this.#routines.enqueueHandoff({
+        run: {
+          id: input.runId,
+          routineId: routine.id,
+          routineName: routine.name,
+          scheduledFor: new Date().toISOString(),
+        },
+        agentId: input.agentId,
+        text: input.text,
+        idempotencyKey: input.idempotencyKey,
+      }),
+    );
+  }
+
+  /** Fork (docs/fork/FEATURES.md #135): the team guards read the mailbox and run checks in the lead's workspace. */
+  #teamGuardsHooks(resume: ForkRestartResumeHooks): ForkTeamGuardsHooks {
+    const find = (agentId: string) => this.#store.list().find((agent) => agent.id === agentId);
+    return {
+      name: (agentId) => find(agentId)?.name ?? agentId,
+      requests: (since) => this.#mailbox.forkTeamRequests(since),
+      messageSender: (messageId) => this.#mailbox.requestSenderAgentId(messageId),
+      workspace: (agentId) => {
+        const agent = find(agentId);
+        return agent ? agentSessionCwd(agent) : null;
+      },
+      enqueue: (input) =>
+        this.#forkTeamEnqueue({ id: FORK_TEAM_CHECK_ROUTINE_ID, name: FORK_TEAM_CHECK_ROUTINE_NAME }, input),
+      timezone: () => resume.timezone(),
+      log: (message, details) => resume.log(message, details),
+    };
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md #135): the team watchdog reads the mailbox, the teammate's running turn
+   * and its waits, and queues its wake only when the restart wake would (`#followThroughHooks`).
+   */
+  #teamWatchdogHooks(
+    resume: ForkRestartResumeHooks,
+    waitStore: AgentWaitStore,
+    guards: ForkTeamGuards,
+  ): ForkTeamWatchdogHooks {
+    return {
+      agent: (agentId) => {
+        if (!resume.agent(agentId)) return null;
+        const agent = this.#store.list().find((candidate) => candidate.id === agentId);
+        return agent ? { name: agent.name } : null;
+      },
+      requests: (since) => this.#mailbox.forkTeamRequests(since),
+      store: guards.store,
+      executionDelivery: (deliveryId) => resume.executionDelivery(deliveryId),
+      turnStartedAt: (turnId) => this.#turn.turnStartedAt(turnId),
+      lastEventAt: (agentId) => this.#turn.lastEventAt(agentId),
+      declaredWait: (agentId) => waitStore.list(agentId).find((wait) => wait.wokenAt === null)?.note ?? null,
+      // Background subagents still run after the turn's answer (Antigravity holds its prompt open for them).
+      backgroundHold: (agentId, turnId) => {
+        const snapshot = this.#conversation.snapshotWithTurn(agentId, turnId);
+        if (!snapshot) return false;
+        const inTurn = snapshot.messages.filter((message) => message.turnId === turnId);
+        const running = inTurn.some((message) =>
+          (message.subagents ?? []).some((subagent) => subagent.background === true && subagent.status === "running"),
+        );
+        return (
+          running &&
+          inTurn.some((message) => message.author === "assistant" && !message.subagents && message.text.trim() !== "")
+        );
+      },
+      keyUsed: (key) => this.#mailbox.receiptForKey(key) !== null,
+      laneBusy: (agentId) => resume.laneBusy(agentId),
+      laneQueued: (agentId) => resume.laneQueued(agentId),
+      providerReady: (agentId) => resume.providerReady(agentId),
+      enqueue: (input) =>
+        this.#forkTeamEnqueue({ id: FORK_TEAM_WATCHDOG_ROUTINE_ID, name: FORK_TEAM_WATCHDOG_ROUTINE_NAME }, input),
+      timezone: () => resume.timezone(),
+      isRunning: () => resume.isRunning(),
+      log: (message, details) => resume.log(message, details),
+    };
+  }
+
   #noteRefreshWait(agentId: string, wait: { subagents: number; until: number | null; mcp: boolean }): void {
     if (wait.until === null || wait.subagents === 0) return;
     const params = { count: wait.subagents, minutes: Math.max(1, Math.round((wait.until - Date.now()) / 60_000)) };
@@ -5687,6 +5789,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       this.#routineTimer.arm();
       forkHub.restartResume?.start(); // Fork: "Agents continue after a restart".
       forkHub.followThrough?.start(); // Fork (docs/fork/FEATURES.md #130): team follow-through.
+      forkHub.teamWatchdog?.start(); // Fork (docs/fork/FEATURES.md #135): team watchdog.
     });
   }).bind(this);
 
@@ -6358,6 +6461,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     forkHub.followThrough?.dispose(); // Fork (docs/fork/FEATURES.md #130).
     forkHub.followThrough = null;
     forkHub.teamBoard = null; // Fork (docs/fork/FEATURES.md #134).
+    forkHub.teamWatchdog?.dispose(); // Fork (docs/fork/FEATURES.md #135).
+    forkHub.teamWatchdog = null;
+    forkHub.teamGuards = null;
     forkHub.voiceNotes = null;
     forkHub.networkResume = null;
     forkHub.goals = null;
@@ -7760,6 +7866,12 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
   #forkFollowThroughDelivery(deliveryId: string): boolean {
     const sender = this.#mailbox.getDelivery(deliveryId)?.delivery.sender;
     return sender?.kind === "routine" && sender.routineId === FORK_FOLLOW_THROUGH_ROUTINE_ID;
+  }
+
+  // Fork (docs/fork/FEATURES.md #135): the team watchdog's wake may end with routine_no_update.
+  #forkTeamWatchdogDelivery(deliveryId: string): boolean {
+    const sender = this.#mailbox.getDelivery(deliveryId)?.delivery.sender;
+    return sender?.kind === "routine" && sender.routineId === FORK_TEAM_WATCHDOG_ROUTINE_ID;
   }
 
   #forkCacheTurn(

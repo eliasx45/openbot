@@ -37,6 +37,7 @@ import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type { ConversationMessage, ConversationSubagent, QueueDelivery } from "@openbot/contracts/ipc";
 import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
+import { isForkTeamRoutine } from "./fork-team-routines";
 
 export const FORK_RESTART_RESUME_ROUTINE_ID = "fork-restart-resume";
 /**
@@ -353,7 +354,8 @@ export class ForkRestartResume {
       if (
         routineId !== WAIT_ROUTINE_ID &&
         routineId !== FORK_RESTART_RESUME_ROUTINE_ID &&
-        routineId !== FOLLOW_THROUGH_ROUTINE_ID
+        routineId !== FOLLOW_THROUGH_ROUTINE_ID &&
+        !isForkTeamRoutine(routineId) // Fork (docs/fork/FEATURES.md #135): team watchdog and team check.
       )
         return "routine run";
     }

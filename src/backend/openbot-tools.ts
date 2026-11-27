@@ -77,6 +77,9 @@ import { GOAL_STATUS_TOOL, goalStatusToolSchema } from "./fork-goals";
 import { MEMORY_JOURNAL_TOOL, MEMORY_UNDO_TOOL, memoryJournalToolSchema, memoryUndoToolSchema } from "./fork-memory";
 // Fork (docs/fork/FEATURES.md #134): the team board and the status of a report.
 import { TEAM_BOARD_DEFAULT_HOURS, TEAM_BOARD_MAX_HOURS, TEAM_BOARD_TOOL } from "./fork-team-board";
+// Fork (docs/fork/FEATURES.md #135): the limits of a request's check and done condition.
+import { TEAM_CHECK_COMMAND_LIMIT, TEAM_CHECK_PATH_LIMIT } from "./fork-team-check";
+import { TEAM_DONE_WHEN_LIMIT, TEAM_DUE_MINUTES_MAX } from "./fork-team-guards";
 import { SEND_VOICE_NOTE_TOOL, sendVoiceNoteToolSchema } from "./fork-voice-notes";
 import { MESSAGING_TOOL_DEFINITIONS } from "./messaging/messaging-tools";
 import { ROUTINE_FLOW_TOOL_DEFINITIONS } from "./routine-flows/routine-flow-tools";
@@ -1059,6 +1062,42 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
         .min(1)
         .max(TEAM_REPORT_NEXT_LIMIT)
         .describe("With status: the one next step, in one line, such as what you do next or what the sender must do.")
+        .optional(),
+      // Fork (docs/fork/FEATURES.md #135): a request's due time and done condition, for the team watchdog and check.
+      dueMinutes: z
+        .number()
+        .int()
+        .min(1)
+        .max(TEAM_DUE_MINUTES_MAX)
+        .describe(
+          "For a request: minutes until you expect the reply. When they pass without one, OpenBot tells you once.",
+        )
+        .optional(),
+      doneWhen: z
+        .string()
+        .min(1)
+        .max(TEAM_DONE_WHEN_LIMIT)
+        .describe(
+          "For a request: when the work counts as done. The recipient sees it; you see it again with the reply.",
+        )
+        .optional(),
+      check: z
+        .strictObject({
+          kind: z.enum(["file", "command"]),
+          path: z
+            .string()
+            .max(TEAM_CHECK_PATH_LIMIT)
+            .describe("kind file: a path that must exist, from your workspace.")
+            .optional(),
+          command: z
+            .string()
+            .max(TEAM_CHECK_COMMAND_LIMIT)
+            .describe("kind command: a shell command that must exit 0, run in your workspace (2 min limit).")
+            .optional(),
+        })
+        .describe(
+          "For a request: plain code that OpenBot runs when the reply says Status: done. A failed check sends the reply back to the recipient once; a second failure reaches you marked as failed.",
+        )
         .optional(),
     },
   },
