@@ -11,6 +11,7 @@ import {
   type ManagedProviderId,
 } from "@openbot/contracts/agent-providers";
 import { leadingAddress } from "@openbot/contracts/chat-tag-references";
+import { isChatVisualMimeType } from "@openbot/contracts/chat-visual";
 import { selfHostedApiOrigin } from "@openbot/contracts/invite-links";
 import type {
   AgentProviderStatus,
@@ -259,6 +260,7 @@ import { feedbackFacts, feedbackSender } from "./feedback";
 import { updatesAllowed as forkUpdatesAllowed } from "./fork";
 import { CHANNEL_WEBHOOKS_FILE, ChannelWebhookService, forkChannelWebhooks } from "./fork-channel-webhooks";
 import { ForkPhoneVideo, forkPhoneVideo } from "./fork-phone-video";
+import { createSavedApps, type SavedApps } from "./fork-saved-apps";
 import { createForkSectionDefaults } from "./fork-section-defaults";
 import { githubAppConfig } from "./github-connector-config";
 import { GitHubConnectorService } from "./github-connector-service";
@@ -741,6 +743,9 @@ export interface ApplicationServices {
   sidebarLayout: SidebarLayoutStore;
   /** Fork (docs/fork/FEATURES.md #108): shared defaults per sidebar section. */
   sectionDefaults: ForkSectionInheritance;
+  /** Fork (docs/fork/FEATURES.md #123): saved apps. */
+  savedApps: SavedApps;
+  savedAppsDir: string;
   host: HostService;
   remoteDesktop: RemoteDesktopManager;
   remoteServers: RemoteServerManager;
@@ -3924,7 +3929,43 @@ export async function createApplicationServices({
       write: (line) => process.stdout.write(line),
     });
   }
-  configureAttachmentProtocol({ mailbox, agents: service, remoteServers });
+  // Fork (docs/fork/FEATURES.md #123): saved apps, the follow-newest hook and their page protocol.
+  const savedAppsDir = join(app.getPath("userData"), "saved-apps");
+  const localPageThread = (attachmentId: string) => {
+    const scope = mailbox.forkAttachmentScope(attachmentId);
+    return scope && !scope.draft ? { agentIds: scope.agentIds, threadId: scope.threadId ?? "" } : null;
+  };
+  const savedApps = createSavedApps({
+    dir: savedAppsDir,
+    localServerId: LOCAL_SERVER_ID,
+    localPageThread,
+    readLocalPage: async (attachmentId) => {
+      const page = localPageThread(attachmentId);
+      const attachment = page ? await runCauseEffect(mailbox.resolveAttachment(attachmentId)) : null;
+      if (!page || !attachment || !isChatVisualMimeType(attachment.mimeType)) return null;
+      return { ...page, html: new Uint8Array(await readFile(attachment.path)) };
+    },
+    readRemotePage: async (serverId, attachmentId) => {
+      const attachment = await runCauseEffect(remoteServers.downloadAttachment(attachmentId, serverId));
+      return isChatVisualMimeType(attachment.mimeType) ? attachment.bytes : null;
+    },
+    agentName: (serverId, agentId) =>
+      serverId === LOCAL_SERVER_ID ? (service.listAgents().find((agent) => agent.id === agentId)?.name ?? null) : null,
+    changed: (apps) => {
+      for (const window of BrowserWindow.getAllWindows())
+        sendToRenderer(window, IPC_ENDPOINTS.app.forkSavedAppsChanged, apps);
+    },
+  });
+  forkHub.savedApps = {
+    pageAdded: (page) => {
+      setTimeout(() => {
+        savedApps.pageAdded(page).catch((error: unknown) => {
+          logger.warn("A saved app did not take the new page.", toLogValue(error));
+        });
+      }, 0);
+    },
+  };
+  configureAttachmentProtocol({ mailbox, agents: service, remoteServers, savedApps });
   configureServerLogoProtocols({ teamStore, remoteServers });
   const browserView = new BrowserViewClient({
     servers: remoteServers,
@@ -4346,6 +4387,8 @@ export async function createApplicationServices({
 
   return {
     service,
+    savedApps,
+    savedAppsDir,
     workflows: workflowRuntime,
     workflowGitHub,
     crm,

@@ -45,6 +45,7 @@ import type { HighlightDisplay } from "./computer-use-highlight-window";
 import { shouldShowDevelopmentWindow } from "./development-profile";
 import { dynamicIslandNotchSizeForDisplay } from "./dynamic-island-window";
 import { forwardChatScrollLog } from "./fork-chat-scroll-log";
+import { readSavedAppWindowSize, type SavedApps, writeSavedAppWindowSize } from "./fork-saved-apps";
 import { type InterfaceSizeService, type InterfaceSizeStep, interfaceSizeShortcut } from "./interface-size-service";
 import { withLocalHostSummary } from "./ipc/team-handlers";
 import { desktopLayoutZoomFactor, onTilingLinuxDesktop, windowMinimumSize } from "./linux-tiling-desktop";
@@ -84,6 +85,9 @@ interface MainWindowApplicationServices {
   host: { getStatus(): HostStatus };
   remoteServers: RemoteServerManager;
   interfaceSize: InterfaceSizeService;
+  /** Fork (docs/fork/FEATURES.md #123): saved apps and where their window sizes are kept. */
+  savedApps?: SavedApps;
+  savedAppsDir?: string;
 }
 
 const CHAT_EDIT_ACTIONS = {
@@ -146,6 +150,9 @@ export interface MainWindowController {
   chatWindowTarget: (window: BrowserWindow) => ChatWindowTarget | null;
   chatWindowTargets: () => ChatWindowTarget[];
   openChatWindow: (target: ChatWindowTarget) => void;
+  /** Fork (docs/fork/FEATURES.md #123): a saved app in a window of its own, one window per app. */
+  openSavedAppWindow: (id: string) => void;
+  savedAppWindowId: (window: BrowserWindow) => string | null;
   openMainWindow: () => BrowserWindow;
   ensureMainWindow: () => Promise<BrowserWindow>;
   loadRenderer: (window: BrowserWindow) => Promise<void>;
@@ -475,6 +482,91 @@ export function createMainWindowController({
     });
   }
 
+  // Fork (docs/fork/FEATURES.md #123): a saved app's own window, kept and reused per app, with its last size.
+  const savedAppWindows = new Map<string, BrowserWindow>();
+
+  function openSavedAppWindow(id: string): void {
+    const existing = savedAppWindows.get(id);
+    if (existing && !existing.isDestroyed()) {
+      if (existing.isMinimized()) existing.restore();
+      existing.show();
+      existing.focus();
+      return;
+    }
+    const services = getServices();
+    const record = services?.savedApps?.get(id);
+    const dir = services?.savedAppsDir;
+    if (!record || !dir) return;
+    const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+    const kept = readSavedAppWindowSize(dir, id);
+    const minimum = { minWidth: 420, minHeight: 360 };
+    const width = Math.max(minimum.minWidth, Math.min(kept?.width ?? 1100, area.width));
+    const height = Math.max(minimum.minHeight, Math.min(kept?.height ?? 760, area.height));
+    const window = new BrowserWindow({
+      width,
+      height,
+      ...windowMinimumSize(minimum),
+      show: false,
+      ...glassWindowOptions(MAIN_WINDOW_DARK_BACKGROUND),
+      title: `${record.name} · OpenBot`,
+      icon: appIconPath,
+      ...(process.platform === "darwin"
+        ? { titleBarStyle: "hidden" as const, trafficLightPosition: WINDOW_BUTTON_INSET }
+        : {}),
+      webPreferences: {
+        preload: join(__dirname, "../preload/index.cjs"),
+        contextIsolation: true,
+        devTools: true,
+        sandbox: true,
+        nodeIntegration: false,
+        webSecurity: true,
+      },
+    });
+    hideMenuBar(window);
+    followWindowGlass(window, MAIN_WINDOW_DARK_BACKGROUND);
+    savedAppWindows.set(id, window);
+    window.once("ready-to-show", () => window.show());
+    window.on("close", () => {
+      if (window.isMinimized() || window.isFullScreen()) return;
+      const [shownWidth, shownHeight] = window.getSize();
+      const apps = getServices()?.savedApps;
+      if (!shownWidth || !shownHeight || !apps) return;
+      try {
+        writeSavedAppWindowSize(
+          dir,
+          id,
+          { width: shownWidth, height: shownHeight },
+          new Set(apps.list().map((app) => app.id)),
+        );
+      } catch (error) {
+        reportError("Could not keep the app window size", error);
+      }
+    });
+    window.on("closed", () => {
+      if (savedAppWindows.get(id) === window) savedAppWindows.delete(id);
+    });
+    window.webContents.on("render-process-gone", () => {
+      if (!window.isDestroyed()) window.destroy();
+    });
+    window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    window.webContents.on("will-navigate", (event, targetUrl) => {
+      if (!isTrustedRendererUrl(targetUrl)) event.preventDefault();
+    });
+    window.webContents.on("did-navigate", () => {
+      const interfaceSize = getServices()?.interfaceSize;
+      if (interfaceSize) window.webContents.setZoomFactor(interfaceSize.zoomFactor);
+    });
+    attachAppInput(window, getServices, getTranslate, { closesBrowserTabs: false, quitShortcut });
+    followWindowButtonSide(window, getLayoutDirection);
+    const url = appRendererUrl(process.env.ELECTRON_RENDERER_URL);
+    url.searchParams.set("window", "app");
+    url.searchParams.set("app", id);
+    window.loadURL(url.toString()).catch((error: unknown) => {
+      reportError("Could not load the app window", error);
+      if (!window.isDestroyed()) window.destroy();
+    });
+  }
+
   function openMainWindow(): BrowserWindow {
     const window = createWindow();
     holder.current = window;
@@ -517,11 +609,16 @@ export function createMainWindowController({
       if (holder.current) applyMainWindowZoom(holder.current);
       for (const chat of chatWindows.values())
         if (!chat.window.isDestroyed()) chat.window.webContents.setZoomFactor(zoomFactor);
+      for (const shown of savedAppWindows.values()) // Fork (docs/fork/FEATURES.md #123)
+        if (!shown.isDestroyed()) shown.webContents.setZoomFactor(zoomFactor);
     },
     chatWindowTarget: (window: BrowserWindow) =>
       [...chatWindows.values()].find((chat) => chat.window === window)?.target ?? null,
     chatWindowTargets,
     openChatWindow,
+    openSavedAppWindow,
+    savedAppWindowId: (window: BrowserWindow) =>
+      [...savedAppWindows.entries()].find(([, shown]) => shown === window)?.[0] ?? null,
     openMainWindow,
     ensureMainWindow,
     loadRenderer,

@@ -13,6 +13,7 @@ import { inlineContentDisposition } from "./content-disposition";
 import { buildContentSecurityPolicy, readSelfHostedSignalOrigin } from "./content-security-policy";
 import { filePreviewPages } from "./file-preview-pages";
 import { bytesResponse, fileResponse } from "./file-response";
+import type { SavedApps } from "./fork-saved-apps";
 import { canAnswerRemoteRanges } from "./remote-attachment-cache";
 import type { RemoteServerManager } from "./remote-server-manager";
 import { parseRemoteAvatarUrl, remoteAttachmentPreviewSize } from "./remote-server-urls";
@@ -61,6 +62,8 @@ export interface AttachmentProtocolDependencies {
   mailbox: MailboxStore;
   agents: AgentService;
   remoteServers: RemoteServerManager;
+  /** Fork (docs/fork/FEATURES.md #123): openbot-visual://app/<id>?rev=N serves a saved app's page. */
+  savedApps: SavedApps;
 }
 
 function asksForPreview(url: URL): boolean {
@@ -71,7 +74,12 @@ function asksToOpen(url: URL): boolean {
   return url.searchParams.get("open") === "1";
 }
 
-export function configureAttachmentProtocol({ mailbox, agents, remoteServers }: AttachmentProtocolDependencies): void {
+export function configureAttachmentProtocol({
+  mailbox,
+  agents,
+  remoteServers,
+  savedApps,
+}: AttachmentProtocolDependencies): void {
   const logger = createOpenBotLogger("attachment-protocol");
   session.defaultSession.protocol.handle("openbot-attachment", async (request) => {
     try {
@@ -135,6 +143,13 @@ export function configureAttachmentProtocol({ mailbox, agents, remoteServers }: 
     try {
       const url = new URL(request.url);
       if (url.hostname === "preview") return await filePreviewPages.response(request);
+      if (url.hostname === "app") {
+        // Fork (docs/fork/FEATURES.md #123)
+        const appId = url.pathname.split("/").filter(Boolean)[0] ?? "";
+        const rev = url.searchParams.get("rev");
+        const page = savedApps.page(appId, rev && /^\d{1,6}$/u.test(rev) ? Number(rev) : undefined);
+        return page ? chatVisualResponse(page) : new Response("Not found", { status: 404 });
+      }
       const id = url.hostname === "file" ? url.pathname.split("/").filter(Boolean).at(-1) : undefined;
       const attachment = id ? await runCauseEffect(mailbox.resolveAttachment(id)) : null;
       if (!attachment || !isChatVisualMimeType(attachment.mimeType)) return new Response("Not found", { status: 404 });

@@ -37,6 +37,11 @@ export interface ForkChannelWebhooks {
   }): void;
 }
 
+/** Fork (docs/fork/FEATURES.md #123): a new chat page (html_render) can be a new version of a saved app. */
+export interface ForkSavedAppsHook {
+  pageAdded(page: { agentId: string; threadId: string; messageId: string; attachmentId: string; title: string }): void;
+}
+
 export const forkHub: {
   goals: ForkGoals | null;
   memory: ForkMemory | null;
@@ -48,6 +53,7 @@ export const forkHub: {
   /** Fork (docs/fork/FEATURES.md #108): shared defaults per sidebar section. The main process sets it. */
   sections: ForkSectionInheritance | null;
   channelWebhooks: ForkChannelWebhooks | null;
+  savedApps: ForkSavedAppsHook | null;
 } = {
   goals: null,
   memory: null,
@@ -58,4 +64,5 @@ export const forkHub: {
   networkResume: null,
   sections: null,
   channelWebhooks: null,
+  savedApps: null,
 };

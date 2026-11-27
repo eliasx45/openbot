@@ -8,6 +8,16 @@ import type { BillingDetails, BillingDetailsRequest } from "./billing-details";
 import type { CustomServerCheckoutRequest, CustomServerCheckoutResult } from "./custom-server-plans";
 import type { ChannelWebhookChange, ChannelWebhookSettings } from "./fork-channel-webhooks";
 import type {
+  PageStateReply,
+  PageStateRequest,
+  PinSavedAppInput,
+  RenameSavedAppInput,
+  SaveAppPageInput,
+  SaveAppPageResult,
+  SavedApp,
+  SavedAppChatTarget,
+} from "./fork-saved-apps";
+import type {
   AgentSectionInheritance,
   SectionDefaultsEditor,
   SetSectionOptOutInput,
@@ -843,6 +853,20 @@ export const IPC_ENDPOINTS = {
     getChatWindows: request<undefined, ChatWindowTarget[]>()("app:get-chat-windows"),
     chatWindows: event<ChatWindowTarget[]>()("app:chat-windows"),
     quitShortcutHint: event<ClientAgentSummary[] | null>()("app:quit-shortcut-hint"),
+    // Fork (docs/fork/FEATURES.md #123): saved apps.
+    forkListSavedApps: request<undefined, SavedApp[]>()("app:fork-list-apps"),
+    forkGetSavedApp: request<string, SavedApp | null>()("app:fork-get-app"),
+    forkSaveAppPage: request<SaveAppPageInput, SaveAppPageResult>()("app:fork-save-page"),
+    forkRenameSavedApp: request<RenameSavedAppInput, SavedApp | null>()("app:fork-rename-app"),
+    forkPinSavedApp: request<PinSavedAppInput, SavedApp | null>()("app:fork-pin-app"),
+    forkRemoveSavedApp: request<string, boolean>()("app:fork-remove-app"),
+    forkPageState: request<PageStateRequest, PageStateReply>()("app:fork-page-state"),
+    forkOpenSavedAppWindow: request<string, void>()("app:fork-open-app-window"),
+    forkShowSavedAppChat: request<string, void>()("app:fork-show-app-chat"),
+    forkTakePendingSavedApp: request<undefined, string | null>()("app:fork-take-pending-app"),
+    forkSavedAppsChanged: event<SavedApp[]>()("app:fork-apps-changed"),
+    forkOpenSavedApp: event<string>()("app:fork-open-app"),
+    forkGoToSavedAppChat: event<SavedAppChatTarget>()("app:fork-go-to-chat"),
   },
   maintenance: {
     exportData: request<undefined, ExportResult>()("maintenance:export-data"),

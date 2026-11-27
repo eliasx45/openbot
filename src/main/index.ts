@@ -480,10 +480,15 @@ let systemSessionEnding = false;
 let systemSessionEndFlushStarted = false;
 let relaunchRequested = false;
 let quitStarted = false;
-type RendererDeepLink = Exclude<DeepLink, { kind: "mcp-auth" | "slack-workspace" | "discord-guild" }>;
+type RendererDeepLink = Exclude<DeepLink, { kind: "mcp-auth" | "slack-workspace" | "discord-guild" | "app" }>;
 
 let pendingDeepLink: RendererDeepLink | null = takeRendererDeepLink(findDeepLink(process.argv, inviteLinkOptions));
 let deepLinkReceiverReady = false;
+// Fork (docs/fork/FEATURES.md #123): openbot://app/<id>[?window=1] waits here until it can be shown.
+let pendingSavedAppLink: Extract<DeepLink, { kind: "app" }> | null = savedAppDeepLink(
+  findDeepLink(process.argv, inviteLinkOptions),
+);
+let pendingSavedAppId: string | null = null;
 
 const MAIN_WINDOW_STATE_FILE = "openbot-main-window-state-v1.json";
 const WM_ENDSESSION = 0x0016;
@@ -701,6 +706,7 @@ function attachWindowsSessionEndHandlers(window: BrowserWindow): void {
 
 function registerIpcHandlers({
   service,
+  savedApps,
   signInRelayClient,
   relayedMessagingInstalls,
   providerRuntimes,
@@ -852,6 +858,11 @@ function registerIpcHandlers({
       },
       openChatWindow: windows.openChatWindow,
       chatWindowTargets: windows.chatWindowTargets,
+      // Fork (docs/fork/FEATURES.md #123): saved apps.
+      savedApps,
+      openSavedAppWindow: windows.openSavedAppWindow,
+      showSavedAppChat,
+      takePendingSavedApp,
       trace,
       resources: resourceMonitor,
       startup,
@@ -1298,7 +1309,53 @@ function forwardCentralAuth(state: CentralAuthState): void {
   sendToRenderer(window, IPC_ENDPOINTS.auth.event, state);
 }
 
+// Fork (docs/fork/FEATURES.md #123): a saved app's link opens it in its own window or on the Apps page.
+function savedAppDeepLink(link: DeepLink | null): Extract<DeepLink, { kind: "app" }> | null {
+  return link?.kind === "app" ? link : null;
+}
+
+function acceptSavedAppLink(link: Extract<DeepLink, { kind: "app" }>): void {
+  if (!services) {
+    pendingSavedAppLink = link;
+    return;
+  }
+  pendingSavedAppLink = null;
+  if (link.window) {
+    windows.openSavedAppWindow(link.id);
+    return;
+  }
+  pendingSavedAppId = link.id;
+  const window = windowHolder.current;
+  if (!window || window.isDestroyed()) return;
+  showMainWindow(window);
+  if (deepLinkReceiverReady && sendToRenderer(window, IPC_ENDPOINTS.app.forkOpenSavedApp, link.id))
+    pendingSavedAppId = null;
+}
+
+function showSavedAppChat(id: string): void {
+  const savedApp = services?.savedApps.get(id);
+  const window = windowHolder.current;
+  if (!savedApp || !window || window.isDestroyed()) return;
+  showMainWindow(window);
+  sendToRenderer(window, IPC_ENDPOINTS.app.forkGoToSavedAppChat, {
+    serverId: savedApp.serverId,
+    agentId: savedApp.agentId,
+    messageId: savedApp.messageId,
+  });
+}
+
+function takePendingSavedApp(): string | null {
+  deepLinkReceiverReady = true;
+  const id = pendingSavedAppId;
+  pendingSavedAppId = null;
+  return id;
+}
+
 function acceptDeepLink(link: DeepLink): void {
+  if (link.kind === "app") {
+    acceptSavedAppLink(link);
+    return;
+  }
   if (link.kind === "mcp-auth") {
     receiveMcpAuthorizationCode(link.state, link.code);
     return;
@@ -1345,7 +1402,11 @@ function isDeepLinkKind<Kind extends RendererDeepLink["kind"]>(
 }
 
 function takeRendererDeepLink(link: DeepLink | null): RendererDeepLink | null {
-  return link && link.kind !== "mcp-auth" && link.kind !== "slack-workspace" && link.kind !== "discord-guild"
+  return link &&
+    link.kind !== "mcp-auth" &&
+    link.kind !== "slack-workspace" &&
+    link.kind !== "discord-guild" &&
+    link.kind !== "app" // Fork (docs/fork/FEATURES.md #123)
     ? link
     : null;
 }
@@ -1506,6 +1567,7 @@ if (!hasSingleInstanceLock) {
       });
       services = built;
       performance.mark("openbot:services-built");
+      if (pendingSavedAppLink) acceptSavedAppLink(pendingSavedAppLink); // Fork (docs/fork/FEATURES.md #123)
       placeWindowButtons(BrowserWindow.getAllWindows());
       if (app.isPackaged && !serverMode && !hostedServer && !localServerChild) {
         teardown.push(0, "app archive watch", watchAppArchive(process.resourcesPath, built.language.translate));

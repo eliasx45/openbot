@@ -1,8 +1,9 @@
+import { isPageStateKey, type PageStateOperation, type PageStateValue, pageStateValue } from "./fork-saved-apps";
 import { INPUT_LIMITS } from "./input-limits";
 import { type AvatarColor, isAvatarColor } from "./ipc-agent-identity";
 import { isBoundedString, isIdentifier } from "./ipc-bounded-values";
 import { SIGNED_OUT_CHANNEL_MEMBER_ID } from "./ipc-chat-channels";
-import { isBoolean, isDynamicRecord, isNumber, isOneOf } from "./runtime-values";
+import { type DynamicRecord, isBoolean, isDynamicRecord, isNumber, isOneOf } from "./runtime-values";
 
 export const CHAT_VISUAL_MIN_HEIGHT = 80;
 export const CHAT_VISUAL_MAX_HEIGHT = 2000;
@@ -20,6 +21,9 @@ export const CHAT_VISUAL_UPDATE_MODEL_CONTEXT = "ui/update-model-context";
 export const CHAT_VISUAL_OPEN_IMAGE = "openbot/notifications/open-image";
 export const CHAT_VISUAL_KEY_DOWN = "openbot/notifications/keydown";
 export const CHAT_VISUAL_SELECTION_CHANGED = "openbot/notifications/selection-changed";
+// Fork (docs/fork/FEATURES.md #123): openbotPage.state, the page's saved data.
+export const CHAT_VISUAL_PAGE_STATE = "openbot/page-state";
+export const CHAT_VISUAL_STATE_UNAVAILABLE = "Saved data is not available here.";
 
 export type ChatVisualDisplayMode = "inline" | "fullscreen";
 const DISPLAY_MODES: readonly ChatVisualDisplayMode[] = ["inline", "fullscreen"];
@@ -201,7 +205,8 @@ export type ChatVisualMessage =
   | { type: "refused"; id: number | string }
   | { type: "open-image"; src: string; name: string }
   | { type: "key"; key: ChatVisualKey }
-  | { type: "selection"; text: string; rect: ChatVisualRect };
+  | { type: "selection"; text: string; rect: ChatVisualRect }
+  | { type: "state"; id: number | string; request: PageStateOperation }; // Fork (docs/fork/FEATURES.md #123)
 
 export function chatVisualFrameHeight(reported?: number, requested?: number): number {
   const limit = requested !== undefined && Number.isFinite(requested) ? clampHeight(requested) : undefined;
@@ -243,6 +248,24 @@ export function chatVisualReplyMessage(id: number | string, result: ChatVisualRe
   return result
     ? ({ jsonrpc: "2.0", id, result } as const)
     : ({ jsonrpc: "2.0", id, error: { code: -32000, message: "Refused" } } as const);
+}
+
+// Fork (docs/fork/FEATURES.md #123): the answer to an openbotPage.state call, a value or an error text.
+export function chatVisualStateReplyMessage(
+  id: number | string,
+  reply: { ok: true; value: PageStateValue } | { ok: false; error: string },
+) {
+  return reply.ok
+    ? ({ jsonrpc: "2.0", id, result: reply.value ?? null } as const)
+    : ({ jsonrpc: "2.0", id, error: { code: -32000, message: reply.error } } as const);
+}
+
+function pageStateOperation(params: DynamicRecord): PageStateOperation | null {
+  if (params.op === "keys") return { op: "keys" };
+  if (!isPageStateKey(params.key)) return null;
+  if (params.op === "get") return { op: "get", key: params.key };
+  const value = pageStateValue(params.value ?? null);
+  return params.op === "set" && value !== undefined ? { op: "set", key: params.key, value } : null;
 }
 
 export function parseChatVisualMessage(data: unknown): ChatVisualMessage | null {
@@ -291,6 +314,12 @@ export function parseChatVisualMessage(data: unknown): ChatVisualMessage | null 
       if (!isBoundedString(text, CHAT_VISUAL_CONTEXT_LIMIT)) return null;
       if (!isEdge(top) || !isEdge(left) || !isEdge(bottom) || !isEdge(right)) return null;
       return { type: "selection", text: text.trim(), rect: { top, left, bottom, right } };
+    }
+    case CHAT_VISUAL_PAGE_STATE: {
+      // Fork (docs/fork/FEATURES.md #123)
+      const id = requestId(data.id);
+      const request = pageStateOperation(params);
+      return id !== null && request ? { type: "state", id, request } : refused(id);
     }
     default:
       return null;
@@ -379,7 +408,12 @@ sendMessage:(value)=>request("${CHAT_VISUAL_MESSAGE}",{role:"user",content:text(
 setContext:(value)=>request("${CHAT_VISUAL_UPDATE_MODEL_CONTEXT}",{content:text(value)}),
 requestFullscreen:()=>request("${CHAT_VISUAL_REQUEST_DISPLAY_MODE}",{mode:"fullscreen"}),
 exitFullscreen:()=>request("${CHAT_VISUAL_REQUEST_DISPLAY_MODE}",{mode:"inline"}),
-get displayMode(){return displayMode;}
+get displayMode(){return displayMode;},
+state:Object.freeze({
+get:(key)=>request("${CHAT_VISUAL_PAGE_STATE}",{op:"get",key:String(key)}),
+set:(key,value)=>{let json=null;try{json=value===undefined?null:JSON.parse(JSON.stringify(value)??"null");}catch(error){return Promise.reject(error);}return request("${CHAT_VISUAL_PAGE_STATE}",{op:"set",key:String(key),value:json}).then(()=>undefined);},
+keys:()=>request("${CHAT_VISUAL_PAGE_STATE}",{op:"keys"})
+})
 });
 let lastHeight=-1;
 const report=()=>{const height=Math.ceil(root.getBoundingClientRect().height);if(height===lastHeight)return;lastHeight=height;send({method:"${CHAT_VISUAL_SIZE_CHANGED}",params:{height}});};

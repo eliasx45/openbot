@@ -2731,7 +2731,17 @@ export class OpenBotToolRouter {
       text: args.title,
       itemType: chatVisualItemType(args.height),
       eventType: "response.visual-added",
-      detail: (attachmentId) => ({ turnId: params.turnId, messageId, attachmentId }),
+      detail: (attachmentId) => {
+        // Fork (docs/fork/FEATURES.md #123): a saved app of this page follows the new version.
+        forkHub.savedApps?.pageAdded({
+          agentId: senderAgentId,
+          threadId: executionThreadId,
+          messageId,
+          attachmentId,
+          title: args.title,
+        });
+        return { turnId: params.turnId, messageId, attachmentId };
+      },
     });
     return openBotToolResult({ status: "shown", messageId });
   });

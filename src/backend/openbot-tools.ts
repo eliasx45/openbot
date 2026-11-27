@@ -107,6 +107,8 @@ const VISUAL_PAGE_ACTIONS = [
   "For a choice, a form or a game, call openbotPage.sendMessage(text) from a click: OpenBot puts the text in the user's message box, and the user sends it.",
   `openbotPage.setContext(text) from a click keeps the page state as a quote in the user's message box, so you read it with the next message; up to ${CHAT_VISUAL_CONTEXT_LIMIT} characters, and empty text removes it.`,
   "OpenBot gives each page a full-screen button and opens a clicked image large, so do not build them. The mobile app runs page scripts but has no openbotPage, so check that window.openbotPage exists before you call it.",
+  // Fork (docs/fork/FEATURES.md #123): saved data for pages and saved apps.
+  "To keep data (a list, a score, settings) across reloads, use await openbotPage.state.get(key), .set(key, jsonValue) (null deletes) and .keys() when window.openbotPage?.state exists: it stays with the page, in its newer versions with the same title and in the app the user saves from it (up to 64 KB per value, 256 KB per page).",
 ].join(" ");
 
 export const htmlRenderToolSchema = z.object({

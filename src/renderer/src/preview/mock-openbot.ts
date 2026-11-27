@@ -1401,6 +1401,22 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
     getChatWindows: async () => [],
     onChatWindows: () => () => undefined,
     onQuitShortcutHint: () => () => undefined,
+    // Fork (docs/fork/FEATURES.md #123): the preview has no saved apps.
+    forkListSavedApps: async () => [],
+    forkGetSavedApp: async () => null,
+    forkSaveAppPage: async () => {
+      throw new Error("Saved apps are not available in the preview.");
+    },
+    forkRenameSavedApp: async () => null,
+    forkPinSavedApp: async () => null,
+    forkRemoveSavedApp: async () => false,
+    forkPageState: async () => ({ ok: false, error: "Saved data is not available here." }),
+    forkOpenSavedAppWindow: async () => undefined,
+    forkShowSavedAppChat: async () => undefined,
+    forkTakePendingSavedApp: async () => null,
+    onForkSavedAppsChanged: () => () => undefined,
+    onForkOpenSavedApp: () => () => undefined,
+    onForkGoToSavedAppChat: () => () => undefined,
     browserDock: {
       publishPresentation: async () => undefined,
       getPresentation: async () => null,

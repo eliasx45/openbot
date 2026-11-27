@@ -1,5 +1,15 @@
-import { decodeAgentSectionInheritance, decodeSectionDefaultsEditor } from "@openbot/contracts/fork-section-defaults";
 import { decodeChannelWebhookSettings } from "@openbot/contracts/fork-channel-webhooks";
+import {
+  decodeBooleanReply,
+  decodePageStateReply,
+  decodeSaveAppPageResult,
+  decodeSavedAppChatTarget,
+  decodeSavedAppIdOrNull,
+  decodeSavedAppOrNull,
+  decodeSavedApps,
+  parseSavedAppId,
+} from "@openbot/contracts/fork-saved-apps";
+import { decodeAgentSectionInheritance, decodeSectionDefaultsEditor } from "@openbot/contracts/fork-section-defaults";
 import { ATTACHMENT_LIMITS, INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import {
   type AgentIpcRequest,
@@ -831,6 +841,20 @@ const openbotApi: OpenBotDesktopApi = {
     getChatWindows: decodeChatWindowTargets,
     chatWindows: decodeChatWindowTargets,
     quitShortcutHint: decodeQuitShortcutHint,
+    // Fork (docs/fork/FEATURES.md #123): saved apps.
+    forkListSavedApps: decodeSavedApps,
+    forkGetSavedApp: decodeSavedAppOrNull,
+    forkSaveAppPage: decodeSaveAppPageResult,
+    forkRenameSavedApp: decodeSavedAppOrNull,
+    forkPinSavedApp: decodeSavedAppOrNull,
+    forkRemoveSavedApp: decodeBooleanReply,
+    forkPageState: decodePageStateReply,
+    forkOpenSavedAppWindow: decodeVoid,
+    forkShowSavedAppChat: decodeVoid,
+    forkTakePendingSavedApp: decodeSavedAppIdOrNull,
+    forkSavedAppsChanged: decodeSavedApps,
+    forkOpenSavedApp: parseSavedAppId,
+    forkGoToSavedAppChat: decodeSavedAppChatTarget,
   }),
   ...bridgeGroup(IPC_ENDPOINTS.providers, {
     connectProvider: decodeAgentStatusFromMain,
