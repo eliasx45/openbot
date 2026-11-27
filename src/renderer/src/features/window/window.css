@@ -54,8 +54,10 @@
     --top-row-history-width: 0px;
     --top-row-toggle-width: 0px;
     --top-row-update-width: 0px;
+    --top-row-search-width: 0px; /* Fork (docs/fork/FEATURES.md, entry 125) */
     --top-row-tabs-start: calc(
       var(--top-row-controls-start) +
+      var(--top-row-search-width) +
       var(--top-row-history-width) +
       var(--top-row-toggle-width) +
       var(--top-row-update-width) +
@@ -78,6 +80,11 @@
 
   .app-window > .window-rail:not([hidden]) ~ .app-frame-edge:has(> .sidebar .sidebar-history-button) {
     --top-row-history-width: calc(2 * (var(--openbot-control-sm) + 3px));
+  }
+
+  /* Fork (docs/fork/FEATURES.md, entry 125): the fork's Search button sits in the same row, before Back. */
+  .app-window > .window-rail:not([hidden]) ~ .app-frame-edge:has(> .sidebar .sidebar-topbar-search) {
+    --top-row-search-width: calc(var(--openbot-control-sm) + 3px);
   }
 
   .app-window
