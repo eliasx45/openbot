@@ -6148,6 +6148,36 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     );
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md #126): notes each turn that runs in an agent's own chat on an ACP
+   * provider as OpenBot quits. An ACP client (Antigravity, Gemini) settles its turn as interrupted while it stops, so boot
+   * recovery would find no running turn and the agent would not continue after the restart.
+   */
+  #noteQuitInterrupted(): void {
+    const resume = forkHub.restartResume;
+    if (!resume) return;
+    for (const [agentId, snapshot] of this.#conversation.activeSnapshots()) {
+      const turnId = snapshot.activeTurnId;
+      const threadId = snapshot.threadId;
+      const agent = this.#store.get(agentId);
+      if (!turnId || !threadId || !agent || agent.threadId !== threadId) continue;
+      // Only a client that settles its turns as it stops; boot recovery notes the others.
+      if (!this.#providers.clientForAgent(agent)?.markTurnsStoppedForShutdown) continue;
+      try {
+        resume.capture({
+          agentId,
+          threadId,
+          ownChat: true,
+          turnId,
+          messages: this.#store.database.readConversationRecoveryMessages(agentId, threadId, turnId),
+          quitting: true,
+        });
+      } catch (error) {
+        this.#emitError("fork_restart_resume", error, agentId);
+      }
+    }
+  }
+
   #providerAvailable(provider: AgentProvider): boolean {
     return (
       this.getStatus().providers?.some((candidate) => candidate.id === provider && candidate.state === "available") ??
@@ -6157,6 +6187,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
 
   readonly stop = Effect.fn("AgentService.stop")(function* (this: AgentService) {
     this.#stopping = true;
+    // Fork (docs/fork/FEATURES.md #126): before the providers stop, so an ACP turn is still running.
+    this.#noteQuitInterrupted();
     yield* this.#memoryReview.dispose();
     const channelStop = yield* Effect.forkChild(
       this.channels

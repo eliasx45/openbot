@@ -220,6 +220,11 @@ serveFakeAcpAgent({
     const sessionId = request.params.sessionId ?? "";
     const text = promptText(request);
     logEntry({ event: "prompt", sessionId, text });
+    // Fork (docs/fork/FEATURES.md #126): a turn that runs until OpenBot quits.
+    if (text === "hold-turn") {
+      peer.say(sessionId, "Working on it.");
+      return;
+    }
     if (text.startsWith("spawn")) {
       spawn(peer, sessionId, text);
       peer.say(sessionId, "Launched the subagent.");

@@ -134,6 +134,8 @@ export interface RestartResumeEntry {
    * (`handOverNote`), so a rebuild of its prompt gets the same note once more.
    */
   handedTo?: string;
+  /** Fork (docs/fork/FEATURES.md #126): noted as OpenBot quit; cleared when the next run starts. */
+  quit?: true;
 }
 
 interface SavedState {
@@ -252,6 +254,11 @@ export class ForkRestartResume {
     ownChat: boolean;
     turnId: string | null;
     messages: readonly ConversationMessage[];
+    /**
+     * Fork (docs/fork/FEATURES.md #126): noted as OpenBot quits, before an ACP provider (Antigravity,
+     * Gemini) settles its turn as interrupted; boot recovery would then find no running turn.
+     */
+    quitting?: boolean;
   }): void {
     if (!this.enabled() || !input.ownChat) return;
     const { agentId, threadId, turnId, messages } = input;
@@ -287,8 +294,9 @@ export class ForkRestartResume {
       : null;
     const key = earlier?.key ?? `${kind}:${originId}`;
     const existing = this.#state.entries.find((entry) => entry.key === key);
-    // The same interrupted turn seen again (a crash during this boot): its note stands.
-    if (existing && !wake) return;
+    // The same interrupted turn seen again (a crash during this boot, or noted as OpenBot quit): its
+    // note stands. A wake noted at the quit is already one try further.
+    if (existing && (!wake || existing.quit)) return;
     const attempt = wake ? (earlier?.attempt ?? attemptOfRun(wake)) + 1 : 1;
     const request =
       own.findLast((delivery) => delivery.sender.kind === "user") ??
@@ -302,7 +310,7 @@ export class ForkRestartResume {
       kind,
       turnId,
       deliveryIds: own.map((delivery) => delivery.id),
-      interruptedAt: new Date(this.#interruptedAt(own, messages, now)).toISOString(),
+      interruptedAt: (input.quitting ? now : new Date(this.#interruptedAt(own, messages, now))).toISOString(),
       capturedAt: now.toISOString(),
       requestText: (earlier?.requestText ?? (request && request !== wake ? request.text : "")).slice(0, REQUEST_LIMIT),
       subagents: mergeSubagents(earlier?.subagents ?? [], subagents),
@@ -312,6 +320,7 @@ export class ForkRestartResume {
       reason: null,
       waitId: null,
       deliveryId: null,
+      ...(input.quitting ? { quit: true as const } : {}),
     };
     const reason = this.#captureSkip(entry, own, messages);
     if (reason) {
@@ -364,6 +373,12 @@ export class ForkRestartResume {
     const cutoff = Date.now() - KEEP_MS;
     this.#state.entries = this.#state.entries.filter((entry) => Date.parse(entry.capturedAt) >= cutoff);
     for (const entry of this.#state.entries) {
+      // Fork (docs/fork/FEATURES.md #126): the hand-over list lives in memory, so a note taken at the
+      // quit that a queued message took over gets it again in this run.
+      if (entry.quit) {
+        delete entry.quit;
+        if (entry.state === "skipped" && entry.reason === QUEUED_MESSAGE_RUNS) this.#handOver.add(entry.key);
+      }
       if (entry.state !== "pending") continue;
       const agent = this.#hooks.agent(entry.agentId);
       if (!agent) {

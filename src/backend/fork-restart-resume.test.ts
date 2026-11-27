@@ -5,7 +5,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { clampConversationSubagents, isConversationSubagents } from "@openbot/contracts/ipc";
+import { clampConversationSubagents, isConversationSubagents, type QueueDelivery } from "@openbot/contracts/ipc";
 import { afterEach, describe, expect, it } from "vitest";
 import { foldClaudeSubagentCall, foldClaudeSubagentResult, newSubagentState } from "./agent/subagent-updates";
 import { carryClaudeTranscript, claudeSubagentAgentIds } from "./claude-history";
@@ -399,5 +399,138 @@ describe("Claude subagent transcripts", () => {
     expect(await claudeSubagentAgentIds(sessionId, workFolder, config)).toEqual(
       new Map([["toolu_1", "a2d43a70933019100"]]),
     );
+  });
+});
+
+// Fork (docs/fork/FEATURES.md #126): an Antigravity (Gemini) turn is settled as interrupted while
+// OpenBot quits, so the note is taken at the quit; boot then finds no running turn.
+describe("ForkRestartResume quit notes", () => {
+  const agentId = "agent-vegapunk";
+  const threadId = "openbot-thread-agent-vegapunk";
+  const delivery = (id: string, sender: QueueDelivery["sender"], turnId: string): QueueDelivery => ({
+    id,
+    messageId: `message-${id}`,
+    recipientAgentId: agentId,
+    sender,
+    text: "progres?",
+    attachments: [],
+    replyToMessageId: null,
+    status: "running",
+    position: null,
+    turnId,
+    error: null,
+    createdAt: "2026-11-27T12:53:01.969Z",
+  });
+  const hooks = (own: QueueDelivery[], overrides: Partial<ForkRestartResumeHooks> = {}): ForkRestartResumeHooks => ({
+    agent: (id) => (id === agentId ? { threadId, provider: "antigravity" } : null),
+    providerReady: () => true,
+    session: () => ({ externalSessionId: "session-1" }),
+    subagentIds: async () => new Map(),
+    subagentOutcomes: async () => new Map(),
+    executionDelivery: () => false,
+    laneBusy: () => false,
+    laneQueued: () => 0,
+    continuationQueued: () => false,
+    delivery: () => null,
+    deliveryOfTurn: () => null,
+    unresolvedOwnDeliveries: () => own,
+    goalWorking: () => false,
+    openWait: () => "wait-1",
+    waitOpen: () => true,
+    closeWait: () => {},
+    enqueue: async () => "wake-delivery",
+    line: () => {},
+    timezone: () => "Africa/Algiers",
+    isRunning: () => false,
+    log: () => {},
+    ...overrides,
+  });
+  const databasePath = async () => {
+    const folder = await mkdtemp(join(tmpdir(), "openbot-restart-quit-"));
+    folders.push(folder);
+    return join(folder, "openbot.db");
+  };
+
+  it("keeps a turn noted at the quit when boot finds it already settled", async () => {
+    const path = await databasePath();
+    const quit = new ForkRestartResume({
+      databasePath: path,
+      hooks: hooks([delivery("d-1", { kind: "user" }, "turn-1")]),
+    });
+    const before = Date.now();
+    quit.capture({ agentId, threadId, ownChat: true, turnId: "turn-1", messages: [], quitting: true });
+    quit.dispose();
+    // Boot: the ACP client settled the turn and its delivery while it stopped.
+    const boot = new ForkRestartResume({ databasePath: path, hooks: hooks([]) });
+    boot.capture({ agentId, threadId, ownChat: true, turnId: null, messages: [] });
+    boot.start();
+    const [entry] = boot.entries();
+    expect(boot.entries()).toHaveLength(1);
+    expect(entry?.key).toBe("turn:turn-1");
+    expect(entry?.state).toBe("pending");
+    expect(entry?.requestText).toBe("progres?");
+    expect(Date.parse(entry?.interruptedAt ?? "")).toBeGreaterThanOrEqual(before - 1000);
+    boot.dispose();
+  });
+
+  it("a Claude turn noted at the quit and found running at boot is noted once", async () => {
+    const path = await databasePath();
+    const own = [delivery("d-1", { kind: "user" }, "turn-1")];
+    const quit = new ForkRestartResume({ databasePath: path, hooks: hooks(own) });
+    quit.capture({ agentId, threadId, ownChat: true, turnId: "turn-1", messages: [], quitting: true });
+    const capturedAt = quit.entries()[0]?.capturedAt;
+    quit.dispose();
+    const boot = new ForkRestartResume({ databasePath: path, hooks: hooks(own) });
+    boot.capture({ agentId, threadId, ownChat: true, turnId: "turn-1", messages: [] });
+    expect(boot.entries()).toHaveLength(1);
+    expect(boot.entries()[0]?.capturedAt).toBe(capturedAt);
+    expect(boot.entries()[0]?.attempt).toBe(1);
+    boot.start();
+    expect(boot.entries()[0]?.quit).toBeUndefined();
+    boot.dispose();
+  });
+
+  it("a wake stopped by the quit counts one more try, not two", async () => {
+    const path = await databasePath();
+    const wake = delivery(
+      "wake-1",
+      {
+        kind: "routine",
+        routineId: "fork-restart-resume",
+        runId: "restart-resume:1:turn:turn-0",
+        routineName: "Resume",
+        scheduledFor: "",
+      },
+      "turn-2",
+    );
+    const quit = new ForkRestartResume({ databasePath: path, hooks: hooks([wake]) });
+    quit.capture({ agentId, threadId, ownChat: true, turnId: "turn-2", messages: [], quitting: true });
+    expect(quit.entries()[0]?.attempt).toBe(2);
+    quit.dispose();
+    const boot = new ForkRestartResume({ databasePath: path, hooks: hooks([wake]) });
+    boot.capture({ agentId, threadId, ownChat: true, turnId: "turn-2", messages: [] });
+    expect(boot.entries()).toHaveLength(1);
+    expect(boot.entries()[0]?.attempt).toBe(2);
+    expect(boot.entries()[0]?.state).toBe("pending");
+    boot.dispose();
+  });
+
+  it("a message queued at the quit still gets the note after the restart", async () => {
+    const path = await databasePath();
+    const own = [delivery("d-1", { kind: "user" }, "turn-1")];
+    const quit = new ForkRestartResume({ databasePath: path, hooks: hooks(own, { laneQueued: () => 1 }) });
+    quit.capture({ agentId, threadId, ownChat: true, turnId: "turn-1", messages: [], quitting: true });
+    quit.dispose();
+    // At boot the queued message is not started yet; it starts once boot is done.
+    const starting: QueueDelivery[] = [];
+    const boot = new ForkRestartResume({
+      databasePath: path,
+      hooks: hooks([], { laneQueued: () => 1, unresolvedOwnDeliveries: () => starting }),
+    });
+    boot.capture({ agentId, threadId, ownChat: true, turnId: null, messages: [] });
+    boot.start();
+    starting.push({ ...delivery("queued", { kind: "user" }, "turn-3"), text: "hey?", status: "starting" });
+    expect(boot.handOverNote({ agentId, deliveryId: "queued", typed: "hey?" })).toContain("progres?");
+    boot.dispose();
   });
 });

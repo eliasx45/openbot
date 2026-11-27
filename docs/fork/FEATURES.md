@@ -1469,3 +1469,13 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Here:** `src/renderer/src/features/window/window.css`.
 - **Tests:** CSS only; checked in the installed app after the restart (zoom on the top row of Apps and Usage).
 - **Check:** open Apps, then Usage: the title starts right of the Forward arrow with a gap.
+
+## 126. Gemini agents continue after a restart too
+
+- **Get:** when OpenBot restarts while a Gemini (Antigravity) agent, or another ACP agent, works in its own chat, the agent gets its "🔄 restart" wake like a Claude agent and goes on, instead of staying silent until the next message.
+- **Why:** Elias, 27 Nov 2026: "why is it not responding": three restarts that day (13:23, 13:52, 13:54) each stopped a Vegapunk turn, and none was resumed; his "progres?" got no answer.
+- **Cause:** as OpenBot quits, `markTurnsStoppedForShutdown` aborts each ACP client's turn and the turn is settled as interrupted before the app exits. Boot recovery then finds no running turn, so `capture` ("Agents continue after a restart", #113) never notes it. Claude and Codex turns stay "running" until boot, so they were noted.
+- **How (portable):** `AgentService.stop` first notes each own-chat turn whose client has `markTurnsStoppedForShutdown` (`capture` with `quitting`: interruptedAt is the quit time, the entry carries `quit`). Boot keeps that note (also for a wake, so the try count goes up once), and `start` clears `quit` and gives a note that a queued message took over back to the in-memory hand-over list.
+- **Here:** `src/backend/agent-service.ts` (`#noteQuitInterrupted`), `src/backend/fork-restart-resume.ts`, fake `hold-turn` in `scripts/provider-fakes/agents/antigravity-subagent.ts`.
+- **Tests:** `src/backend/fork-restart-resume.test.ts` (quit notes: settled at boot, Claude noted once, a wake counts one try, a queued message gets the note); `scripts/antigravity-quit-resume-e2e.ts` (real service twice with the fake `agy`: the quit leaves the turn interrupted, the note is pending, the next start sends one wake; fails without the fix); `scripts/restart-resume-e2e.ts` and `scripts/antigravity-restart-keeps-subagents-e2e.ts` still pass.
+- **Check:** while a Gemini agent works, quit and reopen OpenBot: its chat shows "🔄 Resumes after the restart", then the agent continues.
