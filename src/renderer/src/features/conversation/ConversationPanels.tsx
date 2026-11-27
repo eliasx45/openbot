@@ -39,6 +39,8 @@ import { serverCanAdminister, serverCanManageMcp, serverSupportsCapability } fro
 import { codexLiveAccess } from "../speech/codex-live-access";
 import { speechPort } from "../speech/speech-port";
 import { cycleSpeechSpeed, speechSpeed } from "../speech/speech-speed";
+import { TeamBoardPanel } from "../team-board/TeamBoardPanel";
+import { teamBoardLeadId, useTeamBoard } from "../team-board/team-board-store";
 import { openedAttachmentUrl } from "./attachment-preview";
 import { ConversationSideThread } from "./ConversationSideThread";
 import { isChatVisualAppShortcut } from "./chat-visual-shortcuts";
@@ -239,6 +241,9 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
     replyJump,
   } = useConversationViewScope();
   const { t, errorMessage } = useText();
+  // Fork (docs/fork/FEATURES.md #134): the team board of a lead agent on this computer.
+  const teamBoard = useTeamBoard(() => teamBoardLeadId(props, channel));
+  const leadsTeam = () => (teamBoard.lead()?.rows.length ?? 0) > 0 || activeRightPanel() === "team";
   const chatAgentKey = () => (props.agent ? `${props.server?.id ?? "local"}:${props.agent.id}` : null);
   const voiceKey = () => (voiceConversationOpen() && !channel && chatAgentKey()) || null;
   const [voicePill, setVoicePill] = createSignal<{ key: string } | null>(null);
@@ -444,6 +449,7 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
     ...(props.browserEnabled !== false && channelBrowserPane() ? (["browser"] as const) : []),
     ...(filesServer() && filesSource() ? (["files"] as const) : []),
     ...(props.agent && !channel && props.threads ? (["threads"] as const) : []),
+    ...(teamBoardLeadId(props, channel) && leadsTeam() ? (["team"] as const) : []), // Fork (FEATURES.md #134)
     ...(props.agent || channel ? (["settings"] as const) : []),
   ]);
   const panelSubagent = createMemo(() => {
@@ -729,6 +735,23 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
           onToggleBeside={toggleListedThreadBeside}
           onNew={startNewThread}
         />
+      </Show>
+
+      {/* Fork (docs/fork/FEATURES.md #134): the team board of a lead agent. */}
+      <Show when={activeRightPanel() === "team" && sidePanelPanes().includes("team") && props.agent}>
+        {(agent) => (
+          <TeamBoardPanel
+            leadId={agent().id}
+            leadName={agent().name}
+            agents={props.agents}
+            resizer={sidePanelResizer("team-board-panel")}
+            onOpenAgent={(agentId) => props.onSelectAgent(agentId)}
+            onMessageAgent={(agentId) => {
+              props.onSelectAgent(agentId);
+              setTimeout(() => controller.setComposerFocusRequest((value) => value + 1), 0);
+            }}
+          />
+        )}
       </Show>
 
       <Show when={activeRightPanel() === "subagent"}>

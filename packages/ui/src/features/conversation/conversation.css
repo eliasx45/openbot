@@ -36,6 +36,7 @@
 @import "./styles/queue.css";
 @import "./styles/agent-tasks.css";
 @import "./styles/agent-threads.css";
+@import "./styles/team-board.css";
 @import "./styles/side-question.css";
 @import "./styles/voice.css";
 @import "./styles/panel-layout.css";

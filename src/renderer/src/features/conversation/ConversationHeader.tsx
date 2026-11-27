@@ -11,10 +11,12 @@ import {
 import { reasoningLabel } from "@openbot/ui/components/ProviderModelPicker";
 import { findModelOption, providerAccountName } from "@openbot/ui/components/provider-accounts";
 import { ConversationHeader as SharedConversationHeader } from "@openbot/ui/features/conversation/ConversationHeader";
+import { TEAM_ATTENTION_STATES } from "@openbot/ui/features/conversation/TeamBoard";
 import { ThreadHeader } from "@openbot/ui/features/conversation/threads/ThreadHeader";
 import { DRAFT_THREAD_ID, MAIN_THREAD_ID, threadBusy } from "@openbot/ui/features/conversation/threads/thread-types";
 import { Show } from "solid-js";
 import { actionToast } from "../../action-toast";
+import { teamBoardLeadId, useTeamBoard } from "../team-board/team-board-store";
 import { useConversationViewScope } from "./conversation-scope";
 
 const loadAgentSettingsPanel = () => import("./AgentSettingsPanel");
@@ -53,7 +55,24 @@ export function ConversationHeader() {
     toggleSidePanel,
     moveThreadToPanel,
     startNewThread,
+    activeRightPanel,
+    openSidePanelPane,
+    closeSidePanelPane,
   } = useConversationViewScope();
+  // Fork (docs/fork/FEATURES.md #134): the header button of a lead's team board.
+  const teamBoard = useTeamBoard(() => teamBoardLeadId(props, channel));
+  const team = () => {
+    const rows = teamBoard.lead()?.rows ?? [];
+    if (rows.length === 0) return undefined;
+    const open = activeRightPanel() === "team";
+    return {
+      teammates: rows.length,
+      working: rows.filter((row) => row.activity === "working").length,
+      attention: rows.filter((row) => TEAM_ATTENTION_STATES.has(row.state)).length,
+      open,
+      onToggle: () => (open ? closeSidePanelPane("team") : openSidePanelPane("team")),
+    };
+  };
   const runningThreads = () => props.threads?.running ?? 0;
   const openMainChat = () => {
     const header = props.threads?.header;
@@ -192,6 +211,7 @@ export function ConversationHeader() {
           {(threads) => <ThreadHeader {...threads().header} onNew={startNewThread} onMoveToSide={moveThreadToPanel} />}
         </Show>
       }
+      team={team()}
       pinnedMessages={pinnedMessages()}
       sidePanel={
         channel?.readOnly()

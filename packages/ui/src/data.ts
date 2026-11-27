@@ -1,4 +1,5 @@
 import type { AgentProviderId, AgentProviderRef } from "@openbot/contracts/agent-providers";
+import type { TeamReportStatus } from "@openbot/contracts/fork-team-board";
 import type {
   AgentAccess,
   AgentExchangeSummary,
@@ -85,6 +86,11 @@ export interface AgentMessageMarkerModel {
    * The row then names the sender before the label: "Tapa Lead asked Gotham".
    */
   channelHandoff?: "assigned" | "transferred";
+  /**
+   * Fork (docs/fork/FEATURES.md #134): the status of a teammate's report, from its "Status:" line;
+   * `failed` for OpenBot's note that answers a failed request.
+   */
+  report?: { status: TeamReportStatus | "failed"; next: string | null };
 }
 
 export interface RoutineRunMarkerModel {

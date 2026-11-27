@@ -13,6 +13,7 @@ import {
 import { sortConversationMessages } from "@openbot/contracts/conversation-order";
 import { developmentStartingModel } from "@openbot/contracts/development-defaults";
 import type { FeedbackFacts } from "@openbot/contracts/feedback";
+import type { TeamBoard, TeamBoardRequest } from "@openbot/contracts/fork-team-board";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type {
   AgentAccessLevel,
@@ -361,6 +362,8 @@ import { ForkGoals } from "./fork-goals";
 import { forkHub } from "./fork-hub";
 import { ForkMemory } from "./fork-memory";
 import { FORK_RESTART_RESUME_ROUTINE_ID, ForkRestartResume, type ForkRestartResumeHooks } from "./fork-restart-resume";
+// Fork (docs/fork/FEATURES.md #134): the team board.
+import { buildTeamBoard, teamBoardHours, teamBoardOverdueMs } from "./fork-team-board";
 import { ForkVoiceNotes } from "./fork-voice-notes";
 import type { HostMemory } from "./host-memory";
 import type { SignInRegion } from "./kimi-region";
@@ -1065,6 +1068,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     });
     // Fork (docs/fork/FEATURES.md #130): a teammate's report that the lead never acted on gets one wake.
     forkHub.followThrough = new ForkFollowThrough({ hooks: this.#followThroughHooks(restartResumeHooks) });
+    // Fork (docs/fork/FEATURES.md #134): the team board of openbot.team_board.
+    forkHub.teamBoard = (leadId, hours) => this.#forkTeamBoard(leadId, hours);
     // Fork (docs/fork/FEATURES.md, "Voice notes").
     forkHub.voiceNotes = new ForkVoiceNotes({
       databasePath: store.database.path,
@@ -2633,6 +2638,41 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       after: entry.after,
       undone: entry.undone === true,
     }));
+  }
+
+  /** Fork (docs/fork/FEATURES.md #134): the team board of one lead (null: every lead), for the app. */
+  forkTeamBoard(request: TeamBoardRequest): TeamBoard {
+    if (request.leadId !== null) this.#conversation.requireKnownAgent(request.leadId);
+    return this.#forkTeamBoard(request.leadId, teamBoardHours(request.hours));
+  }
+
+  #forkTeamBoard(leadId: string | null, hours: number): TeamBoard {
+    const now = Date.now();
+    const excluded = new Set([...this.#removal.deleting(), ...this.#duplication.pendingAgents()]);
+    const agents = new Map(
+      this.#store
+        .list()
+        .filter((agent) => agent.hiddenAt === undefined && !excluded.has(agent.id))
+        .map((agent) => [agent.id, agent]),
+    );
+    const unresolved = new Set(this.#mailbox.unresolvedDeliveries().map(({ delivery }) => delivery.recipientAgentId));
+    return buildTeamBoard({
+      messages: this.#mailbox.forkTeamBoardMessages(new Date(now - hours * 60 * 60_000).toISOString()),
+      agent: (agentId) => {
+        const agent = agents.get(agentId);
+        return agent ? { name: agent.name } : null;
+      },
+      activity: (agentId) =>
+        this.#runsTurn(agentId) || unresolved.has(agentId)
+          ? "working"
+          : this.#mailbox.listQueue(agentId).deliveries.some((delivery) => delivery.status === "queued")
+            ? "queued"
+            : "idle",
+      now,
+      windowHours: hours,
+      leadId,
+      overdueMs: teamBoardOverdueMs(),
+    });
   }
 
   forkUndoMemoryChange(input: UndoAgentMemoryChangeInput): void {
@@ -6317,6 +6357,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     forkHub.restartResume = null;
     forkHub.followThrough?.dispose(); // Fork (docs/fork/FEATURES.md #130).
     forkHub.followThrough = null;
+    forkHub.teamBoard = null; // Fork (docs/fork/FEATURES.md #134).
     forkHub.voiceNotes = null;
     forkHub.networkResume = null;
     forkHub.goals = null;

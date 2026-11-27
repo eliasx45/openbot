@@ -27,6 +27,7 @@ import type {
   SetSectionOptOutInput,
   UpdateSectionDefaultsInput,
 } from "./fork-section-defaults";
+import type { TeamBoard, TeamBoardRequest } from "./fork-team-board";
 import type {
   CreateHostedServerInput,
   DeleteHostedServerInput,
@@ -1678,6 +1679,8 @@ export const IPC_ENDPOINTS = {
     listPendingPrompts: scopedQuery<AgentRuntimePrompt[]>()("agent:list-pending-prompts"),
     respondToBrowserSecret: scopedRequest<LocalBrowserSecretResponse, void>()("agent:respond-to-browser-secret"),
     respondToBrowserTakeover: scopedRequest<RespondToBrowserTakeoverInput, void>()("agent:respond-to-browser-takeover"),
+    // Fork (docs/fork/FEATURES.md #134): a lead's team board. This computer only.
+    forkTeamBoard: scopedRequest<TeamBoardRequest, TeamBoard>()("agent:fork-team-board"),
     scopedEvent: event<ScopedAgentEvent>()("agent:event"),
   },
   agentMemories: {

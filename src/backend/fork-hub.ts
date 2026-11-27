@@ -1,4 +1,5 @@
 import type { PageUse } from "@openbot/contracts/fork-saved-apps";
+import type { TeamBoard } from "@openbot/contracts/fork-team-board";
 /**
  * Fork: the fork's own services, reachable from the few upstream functions that call into them
  * (prompt building, turn ends) without threading them through upstream constructors. Keeping the
@@ -84,6 +85,8 @@ export const forkHub: {
   sections: ForkSectionInheritance | null;
   channelWebhooks: ForkChannelWebhooks | null;
   savedApps: ForkSavedAppsHook | null;
+  /** Fork (docs/fork/FEATURES.md #134): a lead's team board, read from the mailbox. */
+  teamBoard: ((leadId: string | null, hours: number) => TeamBoard) | null;
 } = {
   goals: null,
   memory: null,
@@ -96,4 +99,5 @@ export const forkHub: {
   sections: null,
   channelWebhooks: null,
   savedApps: null,
+  teamBoard: null,
 };

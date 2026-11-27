@@ -13,6 +13,7 @@ import {
   FEEDBACK_SURFACES,
 } from "@openbot/contracts/feedback";
 import { PAGE_USES } from "@openbot/contracts/fork-saved-apps";
+import { TEAM_REPORT_NEXT_LIMIT, TEAM_REPORT_STATUSES } from "@openbot/contracts/fork-team-board";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import { API_KEY_NAME_PATTERN, CONNECTOR_IDS, VAULT_API_KEY_LIMIT, VAULT_NOTES_LIMIT } from "@openbot/contracts/ipc";
 import { isUiBlockId, UI_BLOCK_LIMITS } from "@openbot/contracts/ui-blocks";
@@ -74,6 +75,8 @@ import { WAIT_UNTIL_TOOL, waitUntilToolSchema } from "./agent-waits/fork-wait-co
 import { CHANNEL_TOOL_DEFINITIONS } from "./channel-tools";
 import { GOAL_STATUS_TOOL, goalStatusToolSchema } from "./fork-goals";
 import { MEMORY_JOURNAL_TOOL, MEMORY_UNDO_TOOL, memoryJournalToolSchema, memoryUndoToolSchema } from "./fork-memory";
+// Fork (docs/fork/FEATURES.md #134): the team board and the status of a report.
+import { TEAM_BOARD_DEFAULT_HOURS, TEAM_BOARD_MAX_HOURS, TEAM_BOARD_TOOL } from "./fork-team-board";
 import { SEND_VOICE_NOTE_TOOL, sendVoiceNoteToolSchema } from "./fork-voice-notes";
 import { MESSAGING_TOOL_DEFINITIONS } from "./messaging/messaging-tools";
 import { ROUTINE_FLOW_TOOL_DEFINITIONS } from "./routine-flows/routine-flow-tools";
@@ -1043,6 +1046,33 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
         .describe(
           "True, the default, for a request, question or delegated task: OpenBot sends the recipient's result back. False for information that the recipient must not answer, such as a status or your own reply to a task; it ends the exchange.",
         )
+        .optional(),
+      // Fork (docs/fork/FEATURES.md #134): the structured status of a teammate's report.
+      status: z
+        .enum(TEAM_REPORT_STATUSES)
+        .describe(
+          "Only on your reply to a request (replyToMessageId): done, progress (still working), partial, blocked (the sender or the user must act), or needs-input (you need an answer). OpenBot puts it first in the text as a Status line, and the lead's team board shows it.",
+        )
+        .optional(),
+      next: z
+        .string()
+        .min(1)
+        .max(TEAM_REPORT_NEXT_LIMIT)
+        .describe("With status: the one next step, in one line, such as what you do next or what the sender must do.")
+        .optional(),
+    },
+  },
+  // Fork (docs/fork/FEATURES.md #134): the lead's team board.
+  {
+    name: TEAM_BOARD_TOOL,
+    description:
+      "Your team board: for each teammate you sent a request with send_message, its newest request, state (queued, working, done, progress, partial, blocked, needs-input, replied, failed, overdue), whether it is working now, and its last report with status, next step and age. Read it instead of keeping your own status file.",
+    shape: {
+      hours: z
+        .number()
+        .min(1)
+        .max(TEAM_BOARD_MAX_HOURS)
+        .describe(`How far back to look, in hours. Default ${TEAM_BOARD_DEFAULT_HOURS}.`)
         .optional(),
     },
   },

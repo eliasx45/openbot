@@ -269,6 +269,7 @@ import {
   parseSidebarFolderAction,
   parseStartAgentTask,
   parseSteerQueuedMessage,
+  parseTeamBoardRequest,
   parseUpdateAgent,
   parseUpdateQueuedMessage,
   parseWithdrawFeedback,
@@ -606,6 +607,11 @@ export function agentIpcHandlers({
       setAgentNotificationLevel: scopedHandler(parseSetAgentNotificationLevelInput, {
         local: (input) => runCauseEffect(remoteServers.setAgentNotificationLevel(LOCAL_SERVER_ID, input)),
         remote: (input, serverId) => runCauseEffect(remoteServers.setAgentNotificationLevel(serverId, input)),
+      }),
+      // Fork (docs/fork/FEATURES.md #134): a lead's team board. This computer only.
+      forkTeamBoard: scopedHandler(parseTeamBoardRequest, {
+        local: (request) => service.forkTeamBoard(request),
+        remote: () => ({ generatedAt: new Date().toISOString(), windowHours: 24, leads: [] }),
       }),
       listAgents: scopedQueryHandler({
         local: () => service.listAgents(),

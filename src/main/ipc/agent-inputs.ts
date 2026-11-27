@@ -1,4 +1,5 @@
 import { CHAT_VISUAL_PAGE_LIMIT } from "@openbot/contracts/chat-visual";
+import type { TeamBoardRequest } from "@openbot/contracts/fork-team-board";
 import { ATTACHMENT_LIMITS, INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import {
   type AcknowledgeFailedTurnInput,
@@ -323,6 +324,16 @@ export function parseDeleteAgentMemory(value: unknown): DeleteAgentMemoryInput {
 }
 
 /** Fork: an undo in the memory journal (docs/fork/FEATURES.md, "Memory"). */
+// Fork (docs/fork/FEATURES.md #134): a lead's team board, or every lead's (leadId null).
+export function parseTeamBoardRequest(value: unknown): TeamBoardRequest {
+  if (!isObject(value)) throw new Error("Invalid team board request.");
+  const leadId = value.leadId === null ? null : requireString(value.leadId, "leadId", INPUT_LIMITS.identifier);
+  if (value.hours === undefined) return { leadId };
+  if (typeof value.hours !== "number" || !Number.isFinite(value.hours) || value.hours <= 0 || value.hours > 168)
+    throw new Error("hours must be a number from 1 to 168.");
+  return { leadId, hours: value.hours };
+}
+
 export function parseUndoAgentMemoryChange(value: unknown): UndoAgentMemoryChangeInput {
   if (!isObject(value)) throw new Error("Invalid memory undo request.");
   return {

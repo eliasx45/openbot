@@ -56,6 +56,8 @@ import { routineNameInLimit } from "./database/legacy-conversation-message";
 import { mailboxReactionRowKey } from "./database/mailbox-projection";
 // Fork (docs/fork/FEATURES.md #130): the shape of the mail that team follow-through reads.
 import type { FollowThroughReceived, FollowThroughTraffic } from "./fork-follow-through";
+// Fork (docs/fork/FEATURES.md #134): the shape of the mail that the team board reads.
+import type { TeamBoardMessage } from "./fork-team-board";
 import { MailboxDeliveryGate } from "./mailbox-delivery-gate";
 import { runIdOrigins } from "./message-run-ids";
 import type { OpenBotDatabase } from "./openbot-database";
@@ -3448,6 +3450,42 @@ export class MailboxStore {
       return message ? [{ id, recipientAgentIds: recipients.get(id) ?? [], createdAt: message.createdAt }] : [];
     });
     return { received, sent };
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md #134): every agent's messages to other agents since `since`, outside
+   * channels, with their recipients and delivery states, for the team board.
+   */
+  forkTeamBoardMessages(since: string): TeamBoardMessage[] {
+    const cutoff = Date.parse(since);
+    const messages = this.#messagesById();
+    const picked = new Map<string, TeamBoardMessage & { deliveries: TeamBoardMessage["deliveries"][number][] }>();
+    for (const message of this.#state.messages) {
+      if (message.sender.kind !== "agent" || message.channelId !== undefined) continue;
+      if (!(Date.parse(message.createdAt) >= cutoff)) continue;
+      const repliedId = message.replyToMessageId;
+      const replied = repliedId
+        ? (messages.get(repliedId)?.id ??
+          this.#state.deliveries.find((candidate) => candidate.id === repliedId)?.messageId ??
+          repliedId)
+        : null;
+      picked.set(message.id, {
+        id: message.id,
+        senderAgentId: message.sender.agentId,
+        text: message.text,
+        createdAt: message.createdAt,
+        replyToMessageId: replied,
+        expectsReply: message.expectsReply !== false,
+        deliveries: [],
+      });
+    }
+    for (const delivery of this.#state.deliveries) {
+      picked.get(delivery.messageId)?.deliveries.push({
+        recipientAgentId: delivery.recipientAgentId,
+        status: delivery.status,
+      });
+    }
+    return [...picked.values()];
   }
 
   // Fork (docs/fork/FEATURES.md #107): the agents, channel and thread that an attachment belongs to.

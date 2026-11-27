@@ -31,6 +31,7 @@ import {
   type SimilarFeedbackIssue,
   withFeedbackPhone,
 } from "@openbot/contracts/feedback";
+import { withReportStatus } from "@openbot/contracts/fork-team-board";
 import {
   installServerCommand,
   parseHostedServerName,
@@ -92,6 +93,8 @@ import type { ChannelService } from "../channel-service";
 import type { CrmHandle } from "../crm/crm";
 import type { ProviderSession } from "../database/provider-sessions";
 import { forkHub } from "../fork-hub";
+// Fork (docs/fork/FEATURES.md #134): the team board and the status of a report.
+import { reportFields, TEAM_BOARD_TOOL, teamBoardHours, teamBoardToolResult } from "../fork-team-board";
 import { SEND_VOICE_NOTE_TOOL } from "../fork-voice-notes";
 import type { MailboxStore } from "../mailbox-store";
 import { agentMcpServers, codexDeferredMcpServers, openCodeMcpServers } from "../mcp-provider-shapes";
@@ -1004,6 +1007,7 @@ export class OpenBotToolRouter {
               tool === "list_library_folders" ||
               tool === "organize_library" ||
               tool === "send_message" ||
+              tool === TEAM_BOARD_TOOL ||
               tool === "messaging_post" ||
               tool === "web_search" ||
               tool === "create_server_install_command" ||
@@ -2161,6 +2165,15 @@ export class OpenBotToolRouter {
       return yield* this.#attachments
         .attachFiles(senderAgentId, params, [note.path], messageId)
         .pipe(Effect.ensuring(voiceNotes.discard(note.folder)));
+    }
+
+    // Fork (docs/fork/FEATURES.md #134): the lead's team board, read from the mailbox.
+    if (params.tool === TEAM_BOARD_TOOL) {
+      const read = forkHub.teamBoard;
+      if (!read) throw new Error("The team board is not ready yet. Try again in a moment.");
+      const args = isRecord(params.arguments) ? params.arguments : {};
+      const board = read(senderAgentId, teamBoardHours(args.hours));
+      return openBotToolResult(teamBoardToolResult(board, senderAgentId, Date.now()));
     }
 
     if (params.tool === "list_agents") {
@@ -3722,6 +3735,8 @@ export class OpenBotToolRouter {
       if (expectsReply !== undefined && typeof expectsReply !== "boolean") {
         throw new Error("expectsReply must be a boolean.");
       }
+      // Fork (docs/fork/FEATURES.md #134): the status (and next step) of a teammate's report.
+      const report = reportFields({ status: params.arguments.status, next: params.arguments.next });
 
       const turnDeliveries = this.#mailbox.findDeliveriesByTurn(senderAgentId, params.turnId);
       const messagingReturn = turnDeliveries
@@ -3773,7 +3788,11 @@ export class OpenBotToolRouter {
       const [answerTaskId = null] = answerTaskIds.size === 1 ? answerTaskIds : [];
       const taskId = answerTaskId && this.#tasks.threadId(answerTaskId) !== null ? answerTaskId : undefined;
       const messaging = this.#mailbox.answerReturn(answeredRequestIds, recipientValues);
-      const text = params.arguments.text;
+      if (report && threadRequestIds.length === 0)
+        throw new Error(
+          "status and next are only for your reply to a request: pass replyToMessageId with the id of the request that you answer, or leave them out.",
+        );
+      const text = report ? withReportStatus(params.arguments.text, report.status, report.next) : params.arguments.text;
       const receipt = yield* this.#mailbox
         .enqueue({
           sender: { kind: "agent", agentId: senderAgentId },

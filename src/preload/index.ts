@@ -12,6 +12,7 @@ import {
   parseSavedAppId,
 } from "@openbot/contracts/fork-saved-apps";
 import { decodeAgentSectionInheritance, decodeSectionDefaultsEditor } from "@openbot/contracts/fork-section-defaults";
+import { decodeTeamBoard } from "@openbot/contracts/fork-team-board";
 import { ATTACHMENT_LIMITS, INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import {
   type AgentIpcRequest,
@@ -649,6 +650,7 @@ window.addEventListener("change", (event) => {
 });
 
 const agentGroup = bridgeGroup(IPC_ENDPOINTS.agent, {
+  forkTeamBoard: decodeTeamBoard, // Fork (docs/fork/FEATURES.md #134)
   getStatus: decodeAgentStatusFromMain,
   getRuntimeSnapshot: decodeAgentRuntimeSnapshot,
   getHostAnalytics: decodeHostAnalyticsFromMain,

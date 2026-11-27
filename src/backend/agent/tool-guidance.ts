@@ -196,10 +196,13 @@ function openbotGuidance(namespace: string, tool: string): string {
       return "openbot.list_agents reports each agent's status, queuedMessages, turnStartedAt, and lastActivityAt. openbot.interrupt_agent takes the agent id and a short reason. It stops only a turn that works on your message, cancels your requests still queued for that agent, and sends the agent a notice. Do not interrupt work only because it is slow.";
     case "list_agents":
     case "send_message":
+    case "team_board":
       return [
         RECIPIENT_RULE,
         "Replies are never forwarded automatically. In a channel task, use channel_assign, channel_transfer, channel_reply, or channel_result instead of openbot.send_message.",
         "With expectsReply true, OpenBot sends the result back once, in a later turn. Provider tools such as wait_agent wait only for provider subagents. Never send a request only to thank, to confirm receipt, or to say that you are done.",
+        // Fork (docs/fork/FEATURES.md #134): structured report status and the lead's team board.
+        "When you answer a request, pass status (done, progress, partial, blocked, needs-input) and, when there is one, next (the one next step) with replyToMessageId. When you lead teammates, call openbot.team_board to see each teammate's current request, state, last report and age; read it instead of keeping your own status file or plan list, and before you ask a teammate how far it is.",
       ].join("\n");
     case "list_channels":
     case "send_to_channel":

@@ -1,4 +1,5 @@
 import { feedbackSentIssue } from "@openbot/contracts/feedback";
+import { isOpenBotReportNote, parseReportStatus, type TeamReportStatus } from "@openbot/contracts/fork-team-board";
 import { serverInstallEvent } from "@openbot/contracts/hosted-servers";
 import type {
   ClientAgentSummary,
@@ -501,6 +502,7 @@ function chatActionMarker(
       replyToMessageId: message.exchange.replyToMessageId,
       expectsReply: message.exchange.expectsReply !== false,
       ...(message.exchange.senderTaskId === undefined ? {} : { senderTaskId: message.exchange.senderTaskId }),
+      ...forkReportStatus(message.text), // Fork (docs/fork/FEATURES.md #134): the report's status chip.
     };
   }
   if (isContextResetMarker(message)) return { kind: "context-reset", timestamp: message.createdAt };
@@ -756,4 +758,11 @@ export function formatMessageTime(value: string): string {
   const { t, format } = currentText();
   if (Number.isNaN(date.getTime())) return t("chat.day.now");
   return formatChatTimestamp(date, format);
+}
+
+/** Fork (docs/fork/FEATURES.md #134): a teammate report's "Status:" line, for its chip. */
+function forkReportStatus(text: string): { report?: { status: TeamReportStatus | "failed"; next: string | null } } {
+  const report = parseReportStatus(text);
+  if (!report) return {};
+  return { report: isOpenBotReportNote(text) ? { status: "failed", next: null } : report };
 }

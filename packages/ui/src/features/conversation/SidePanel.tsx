@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Settings,
   Tabs,
+  UsersRound,
   Workflow,
   X,
 } from "@openbot/ui";
@@ -47,6 +48,8 @@ const SIDE_PANEL_PANES = {
   browser: { label: "conversation.sidePanel.pane.browser", icon: () => <ComputerIcon /> },
   files: { label: "conversation.sidePanel.pane.files", icon: () => <Folder aria-hidden="true" /> },
   threads: { label: "conversation.sidePanel.pane.threads", icon: () => <MessagesSquare aria-hidden="true" /> },
+  // Fork (docs/fork/FEATURES.md #134): a lead's team board.
+  team: { label: "conversation.sidePanel.pane.team", icon: () => <UsersRound aria-hidden="true" /> },
   settings: { label: "conversation.sidePanel.pane.settings", icon: () => <Settings aria-hidden="true" /> },
   question: {
     label: "conversation.sidePanel.pane.question",

@@ -29,6 +29,8 @@ const DIRECT_NAMES = new Set([
   "send_voice_note",
   "list_agents",
   "send_message",
+  // Fork (docs/fork/FEATURES.md #134): a lead reads its team's state instead of keeping a status file.
+  "team_board",
   "start_task",
   "message_task",
   "close_task",

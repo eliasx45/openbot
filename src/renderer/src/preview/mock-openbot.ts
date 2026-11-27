@@ -2186,6 +2186,8 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       },
     },
     agent: {
+      // Fork (docs/fork/FEATURES.md #134): no teammate requests in the preview.
+      forkTeamBoard: async () => ({ generatedAt: new Date().toISOString(), windowHours: 24, leads: [] }),
       getStatus: async (serverId) =>
         clone(serverId === storyForeignServerId ? withStoryForeignProvider(agentStatus) : agentStatus),
       getRuntimeSnapshot: async () => clone(runtimeSnapshot),

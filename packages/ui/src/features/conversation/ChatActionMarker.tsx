@@ -39,6 +39,7 @@ import type { AgentInstructionsFileCalls } from "./AgentInstructionsView";
 import { formatChatTimestamp } from "./chat-timestamp";
 import { FeedbackSentCard } from "./FeedbackSentCard";
 import { InstructionsChangeActions } from "./InstructionsChangeActions";
+import { TeamStateChip } from "./TeamBoard";
 import { MAIN_THREAD_ID } from "./threads/thread-types";
 
 interface ChatActionMarkerProps {
@@ -506,6 +507,15 @@ function SingleChatActionMarker(
           <span class="chat-action-marker-label">{label()}</span>
           <Show when={props.marker.kind === "agent-message" && props.marker}>
             {(marker) => <AgentTarget marker={marker()} agents={props.agents} onSelectAgent={props.onSelectAgent} />}
+          </Show>
+          {/* Fork (docs/fork/FEATURES.md #134): the report's status as a chip, its next step on hover. */}
+          <Show when={props.marker.kind === "agent-message" && props.marker.report}>
+            {(report) => (
+              <TeamStateChip
+                state={report().status}
+                title={report().next ? t("conversation.team.next", { next: report().next ?? "" }) : undefined}
+              />
+            )}
           </Show>
           <Show when={props.marker.kind === "routine-lifecycle" && props.marker}>
             {(marker) => (

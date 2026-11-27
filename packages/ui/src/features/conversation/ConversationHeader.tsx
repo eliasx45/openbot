@@ -1,4 +1,4 @@
-import { Badge, Button, Clock3, Lock } from "@openbot/ui";
+import { Badge, Button, Clock3, Lock, UsersRound } from "@openbot/ui";
 import { ProviderModelPicker } from "@openbot/ui/components/ProviderModelPicker";
 import type { AgentProfile } from "@openbot/ui/data";
 import { AgentAvatar } from "@openbot/ui/features/agents/AgentAvatar";
@@ -25,6 +25,17 @@ export interface ConversationHeaderProps {
   sidePanel?: SidePanelToggleProps | undefined;
   threads?: JSX.Element | undefined;
   titleSelected?: boolean | undefined;
+  /** Fork (docs/fork/FEATURES.md #134): the team board of a lead agent. */
+  team?: ConversationHeaderTeam | undefined;
+}
+
+/** Fork (docs/fork/FEATURES.md #134): the header button of a lead's team board. */
+export interface ConversationHeaderTeam {
+  teammates: number;
+  working: number;
+  attention: number;
+  open: boolean;
+  onToggle: () => void;
 }
 
 export interface ConversationHeaderPendingModel {
@@ -222,6 +233,35 @@ export function ConversationHeader(props: ConversationHeaderProps) {
               </Show>
             </Button>
           )}
+        </Show>
+        <Show when={props.team}>
+          {(team) => {
+            const label = () =>
+              [
+                t("conversation.team.headerLabel", { count: team().teammates }),
+                ...(team().working > 0 ? [t("conversation.team.working", { count: team().working })] : []),
+                ...(team().attention > 0 ? [t("conversation.team.attention", { count: team().attention })] : []),
+              ].join(", ");
+            return (
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                class="header-panel-toggle team-board-toggle"
+                aria-label={label()}
+                title={label()}
+                aria-expanded={team().open ? "true" : "false"}
+                data-cuelume-tap={team().open ? "close" : "open"}
+                onClick={() => team().onToggle()}
+              >
+                <UsersRound aria-hidden="true" class="size-[14px]" />
+                <span aria-hidden="true">{team().teammates}</span>
+                <Show when={team().attention > 0}>
+                  <span class="team-board-toggle-dot" aria-hidden="true" />
+                </Show>
+              </Button>
+            );
+          }}
         </Show>
         <Show when={props.pinnedMessages}>{(pins) => <PinnedMessages {...pins()} />}</Show>
         <Show when={props.sidePanel}>{(sidePanel) => <SidePanelToggle {...sidePanel()} />}</Show>
