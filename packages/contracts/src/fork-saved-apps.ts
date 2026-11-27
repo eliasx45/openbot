@@ -291,3 +291,140 @@ export function decodePageStateReply(value: unknown): PageStateReply {
 export function decodeSavedAppIdOrNull(value: unknown): string | null {
   return value === null ? null : appId(value);
 }
+
+// ---- Install on this computer (phase B) ----
+
+export type SavedAppInstallUnavailable = "linux" | "dev" | "unsupported";
+export type SavedAppInstallFailure = "unavailable" | "invalid-id" | "not-installed" | "no-desktop" | "taken" | "failed";
+
+export interface InstalledSavedAppView {
+  id: string;
+  name: string;
+  /** A copy is on the Desktop. */
+  desktop: boolean;
+}
+
+export interface SavedAppInstallState {
+  /** null: this computer can install apps; else why not. */
+  unavailable: SavedAppInstallUnavailable | null;
+  apps: InstalledSavedAppView[];
+}
+
+export interface SavedAppInstallInput {
+  id: string;
+  /** The launcher's icon, a square PNG the renderer draws; null keeps the one from before. */
+  iconPng: Uint8Array | null;
+}
+
+export type SavedAppInstallReply =
+  | { ok: true; state: SavedAppInstallState }
+  | { ok: false; reason: SavedAppInstallFailure; state: SavedAppInstallState };
+
+const SAVED_APP_ICON_MAX = 2 * 1024 * 1024;
+const UNAVAILABLE: readonly SavedAppInstallUnavailable[] = ["linux", "dev", "unsupported"];
+const FAILURES: readonly SavedAppInstallFailure[] = [
+  "unavailable",
+  "invalid-id",
+  "not-installed",
+  "no-desktop",
+  "taken",
+  "failed",
+];
+
+export function parseSavedAppInstallInput(value: unknown): SavedAppInstallInput {
+  const input = record(value, "app");
+  const icon = input.iconPng;
+  if (icon !== null && !(icon instanceof Uint8Array && icon.byteLength <= SAVED_APP_ICON_MAX)) return fail("icon");
+  return { id: appId(input.id), iconPng: icon };
+}
+
+function decodeInstalledApp(value: unknown): InstalledSavedAppView {
+  const app = record(value, "installed app");
+  return isSavedAppId(app.id) && isString(app.name) && typeof app.desktop === "boolean"
+    ? { id: app.id, name: app.name, desktop: app.desktop }
+    : fail("installed app");
+}
+
+export function decodeSavedAppInstallState(value: unknown): SavedAppInstallState {
+  const state = record(value, "install state");
+  const unavailable = UNAVAILABLE.find((one) => one === state.unavailable) ?? null;
+  if ((state.unavailable !== null && unavailable === null) || !Array.isArray(state.apps)) return fail("install state");
+  return { unavailable, apps: state.apps.map(decodeInstalledApp) };
+}
+
+export function decodeSavedAppInstallReply(value: unknown): SavedAppInstallReply {
+  const reply = record(value, "install reply");
+  const state = decodeSavedAppInstallState(reply.state);
+  if (reply.ok === true) return { ok: true, state };
+  const reason = FAILURES.find((one) => one === reply.reason);
+  return reply.ok === false && reason ? { ok: false, reason, state } : fail("install reply");
+}
+
+// ---- Live data for pages (phase C) ----
+
+/** What a page declares it uses (html_render `uses`); only "data" opens anything. */
+export const PAGE_USES = ["data", "state"] as const;
+export type PageUse = (typeof PAGE_USES)[number];
+export const PAGE_DATA_SQL_MAX = 20_000;
+export const PAGE_DATA_PARAMS_MAX = 100;
+const PAGE_DATA_PARAM_CHARS = 10_000;
+
+export function pageUses(value: unknown): PageUse[] {
+  if (!Array.isArray(value)) return [];
+  return PAGE_USES.filter((use) => value.includes(use));
+}
+
+export type PageDataParameter = string | number | null;
+
+export type PageDataOperation = { op: "query"; sql: string; params: PageDataParameter[] } | { op: "tables" };
+
+export type PageDataRequest = PageDataOperation & { target: PageStateTarget };
+
+function dataParameter(value: unknown): PageDataParameter | undefined {
+  if (value === null || (isString(value) && value.length <= PAGE_DATA_PARAM_CHARS)) return value;
+  if (typeof value === "boolean") return value ? 1 : 0;
+  return isNumber(value) && Number.isFinite(value) ? value : undefined;
+}
+
+/** A page's data call as the frame sent it; null when it is not one. */
+export function pageDataOperation(value: unknown): PageDataOperation | null {
+  if (!isDynamicRecord(value)) return null;
+  if (value.op === "tables") return { op: "tables" };
+  const { sql, params } = value;
+  if (value.op !== "query" || !isString(sql) || !sql.trim() || sql.length > PAGE_DATA_SQL_MAX) return null;
+  const given = params === undefined ? [] : params;
+  if (!Array.isArray(given) || given.length > PAGE_DATA_PARAMS_MAX) return null;
+  const kept: PageDataParameter[] = [];
+  for (const item of given) {
+    const parameter = dataParameter(item);
+    if (parameter === undefined) return null;
+    kept.push(parameter);
+  }
+  return { op: "query", sql, params: kept };
+}
+
+export function parsePageDataRequest(value: unknown): PageDataRequest {
+  const input = record(value, "data request");
+  const operation = pageDataOperation(input);
+  return operation ? { ...operation, target: parseTarget(input.target) } : fail("data request");
+}
+
+/** [window ms, most calls] pairs, all of which must have room: 10 in 10 seconds and 120 in 10 minutes. */
+export const PAGE_DATA_RATES: ReadonlyArray<readonly [number, number]> = [
+  [10_000, 10],
+  [600_000, 120],
+];
+
+export function createRateLimiter(rules: ReadonlyArray<readonly [number, number]>, now: () => number = Date.now) {
+  const stamps: number[] = [];
+  const longest = Math.max(...rules.map(([ms]) => ms));
+  return {
+    take(): boolean {
+      const at = now();
+      while (stamps.length > 0 && at - (stamps[0] ?? at) >= longest) stamps.shift();
+      for (const [ms, max] of rules) if (stamps.filter((stamp) => at - stamp < ms).length >= max) return false;
+      stamps.push(at);
+      return true;
+    },
+  };
+}

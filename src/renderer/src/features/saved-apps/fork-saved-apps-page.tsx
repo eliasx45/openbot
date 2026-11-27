@@ -10,9 +10,12 @@ import { useNavigation } from "../../navigation";
 import { useAgents } from "../agents/agents-context";
 import { useServerSelection } from "../servers/server-selection";
 import { useServers } from "../servers/servers-context";
+import { SavedAppInstalledPill, SavedAppInstallItems, useSavedAppInstall } from "./fork-saved-app-install";
 import { SavedAppMark, SavedAppThumb, SavedAppView } from "./fork-saved-app-view";
 import {
+  installedSavedApp,
   openSavedAppPage,
+  runSavedAppInstall,
   savedApps,
   savedAppsFailed,
   savedAppsLoaded,
@@ -84,6 +87,7 @@ export function SavedAppsPage() {
   const [hidden, setHidden] = createSignal<ReadonlySet<string>>(new Set());
   const [removed, setRemoved] = createSignal<{ app: SavedApp; timer: ReturnType<typeof setTimeout> } | null>(null);
   const [failure, setFailure] = createSignal<string | null>(null);
+  const install = useSavedAppInstall(setFailure);
   watchSavedApps();
 
   const agentName = (app: SavedApp) =>
@@ -141,7 +145,15 @@ export function SavedAppsPage() {
     takeSavedApp({ ...app, name: cleaned });
     port
       .forkRenameSavedApp({ id: app.id, name: cleaned })
-      .then((saved) => takeSavedApp(saved ?? app))
+      .then((saved) => {
+        takeSavedApp(saved ?? app);
+        // An installed app's launcher takes the new name (and letter): the new one is written, then the old goes.
+        if (saved && installedSavedApp(saved.id))
+          runSavedAppInstall(saved, "install").then(
+            (reply) => !reply.ok && setFailure(t("app.savedApps.installFailed")),
+            () => setFailure(t("app.savedApps.installFailed")),
+          );
+      })
       .catch(() => {
         takeSavedApp(app);
         setFailure(t("app.savedApps.actionFailed"));
@@ -197,6 +209,7 @@ export function SavedAppsPage() {
                       onGoToChat={() => goToChat(app())}
                       onRename={(name) => rename(app(), name)}
                       onRemove={() => remove(app())}
+                      install={install}
                     />
                   )}
                 </For>
@@ -245,6 +258,7 @@ function SavedAppCard(props: {
   onGoToChat: () => void;
   onRename: (name: string) => void;
   onRemove: () => void;
+  install: ReturnType<typeof useSavedAppInstall>;
 }) {
   const { t, format } = useText();
   const [renaming, setRenaming] = createSignal(false);
@@ -329,7 +343,10 @@ function SavedAppCard(props: {
             />
           </Show>
           <p class="saved-app-card-meta">
-            {props.agentName} · {relativeTime(props.app.updatedAt, format.locale)}
+            <span class="saved-app-card-meta-text">
+              {props.agentName} · {relativeTime(props.app.updatedAt, format.locale)}
+            </span>
+            <SavedAppInstalledPill id={props.app.id} />
           </p>
         </div>
         <DropdownMenu.Root placement="bottom-end" gutter={6}>
@@ -353,6 +370,7 @@ function SavedAppCard(props: {
                 <AppWindow aria-hidden="true" />
                 <span>{t("app.savedApps.ownWindow")}</span>
               </DropdownMenu.Item>
+              <SavedAppInstallItems app={props.app} run={props.install} separator />
               <DropdownMenu.Separator />
               <DropdownMenu.Item class="saved-app-card-remove" onSelectAfterClose={() => props.onRemove()}>
                 <Trash2 aria-hidden="true" />

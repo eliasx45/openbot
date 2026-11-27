@@ -707,6 +707,8 @@ function attachWindowsSessionEndHandlers(window: BrowserWindow): void {
 function registerIpcHandlers({
   service,
   savedApps,
+  savedAppInstalls,
+  pageData,
   signInRelayClient,
   relayedMessagingInstalls,
   providerRuntimes,
@@ -860,6 +862,8 @@ function registerIpcHandlers({
       chatWindowTargets: windows.chatWindowTargets,
       // Fork (docs/fork/FEATURES.md #123): saved apps.
       savedApps,
+      savedAppInstalls,
+      pageData,
       openSavedAppWindow: windows.openSavedAppWindow,
       showSavedAppChat,
       takePendingSavedApp,

@@ -7,6 +7,7 @@ import { createSignal, onCleanup, untrack } from "solid-js";
 import { deviceQuoteShortcut } from "../../send-shortcut-preference";
 import {
   openSavedAppPage,
+  pageDataHost,
   pageStateHost,
   saveChatPageAsApp,
   savedApps,
@@ -110,6 +111,7 @@ export function ChatVisualReply(props: {
       isAppShortcut={isChatVisualAppShortcut}
       macWindowControls={view.platform === "darwin"}
       onState={pageStateHost(pageSource)}
+      onData={pageDataHost(pageSource)}
       saveAsApp={saveAsApp()}
     />
   );

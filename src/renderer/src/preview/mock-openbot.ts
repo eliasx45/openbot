@@ -1417,6 +1417,21 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
     onForkSavedAppsChanged: () => () => undefined,
     onForkOpenSavedApp: () => () => undefined,
     onForkGoToSavedAppChat: () => () => undefined,
+    forkSavedAppInstalls: async () => ({ unavailable: "dev", apps: [] }),
+    forkInstallSavedApp: async () => ({ ok: false, reason: "unavailable", state: { unavailable: "dev", apps: [] } }),
+    forkUninstallSavedApp: async () => ({ ok: false, reason: "unavailable", state: { unavailable: "dev", apps: [] } }),
+    forkAddSavedAppToDesktop: async () => ({
+      ok: false,
+      reason: "unavailable",
+      state: { unavailable: "dev", apps: [] },
+    }),
+    forkRemoveSavedAppFromDesktop: async () => ({
+      ok: false,
+      reason: "unavailable",
+      state: { unavailable: "dev", apps: [] },
+    }),
+    onForkSavedAppInstallsChanged: () => () => undefined,
+    forkPageData: async () => ({ ok: false, error: "Live data is not available here." }),
     browserDock: {
       publishPresentation: async () => undefined,
       getPresentation: async () => null,

@@ -8,6 +8,7 @@ import type { BillingDetails, BillingDetailsRequest } from "./billing-details";
 import type { CustomServerCheckoutRequest, CustomServerCheckoutResult } from "./custom-server-plans";
 import type { ChannelWebhookChange, ChannelWebhookSettings } from "./fork-channel-webhooks";
 import type {
+  PageDataRequest,
   PageStateReply,
   PageStateRequest,
   PinSavedAppInput,
@@ -16,6 +17,9 @@ import type {
   SaveAppPageResult,
   SavedApp,
   SavedAppChatTarget,
+  SavedAppInstallInput,
+  SavedAppInstallReply,
+  SavedAppInstallState,
 } from "./fork-saved-apps";
 import type {
   AgentSectionInheritance,
@@ -867,6 +871,15 @@ export const IPC_ENDPOINTS = {
     forkSavedAppsChanged: event<SavedApp[]>()("app:fork-apps-changed"),
     forkOpenSavedApp: event<string>()("app:fork-open-app"),
     forkGoToSavedAppChat: event<SavedAppChatTarget>()("app:fork-go-to-chat"),
+    // Fork (docs/fork/FEATURES.md #123): install saved apps on this computer.
+    forkSavedAppInstalls: request<undefined, SavedAppInstallState>()("app:fork-app-installs"),
+    forkInstallSavedApp: request<SavedAppInstallInput, SavedAppInstallReply>()("app:fork-install-app"),
+    forkUninstallSavedApp: request<string, SavedAppInstallReply>()("app:fork-uninstall-app"),
+    forkAddSavedAppToDesktop: request<SavedAppInstallInput, SavedAppInstallReply>()("app:fork-add-app-to-desktop"),
+    forkRemoveSavedAppFromDesktop: request<string, SavedAppInstallReply>()("app:fork-remove-app-from-desktop"),
+    forkSavedAppInstallsChanged: event<SavedAppInstallState>()("app:fork-app-installs-changed"),
+    // Fork (docs/fork/FEATURES.md #123): openbotPage.data for a page that declared it.
+    forkPageData: request<PageDataRequest, PageStateReply>()("app:fork-page-data"),
   },
   maintenance: {
     exportData: request<undefined, ExportResult>()("maintenance:export-data"),

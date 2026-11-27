@@ -2,6 +2,7 @@
 // live thumbnail of its card. Shared by the main window and the app window.
 
 import {
+  CHAT_VISUAL_DATA_UNAVAILABLE,
   CHAT_VISUAL_FRAME_SANDBOX,
   CHAT_VISUAL_STATE_UNAVAILABLE,
   type ChatVisualTheme,
@@ -10,12 +11,23 @@ import {
   parseChatVisualMessage,
 } from "@openbot/contracts/chat-visual";
 import { type SavedApp, savedAppUrl } from "@openbot/contracts/fork-saved-apps";
-import { AppWindow, ArrowLeft, Button, Check, ChevronDown, DropdownMenu, IconButton, MessageSquare } from "@openbot/ui";
+import {
+  AppWindow,
+  ArrowLeft,
+  Button,
+  Check,
+  ChevronDown,
+  DropdownMenu,
+  Ellipsis,
+  IconButton,
+  MessageSquare,
+} from "@openbot/ui";
 import { documentColorScheme } from "@openbot/ui/document-color-scheme";
 import { ChatVisual, visualTheme } from "@openbot/ui/features/conversation/ChatVisual";
 import { useText } from "@openbot/ui/text";
 import { createMemo, createSignal, For, onSettled, Show, untrack } from "solid-js";
-import { pageStateHost, savedAppsPort, takeSavedApp } from "./fork-saved-apps-store";
+import { SavedAppInstalledPill, SavedAppInstallItems, useSavedAppInstall } from "./fork-saved-app-install";
+import { pageDataHost, pageStateHost, savedAppInstalls, savedAppsPort, takeSavedApp } from "./fork-saved-apps-store";
 
 /** The first letter of the name, for the tile shown before (or instead of) the live page. */
 export function savedAppLetter(name: string): string {
@@ -48,6 +60,8 @@ export function SavedAppView(props: SavedAppViewProps) {
   const { t } = useText();
   const src = () => savedAppUrl(props.app.id, props.app.rev);
   const appId = () => props.app.id;
+  const [failure, setFailure] = createSignal<string | null>(null);
+  const install = useSavedAppInstall(setFailure);
   return (
     <section class="saved-app-view" data-in-window={props.inWindow ? "" : undefined} aria-label={props.app.name}>
       <header class="saved-app-view-header">
@@ -61,7 +75,10 @@ export function SavedAppView(props: SavedAppViewProps) {
           </Show>
           <SavedAppMark name={props.app.name} />
           <div class="saved-app-view-titles">
-            <h2 class="saved-app-view-name">{props.app.name}</h2>
+            <h2 class="saved-app-view-name">
+              <span>{props.app.name}</span>
+              <SavedAppInstalledPill id={props.app.id} />
+            </h2>
             <p class="saved-app-view-by">{t("app.savedApps.byAgent", { agent: props.agentName })}</p>
           </div>
         </div>
@@ -79,8 +96,30 @@ export function SavedAppView(props: SavedAppViewProps) {
               </Button>
             )}
           </Show>
+          <Show when={savedAppInstalls()}>
+            <DropdownMenu.Root placement="bottom-end" gutter={6}>
+              <DropdownMenu.Trigger
+                class="ui-button ui-button-variant-ghost ui-button-size-icon-sm saved-app-view-more"
+                aria-label={t("app.savedApps.more", { name: props.app.name })}
+              >
+                <Ellipsis aria-hidden="true" />
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content class="saved-app-card-menu saved-app-view-menu">
+                  <SavedAppInstallItems app={props.app} run={install} />
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          </Show>
         </div>
       </header>
+      <Show when={failure()}>
+        {(line) => (
+          <p class="saved-app-view-error" role="alert">
+            {line()}
+          </p>
+        )}
+      </Show>
       <div class="saved-app-view-body">
         <ChatVisual
           src={src()}
@@ -88,6 +127,7 @@ export function SavedAppView(props: SavedAppViewProps) {
           fill
           onOpenLink={openLink}
           onState={pageStateHost(() => ({ appId: appId() }))}
+          onData={pageDataHost(() => ({ appId: appId() }))}
         />
       </div>
     </section>
@@ -181,6 +221,12 @@ export function SavedAppThumb(props: { app: SavedApp }) {
     const page = frame?.contentWindow;
     if (!page || event.source !== page) return;
     const message = parseChatVisualMessage(event.data);
+    // A thumbnail gets no live data.
+    if (message?.type === "data")
+      return page.postMessage(
+        chatVisualStateReplyMessage(message.id, { ok: false, error: CHAT_VISUAL_DATA_UNAVAILABLE }),
+        "*",
+      );
     if (message?.type !== "state") return;
     const answer = (reply: Parameters<typeof chatVisualStateReplyMessage>[1]) => {
       if (frame?.contentWindow === page) page.postMessage(chatVisualStateReplyMessage(message.id, reply), "*");

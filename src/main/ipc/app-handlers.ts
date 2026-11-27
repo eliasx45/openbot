@@ -1,10 +1,12 @@
 import { bugReportFormUrl } from "@openbot/contracts/feedback";
 import {
+  parsePageDataRequest,
   parsePageStateRequest,
   parsePinSavedAppInput,
   parseRenameSavedAppInput,
   parseSaveAppPageInput,
   parseSavedAppId,
+  parseSavedAppInstallInput,
 } from "@openbot/contracts/fork-saved-apps";
 import { HOSTED_SERVER_CONTACT_URL } from "@openbot/contracts/hosted-servers";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
@@ -36,6 +38,8 @@ import type { ApprovalAutomation } from "../approval-automation-store";
 import type { BusyMessageModePreferenceStore } from "../busy-message-mode-preference-store";
 import type { ExternalLinkOpener, ExternalLinkPreferenceStore } from "../external-link-opener";
 import { feedbackFacts } from "../feedback";
+import type { SavedAppInstalls } from "../fork-app-install-host";
+import type { PageData } from "../fork-page-data";
 import type { SavedApps } from "../fork-saved-apps";
 import { listInstalledFonts } from "../installed-fonts";
 import type { InterfaceSizeService } from "../interface-size-service";
@@ -150,6 +154,8 @@ export interface AppIpcDependencies {
   chatWindowTargets: () => ChatWindowTarget[];
   /** Fork (docs/fork/FEATURES.md #123): saved apps. */
   savedApps: SavedApps;
+  savedAppInstalls: SavedAppInstalls;
+  pageData: PageData;
   openSavedAppWindow: (id: string) => void;
   showSavedAppChat: (id: string) => void;
   takePendingSavedApp: () => string | null;
@@ -191,6 +197,8 @@ export function appIpcHandlers({
   openChatWindow,
   chatWindowTargets,
   savedApps,
+  savedAppInstalls,
+  pageData,
   openSavedAppWindow,
   showSavedAppChat,
   takePendingSavedApp,
@@ -326,7 +334,11 @@ export function appIpcHandlers({
       openChatWindow: payloadHandler(parseChatWindowTarget, openChatWindow),
       getChatWindows: handler(chatWindowTargets),
       // Fork (docs/fork/FEATURES.md #123): saved apps.
-      forkListSavedApps: handler(() => savedApps.list()),
+      forkListSavedApps: handler(() => {
+        // After each load of the list: the launchers of apps no longer saved go (a failed list removes nothing).
+        void savedAppInstalls.cleanup(savedApps.ids()).catch(() => undefined);
+        return savedApps.list();
+      }),
       forkGetSavedApp: payloadHandler(parseSavedAppId, (id) => savedApps.get(id)),
       forkSaveAppPage: payloadHandler(parseSaveAppPageInput, (input) => savedApps.save(input)),
       forkRenameSavedApp: payloadHandler(parseRenameSavedAppInput, ({ id, name }) => savedApps.rename(id, name)),
@@ -336,6 +348,17 @@ export function appIpcHandlers({
       forkOpenSavedAppWindow: payloadHandler(parseSavedAppId, openSavedAppWindow),
       forkShowSavedAppChat: payloadHandler(parseSavedAppId, showSavedAppChat),
       forkTakePendingSavedApp: handler(takePendingSavedApp),
+      forkSavedAppInstalls: handler(() => savedAppInstalls.state()),
+      forkInstallSavedApp: payloadHandler(parseSavedAppInstallInput, (input) => savedAppInstalls.install(input)),
+      forkUninstallSavedApp: payloadHandler(parseSavedAppId, (id) => savedAppInstalls.uninstall(id)),
+      forkAddSavedAppToDesktop: payloadHandler(parseSavedAppInstallInput, (input) =>
+        savedAppInstalls.addToDesktop(input),
+      ),
+      forkRemoveSavedAppFromDesktop: payloadHandler(parseSavedAppId, (id) => savedAppInstalls.removeFromDesktop(id)),
+      // The ids name the page the window shows; main checks its declaration on every call.
+      forkPageData: eventPayloadHandler(parsePageDataRequest, (event, request) =>
+        pageData.handle(String(event.sender.id), request),
+      ),
     },
     maintenance: {
       exportData: handler(() =>

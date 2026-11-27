@@ -3,7 +3,7 @@
 // (openbotPage.state) in a file of its own. No Electron here, so the node tests can run it.
 
 import { createHash, randomBytes } from "node:crypto";
-import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { CHAT_VISUAL_PAGE_LIMIT } from "@openbot/contracts/chat-visual";
 import {
@@ -17,7 +17,9 @@ import {
   type PageStateRequest,
   type PageStateTarget,
   type PageStateValue,
+  type PageUse,
   pageStateValue,
+  pageUses,
   SAVED_APP_TITLE_MAX,
   SAVED_APP_VERSIONS,
   SAVED_APPS_MAX,
@@ -37,6 +39,8 @@ export interface SavedAppVersionRecord {
   /** sha256 of the page, stored as pages/<doc>.html. */
   doc: string;
   at: number;
+  /** What the page declared in its html_render call (phase C); only pages made here declare anything. */
+  uses?: PageUse[];
 }
 
 export interface SavedAppRecord {
@@ -88,7 +92,8 @@ function readVersion(value: unknown): SavedAppVersionRecord | null {
   const { rev, messageId, attachmentId, doc, at } = value;
   if (!count(rev) || rev < 1 || !text(messageId) || !text(attachmentId) || !isString(doc) || !DOC.test(doc))
     return null;
-  return { rev, messageId, attachmentId, doc, at: count(at) ? at : 0 };
+  const uses = pageUses(value.uses);
+  return { rev, messageId, attachmentId, doc, at: count(at) ? at : 0, ...(uses.length ? { uses } : {}) };
 }
 
 function readRecord(value: unknown): SavedAppRecord | null {
@@ -145,6 +150,12 @@ export interface SavedAppPage {
   messageId: string;
   attachmentId: string;
   html: Uint8Array;
+  uses?: readonly PageUse[];
+}
+
+function usesOf(page: SavedAppPage): { uses?: PageUse[] } {
+  const uses = pageUses(page.uses);
+  return uses.length ? { uses } : {};
 }
 
 /** The apps saved on this computer: `<dir>/apps.json` and `<dir>/pages/<sha256>.html`. */
@@ -152,6 +163,7 @@ export class SavedAppsStore {
   readonly #dir: string;
   readonly #now: () => number;
   #records: SavedAppRecord[];
+  #readable = true;
 
   constructor(dir: string, options: { now?: () => number } = {}) {
     this.#dir = dir;
@@ -160,8 +172,13 @@ export class SavedAppsStore {
   }
 
   #read(): SavedAppRecord[] {
-    const parsed = readJson(join(this.#dir, APPS_FILE));
-    if (!isDynamicRecord(parsed) || parsed.version !== 1 || !Array.isArray(parsed.apps)) return [];
+    const file = join(this.#dir, APPS_FILE);
+    const parsed = readJson(file);
+    if (!isDynamicRecord(parsed) || parsed.version !== 1 || !Array.isArray(parsed.apps)) {
+      // A list that is there but cannot be read is not an empty list: nothing may be cleaned up after it.
+      this.#readable = !existsSync(file);
+      return [];
+    }
     const seen = new Set<string>();
     const records: SavedAppRecord[] = [];
     for (const value of parsed.apps) {
@@ -175,6 +192,7 @@ export class SavedAppsStore {
 
   #write(): void {
     writeAtomic(join(this.#dir, APPS_FILE), `${JSON.stringify({ version: 1, apps: this.#records })}\n`);
+    this.#readable = true;
     this.#sweepPages();
   }
 
@@ -206,6 +224,11 @@ export class SavedAppsStore {
 
   list(): readonly SavedAppRecord[] {
     return this.#records;
+  }
+
+  /** Whether the list was read as it is on disk (or is new); false when the file could not be read. */
+  readable(): boolean {
+    return this.#readable;
   }
 
   get(id: string): SavedAppRecord | null {
@@ -242,7 +265,16 @@ export class SavedAppsStore {
       agentId: input.agentId,
       threadId: input.threadId,
       title: input.title,
-      versions: [{ rev: 1, messageId: input.page.messageId, attachmentId: input.page.attachmentId, doc, at: now }],
+      versions: [
+        {
+          rev: 1,
+          messageId: input.page.messageId,
+          attachmentId: input.page.attachmentId,
+          doc,
+          at: now,
+          ...usesOf(input.page),
+        },
+      ],
       createdAt: now,
       updatedAt: now,
     };
@@ -264,7 +296,7 @@ export class SavedAppsStore {
       ...was,
       versions: [
         ...was.versions,
-        { rev, messageId: page.messageId, attachmentId: page.attachmentId, doc, at: this.#now() },
+        { rev, messageId: page.messageId, attachmentId: page.attachmentId, doc, at: this.#now(), ...usesOf(page) },
       ],
     }));
   }
@@ -428,8 +460,12 @@ export interface SavedAppsDependencies {
   /** The thread of a page of this computer, without reading the page. */
   localPageThread: (attachmentId: string) => { agentIds: readonly string[]; threadId: string } | null;
   agentName: (serverId: string, agentId: string) => string | null;
+  /** What a page made here declared in its html_render call (phase C). */
+  pageUses?: (attachmentId: string, agentId: string) => readonly PageUse[];
   localServerId: string;
   changed?: (apps: SavedApp[]) => void;
+  /** An app was removed (its launchers go too). */
+  removed?: (id: string) => void;
   now?: () => number;
 }
 
@@ -481,6 +517,13 @@ export function createSavedApps(deps: SavedAppsDependencies) {
       return record ? view(record) : null;
     },
     record: (id: string) => store.get(id),
+    /** The server and the declaration of the version an app shows; null when there is no such app. */
+    appUses(id: string): { serverId: string; uses: readonly PageUse[] } | null {
+      const record = store.get(id);
+      if (!record) return null;
+      const version = record.versions.find((one) => one.rev === shownRev(record));
+      return { serverId: record.serverId, uses: version?.uses ?? [] };
+    },
     page: (id: string, rev?: number) => store.page(id, rev),
 
     async save(input: SaveAppPageInput): Promise<{ app: SavedApp; created: boolean }> {
@@ -501,7 +544,13 @@ export function createSavedApps(deps: SavedAppsDependencies) {
         agentId: input.agentId,
         threadId,
         title: input.title,
-        page: { messageId: input.messageId, attachmentId: input.attachmentId, html },
+        page: {
+          messageId: input.messageId,
+          attachmentId: input.attachmentId,
+          html,
+          // Only a page made here can have declared anything.
+          uses: local(input.serverId) ? (deps.pageUses?.(input.attachmentId, input.agentId) ?? []) : [],
+        },
       });
       announce();
       return { app: view(saved.record), created: saved.created };
@@ -519,7 +568,8 @@ export function createSavedApps(deps: SavedAppsDependencies) {
       if (!record) return;
       const source = await deps.readLocalPage(page.attachmentId);
       if (!source || source.html.byteLength > CHAT_VISUAL_PAGE_LIMIT) return;
-      const after = store.addVersion(record.id, { ...page, html: source.html });
+      const uses = deps.pageUses?.(page.attachmentId, page.agentId) ?? [];
+      const after = store.addVersion(record.id, { ...page, html: source.html, uses });
       if (after && after !== record) announce();
     },
 
@@ -535,9 +585,14 @@ export function createSavedApps(deps: SavedAppsDependencies) {
     },
     remove(id: string) {
       const removed = store.remove(id);
-      if (removed) announce();
+      if (removed) {
+        announce();
+        deps.removed?.(id);
+      }
       return removed;
     },
+    /** Every saved app's id; null when the list on disk could not be read. */
+    ids: (): string[] | null => (store.readable() ? store.list().map((record) => record.id) : null),
 
     async state(request: PageStateRequest): Promise<PageStateReply> {
       const scope = await scopeOf(request.target);

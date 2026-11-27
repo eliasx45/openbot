@@ -234,13 +234,52 @@
 }
 
 .saved-app-card-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--openbot-space-2);
   margin: 0;
   line-height: var(--openbot-leading-sm, 1.4);
-  overflow: hidden;
   color: var(--openbot-text-muted);
   font-size: var(--openbot-text-sm);
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.saved-app-card-meta-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Phase B: installed on this computer. Quiet: muted text on a hairline. */
+.saved-app-installed {
+  flex: none;
+  padding: 0 var(--openbot-space-1-5);
+  border-radius: var(--openbot-radius-pill);
+  box-shadow: 0 0 0 1px var(--openbot-border);
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-xs);
+  font-weight: var(--openbot-weight-medium);
+  line-height: 1.6;
+}
+
+.saved-app-view-name .saved-app-installed {
+  margin-inline-start: var(--openbot-space-2);
+  vertical-align: 2px;
+}
+
+.saved-app-view-error {
+  flex: none;
+  margin: 0;
+  padding: var(--openbot-space-2) var(--openbot-space-4);
+  border-bottom: 1px solid var(--openbot-border);
+  color: var(--openbot-danger-text);
+  font-size: var(--openbot-text-sm);
+}
+
+.ui-action-menu .saved-app-install-unavailable {
+  height: auto;
+  white-space: normal;
 }
 
 .saved-app-card-more {
@@ -434,10 +473,18 @@
   grid-template-rows: var(--left-header-height) minmax(0, 1fr);
 }
 
+/* A failure line of the app view gets a row of its own between the top row and the page. */
+.app-window
+  > .app-frame-edge[data-window-page-kind="titled"]
+  > .window-page
+  > .saved-apps-page:has(> .saved-app-view > .saved-app-view-error) {
+  grid-template-rows: var(--left-header-height) auto minmax(0, 1fr);
+}
+
 .app-frame-edge[data-window-page-kind="titled"]
   > .window-page
   > .saved-apps-page
-  :is(.saved-apps-body, .saved-app-view-body) {
+  :is(.saved-apps-body, .saved-app-view-body, .saved-app-view-error) {
   pointer-events: auto;
 }
 

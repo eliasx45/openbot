@@ -258,7 +258,15 @@ import {
 } from "./external-link-opener";
 import { feedbackFacts, feedbackSender } from "./feedback";
 import { updatesAllowed as forkUpdatesAllowed } from "./fork";
+import {
+  createElectronSavedAppInstaller,
+  createSavedAppInstalls,
+  SAVED_APPS_INSTALL_DIR_ENV,
+  type SavedAppInstalls,
+  savedAppInstallFolders,
+} from "./fork-app-install-host";
 import { CHANNEL_WEBHOOKS_FILE, ChannelWebhookService, forkChannelWebhooks } from "./fork-channel-webhooks";
+import { createPageData, type PageData, PageUsesStore } from "./fork-page-data";
 import { ForkPhoneVideo, forkPhoneVideo } from "./fork-phone-video";
 import { createSavedApps, type SavedApps } from "./fork-saved-apps";
 import { createForkSectionDefaults } from "./fork-section-defaults";
@@ -746,6 +754,8 @@ export interface ApplicationServices {
   /** Fork (docs/fork/FEATURES.md #123): saved apps. */
   savedApps: SavedApps;
   savedAppsDir: string;
+  savedAppInstalls: SavedAppInstalls;
+  pageData: PageData;
   host: HostService;
   remoteDesktop: RemoteDesktopManager;
   remoteServers: RemoteServerManager;
@@ -3935,8 +3945,42 @@ export async function createApplicationServices({
     const scope = mailbox.forkAttachmentScope(attachmentId);
     return scope && !scope.draft ? { agentIds: scope.agentIds, threadId: scope.threadId ?? "" } : null;
   };
+  // Phase B: install saved apps on this computer; removing an app uninstalls it.
+  const savedAppInstaller = createElectronSavedAppInstaller({
+    platform: process.platform,
+    stateDir: savedAppsDir,
+    folders: savedAppInstallFolders({
+      platform: process.platform,
+      override: process.env[SAVED_APPS_INSTALL_DIR_ENV],
+      packaged: app.isPackaged,
+      home: app.getPath("home"),
+      appData: app.getPath("appData"),
+      desktop: () => {
+        try {
+          return app.getPath("desktop");
+        } catch {
+          return null;
+        }
+      },
+    }),
+    shell: {
+      trashItem: (path) => shell.trashItem(path),
+      writeShortcutLink: (path, operation, options) => shell.writeShortcutLink(path, operation, options),
+      readShortcutLink: (path) => shell.readShortcutLink(path),
+    },
+    log: (line) => logger.info(line),
+  });
+  let savedAppInstalls: SavedAppInstalls | null = null;
+  // Phase C: what each page made here declared (html_render `uses`), kept where the page cannot change it.
+  const pageUsesStore = new PageUsesStore(savedAppsDir);
   const savedApps = createSavedApps({
     dir: savedAppsDir,
+    pageUses: (attachmentId, agentId) => pageUsesStore.uses(attachmentId, agentId),
+    removed: (id) => {
+      void savedAppInstalls?.uninstall(id).catch((error: unknown) => {
+        logger.warn("A removed app's launcher could not be removed.", toLogValue(error));
+      });
+    },
     localServerId: LOCAL_SERVER_ID,
     localPageThread,
     readLocalPage: async (attachmentId) => {
@@ -3956,8 +4000,35 @@ export async function createApplicationServices({
         sendToRenderer(window, IPC_ENDPOINTS.app.forkSavedAppsChanged, apps);
     },
   });
+  savedAppInstalls = createSavedAppInstalls({
+    installer: savedAppInstaller,
+    appName: (id) => savedApps.get(id)?.name ?? null,
+    changed: (state) => {
+      for (const window of BrowserWindow.getAllWindows())
+        sendToRenderer(window, IPC_ENDPOINTS.app.forkSavedAppInstallsChanged, state);
+    },
+  });
+  const installs = savedAppInstalls;
+  void installs.cleanup(savedApps.ids()).catch(() => undefined);
+  const pageData = createPageData({
+    localServerId: LOCAL_SERVER_ID,
+    uses: pageUsesStore,
+    localPage: localPageThread,
+    appUses: (id) => savedApps.appUses(id),
+    query: async (sql, params) => {
+      const result = await Effect.runPromise(tables.query(sql, params));
+      return result.ok ? { ok: true, value: result.value } : result;
+    },
+    tables: async () => (await Effect.runPromise(tables.listShared())).map((table) => table.name),
+  });
   forkHub.savedApps = {
     pageAdded: (page) => {
+      // Before the page can ask for data: recorded now, in the html_render call.
+      try {
+        pageUsesStore.record(page.attachmentId, page.agentId, page.uses);
+      } catch (error) {
+        logger.warn("A page's declared uses could not be kept.", toLogValue(error));
+      }
       setTimeout(() => {
         savedApps.pageAdded(page).catch((error: unknown) => {
           logger.warn("A saved app did not take the new page.", toLogValue(error));
@@ -4389,6 +4460,8 @@ export async function createApplicationServices({
     service,
     savedApps,
     savedAppsDir,
+    savedAppInstalls: installs,
+    pageData,
     workflows: workflowRuntime,
     workflowGitHub,
     crm,

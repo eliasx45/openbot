@@ -1,11 +1,14 @@
 // Fork (docs/fork/FEATURES.md #123): the saved apps the renderer shows, kept in step with main.
 
 import type {
+  PageDataOperation,
   PageStateOperation,
   PageStateReply,
   PageStateTarget,
   SaveAppPageInput,
   SavedApp,
+  SavedAppInstallReply,
+  SavedAppInstallState,
 } from "@openbot/contracts/fork-saved-apps";
 import type { OpenBotDesktopApi } from "@openbot/contracts/ipc";
 import { createSignal } from "solid-js";
@@ -25,6 +28,13 @@ export type SavedAppsPort = Pick<
   | "onForkSavedAppsChanged"
   | "onForkOpenSavedApp"
   | "onForkGoToSavedAppChat"
+  | "forkSavedAppInstalls"
+  | "forkInstallSavedApp"
+  | "forkUninstallSavedApp"
+  | "forkAddSavedAppToDesktop"
+  | "forkRemoveSavedAppFromDesktop"
+  | "onForkSavedAppInstallsChanged"
+  | "forkPageData"
 >;
 
 /** The desktop bridge, or null where there is none (the web client, the preview). */
@@ -41,7 +51,11 @@ const [shownAppId, setShownAppId] = createSignal<string | null>(null);
 /** Counts asks to show the Apps page, which the window page context follows. */
 const [appsPageRequest, setAppsPageRequest] = createSignal(0);
 
+/** Which apps are installed on this computer (phase B); null until main answers. */
+const [installs, setInstalls] = createSignal<SavedAppInstallState | null>(null);
+
 export const savedApps = apps;
+export const savedAppInstalls = installs;
 export const savedAppsLoaded = loaded;
 export const savedAppsFailed = failed;
 export const shownSavedAppId = shownAppId;
@@ -59,7 +73,9 @@ export function watchSavedApps(): void {
     setLoaded(true);
     setFailed(false);
   });
+  port.onForkSavedAppInstallsChanged(setInstalls);
   void refreshSavedApps();
+  port.forkSavedAppInstalls().then(setInstalls, () => undefined);
 }
 
 export async function refreshSavedApps(): Promise<void> {
@@ -112,4 +128,78 @@ export function pageStateHost(
     if (!shown) return { ok: false, error: "Saved data is not available here." };
     return port.forkPageState({ ...request, target: shown });
   };
+}
+
+/** openbotPage.data for one frame: the host names the page; main checks it declared data. */
+export function pageDataHost(
+  target: () => PageStateTarget | null,
+): ((request: PageDataOperation) => Promise<PageStateReply>) | undefined {
+  const port = savedAppsPort();
+  if (!port) return undefined;
+  return async (request) => {
+    const shown = target();
+    if (!shown) return { ok: false, error: "Live data is not available here." };
+    return port.forkPageData({ ...request, target: shown });
+  };
+}
+
+// ---- Install on this computer (phase B) ----
+
+export function installedSavedApp(id: string) {
+  return installs()?.apps.find((app) => app.id === id) ?? null;
+}
+
+const ICON_SIDE = 256;
+
+/** The launcher's icon: the name's first letter on a rounded plate, like the app's mark on its card. */
+export async function drawSavedAppIcon(name: string): Promise<Uint8Array | null> {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = ICON_SIDE;
+    canvas.height = ICON_SIDE;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    // The macOS icon grid: the plate is about 80% of the square, its corners about 22% of the plate.
+    const inset = ICON_SIDE * 0.1;
+    const side = ICON_SIDE - inset * 2;
+    context.beginPath();
+    context.roundRect(inset, inset, side, side, side * 0.225);
+    const plate = context.createLinearGradient(0, inset, 0, inset + side);
+    plate.addColorStop(0, "#34343a");
+    plate.addColorStop(1, "#1f1f24");
+    context.fillStyle = plate;
+    context.fill();
+    context.lineWidth = 3;
+    context.strokeStyle = "rgba(255, 255, 255, 0.14)";
+    context.stroke();
+    context.fillStyle = "#ececf1";
+    context.font = `600 ${Math.round(side * 0.5)}px -apple-system, "Segoe UI", system-ui, sans-serif`;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    const letter = (Array.from(name.trim())[0] ?? "A").toUpperCase();
+    context.fillText(letter, ICON_SIDE / 2, ICON_SIDE / 2 + side * 0.03);
+    const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, "image/png"));
+    return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+  } catch {
+    return null;
+  }
+}
+
+export type SavedAppInstallAction = "install" | "uninstall" | "add-to-desktop" | "remove-from-desktop";
+
+/** Runs one install action; the state that comes back is shown at once. */
+export async function runSavedAppInstall(app: SavedApp, action: SavedAppInstallAction): Promise<SavedAppInstallReply> {
+  const port = savedAppsPort();
+  if (!port) throw new Error("Saved apps are not available here.");
+  const icon = async () => ({ id: app.id, iconPng: await drawSavedAppIcon(app.name) });
+  const reply =
+    action === "install"
+      ? await port.forkInstallSavedApp(await icon())
+      : action === "add-to-desktop"
+        ? await port.forkAddSavedAppToDesktop(await icon())
+        : action === "uninstall"
+          ? await port.forkUninstallSavedApp(app.id)
+          : await port.forkRemoveSavedAppFromDesktop(app.id);
+  setInstalls(reply.state);
+  return reply;
 }
