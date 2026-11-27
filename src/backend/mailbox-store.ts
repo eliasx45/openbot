@@ -54,6 +54,8 @@ export type { ExportedAttachmentFile, GeneratedAttachmentSource } from "./attach
 import { isEmptyStoredFile, parseStoredJson } from "./atomic-json-file";
 import { routineNameInLimit } from "./database/legacy-conversation-message";
 import { mailboxReactionRowKey } from "./database/mailbox-projection";
+// Fork (docs/fork/FEATURES.md #130): the shape of the mail that team follow-through reads.
+import type { FollowThroughReceived, FollowThroughTraffic } from "./fork-follow-through";
 import { MailboxDeliveryGate } from "./mailbox-delivery-gate";
 import { runIdOrigins } from "./message-run-ids";
 import type { OpenBotDatabase } from "./openbot-database";
@@ -3348,6 +3350,62 @@ export class MailboxStore {
       return yield* new StoredStateFailure({ cause });
     }
   }, Effect.uninterruptible).bind(this);
+
+  /**
+   * Fork (docs/fork/FEATURES.md #130): an agent's mail since `since`, for team follow-through: the
+   * messages delivered to it (with the sender of the message each one replies to), and the messages it
+   * sent, with their recipients.
+   */
+  forkFollowThroughTraffic(agentId: string, since: string): FollowThroughTraffic {
+    const cutoff = Date.parse(since);
+    const messages = this.#messagesById();
+    const recent = (message: StoredMessage) => !(Date.parse(message.createdAt) < cutoff);
+    const received: FollowThroughReceived[] = [];
+    for (const delivery of this.#deliveriesFor(agentId)) {
+      const message = messages.get(delivery.messageId);
+      if (!message || !recent(message)) continue;
+      const repliedId = message.replyToMessageId;
+      const replied = repliedId
+        ? (messages.get(repliedId) ??
+          messages.get(this.#state.deliveries.find((candidate) => candidate.id === repliedId)?.messageId ?? ""))
+        : undefined;
+      received.push({
+        id: message.id,
+        sender:
+          message.sender.kind === "routine"
+            ? { kind: "routine", routineId: message.sender.routineId }
+            : message.sender.kind === "agent"
+              ? { kind: "agent", agentId: message.sender.agentId }
+              : { kind: "user" },
+        text: message.text,
+        createdAt: message.createdAt,
+        replyToMessageId: message.replyToMessageId,
+        replyToSenderAgentId: replied?.sender.kind === "agent" ? replied.sender.agentId : null,
+        deliveryId: delivery.id,
+        status: delivery.status,
+        ownChat:
+          this.#laneOf(delivery, messages) === null &&
+          message.taskId === undefined &&
+          message.channelId === undefined &&
+          message.messaging === undefined,
+      });
+    }
+    const sentIds = new Set(
+      this.#state.messages
+        .filter((message) => message.sender.kind === "agent" && message.sender.agentId === agentId && recent(message))
+        .map((message) => message.id),
+    );
+    const recipients = new Map<string, string[]>();
+    for (const delivery of this.#state.deliveries) {
+      if (!sentIds.has(delivery.messageId)) continue;
+      recipients.set(delivery.messageId, [...(recipients.get(delivery.messageId) ?? []), delivery.recipientAgentId]);
+    }
+    const sent = [...sentIds].flatMap((id) => {
+      const message = messages.get(id);
+      return message ? [{ id, recipientAgentIds: recipients.get(id) ?? [], createdAt: message.createdAt }] : [];
+    });
+    return { received, sent };
+  }
 
   // Fork (docs/fork/FEATURES.md #107): the agents, channel and thread that an attachment belongs to.
   forkAttachmentScope(

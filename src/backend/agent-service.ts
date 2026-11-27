@@ -348,6 +348,13 @@ import {
 } from "./fork-cache-compact";
 import { ClaudeCodeMcpMirror, claudeCodeMcpOffPath, claudeCodeUserConfigPath } from "./fork-claude-code-mcp";
 import { ForkComposio } from "./fork-composio";
+// Fork (docs/fork/FEATURES.md #130): team follow-through.
+import {
+  FORK_FOLLOW_THROUGH_ROUTINE_ID,
+  FORK_FOLLOW_THROUGH_ROUTINE_NAME,
+  ForkFollowThrough,
+  type ForkFollowThroughHooks,
+} from "./fork-follow-through";
 import { ForkGoals } from "./fork-goals";
 import { forkHub } from "./fork-hub";
 import { ForkMemory } from "./fork-memory";
@@ -1021,10 +1028,13 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       isRunning: () => this.#initialized && !this.#stopping,
     });
     // Fork (docs/fork/FEATURES.md, "Agents continue after a restart").
+    const restartResumeHooks = this.#restartResumeHooks(waitStore, options.timezone);
     forkHub.restartResume = new ForkRestartResume({
       databasePath: store.database.path,
-      hooks: this.#restartResumeHooks(waitStore, options.timezone),
+      hooks: restartResumeHooks,
     });
+    // Fork (docs/fork/FEATURES.md #130): a teammate's report that the lead never acted on gets one wake.
+    forkHub.followThrough = new ForkFollowThrough({ hooks: this.#followThroughHooks(restartResumeHooks) });
     // Fork (docs/fork/FEATURES.md, "Voice notes").
     forkHub.voiceNotes = new ForkVoiceNotes({
       databasePath: store.database.path,
@@ -2108,8 +2118,11 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         mayContinueOnBackup: (agentId) => this.#mayContinueStoppedWork(agentId),
         requeueChannelDelivery: (deliveryId, continueWork) => this.#requeueChannelDelivery(deliveryId, continueWork),
         keepChannelDelivery: (deliveryId) => this.channels.keepForRetry(deliveryId),
+        // Fork (docs/fork/FEATURES.md #130): a team follow-through wake may end with routine_no_update.
         quietRoutineDelivery: (deliveryId) =>
-          this.#forkKeepWarmDelivery(deliveryId) || this.#routines.quietRunForDelivery(deliveryId),
+          this.#forkKeepWarmDelivery(deliveryId) ||
+          this.#forkFollowThroughDelivery(deliveryId) ||
+          this.#routines.quietRunForDelivery(deliveryId),
         closeRoutineSession: (externalThreadId, archive) => this.#threads.closeRoutineThread(externalThreadId, archive),
         conversationTurnEnded: (agentId, sideThreadId, counts, memoryCommitted) =>
           this.#memoryReview.turnEnded(agentId, sideThreadId, counts, memoryCommitted),
@@ -4825,6 +4838,44 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     };
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md #130): team follow-through reads the mailbox, and queues its wake only
+   * when the restart wake would: the agent is there, its own chat is idle and its provider is ready.
+   */
+  #followThroughHooks(resume: ForkRestartResumeHooks): ForkFollowThroughHooks {
+    return {
+      agentIds: () => this.#store.list().map((agent) => agent.id),
+      agent: (agentId) => {
+        if (!resume.agent(agentId)) return null;
+        const agent = this.#store.list().find((candidate) => candidate.id === agentId);
+        return agent ? { name: agent.name } : null;
+      },
+      traffic: (agentId, since) => this.#mailbox.forkFollowThroughTraffic(agentId, since),
+      executionDelivery: (deliveryId) => resume.executionDelivery(deliveryId),
+      keyUsed: (key) => this.#mailbox.receiptForKey(key) !== null,
+      laneBusy: (agentId) => resume.laneBusy(agentId),
+      laneQueued: (agentId) => resume.laneQueued(agentId),
+      providerReady: (agentId) => resume.providerReady(agentId),
+      enqueue: ({ agentId, runId, text, idempotencyKey }) =>
+        Effect.runPromise(
+          this.#routines.enqueueHandoff({
+            run: {
+              id: runId,
+              routineId: FORK_FOLLOW_THROUGH_ROUTINE_ID,
+              routineName: FORK_FOLLOW_THROUGH_ROUTINE_NAME,
+              scheduledFor: new Date().toISOString(),
+            },
+            agentId,
+            text,
+            idempotencyKey,
+          }),
+        ),
+      timezone: () => resume.timezone(),
+      isRunning: () => resume.isRunning(),
+      log: (message, details) => resume.log(message, details),
+    };
+  }
+
   #noteRefreshWait(agentId: string, wait: { subagents: number; until: number | null; mcp: boolean }): void {
     if (wait.until === null || wait.subagents === 0) return;
     const params = { count: wait.subagents, minutes: Math.max(1, Math.round((wait.until - Date.now()) / 60_000)) };
@@ -5565,6 +5616,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       this.#channelRoutines.reconcileAll();
       this.#routineTimer.arm();
       forkHub.restartResume?.start(); // Fork: "Agents continue after a restart".
+      forkHub.followThrough?.start(); // Fork (docs/fork/FEATURES.md #130): team follow-through.
     });
   }).bind(this);
 
@@ -6233,6 +6285,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     forkHub.cacheCompact = null;
     forkHub.restartResume?.dispose();
     forkHub.restartResume = null;
+    forkHub.followThrough?.dispose(); // Fork (docs/fork/FEATURES.md #130).
+    forkHub.followThrough = null;
     forkHub.voiceNotes = null;
     forkHub.networkResume = null;
     forkHub.goals = null;
@@ -7629,6 +7683,12 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
   #forkKeepWarmDelivery(deliveryId: string): boolean {
     const sender = this.#mailbox.getDelivery(deliveryId)?.delivery.sender;
     return sender?.kind === "routine" && sender.routineId === FORK_KEEPWARM_ROUTINE_ID;
+  }
+
+  // Fork (docs/fork/FEATURES.md #130): the wake of team follow-through.
+  #forkFollowThroughDelivery(deliveryId: string): boolean {
+    const sender = this.#mailbox.getDelivery(deliveryId)?.delivery.sender;
+    return sender?.kind === "routine" && sender.routineId === FORK_FOLLOW_THROUGH_ROUTINE_ID;
   }
 
   #forkCacheTurn(

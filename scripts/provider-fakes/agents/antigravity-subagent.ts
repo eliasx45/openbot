@@ -15,6 +15,7 @@
 // until the test writes `finish-<their task>` in `FAKE_CONTROL`, so they run while the test changes
 // an MCP server. The process logs its start and its SIGTERM, and answers `--version` as the CLI does,
 // for a test that runs the whole agent service.
+// Fork (FEATURES.md #130): a prompt with `report-done` gets a "Status: done" answer, a teammate's report.
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type AcpPeer, type AcpRequest, logEntry, serveFakeAcpAgent } from "../acp-agent";
@@ -240,6 +241,9 @@ serveFakeAcpAgent({
         rawInput,
       });
       peer.say(sessionId, "Stopped the subagent.");
+    } else if (text.includes("report-done")) {
+      // Fork (docs/fork/FEATURES.md #130): a teammate that finishes its part and says so.
+      peer.say(sessionId, "Status: done. The toolkit is built and checked; next step is yours.");
     } else {
       peer.say(sessionId, "ok");
     }

@@ -9,6 +9,7 @@ import type { PageUse } from "@openbot/contracts/fork-saved-apps";
 import type { ChannelMessage } from "@openbot/contracts/ipc";
 import type { ForkCacheCompact } from "./fork-cache-compact";
 import type { ForkComposio } from "./fork-composio";
+import type { ForkFollowThrough } from "./fork-follow-through";
 import type { ForkGoals } from "./fork-goals";
 import type { ForkMemory } from "./fork-memory";
 import type { ForkRestartResume } from "./fork-restart-resume";
@@ -57,6 +58,8 @@ export const forkHub: {
   composio: ForkComposio | null;
   cacheCompact: ForkCacheCompact | null;
   restartResume: ForkRestartResume | null;
+  /** Fork (docs/fork/FEATURES.md #130): team follow-through. */
+  followThrough: ForkFollowThrough | null;
   voiceNotes: ForkVoiceNotes | null;
   networkResume: ForkNetworkResume | null;
   /** Fork (docs/fork/FEATURES.md #108): shared defaults per sidebar section. The main process sets it. */
@@ -69,6 +72,7 @@ export const forkHub: {
   composio: null,
   cacheCompact: null,
   restartResume: null,
+  followThrough: null,
   voiceNotes: null,
   networkResume: null,
   sections: null,

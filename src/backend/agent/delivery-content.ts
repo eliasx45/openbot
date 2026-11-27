@@ -20,6 +20,8 @@ import { FORK_WAIT_ROUTINE_ID } from "../agent-waits/fork-wait-conditions";
 import { agentSkillTagName, expandAgentCommandTags } from "../fork-agent-skills";
 import { isForkCacheRoutine } from "../fork-cache-compact";
 import { forkTeammatePrompt, forkUserPrompt } from "../fork-commands";
+// Fork (docs/fork/FEATURES.md #130): the team follow-through wake is its own whole prompt.
+import { FORK_FOLLOW_THROUGH_ROUTINE_ID } from "../fork-follow-through";
 import { forkHub } from "../fork-hub";
 import { FORK_RESTART_RESUME_ROUTINE_ID } from "../fork-restart-resume";
 import { homeSkillRoot, homeSkillTagSlug } from "../home-skills";
@@ -552,7 +554,9 @@ export function deliveryPromptInput(context: DeliveryContext, sources: DeliveryP
         : displayText;
   } else if (
     delivery.sender.kind === "routine" &&
-    (delivery.sender.routineId === FORK_WAIT_ROUTINE_ID || isForkCacheRoutine(delivery.sender.routineId))
+    (delivery.sender.routineId === FORK_WAIT_ROUTINE_ID ||
+      delivery.sender.routineId === FORK_FOLLOW_THROUGH_ROUTINE_ID || // Fork (docs/fork/FEATURES.md #130).
+      isForkCacheRoutine(delivery.sender.routineId))
   ) {
     text = displayText;
   } else if (delivery.sender.kind === "routine" && sources.continuesWait) {

@@ -55,6 +55,8 @@ const RESTART_RESUME_LONG_DOWNTIME_MS = 2 * 60 * 60_000;
 const RESTART_RESUME_MAX_ATTEMPTS = 2;
 /** The routine id of `wait_until` wakes, which continue the agent's own work as a user message does. */
 const WAIT_ROUTINE_ID = "fork-wait";
+/** Fork (#130): the routine id of team follow-through wakes (`fork-follow-through.ts`, which imports this file). */
+const FOLLOW_THROUGH_ROUTINE_ID = "fork-follow-through";
 const FILE = "fork-restart-resume.json";
 /**
  * The time the user has to cancel the wakes after a start, and the time between two wakes, so the
@@ -346,7 +348,14 @@ export class ForkRestartResume {
       if (delivery.sender.kind !== "routine") continue;
       const { routineId } = delivery.sender;
       if (routineId === "fork-compact" || routineId === "fork-keepwarm") return "OpenBot upkeep (compact or keep-warm)";
-      if (routineId !== WAIT_ROUTINE_ID && routineId !== FORK_RESTART_RESUME_ROUTINE_ID) return "routine run";
+      // Fork (docs/fork/FEATURES.md #130): a team follow-through wake is the agent's own work in its own
+      // chat, like a wait's wake; its report is noted only once, so a restart resumes it.
+      if (
+        routineId !== WAIT_ROUTINE_ID &&
+        routineId !== FORK_RESTART_RESUME_ROUTINE_ID &&
+        routineId !== FOLLOW_THROUGH_ROUTINE_ID
+      )
+        return "routine run";
     }
     if (this.#hooks.laneQueued(entry.agentId) > 0) return QUEUED_MESSAGE_RUNS;
     return null;
@@ -970,8 +979,11 @@ function downtimeText(ms: number): string {
   return `${Math.max(1, Math.round(ms / 60_000))} minutes`;
 }
 
-/** "15:12 on 6 Nov (Europe/Berlin)", in the user's zone. */
-function localTime(iso: string, timezone: string | undefined): string {
+/**
+ * "15:12 on 6 Nov (Europe/Berlin)", in the user's zone. Fork (docs/fork/FEATURES.md #130): team
+ * follow-through words its times the same way.
+ */
+export function localTime(iso: string, timezone: string | undefined): string {
   const date = new Date(iso);
   try {
     const zone = timezone ? { timeZone: timezone } : {};
