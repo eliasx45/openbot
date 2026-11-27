@@ -535,7 +535,11 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
   readonly #configuration: AcpConfiguration;
   readonly #requestTimeoutMs: number;
   readonly #cli: AgentCliInfo;
-  #probing = false;
+  /**
+   * Fork (docs/fork/FEATURES.md #131): the processes whose hang watch runs. Per process, not per client:
+   * the watch now lasts up to `ACP_HANG_MS`, and one agent's watch must not skip another's.
+   */
+  readonly #probing = new WeakSet<AcpConnection>();
   #promptAnswered = false;
   readonly #bridge = new LocalMcpBridge();
   readonly #sharedRelays = new Map<string, SharedStdioRelay>();
@@ -3805,8 +3809,8 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     thread?: AcpThread,
   ) {
     const transport = thread?.transport ?? this.#transport;
-    if (!this.#flavor.promptOpenForBackgroundTasks || this.#probing || !transport.running) return false;
-    this.#probing = true;
+    if (!this.#flavor.promptOpenForBackgroundTasks || this.#probing.has(transport) || !transport.running) return false;
+    this.#probing.add(transport);
     const timedOut = Effect.gen({ self: this }, function* () {
       const connection = yield* providerSync(() => transport.requireConnection());
       yield* providerCall(() => connection.listSessions({ cwd: this.options.discoveryCwd?.() ?? process.cwd() })).pipe(
@@ -3861,7 +3865,7 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     }).pipe(
       Effect.ensuring(
         Effect.sync(() => {
-          this.#probing = false;
+          this.#probing.delete(transport);
         }),
       ),
     );
