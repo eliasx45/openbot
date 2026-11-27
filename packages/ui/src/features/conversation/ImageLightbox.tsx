@@ -1,5 +1,5 @@
 import type { AttachmentSummary } from "@openbot/contracts/ipc";
-import { Button, ChevronLeft, ChevronRight, Dialog, Spinner, toast, X } from "@openbot/ui";
+import { Button, ChevronLeft, ChevronRight, Dialog, Spinner, TextQuote, toast, X } from "@openbot/ui";
 import { prefersReducedMotion } from "@openbot/ui/utils";
 import {
   createEffect,
@@ -71,6 +71,8 @@ export function ImageGallery(props: {
   images: AttachmentSummary[];
   onOpen: (attachment: AttachmentSummary, origin: HTMLElement) => void;
   onDownload?: ((attachment: AttachmentSummary) => void) | undefined;
+  /** Fork (docs/fork/FEATURES.md #129): quote one picture of the gallery in the message box. */
+  onQuote?: ((attachment: AttachmentSummary) => void) | undefined;
 }) {
   const { t } = useText();
   const [ratios, setRatios] = createStore<Record<number, number>>({});
@@ -179,6 +181,19 @@ export function ImageGallery(props: {
                   />
                 </Show>
               </Button>
+              <Show when={props.onQuote && !isMissing()}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  type="button"
+                  class="image-gallery-quote"
+                  aria-label={`${t("chat.selection.quote")} ${image().name}`}
+                  title={t("chat.selection.quote")}
+                  onClick={() => props.onQuote?.(image())}
+                >
+                  <TextQuote aria-hidden="true" />
+                </Button>
+              </Show>
             </li>
           );
         }}

@@ -621,10 +621,32 @@ export function MessageBody(props: {
     />
   );
 
+  // Fork (docs/fork/FEATURES.md #128, #129): quote a file or picture of an agent's message as an
+  // attached-file quote: the agent reads "From the attached file `name`", the sent chip opens it.
+  // A second click on the same file within a second adds no second chip.
+  let lastQuote = { id: "", at: 0 };
+  const quoteAttachment = () =>
+    props.onQuote && props.message.streaming !== true && props.message.author !== "you"
+      ? (attachment: AttachmentSummary) => {
+          const now = Date.now();
+          if (lastQuote.id === attachment.id && now - lastQuote.at < 1_000) return;
+          lastQuote = { id: attachment.id, at: now };
+          props.onQuote?.(
+            fileQuoteId({ source: "attachment", attachmentId: attachment.id, name: attachment.name }),
+            visibleFileName(attachment.name),
+          );
+        }
+      : undefined;
+
   const imageBlock = () => (
     <Switch>
       <Match when={standaloneImageAttachments().length > 1}>
-        <ImageGallery images={standaloneImageAttachments()} onOpen={openAttachment} onDownload={props.onDownload} />
+        <ImageGallery
+          images={standaloneImageAttachments()}
+          onOpen={openAttachment}
+          onDownload={props.onDownload}
+          onQuote={quoteAttachment()}
+        />
       </Match>
       <Match when={standaloneImageAttachments().length === 1}>
         <div class="message-image-attachments">
@@ -639,6 +661,7 @@ export function MessageBody(props: {
                 loading={!attachment().previewUrl}
                 onPreview={openAttachment}
                 onDownload={props.onDownload}
+                onQuote={quoteAttachment()}
               />
             )}
           </For>
@@ -827,6 +850,7 @@ export function MessageBody(props: {
             error={imageGeneration().error}
             onPreview={openAttachment}
             onDownload={props.onDownload}
+            onQuote={quoteAttachment()}
           />
         )}
       </Show>
@@ -849,7 +873,7 @@ export function MessageBody(props: {
       {withImages ? imageBlock() : undefined}
       <Switch>
         <Match when={fileImages().length > 1}>
-          <ImageGallery images={fileImages()} onOpen={openAttachment} />
+          <ImageGallery images={fileImages()} onOpen={openAttachment} onQuote={quoteAttachment()} />
         </Match>
         <Match when={fileImages()[0]}>
           {(image) => (
@@ -862,6 +886,7 @@ export function MessageBody(props: {
                 attachment={image()}
                 onPreview={openAttachment}
                 onDownload={props.onDownloadImageFile ? downloadImage : undefined}
+                onQuote={quoteAttachment()}
               />
             </div>
           )}
@@ -879,16 +904,7 @@ export function MessageBody(props: {
             downloads={props.downloads}
             onPreview={openAttachment}
             onAction={props.onAttachmentAction}
-            onQuote={
-              props.onQuote && props.message.streaming !== true && props.message.author !== "you"
-                ? (attachment) =>
-                    // A file quote: the agent reads "From the attached file `name`", the chip opens it.
-                    props.onQuote?.(
-                      fileQuoteId({ source: "attachment", attachmentId: attachment.id, name: attachment.name }),
-                      visibleFileName(attachment.name),
-                    )
-                : undefined
-            }
+            onQuote={quoteAttachment()}
           />
         </div>
       </Show>

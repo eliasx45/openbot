@@ -81,3 +81,40 @@ describe("quote a file of a message", () => {
     expect(screen.queryByRole("button", { name: "Quote Recall-Sheet.pdf" })).toBeNull();
   });
 });
+
+// Fork (docs/fork/FEATURES.md #129): a picture shown as a picture has Quote too.
+describe("quote a picture of a message", () => {
+  const picture = (id: string, name: string): AttachmentSummary => ({
+    id,
+    name,
+    size: 120_000,
+    kind: "image",
+    mimeType: "image/png",
+    previewKind: "image",
+    previewUrl: `openbot-attachment://${id}/${name}`,
+  });
+
+  it("a single picture's Quote quotes it as an attached file, once on a double click", () => {
+    const onQuote = vi.fn();
+    renderMessage([picture("i-1", "kernel-sketch.png")], onQuote);
+    const button = screen.getByRole("button", { name: "Quote kernel-sketch.png" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(onQuote).toHaveBeenCalledTimes(1);
+    expect(onQuote.mock.calls[0]?.[1]).toBe("kernel-sketch.png");
+    expect(fileQuoteTarget(onQuote.mock.calls[0]?.[0])).toMatchObject({ source: "attachment", attachmentId: "i-1" });
+  });
+
+  it("each picture of a gallery has its own Quote", () => {
+    const onQuote = vi.fn();
+    renderMessage([picture("i-1", "step-1.png"), picture("i-2", "step-2.png")], onQuote);
+    fireEvent.click(screen.getByRole("button", { name: "Quote step-2.png" }));
+    expect(onQuote.mock.calls[0]?.[1]).toBe("step-2.png");
+    expect(screen.getByRole("button", { name: "Quote step-1.png" })).toBeTruthy();
+  });
+
+  it("no Quote on a picture without a message box to quote into", () => {
+    renderMessage([picture("i-1", "kernel-sketch.png")]);
+    expect(screen.queryByRole("button", { name: "Quote kernel-sketch.png" })).toBeNull();
+  });
+});

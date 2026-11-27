@@ -295,3 +295,26 @@
     transition: none;
   }
 }
+
+/* Fork (docs/fork/FEATURES.md, entry 129): Quote on a gallery picture, top right, shown on hover. */
+.image-gallery-quote {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  inset-inline-end: 6px;
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-media-control-surface);
+  color: var(--openbot-media-control-text);
+  opacity: 0;
+  transition: opacity var(--openbot-duration-hover) ease;
+}
+
+.image-gallery-item:is(:hover, :focus-within) .image-gallery-quote {
+  opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .image-gallery-quote {
+    opacity: 1;
+  }
+}

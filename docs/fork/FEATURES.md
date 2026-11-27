@@ -1498,5 +1498,14 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **How (portable):** `data-selection-message-id` on `.message-attachments-group`; `AttachmentCards` takes `onQuote` (a button per card, in the video caption and the video menu, a second click within 1 s ignored); `MessageBody`/`ChatMessageRow` take `onQuote` and quote with `fileQuoteId({ source: "attachment", … })`. Not on your own sent messages (it would squeeze the name). Wired in the main chat, side threads and channel threads.
 - **Here:** `packages/ui/src/features/conversation/AttachmentCards.tsx`, `MessageRendering.tsx`, `ChatMessageRow.tsx`, `threads/AgentThreadView.tsx`, `styles/attachments.css`, `src/renderer/src/features/conversation/ConversationTimeline.tsx`, `src/renderer/src/features/channels/ChannelFeedView.tsx`.
 - **Tests:** `src/renderer/src/features/conversation/QuoteAttachment.test.tsx` (card Quote quotes the attached file once on a double click; video caption Quote; a selected file name opens the selection bar; no Quote without a message box); fail without the change. Live in a dev mock with the fake Gemini CLI (lab `UX-openbot-quote-media-128`): Quote on the video → chip → sent → the agent got the file heading; drag over the caption → Quote bar → sent.
-- **Not done:** images shown as images (gallery, single image) have no Quote button yet.
+- **Changed by #129:** pictures shown as pictures have Quote too.
 - **Check:** in Owl's chat, hover a video: click the quote icon at the end of its caption, ask something, send.
+
+## 129. Quote a picture of a message
+
+- **Get:** hover a picture from an agent: its button bar (top right) has Quote next to Download and full size; each picture of a gallery shows a Quote button at its top right on hover (always on touch screens). It quotes the picture like a file (#128): the agent reads "From the attached file `name`", the sent chip opens it, a double click adds one chip.
+- **Why:** #128 left pictures without Quote (OpenBot check of the request "let me respond to a video, a filename or whatever", 27 Nov 2026).
+- **How (portable):** `ImageGeneration` and `ImageGallery` take `onQuote`; `MessageBody` passes one `quoteAttachment` (attached-file quote id, 1 s repeat guard, not on your own messages, not while streaming) to the gallery, single pictures, picture files and generated images, and to the file cards of #128.
+- **Here:** `packages/ui/src/features/conversation/ImageGeneration.tsx`, `ImageLightbox.tsx`, `MessageRendering.tsx`, `styles/image-lightbox.css`.
+- **Tests:** `src/renderer/src/features/conversation/QuoteAttachment.test.tsx` (single picture once on a double click, a gallery picture, none without a message box; fail without the change). Live in the dev mock with the fake Gemini CLI: hover → Quote → sent, for one picture and a gallery picture; the agent got the file heading.
+- **Check:** in an agent's chat, hover a picture, click the quote icon, ask, send.

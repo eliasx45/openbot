@@ -4,7 +4,7 @@ import {
   imageAspectRatioOf,
   imagePixelSize,
 } from "@openbot/contracts/ipc";
-import { Button, Download, Maximize2 } from "@openbot/ui";
+import { Button, Download, Maximize2, TextQuote } from "@openbot/ui";
 import { createEffect, createSignal, Show, untrack } from "solid-js";
 import { useText } from "../../text";
 import {
@@ -30,6 +30,8 @@ export interface ImageGenerationProps {
   loading?: boolean | undefined;
   onPreview?: (attachment: AttachmentSummary, origin: HTMLElement) => void;
   onDownload?: ((attachment: AttachmentSummary) => void) | undefined;
+  /** Fork (docs/fork/FEATURES.md #129): quote the picture in the message box, to answer about it. */
+  onQuote?: ((attachment: AttachmentSummary) => void) | undefined;
 }
 
 export function ImageGeneration(props: ImageGenerationProps) {
@@ -157,21 +159,38 @@ export function ImageGeneration(props: ImageGenerationProps) {
             />
           </Button>
         </Show>
-        <Show when={hasImage() && props.attachment && props.onDownload}>
+        <Show when={hasImage() && props.attachment && (props.onDownload || props.onQuote)}>
           <div class="media-generation-actions">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              type="button"
-              aria-label={downloadLabel()}
-              title={downloadLabel()}
-              onClick={(event) => {
-                event.stopPropagation();
-                if (props.attachment) props.onDownload?.(props.attachment);
-              }}
-            >
-              <Download aria-hidden="true" />
-            </Button>
+            <Show when={props.onQuote}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                type="button"
+                aria-label={`${t("chat.selection.quote")} ${props.attachment?.name ?? ""}`}
+                title={t("chat.selection.quote")}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (props.attachment) props.onQuote?.(props.attachment);
+                }}
+              >
+                <TextQuote aria-hidden="true" />
+              </Button>
+            </Show>
+            <Show when={props.onDownload}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                type="button"
+                aria-label={downloadLabel()}
+                title={downloadLabel()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (props.attachment) props.onDownload?.(props.attachment);
+                }}
+              >
+                <Download aria-hidden="true" />
+              </Button>
+            </Show>
             <Show when={props.onPreview}>
               <Button
                 variant="ghost"
