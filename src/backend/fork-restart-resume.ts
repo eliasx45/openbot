@@ -348,8 +348,10 @@ export class ForkRestartResume {
     // Fork (docs/fork/FEATURES.md #136): OpenBot quit (noted now, or the previous run stopped cleanly).
     const cleanStop = input.quitting === true || this.#previousCleanStop;
     const cleanStops = cleanStop && (!wake || earlier?.cleanStops === true || earlier === null);
+    // Fork (docs/fork/FEATURES.md #136): the user's first message of the turn is the request it continues;
+    // the ones steered in after it are listed (`steered`). Before, the newest one replaced the request.
     const request =
-      own.findLast((delivery) => delivery.sender.kind === "user") ??
+      own.find((delivery) => delivery.sender.kind === "user") ??
       own.find((delivery) => delivery.sender.kind !== "routine") ??
       own[0] ??
       (kind === "subagents" && originId !== threadId ? this.#hooks.deliveryOfTurn(originId) : null);

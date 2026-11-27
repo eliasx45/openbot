@@ -151,7 +151,7 @@ describe("#136 restart wake of a lead's long turn", () => {
     const noting = new ForkRestartResume({ databasePath: path, hooks: quit.hooks });
     noting.capture({ agentId, threadId, ownChat: true, turnId: "turn-1", messages, quitting: true });
     noting.dispose();
-    expect(noting.entries()[0]?.steered?.map((message) => message.deliveryId)).toEqual(["d-s1", "d-s2"]);
+    expect(noting.entries()[0]?.steered?.map((message) => message.deliveryId)).toEqual(["d-s1", "d-s2", "d-s3"]);
     const boot = harness([]);
     for (const item of own) boot.statuses.set(item.id, settled(item));
     // Boot recovery queued Apoo's report again (a teammate's result): it runs by itself.
@@ -161,8 +161,9 @@ describe("#136 restart wake of a lead's long turn", () => {
     await until(() => boot.enqueued.length === 1, "the wake");
     resume.dispose();
     const text = boot.enqueued[0]?.text ?? "";
-    // The newest message of the user is the request it continues, as before #136.
-    expect(text).toContain("The request it continues:\nand ping Tatiana");
+    // The user's first message of the turn is the request it continues; the steered ones are listed.
+    expect(text).toContain("The request it continues:\nRun the swarm plan");
+    expect(text).toContain("12:22 on 27 Nov (UTC), from the user: and ping Tatiana");
     expect(text).toContain("These messages came into that turn after your last answer");
     expect(text).toContain("12:20 on 27 Nov (UTC), from the user: also check the load guard");
     expect(text).not.toContain("signature upgrade");
