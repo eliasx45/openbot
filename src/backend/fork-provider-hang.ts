@@ -34,7 +34,7 @@ export interface ForkProviderRestart {
 }
 
 const COMMAND_LIMIT = 300;
-export const FORK_PROVIDER_JOB_LIMIT = 20;
+const FORK_PROVIDER_JOB_LIMIT = 20;
 
 /** `ps` CPU time (`[[dd-]hh:]mm:ss[.cc]`) in ms, or null. */
 export function parseCpuTime(text: string): number | null {
@@ -78,7 +78,7 @@ export function processTree(entries: readonly ProcessEntry[], root: number): Map
 }
 
 /** The process table now, or null (Windows, or `ps` failed). */
-export function readProcessTable(): Promise<ProcessEntry[] | null> {
+function readProcessTable(): Promise<ProcessEntry[] | null> {
   if (process.platform === "win32") return Promise.resolve(null);
   return new Promise((settle) =>
     execFile(

@@ -248,7 +248,7 @@ function cardShownAttachmentIds(messages: readonly ConversationMessage[]): Reado
 }
 
 /** Fork (docs/fork/FEATURES.md #132): the chat side of `deliveryWaitsForProvider`. */
-export function startingMessageWaits(message: ConversationMessage): boolean {
+function startingMessageWaits(message: ConversationMessage): boolean {
   if (message.delivery?.status !== "starting" || message.routine || message.source === "routine") return false;
   const exchange = message.exchange;
   return !(exchange?.direction === "incoming" && Boolean(exchange.replyToMessageId) && exchange.expectsReply === false);
