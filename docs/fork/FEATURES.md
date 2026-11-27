@@ -1489,3 +1489,14 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Here:** `packages/ui/src/reference-chip.tsx`, `packages/ui/src/features/conversation/RichMessageText.tsx`.
 - **Tests:** `src/renderer/src/features/conversation/QuoteChipMath.test.tsx` (formula typeset with its source in the tooltip; plain quote and text around math kept).
 - **Check:** in Owl's chat, quote a formula and send: the chip shows the formula.
+
+## 128. Quote a video or file of a message, like text
+
+- **Get:** under an agent's message, each file card and the caption of each video player has a Quote button (the quote icon); the video player's menu has Quote too. It puts the file in the message box as a quote chip, so you write your question about it; the agent reads "From the attached file `name`", and the sent chip opens the file. Selecting a file name or a video caption gives the same Quote / Explain / Improve bar as message text.
+- **Why:** Elias, Owl chat, 27 Nov 2026: "I can't respond to a video, for example, or a filename": selecting `How-to-find-dim-ker.mp4` under the video gave no Quote bar, and the video had no Quote.
+- **Cause:** the selection bar only opens inside `[data-selection-message-id]`, which wrapped the message text, tables and code but not the attachment cards; no attachment had a Quote action.
+- **How (portable):** `data-selection-message-id` on `.message-attachments-group`; `AttachmentCards` takes `onQuote` (a button per card, in the video caption and the video menu, a second click within 1 s ignored); `MessageBody`/`ChatMessageRow` take `onQuote` and quote with `fileQuoteId({ source: "attachment", … })`. Not on your own sent messages (it would squeeze the name). Wired in the main chat, side threads and channel threads.
+- **Here:** `packages/ui/src/features/conversation/AttachmentCards.tsx`, `MessageRendering.tsx`, `ChatMessageRow.tsx`, `threads/AgentThreadView.tsx`, `styles/attachments.css`, `src/renderer/src/features/conversation/ConversationTimeline.tsx`, `src/renderer/src/features/channels/ChannelFeedView.tsx`.
+- **Tests:** `src/renderer/src/features/conversation/QuoteAttachment.test.tsx` (card Quote quotes the attached file once on a double click; video caption Quote; a selected file name opens the selection bar; no Quote without a message box); fail without the change. Live in a dev mock with the fake Gemini CLI (lab `UX-openbot-quote-media-128`): Quote on the video → chip → sent → the agent got the file heading; drag over the caption → Quote bar → sent.
+- **Not done:** images shown as images (gallery, single image) have no Quote button yet.
+- **Check:** in Owl's chat, hover a video: click the quote icon at the end of its caption, ask something, send.

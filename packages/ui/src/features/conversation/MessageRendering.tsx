@@ -2,6 +2,7 @@ import { fileReferenceName } from "@openbot/brand/file-reference";
 import { attachmentMimeTypeForName, playableMediaKind } from "@openbot/contracts/attachment-files";
 import { removeAttachmentReferences } from "@openbot/contracts/attachment-references";
 import { chatPreviewKind } from "@openbot/contracts/chat-preview";
+import { fileQuoteId } from "@openbot/contracts/chat-tag-references";
 import type { AttachmentSummary, InstalledSkill, MessageReaction } from "@openbot/contracts/ipc";
 import { canPreviewAttachment, MESSAGE_REACTIONS, MORE_MESSAGE_REACTIONS } from "@openbot/contracts/ipc";
 import { parseSelectionInstruction } from "@openbot/contracts/selection-instruction";
@@ -55,7 +56,7 @@ import {
 import { createSmoothHeightResize } from "./createSmoothHeightResize";
 import { DataTable, type MessageContentBlock, messageContentBlocks, reuseUnchangedBlocks } from "./DataTable";
 import type { FileChipPeek } from "./FilePagePeek";
-import { messageFileReferences } from "./FileReference";
+import { messageFileReferences, visibleFileName } from "./FileReference";
 import { ImageGeneration } from "./ImageGeneration";
 import { ImageGallery, ImageLightbox, type ImageLightboxOpening, isLightboxImage } from "./ImageLightbox";
 import {
@@ -304,6 +305,8 @@ export function MessageBody(props: {
   onOpenSharedFile?: ((path: string, asWritten?: string) => void) | undefined;
   onOpenWorkspaceFile?: ((path: string, asWritten?: string) => void) | undefined;
   onOpenQuote?: ((messageId: string, text: string) => void) | undefined;
+  /** Fork (docs/fork/FEATURES.md #128): quote a file of this message, as a reply to the message. */
+  onQuote?: ((messageId: string, text: string) => void) | undefined;
   onOpenTag?: ((kind: "tab" | "thread", id: string) => void) | undefined;
   onDownload?: ((attachment: AttachmentSummary) => void) | undefined;
   mediaSource?: AttachmentMediaSource | undefined;
@@ -865,13 +868,27 @@ export function MessageBody(props: {
         </Match>
       </Switch>
       <Show when={standaloneFileAttachments().length > 0}>
-        <div class="message-attachments-group">
+        {/* Fork (docs/fork/FEATURES.md #128): a selected file name gets Quote like message text. */}
+        <div
+          class="message-attachments-group"
+          data-selection-message-id={props.message.streaming !== true ? props.message.id : undefined}
+        >
           <AttachmentCards
             attachments={standaloneFileAttachments()}
             mediaSource={props.mediaSource}
             downloads={props.downloads}
             onPreview={openAttachment}
             onAction={props.onAttachmentAction}
+            onQuote={
+              props.onQuote && props.message.streaming !== true && props.message.author !== "you"
+                ? (attachment) =>
+                    // A file quote: the agent reads "From the attached file `name`", the chip opens it.
+                    props.onQuote?.(
+                      fileQuoteId({ source: "attachment", attachmentId: attachment.id, name: attachment.name }),
+                      visibleFileName(attachment.name),
+                    )
+                : undefined
+            }
           />
         </div>
       </Show>

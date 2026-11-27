@@ -65,6 +65,8 @@ export interface ChatMessageRowProps {
   onOpenSharedFile?: ((path: string, asWritten?: string) => void) | undefined;
   onOpenWorkspaceFile?: ((path: string, asWritten?: string) => void) | undefined;
   onOpenQuote?: ((messageId: string, text: string) => void) | undefined;
+  /** Fork (docs/fork/FEATURES.md #128): quote a file of the message in the message box. */
+  onQuote?: ((messageId: string, text: string) => void) | undefined;
   onOpenTag?: ((kind: "tab" | "thread", id: string) => void) | undefined;
   onDownload?: ((attachment: AttachmentSummary) => void) | undefined;
   mediaSource?: AttachmentMediaSource | undefined;
@@ -186,6 +188,7 @@ export function ChatMessageRow(props: ChatMessageRowProps): JSX.Element {
       onOpenSharedFile={props.onOpenSharedFile}
       onOpenWorkspaceFile={props.onOpenWorkspaceFile}
       onOpenQuote={props.onOpenQuote}
+      onQuote={props.onQuote}
       onOpenTag={props.onOpenTag}
       onDownload={props.onDownload}
       mediaSource={props.mediaSource}

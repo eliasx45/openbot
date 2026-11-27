@@ -858,6 +858,7 @@ export function AgentThreadView(props: AgentThreadViewProps) {
                           agents={props.agents}
                           skills={props.skills}
                           onSelectAgent={() => undefined}
+                          onQuote={quoteSelection}
                           onOpenTag={props.onOpenTag}
                           onOpenLink={props.onOpenLink}
                           onPreview={props.onPreview}

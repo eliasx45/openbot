@@ -458,3 +458,26 @@
   max-width: min(100%, calc(min(72vh, 900px) * (var(--media-generation-ratio))));
   border-radius: var(--openbot-radius-lg);
 }
+
+/* Fork (docs/fork/FEATURES.md, entry 128): Quote on a file card is one more button column; on a video
+   player it sits at the end of the caption. */
+.message-attachment:has(> .attachment-quote-button) {
+  grid-template-columns: minmax(0, 1fr) 40px 40px 40px;
+}
+
+.message-attachment[data-media]:has(> .attachment-quote-button) {
+  grid-template-columns: minmax(0, 1fr) var(--openbot-control-sm) var(--openbot-control-sm) var(--openbot-control-sm);
+  width: min(100%, 400px);
+}
+
+.attachment-video-caption:has(> .attachment-quote-button) {
+  align-items: center;
+}
+
+.attachment-video-caption .attachment-quote-button {
+  width: var(--openbot-control-sm);
+  height: var(--openbot-control-sm);
+  flex: none;
+  align-self: center;
+  margin-inline-start: auto;
+}

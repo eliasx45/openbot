@@ -1588,6 +1588,8 @@ export function ConversationTimeline() {
                                 : undefined
                             }
                             onOpenQuote={openQuote}
+                            // Fork (docs/fork/FEATURES.md #128): Quote on a file or video card.
+                            onQuote={quoteSelection}
                             onOpenTag={openTaggedReference}
                             onDownload={(attachment) => attachmentAction(attachment, "download")}
                             mediaSource={runtime.attachmentMedia}

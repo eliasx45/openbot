@@ -16,6 +16,7 @@ import {
   RadialProgress,
   RefreshCw,
   Square,
+  TextQuote,
 } from "@openbot/ui";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
 import { useText } from "../../text";
@@ -49,9 +50,19 @@ export function AttachmentCards(props: {
   downloads?: AttachmentDownloads | undefined;
   onPreview: (attachment: AttachmentSummary, origin: HTMLElement) => void;
   onAction: (attachment: AttachmentSummary, action: "open" | "reveal" | "download") => void;
+  /** Fork (docs/fork/FEATURES.md #128): quote the file in the message box, to answer about it. */
+  onQuote?: ((attachment: AttachmentSummary) => void) | undefined;
 }) {
   const { t, format } = useText();
   const [missing, setMissing] = createSignal<ReadonlySet<string>>(new Set());
+  // Fork (docs/fork/FEATURES.md #128): a fast second click on Quote does not add a second chip.
+  let lastQuote = { id: "", at: 0 };
+  const quote = (attachment: AttachmentSummary) => {
+    const now = Date.now();
+    if (lastQuote.id === attachment.id && now - lastQuote.at < 1_000) return;
+    lastQuote = { id: attachment.id, at: now };
+    props.onQuote?.(attachment);
+  };
   const mediaKind = (attachment: AttachmentSummary) =>
     playableMediaKind(attachment.mimeType || attachmentMimeTypeForName(attachment.name));
   const isMissing = (attachment: AttachmentSummary) => missing().has(attachment.id);
@@ -144,6 +155,7 @@ export function AttachmentCards(props: {
               { label: t("common.download"), onSelect: () => props.onAction(attachment, "download") },
               { label: t("attachment.openFile"), onSelect: () => props.onAction(attachment, "open") },
             ];
+            if (props.onQuote) actions.push({ label: t("chat.selection.quote"), onSelect: () => quote(attachment) });
             if (canPreviewAttachment(attachment) && card) {
               const origin = card;
               actions.unshift({
@@ -156,6 +168,23 @@ export function AttachmentCards(props: {
               actions,
             };
           };
+          // Fork (docs/fork/FEATURES.md #128): answer about this file, like a quote of selected text.
+          const quoteButton = () => (
+            <Show when={props.onQuote}>
+              <LabelTooltip content={t("chat.selection.quote")}>
+                <LabelTooltipTrigger
+                  as={Button}
+                  variant="ghost"
+                  type="button"
+                  class="attachment-open-button attachment-quote-button"
+                  aria-label={`${t("chat.selection.quote")} ${shownName}`}
+                  onClick={() => quote(attachment)}
+                >
+                  <TextQuote />
+                </LabelTooltipTrigger>
+              </LabelTooltip>
+            </Show>
+          );
           const player = () => (
             <MediaFilePreview
               kind={mediaKind(attachment)}
@@ -191,6 +220,7 @@ export function AttachmentCards(props: {
                 <div class="attachment-video-caption">
                   <span title={shownName}>{shownName}</span>
                   <small>{status(attachment)}</small>
+                  {quoteButton()}
                 </div>
               </Show>
               <Button
@@ -240,6 +270,7 @@ export function AttachmentCards(props: {
                 </span>
               </Button>
               <Show when={!isMissing(attachment)}>
+                {quoteButton()}
                 <Show when={canLoadMedia(attachment) && mediaKind(attachment) === "audio"}>
                   <Button
                     variant="ghost"

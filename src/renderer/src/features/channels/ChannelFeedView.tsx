@@ -696,6 +696,7 @@ export function ChannelThreadPanel(props: { model: ChannelFeedModel; rootId: str
                         onAttachmentAction={attachmentAction}
                         onOpenSharedFile={(path) => openSharedFile(path)}
                         onOpenWorkspaceFile={(path) => openWorkspaceFile(path, undefined, workspaceAgent(row()))}
+                        onQuote={quoteSelection}
                         onOpenTag={openTaggedReference}
                         onDownload={(attachment) => attachmentAction(attachment, "download")}
                         mediaSource={view.runtime?.attachmentMedia}
