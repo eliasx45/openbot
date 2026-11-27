@@ -46,6 +46,7 @@ import {
   agentErrorDetails,
   claimErrorToast,
   createRetryNotices,
+  laterTurnRunning,
   providerErrorTitle,
   readableAgentError,
 } from "./agent-error-text";
@@ -120,6 +121,7 @@ export function AgentEventBridge() {
     clearRecentReply,
   } = useConversation();
   const {
+    activeTurns,
     setActiveTurns,
     setTurnProgress,
     setTurnStepLines,
@@ -319,6 +321,13 @@ export function AgentEventBridge() {
         });
         clearRecentReply(event.agentId);
         setFailedTurns((current) => withoutAgent(current, event.agentId));
+        // Fork (docs/fork/FEATURES.md #132): a banner about an earlier turn ends when a later turn starts,
+        // as the "Failed" pill does, instead of staying until the user types.
+        retryNotices.clearAtTurnStart(
+          composerDraftKey({ agentId: event.agentId, serverId: activeServerId() }),
+          setConversationErrors,
+          setConversationErrorRuns,
+        );
         setActiveTurns((current) =>
           current[event.agentId] === event.turnId ? current : { ...current, [event.agentId]: event.turnId },
         );
@@ -332,13 +341,19 @@ export function AgentEventBridge() {
         setTurnProgress((current) => {
           if (current[event.agentId]?.turnId === event.turnId) delete current[event.agentId];
         });
-        setFailedTurns((current) =>
-          event.status === "failed"
-            ? { ...current, [event.agentId]: event.turnId }
-            : withoutAgent(current, event.agentId),
-        );
+        // Fork (docs/fork/FEATURES.md #132): a late end of an older turn leaves the running turn's stop
+        // button, working row and pill alone.
+        const laterTurnRuns = laterTurnRunning(activeTurns()[event.agentId], event.turnId);
+        if (!laterTurnRuns)
+          setFailedTurns((current) =>
+            event.status === "failed"
+              ? { ...current, [event.agentId]: event.turnId }
+              : withoutAgent(current, event.agentId),
+          );
         setActiveTurns((current) =>
-          current[event.agentId] === null ? current : { ...current, [event.agentId]: null },
+          current[event.agentId] === null || laterTurnRunning(current[event.agentId], event.turnId)
+            ? current
+            : { ...current, [event.agentId]: null },
         );
         setUiErrors((current) => {
           const key = agentConversationKey(activeServerId(), event.agentId);

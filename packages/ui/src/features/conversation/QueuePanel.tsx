@@ -24,9 +24,15 @@ interface QueuePanelProps {
   sendsNow?: boolean | undefined;
   routineRuns?: boolean | undefined;
   onRunAsTask?: ((deliveryId: string) => void) | undefined;
-  onCancel: (deliveryId: string) => void;
+  /** Fork (docs/fork/FEATURES.md #132): resolves false when the host kept the message, so its row comes back. */
+  onCancel: (deliveryId: string) => unknown;
   onEdit: (delivery: QueueDelivery) => void;
-  onReorder: (deliveryIds: string[]) => void;
+  /** Fork (docs/fork/FEATURES.md #132): resolves false when the host kept the old order. */
+  onReorder: (deliveryIds: string[]) => unknown;
+  /** Fork (docs/fork/FEATURES.md #132): rows of sends the host has not listed yet; they wait without actions. */
+  sendingIds?: ReadonlySet<string> | undefined;
+  /** Fork (docs/fork/FEATURES.md #132): a listed delivery id and the sending row it replaces in place. */
+  handoffs?: ReadonlyMap<string, string> | undefined;
   variant?: "docked" | "floating";
 }
 
@@ -57,15 +63,48 @@ export function QueuePanel(props: QueuePanelProps) {
   const externalRemovalTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const animationTimers = new Set<ReturnType<typeof setTimeout>>();
 
-  const sourceDeliveries = createMemo(() =>
-    props.deliveries
-      .filter((delivery) => delivery.status === "queued" || delivery.status === "starting")
-      .sort((left, right) => {
-        const leftPosition = left.position ?? Number.MAX_SAFE_INTEGER;
-        const rightPosition = right.position ?? Number.MAX_SAFE_INTEGER;
-        return leftPosition - rightPosition || left.createdAt.localeCompare(right.createdAt);
-      }),
+  // Fork (docs/fork/FEATURES.md #132): a row the host is starting or steering has no position; it keeps
+  // the place it had while queued instead of dropping to the end. A new order the user just made shows
+  // at once and stays until the host's own order matches it (or the host refuses it).
+  const lastPositions = new Map<string, number>();
+  const [localOrder, setLocalOrder] = createSignal<readonly string[] | null>(null);
+  const sourceDeliveries = createMemo(() => {
+    const deliveries = props.deliveries.filter(
+      (delivery) => delivery.status === "queued" || delivery.status === "starting",
+    );
+    for (const delivery of deliveries)
+      if (delivery.position !== null) lastPositions.set(delivery.id, delivery.position);
+    const order = localOrder();
+    const rank = (delivery: QueueDelivery) => {
+      const local = order?.indexOf(delivery.id) ?? -1;
+      if (local >= 0) return local + 1;
+      if (delivery.position !== null) return delivery.position;
+      // The rows after it moved up one place; it stays just before the row that took its number.
+      const last = lastPositions.get(delivery.id);
+      return last === undefined ? Number.MAX_SAFE_INTEGER : last - 0.5;
+    };
+    return deliveries.sort((left, right) => rank(left) - rank(right) || left.createdAt.localeCompare(right.createdAt));
+  });
+  createEffect(
+    () => props.deliveries,
+    (deliveries) => {
+      const order = untrack(localOrder);
+      if (!order) return;
+      const hostOrder = deliveries
+        .filter((delivery) => delivery.status === "queued" && delivery.position !== null)
+        .sort((left, right) => (left.position ?? 0) - (right.position ?? 0))
+        .map((delivery) => delivery.id);
+      const listed = new Set(hostOrder);
+      const kept = order.filter((id) => listed.has(id));
+      if (kept.length !== order.length || hostOrder.join("\n") === kept.join("\n")) setLocalOrder(null);
+    },
   );
+  function reorder(ids: string[]) {
+    setLocalOrder(ids);
+    void Promise.resolve(props.onReorder(ids)).then((applied) => {
+      if (applied === false && untrack(localOrder) === ids) setLocalOrder(null);
+    });
+  }
   const initialSourceDeliveries = untrack(sourceDeliveries);
   const [renderedDeliveries, setRenderedDeliveries] = createSignal<QueueDelivery[]>(initialSourceDeliveries);
   const visibleDeliveries = createMemo(() =>
@@ -83,7 +122,10 @@ export function QueuePanel(props: QueuePanelProps) {
     visibleDeliveries()
       .filter(
         (delivery) =>
-          delivery.status === "queued" && delivery.id !== props.editingDeliveryId && !editedElsewhere(delivery),
+          delivery.status === "queued" &&
+          delivery.id !== props.editingDeliveryId &&
+          !editedElsewhere(delivery) &&
+          !props.sendingIds?.has(delivery.id),
       )
       .map((delivery) => delivery.id),
   );
@@ -143,8 +185,22 @@ export function QueuePanel(props: QueuePanelProps) {
       const current = untrack(renderedDeliveries);
       const nextIds = new Set(deliveries.map((delivery) => delivery.id));
       const restoredIds = new Set([...nextIds].filter((id) => externalRemovalTimers.has(id)));
+      // Fork (docs/fork/FEATURES.md #132): a listed delivery takes its sending row's place without an
+      // exit and entry animation, so the row does not blink when the host lists it.
+      const handoffs = untrack(() => props.handoffs);
+      const handedOver = new Set<string>();
+      for (const delivery of deliveries) {
+        const sendingId = handoffs?.get(delivery.id);
+        if (sendingId && current.some((item) => item.id === sendingId)) {
+          handedOver.add(sendingId);
+          handedOver.add(delivery.id);
+        }
+      }
       const addedIds = deliveries
-        .filter((delivery) => !knownSourceIds.has(delivery.id) && !restoredIds.has(delivery.id))
+        .filter(
+          (delivery) =>
+            !knownSourceIds.has(delivery.id) && !restoredIds.has(delivery.id) && !handedOver.has(delivery.id),
+        )
         .map((delivery) => delivery.id);
       knownSourceIds = nextIds;
 
@@ -162,7 +218,7 @@ export function QueuePanel(props: QueuePanelProps) {
 
       const retainedExits: Array<{ delivery: QueueDelivery; index: number }> = [];
       for (const [index, delivery] of current.entries()) {
-        if (nextIds.has(delivery.id)) continue;
+        if (nextIds.has(delivery.id) || handedOver.has(delivery.id)) continue;
         if (untrack(removingIds).has(delivery.id) && !externalRemovalTimers.has(delivery.id)) {
           setRemovingIds((ids) => {
             const next = new Set(ids);
@@ -345,7 +401,7 @@ export function QueuePanel(props: QueuePanelProps) {
     ids[index] = displaced;
     ids[target] = moved;
     movedByKey = { id: moved, order: ids.join("\n") };
-    props.onReorder(ids);
+    reorder(ids);
     setAnnouncement(t("queue.moved", { position: target + 1, total: ids.length }));
   }
 
@@ -358,14 +414,27 @@ export function QueuePanel(props: QueuePanelProps) {
     if (sourceIndex < 0 || targetIndex < 0) return;
     ids.splice(sourceIndex, 1);
     ids.splice(targetIndex, 0, sourceId);
-    props.onReorder(ids);
+    reorder(ids);
     setAnnouncement(t("queue.moved", { position: targetIndex + 1, total: ids.length }));
   }
 
   function requestCancel(deliveryId: string) {
     if (removingIds().has(deliveryId)) return;
     setRemovingIds((current) => new Set([...current, deliveryId]));
-    scheduleAnimationCleanup(() => props.onCancel(deliveryId), prefersReducedMotion() ? 0 : 200);
+    scheduleAnimationCleanup(
+      () => {
+        // Fork (docs/fork/FEATURES.md #132): a delete the host refused brings the row back.
+        void Promise.resolve(props.onCancel(deliveryId)).then((removed) => {
+          if (removed !== false || externalRemovalTimers.has(deliveryId)) return;
+          setRemovingIds((current) => {
+            const next = new Set(current);
+            next.delete(deliveryId);
+            return next;
+          });
+        });
+      },
+      prefersReducedMotion() ? 0 : 200,
+    );
   }
 
   function messagePreview(delivery: QueueDelivery): string {
@@ -433,7 +502,8 @@ export function QueuePanel(props: QueuePanelProps) {
                 const firstAttachment = () => delivery().attachments[0];
                 const removing = () => removingIds().has(delivery().id) || editingExitId() === delivery().id;
                 const editing = () => editedElsewhere(delivery());
-                const actionable = () => delivery().status === "queued" && !editing();
+                const sending = () => props.sendingIds?.has(delivery().id) === true;
+                const actionable = () => delivery().status === "queued" && !editing() && !sending();
                 return (
                   <fieldset
                     class={[
@@ -483,7 +553,7 @@ export function QueuePanel(props: QueuePanelProps) {
                         moveDelivery(delivery().id, 1);
                       }
                     }}
-                    tabindex={delivery().status === "queued" && !removing() ? 0 : -1}
+                    tabindex={delivery().status === "queued" && !removing() && !sending() ? 0 : -1}
                     aria-label={t(editing() ? "queue.item.labelEditing" : "queue.item.label", {
                       position: delivery().position ?? "",
                       preview: messagePreview(delivery()),
@@ -554,7 +624,8 @@ export function QueuePanel(props: QueuePanelProps) {
                                 {props.sendsNow
                                   ? t("queue.item.sendNow")
                                   : delivery().status === "starting"
-                                    ? t("queue.item.steering")
+                                    ? // Fork (docs/fork/FEATURES.md #132): the drain starts a row with no turn yet.
+                                      t(delivery().turnId === null ? "queue.item.starting" : "queue.item.steering")
                                     : t("queue.item.steer")}
                               </span>
                             </LabelTooltipTrigger>
@@ -584,10 +655,14 @@ export function QueuePanel(props: QueuePanelProps) {
                           variant="destructive-ghost"
                           type="button"
                           class="agent-queue-icon-button agent-queue-delete"
-                          disabled={delivery().status !== "queued"}
+                          disabled={delivery().status !== "queued" || sending()}
                           data-cuelume-tap="close"
                           aria-label={t("queue.item.deleteLabel", { position: delivery().position ?? "" })}
-                          onClick={() => {
+                          onClick={(event) => {
+                            // Fork (docs/fork/FEATURES.md #132): the row a click deletes stops taking
+                            // clicks at once, so the second click of a fast double-click falls on the
+                            // row below; it must not delete that one too.
+                            if (event.detail > 1) return;
                             if (editing()) setDeleteHeldId(delivery().id);
                             else requestCancel(delivery().id);
                           }}

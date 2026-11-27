@@ -67,6 +67,8 @@ type ConversationDeltaEvent = Extract<AgentEvent, { type: "conversation-delta" }
 
 const LATEST_PAGE_SIZE = 50;
 const INACTIVE_SNAPSHOT_TAIL = LATEST_PAGE_SIZE * 4;
+// Fork (docs/fork/FEATURES.md #132): the agent chat shows a delivery only once its provider took it.
+const HOLD_STARTING = { holdStarting: true } as const;
 
 function trimToLatestPage(conversation: ConversationState): void {
   if (conversation.messages.length <= LATEST_PAGE_SIZE) return;
@@ -650,7 +652,7 @@ const Conversation = createSimpleContext({
         conversation.loaded = true;
         const previous = conversation.messages;
         const previousById = new Map(previous.map((message) => [message.id, message]));
-        const allMappedMessages = toAgentMessages(sourceMessages, snapshot.agentId);
+        const allMappedMessages = toAgentMessages(sourceMessages, snapshot.agentId, undefined, HOLD_STARTING);
         const capped =
           snapshot.messages.length >= CONVERSATION_SNAPSHOT_MESSAGE_LIMIT || conversation.page?.hasOlder === true;
         const mappedMessages = snapshotRows(previous, allMappedMessages, sourceMessages, {
@@ -726,7 +728,7 @@ const Conversation = createSimpleContext({
     function keepOlderHistoryPlace(page: ConversationPage): void {
       const conversation = conversations[page.agentId];
       if (!conversation || !lacksOlderCursor(conversation.page)) return;
-      const mapped = toAgentMessages(page.messages, page.agentId);
+      const mapped = toAgentMessages(page.messages, page.agentId, undefined, HOLD_STARTING);
       const first = conversation.messages[0];
       const start = first ? mapped.findIndex((message) => message.id === first.id) : -1;
       if (start === -1 && !conversation.messages.some((message) => message.id === mapped[0]?.id)) return;
@@ -766,7 +768,7 @@ const Conversation = createSimpleContext({
         if (message.author !== "user" && message.status === "streaming") rawAgentMessageBodies.set(key, message.text);
         else rawAgentMessageBodies.delete(key);
       }
-      const mapped = toAgentMessages(page.messages, page.agentId);
+      const mapped = toAgentMessages(page.messages, page.agentId, undefined, HOLD_STARTING);
       updateConversation(page.agentId, (conversation) => {
         const currentMessages = conversation.messages;
         const currentById = new Map(currentMessages.map((message) => [message.id, message]));

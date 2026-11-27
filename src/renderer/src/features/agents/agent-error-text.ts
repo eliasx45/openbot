@@ -28,7 +28,25 @@ export function createRetryNotices() {
       setErrors((current) => (current[key] === notice ? withoutBanner(current, key) : current));
       setRuns((current) => (current[key]?.message === notice ? withoutBanner(current, key) : current));
     },
+    /**
+     * Fork (docs/fork/FEATURES.md #132): a new turn ends the banner of an earlier failure; a retry
+     * notice stays, as the retry is what runs now.
+     */
+    clearAtTurnStart<Run extends { message: string }>(
+      key: string,
+      setErrors: BannerUpdate<string>,
+      setRuns: BannerUpdate<Run>,
+    ): void {
+      if (shown.has(key)) return;
+      setErrors((current) => (key in current ? withoutBanner(current, key) : current));
+      setRuns((current) => (key in current ? withoutBanner(current, key) : current));
+    },
   };
+}
+
+/** Fork (docs/fork/FEATURES.md #132): another turn than the one that just ended runs now. */
+export function laterTurnRunning(activeTurnId: string | null | undefined, endedTurnId: string): boolean {
+  return Boolean(activeTurnId) && activeTurnId !== endedTurnId;
 }
 
 type BannerUpdate<T> = (update: (current: Record<string, T>) => Record<string, T>) => unknown;

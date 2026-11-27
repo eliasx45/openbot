@@ -335,6 +335,13 @@ export class QueueControls {
         Effect.tapError(() =>
           this.#mailbox.restoreUnsteered(input.deliveryId, turnId).pipe(
             toQueueOperationFailed,
+            // Fork (docs/fork/FEATURES.md #132): a refused steer comes back to the queue already
+            // labelled "Not steered", not as a plain row that the reason reaches later (or never).
+            Effect.andThen(
+              liveSnapshot().activeTurnId === turnId
+                ? this.#mailbox.markSteerFallback(input.deliveryId, "steer-failed").pipe(Effect.ignore)
+                : Effect.void,
+            ),
             Effect.andThen(
               queueStep(() => {
                 this.#mailboxSync.syncMailboxMessages(liveSnapshot());

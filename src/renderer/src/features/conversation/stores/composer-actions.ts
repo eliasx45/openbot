@@ -25,6 +25,7 @@ import {
 } from "@openbot/ui/features/conversation/ComposerEditor";
 import { currentText } from "@openbot/ui/text";
 import { playActionSound } from "../../../action-sounds";
+import { runningTurnTakesMessages } from "../../../queue-reconciliation";
 import { claimDictatedSend, forgetDictatedMessage } from "../../speech/speech-replies";
 import { rememberAttachmentKinds } from "../attachment-analytics";
 import { type PastedComposerCopy, rememberComposerFile } from "../composer-clipboard";
@@ -743,24 +744,22 @@ export function createComposerActions(deps: ComposerActionsDeps) {
     return true;
   }
 
-  function reorderPresentedQueue(deliveryIds: string[]) {
+  // Fork (docs/fork/FEATURES.md #132): resolves false when the host kept the old order.
+  function reorderPresentedQueue(deliveryIds: string[]): Promise<boolean> {
     const allQueuedIds = deps.orderedQueuedDeliveries().map((delivery) => delivery.id);
     const presentedQueuedIds = deps
       .presentedQueueDeliveries()
       .filter((delivery) => delivery.status === "queued")
       .map((delivery) => delivery.id);
-    if (presentedQueuedIds.length === allQueuedIds.length) {
-      deps.props.onReorderQueue(deliveryIds);
-      return;
-    }
-
     const presentedIds = new Set(presentedQueuedIds);
     let nextPresentedIndex = 0;
-    deps.props.onReorderQueue(
-      allQueuedIds.map((deliveryId) =>
-        presentedIds.has(deliveryId) ? (deliveryIds[nextPresentedIndex++] ?? deliveryId) : deliveryId,
-      ),
-    );
+    const order =
+      presentedQueuedIds.length === allQueuedIds.length
+        ? deliveryIds
+        : allQueuedIds.map((deliveryId) =>
+            presentedIds.has(deliveryId) ? (deliveryIds[nextPresentedIndex++] ?? deliveryId) : deliveryId,
+          );
+    return Promise.resolve(deps.props.onReorderQueue(order)).then((applied) => applied !== false);
   }
 
   function promptAnswerFor(
@@ -847,8 +846,14 @@ export function createComposerActions(deps: ComposerActionsDeps) {
       (deps.props.agent?.id === target.agentId
         ? (deps.props.agent.busyMessageMode ?? deps.props.defaultBusyMessageMode)
         : deps.props.defaultBusyMessageMode) === "steer";
+    // Fork (docs/fork/FEATURES.md #132): only a turn that takes messages now is steered into; a message
+    // sent during a routine run, between turns behind other queued messages, or while the queue is held
+    // goes straight to the queue panel, as the host keeps it there.
     const steered =
-      !queue && (steer || agentSteersForTarget) && (deps.props.agent?.id !== target.agentId || agentSteers());
+      !queue &&
+      (steer || agentSteersForTarget) &&
+      (deps.props.agent?.id !== target.agentId ||
+        (agentSteers() && runningTurnTakesMessages(deps.props.queue, deps.props.activeTurnId)));
     const queued =
       onScreen() &&
       !deps.props.channel &&

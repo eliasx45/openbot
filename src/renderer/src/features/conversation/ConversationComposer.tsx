@@ -100,7 +100,9 @@ export function ConversationComposer() {
     editingPendingSave,
     openAttachmentPicker,
     pasteFiles,
-    presentedQueueDeliveries,
+    panelDeliveries,
+    sendingQueueIds,
+    queueHandoffs,
     previewAttachment,
     openExternalMessageUrl,
     props,
@@ -234,7 +236,7 @@ export function ConversationComposer() {
   const awaitingVisible = () => awaitingReplies().length > 0;
   const waitItems = createMemo(() => openWaitItems(props.waits ?? [], props.queue));
   const waitsVisible = () => waitItems().length > 0 && Boolean(props.onCancelWait);
-  const queueRows = () => (queueOpen() ? presentedQueueDeliveries() : renderedQueueDeliveries());
+  const queueRows = () => (queueOpen() ? panelDeliveries() : renderedQueueDeliveries());
   const voiceAvailable = () => !props.runtime;
   const speaking = () => {
     const reading = speechReading();
@@ -611,6 +613,8 @@ export function ConversationComposer() {
                       agents={props.agents}
                       skills={installedSkills()}
                       editingDeliveryId={editingDeliveryId()}
+                      sendingIds={sendingQueueIds()}
+                      handoffs={queueHandoffs()}
                       canSteer={Boolean(props.activeTurnId) && !steerRefused()}
                       onSteer={sendQueued()}
                       sendsNow={!steers()}

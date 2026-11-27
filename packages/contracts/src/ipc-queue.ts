@@ -61,6 +61,16 @@ export function isQueuedAgentReply(delivery: QueueDelivery): boolean {
   );
 }
 
+/**
+ * Fork (docs/fork/FEATURES.md #132): a delivery the host is starting (or steering) waits in the queue
+ * panel until the provider takes it; only then does the chat show it. A routine run and a teammate's
+ * reply keep their own rows, as they never show in the queue panel.
+ */
+export function deliveryWaitsForProvider(delivery: QueueDelivery): boolean {
+  if (delivery.status !== "starting" || delivery.sender.kind === "routine") return false;
+  return !(delivery.sender.kind === "agent" && delivery.replyToMessageId !== null && delivery.expectsReply === false);
+}
+
 export function routineRunsTurn(
   deliveries: readonly QueueDelivery[] | undefined,
   turnId: string | null | undefined,

@@ -36,12 +36,22 @@ export function agentAwaitingReplies(input: AgentAwaitingInput): AwaitingReplyIt
     };
   };
   const lastUserIndex = input.messages.findLastIndex((message) => message.author === "you");
+  // Fork (docs/fork/FEATURES.md #132): a teammate whose reply the lead already read stays "Replied" while
+  // the request is still open, instead of going back to "Working" (its own turn runs on) and then
+  // dropping out, which shrank the count.
+  const readReplies = new Map<string, AgentMessage>();
+  for (const message of input.messages) {
+    const exchange = message.exchange;
+    if (exchange?.direction !== "incoming" || !exchange.replyToMessageId) continue;
+    readReplies.set(`${exchange.replyToMessageId}:${exchange.senderAgentId}`, message);
+  }
   const rows: AwaitingReplyItem[] = [];
   const shownReplies = new Set<string>();
   input.messages.forEach((message, index) => {
     const exchange = message.exchange;
     if (exchange?.direction !== "outgoing" || exchange.expectsReply === false) return;
     const firstRow = rows.length;
+    const readRows = new Set<AwaitingReplyItem>();
     for (const delivery of exchange.deliveries) {
       const reply = replies.find(
         (candidate) =>
@@ -55,6 +65,16 @@ export function agentAwaitingReplies(input: AgentAwaitingInput): AwaitingReplyIt
         rows.push(rowFor(delivery.recipientAgentId, "replied", id, reply));
         continue;
       }
+      const read = readReplies.get(id);
+      if (read) {
+        const row: AwaitingReplyItem = {
+          ...rowFor(delivery.recipientAgentId, "replied", id),
+          preview: previewText(replyResult(read.body)),
+        };
+        readRows.add(row);
+        rows.push(row);
+        continue;
+      }
       const state = deliveryState(delivery.status);
       if (!state || (state === "failed" && index < lastUserIndex)) continue;
       const wait = state === "failed" ? undefined : input.waits?.[delivery.recipientAgentId];
@@ -63,6 +83,9 @@ export function agentAwaitingReplies(input: AgentAwaitingInput): AwaitingReplyIt
     const exchangeRows = rows.slice(firstRow);
     if (exchangeRows.some((row) => row.state === "asked" || row.state === "working")) {
       for (const row of exchangeRows) delete row.detail;
+    } else if (readRows.size > 0) {
+      // Every teammate is done and the lead read the replies: the request is over, so its rows leave.
+      rows.splice(firstRow, rows.length - firstRow, ...exchangeRows.filter((row) => !readRows.has(row)));
     }
   });
   for (const reply of replies) {

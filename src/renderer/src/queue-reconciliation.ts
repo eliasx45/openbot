@@ -1,4 +1,11 @@
-import { type AgentTask, isQueuedAgentReply, type QueueDelivery, type QueueSnapshot } from "@openbot/contracts/ipc";
+import {
+  type AgentTask,
+  deliveryWaitsForProvider,
+  isQueuedAgentReply,
+  type QueueDelivery,
+  type QueueSnapshot,
+  routineRunsTurn,
+} from "@openbot/contracts/ipc";
 
 export function withoutSideThreadTurns(queue: QueueSnapshot, tasks: readonly AgentTask[]): QueueSnapshot {
   const sideTurns = new Set(tasks.flatMap((task) => (task.activeTurnId ? [task.activeTurnId] : [])));
@@ -42,11 +49,12 @@ export function presentQueueDeliveries(input: {
       !input.renderedMessageIds.has(delivery.id) &&
       !isQueuedAgentReply(delivery),
   );
+  // Fork (docs/fork/FEATURES.md #132): a row the host is starting (drain, turnId null) or steering into
+  // the running turn stays in the panel until the provider takes it and the chat shows it.
   const steering = snapshot.deliveries.filter(
     (delivery) =>
-      delivery.status === "starting" &&
-      Boolean(input.activeTurnId) &&
-      delivery.turnId === input.activeTurnId &&
+      deliveryWaitsForProvider(delivery) &&
+      (delivery.turnId === null || (Boolean(input.activeTurnId) && delivery.turnId === input.activeTurnId)) &&
       !input.renderedMessageIds.has(delivery.id),
   );
   return [...queued, ...steering];
@@ -61,4 +69,17 @@ export function queueAfterTurnCompleted(snapshot: QueueSnapshot, turnId: string)
       ),
   );
   return deliveries.length === snapshot.deliveries.length ? snapshot : { ...snapshot, deliveries };
+}
+
+/**
+ * Fork (docs/fork/FEATURES.md #132): whether a message sent now can join the running turn, by the
+ * host's own rules: a turn runs, it is not a routine run's turn (the host never steers into one), and
+ * the queue is not held. Otherwise the message waits, so the composer puts it straight in the queue
+ * panel instead of drawing a sent bubble that the panel takes back a moment later.
+ */
+export function runningTurnTakesMessages(
+  snapshot: QueueSnapshot | undefined,
+  activeTurnId: string | null | undefined,
+): boolean {
+  return Boolean(activeTurnId) && !routineRunsTurn(snapshot?.deliveries, activeTurnId) && !snapshot?.hold;
 }

@@ -245,7 +245,8 @@ export interface ConversationProps {
   onDeleteAgentHistory?: (() => Promise<void>) | undefined;
   onCompactAgentContext?: (() => Promise<void>) | undefined;
   onRespondToBrowserTakeover: (decision: "complete" | "cancel", options?: PromptAnswerOptions) => Promise<boolean>;
-  onCancelQueuedMessage: (deliveryId: string) => void;
+  /** Fork (docs/fork/FEATURES.md #132): may resolve false when the host kept the message. */
+  onCancelQueuedMessage: (deliveryId: string) => unknown;
   onCancelWait?: ((waitId: string) => void) | undefined;
   onSteerQueuedMessage: (deliveryId: string) => void;
   onSendQueuedMessageNow?: ((deliveryId: string) => void) | undefined;
@@ -256,7 +257,8 @@ export interface ConversationProps {
     attachmentDraftIds: string[],
     target?: ConversationTarget,
   ) => Promise<boolean>;
-  onReorderQueue: (deliveryIds: string[]) => void;
+  /** Fork (docs/fork/FEATURES.md #132): may resolve false when the host kept the old order. */
+  onReorderQueue: (deliveryIds: string[]) => unknown;
   onActivateBrowserTab: (tabId: string) => void;
   onCloseBrowserTab: (tabId: string) => void | Promise<void>;
   onOpenRemoteDesktop: (serverId: string, trigger: HTMLElement) => Promise<void>;

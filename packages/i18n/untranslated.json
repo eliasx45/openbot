@@ -4181,6 +4181,7 @@
   "provider.settings.usedByCount": ["de", "es", "fr", "it", "ja", "pl", "pt", "ru", "tr"],
   "provider.settings.version": ["de", "es", "fr", "it", "ja", "pl", "pt", "ru", "tr"],
   "provider.settings.versionAvailable": ["de", "es", "fr", "it", "ja", "pl", "pt", "ru", "tr"],
+  "queue.item.starting": ["ar", "de", "es", "fr", "he", "it", "ja", "ko", "nl", "pl", "pt", "ru", "tr", "zh"],
   "routine.settings.instructionRequired": ["de", "es", "fr", "it", "ja", "pl", "pt", "ru", "tr"],
   "routine.settings.nameRequired": ["de", "es", "fr", "it", "ja", "pl", "pt", "ru", "tr"],
   "routine.trigger.kind": ["de", "es", "fr", "it", "ja", "pl", "pt", "ru", "tr"],

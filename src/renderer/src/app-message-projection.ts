@@ -247,6 +247,13 @@ function cardShownAttachmentIds(messages: readonly ConversationMessage[]): Reado
   return ids;
 }
 
+/** Fork (docs/fork/FEATURES.md #132): the chat side of `deliveryWaitsForProvider`. */
+export function startingMessageWaits(message: ConversationMessage): boolean {
+  if (message.delivery?.status !== "starting" || message.routine || message.source === "routine") return false;
+  const exchange = message.exchange;
+  return !(exchange?.direction === "incoming" && Boolean(exchange.replyToMessageId) && exchange.expectsReply === false);
+}
+
 function shownOnCard(message: ConversationMessage, onCards: ReadonlySet<string>): boolean {
   if (onCards.size === 0 || message.itemType !== "agent_attachment" || message.text.trim()) return false;
   const attachments = message.attachments ?? [];
@@ -258,6 +265,7 @@ export function toAgentMessages(
   ownerAgentId?: string,
   convert: (message: ConversationMessage, index: number) => AgentMessage = (message) =>
     toAgentMessage(message, ownerAgentId),
+  options: { holdStarting?: boolean } = {},
 ): AgentMessage[] {
   const result: AgentMessage[] = [];
   const thinkingByTurn = new Map<string, AgentMessage>();
@@ -268,6 +276,9 @@ export function toAgentMessages(
     if ((message.delivery?.status === "queued" || message.delivery?.status === "cancelled") && !message.routine) {
       continue;
     }
+    // Fork (docs/fork/FEATURES.md #132): a message the host is still starting waits in the queue panel
+    // (or as the sender's own bubble) until the provider takes it, so it never shows here and then leaves.
+    if (options.holdStarting && startingMessageWaits(message)) continue;
     if (message.itemType === AGENT_WELCOME_ITEM_TYPE || message.itemType === CHANNEL_RESUME_ITEM_TYPE) continue;
     if (message.author !== "assistant" || message.itemType !== "commentary") {
       result.push(convert(message, index));
@@ -603,7 +614,10 @@ function aggregateDeliveryStatus(statuses: QueueDeliveryStatus[]): AgentDelivery
 
 function deliveryStatus(status: QueueDeliveryStatus | undefined): Exclude<AgentDeliveryMarkerStatus, "partial"> {
   if (!status) return "unavailable";
-  if (status === "starting" || status === "running") return "in-progress";
+  // Fork (docs/fork/FEATURES.md #132): a delivery the provider has not taken yet still waits, so a refused
+  // start does not flip the sender's chip from "in progress" back to "queued".
+  if (status === "starting") return "queued";
+  if (status === "running") return "in-progress";
   return status;
 }
 

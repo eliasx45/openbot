@@ -397,17 +397,23 @@ const Turns = createSimpleContext({
       }
     }
 
-    function cancelQueuedMessage(deliveryId: string) {
+    // Fork (docs/fork/FEATURES.md #132): resolves false when the host kept the message, so the queue
+    // panel brings its row back instead of leaving it hidden.
+    function cancelQueuedMessage(deliveryId: string): Promise<boolean> {
       const agent = activeAgent();
-      if (!agent) return;
+      if (!agent) return Promise.resolve(false);
       const serverId = activeServerId();
       const analytics = desktopAnalytics.scope();
-      void turnsPort()
+      return turnsPort()
         .agent.cancelQueuedMessage({ agentId: agent.id, deliveryId })
-        .then(() => analytics.track("queue_action", { action: "cancel", result: "succeeded" }))
+        .then(() => {
+          analytics.track("queue_action", { action: "cancel", result: "succeeded" });
+          return true;
+        })
         .catch((error) => {
           analytics.track("queue_action", { action: "cancel", result: "failed", failure_code: "cancel_failed" });
           appendUiError(agent.id, error, currentText().t("app.errorStatus.cancel"), serverId);
+          return false;
         });
     }
 
@@ -435,6 +441,8 @@ const Turns = createSimpleContext({
           if (activeTurns()[agent.id] !== turnId) return;
           const delivery = queues()[agent.id]?.deliveries.find((item) => item.id === deliveryId);
           if (delivery && delivery.status !== "queued") return;
+          // Fork (docs/fork/FEATURES.md #132): the row says "Not steered" itself; no extra error line.
+          if (delivery?.steerFallback) return;
           if (isRoutineSteerRefusal(error)) return;
           appendUiError(agent.id, error, currentText().t("app.errorStatus.steer"), serverId);
         });
@@ -505,17 +513,22 @@ const Turns = createSimpleContext({
       }
     }
 
-    function reorderQueue(deliveryIds: string[]) {
+    // Fork (docs/fork/FEATURES.md #132): resolves false when the host kept the old order.
+    function reorderQueue(deliveryIds: string[]): Promise<boolean> {
       const agent = activeAgent();
-      if (!agent) return;
+      if (!agent) return Promise.resolve(false);
       const serverId = activeServerId();
       const analytics = desktopAnalytics.scope();
-      void turnsPort()
+      return turnsPort()
         .agent.reorderQueue({ agentId: agent.id, deliveryIds })
-        .then(() => analytics.track("queue_action", { action: "reorder", result: "succeeded" }))
+        .then(() => {
+          analytics.track("queue_action", { action: "reorder", result: "succeeded" });
+          return true;
+        })
         .catch((error) => {
           analytics.track("queue_action", { action: "reorder", result: "failed", failure_code: "reorder_failed" });
           appendUiError(agent.id, error, currentText().t("app.errorStatus.reorder"), serverId);
+          return false;
         });
     }
 

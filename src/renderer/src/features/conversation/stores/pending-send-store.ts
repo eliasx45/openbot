@@ -21,7 +21,6 @@ export interface PendingSend {
   retrySafe: boolean;
   voiceRecordingDraftId: string | null;
   queued: boolean;
-  late: boolean;
   starting: boolean;
 }
 
@@ -30,8 +29,6 @@ export type DeliverPendingSend = (send: PendingSend) => Promise<SendMessageResul
 const RETRY_WINDOW_MS = 12 * 60 * 60 * 1000;
 
 const START_GRACE_MS = 3000;
-
-const QUEUED_REVEAL_MS = 400;
 
 export function pendingSendRetrySafe(send: PendingSend, now = Date.now()): boolean {
   return send.retrySafe && now - Date.parse(send.createdAt) < RETRY_WINDOW_MS;
@@ -104,7 +101,6 @@ export function createPendingSendStore() {
       queued: false,
       ...input,
       starting: false,
-      late: false,
       clientMessageId: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       state: "waiting",
@@ -114,12 +110,8 @@ export function createPendingSendStore() {
     };
     deliverers.set(send.clientMessageId, deliver);
     queues.set(key, [...(queues.get(key) ?? []), send]);
-    if (send.queued)
-      window.setTimeout(() => {
-        if (find(key, send.clientMessageId) !== send || send.state === "sent") return;
-        send.late = true;
-        publish(key);
-      }, QUEUED_REVEAL_MS);
+    // Fork (docs/fork/FEATURES.md #132): a queued send no longer turns into a chat bubble after 400 ms;
+    // the queue panel shows it from the start (queue-store's sending rows).
     publish(key);
     pump(key);
   }

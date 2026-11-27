@@ -437,9 +437,16 @@ export function createConversationViewScope(props: ConversationProps) {
   const startingDeliveryIds = createMemo(() => {
     const ids = new Set<string>();
     const unanswered: string[] = [];
+    const deliveries = new Map((props.queue?.deliveries ?? []).map((delivery) => [delivery.id, delivery]));
     for (const send of currentPendingSends()) {
-      if (send.starting && send.messageId) ids.add(send.messageId);
-      else if (send.state === "sending" && !send.queued) unanswered.push(send.text.trim());
+      if (send.messageId && !send.queued) {
+        // Fork (docs/fork/FEATURES.md #132): the sent bubble stays while the host starts or steers its
+        // message, however long the provider takes, and gives way to the panel as soon as the host
+        // says why the message waits (a routine run, a provider that cannot steer, a refused steer).
+        const delivery = deliveries.get(send.messageId);
+        if (delivery?.status === "queued" && delivery.steerFallback) continue;
+        if (send.starting || delivery?.status === "starting") ids.add(send.messageId);
+      } else if (send.state === "sending" && !send.queued) unanswered.push(send.text.trim());
     }
     if (unanswered.length === 0) return ids;
     for (const delivery of [...(props.queue?.deliveries ?? [])].reverse()) {
@@ -455,11 +462,46 @@ export function createConversationViewScope(props: ConversationProps) {
   const sendStarting = createMemo(() =>
     currentPendingSends().some((send) => send.state === "sending" || send.starting),
   );
-  const queue = createQueueStore({ props, hiddenAwaitingReplyIds, startingDeliveryIds });
+  // Fork (docs/fork/FEATURES.md #132): the host delivery of each queued send still in flight, matched by
+  // text among the deliveries that appeared since it was sent, so its panel row hands over in place.
+  const deliveriesBefore = new Map<string, ReadonlySet<string>>();
+  const queuedSendDeliveryIds = createMemo((): ReadonlyMap<string, string> => {
+    const found = new Map<string, string>();
+    const waiting = currentPendingSends().filter((send) => send.queued && send.state === "sending");
+    for (const id of deliveriesBefore.keys())
+      if (!waiting.some((send) => send.clientMessageId === id)) deliveriesBefore.delete(id);
+    if (waiting.length === 0) return found;
+    const deliveries = (props.queue?.deliveries ?? []).filter((delivery) => delivery.sender.kind === "user");
+    const taken = new Set<string>();
+    for (const send of waiting) {
+      const before = deliveriesBefore.get(send.clientMessageId);
+      if (!before) {
+        deliveriesBefore.set(send.clientMessageId, new Set(deliveries.map((delivery) => delivery.id)));
+        continue;
+      }
+      const match = deliveries.find(
+        (delivery) => !before.has(delivery.id) && !taken.has(delivery.id) && delivery.text.trim() === send.text.trim(),
+      );
+      if (!match) continue;
+      found.set(send.clientMessageId, match.id);
+      taken.add(match.id);
+    }
+    return found;
+  });
+  const queue = createQueueStore({
+    props,
+    hiddenAwaitingReplyIds,
+    startingDeliveryIds,
+    pendingSends: currentPendingSends,
+    queuedSendDeliveryIds,
+  });
   const {
     activeDeliveries,
     orderedQueuedDeliveries,
     presentedQueueDeliveries,
+    panelDeliveries,
+    sendingQueueIds,
+    queueHandoffs,
     queuePanelVisible,
     queueOpen,
     renderedQueueDeliveries,
@@ -729,40 +771,17 @@ export function createConversationViewScope(props: ConversationProps) {
         ])
       : new Set<string>(),
   );
-  const deliveriesBefore = new Map<string, ReadonlySet<string>>();
-  const queuedSendIds = createMemo((): ReadonlySet<string> => {
-    const found = new Set<string>();
-    const waiting = currentPendingSends().filter((send) => send.queued && send.state === "sending");
-    for (const id of deliveriesBefore.keys())
-      if (!waiting.some((send) => send.clientMessageId === id)) deliveriesBefore.delete(id);
-    if (waiting.length === 0) return found;
-    const deliveries = (props.queue?.deliveries ?? []).filter((delivery) => delivery.sender.kind === "user");
-    const taken = new Set<string>();
-    for (const send of waiting) {
-      const before = deliveriesBefore.get(send.clientMessageId);
-      if (!before) {
-        deliveriesBefore.set(send.clientMessageId, new Set(deliveries.map((delivery) => delivery.id)));
-        continue;
-      }
-      const match = deliveries.find(
-        (delivery) => !before.has(delivery.id) && !taken.has(delivery.id) && delivery.text.trim() === send.text.trim(),
-      );
-      if (!match) continue;
-      found.add(send.clientMessageId);
-      taken.add(match.id);
-    }
-    return found;
-  });
-  const pendingMessages = createMemo(() => {
-    const queuedIds = queuedSendIds();
-    return currentPendingSends()
+  const pendingMessages = createMemo(() =>
+    currentPendingSends()
       .filter((send) => {
         const messageId = sentMessageId(send);
         return !(messageId && drawnHostIds().has(messageId));
       })
-      .filter((send) => !send.queued || send.state === "failed" || (send.late && !queuedIds.has(send.clientMessageId)))
-      .map(pendingSendMessage);
-  });
+      // Fork (docs/fork/FEATURES.md #132): a queued send waits in the queue panel (queue-store's
+      // sending rows), however slow the host is; only a failed one shows here, where retry lives.
+      .filter((send) => !send.queued || send.state === "failed")
+      .map(pendingSendMessage),
+  );
   const pendingSendFor = (messageId: string | undefined) =>
     messageId?.startsWith(PENDING_SEND_ID_PREFIX)
       ? currentPendingSends().find((send) => `${PENDING_SEND_ID_PREFIX}${send.clientMessageId}` === messageId)
@@ -2678,6 +2697,9 @@ export function createConversationViewScope(props: ConversationProps) {
     editPendingSend,
     dismissPendingSend,
     presentedQueueDeliveries,
+    panelDeliveries,
+    sendingQueueIds,
+    queueHandoffs,
     previewAttachment,
     props,
     queuePanelVisible,
