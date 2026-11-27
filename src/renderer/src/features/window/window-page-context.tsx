@@ -1,6 +1,7 @@
 import type { SettingsPageBack, SettingsPagePlacement } from "@openbot/ui/features/settings/SettingsDialogShell";
 import { createEffect, createMemo, createSignal, untrack } from "solid-js";
 import { createSimpleContext } from "../../simple-context";
+import { savedAppsPageRequest } from "../saved-apps/fork-saved-apps-store";
 import { useServerSettings } from "../servers/server-settings";
 import { useServers } from "../servers/servers-context";
 import { useSettings } from "../settings/settings-context";
@@ -14,6 +15,7 @@ export type WindowPage =
   | "usage"
   | "library"
   | "crm"
+  | "apps" // Fork (docs/fork/FEATURES.md #123)
   | "marketplace"
   | "settings"
   | "server-settings"
@@ -101,6 +103,13 @@ const context = createSimpleContext({
       },
     );
 
+    // Fork (docs/fork/FEATURES.md #123): "Saved · Open" and openbot://app/<id> show the Apps page.
+    createEffect(savedAppsPageRequest, (request, previous) => {
+      if (previous === undefined || request === previous) return;
+      leavePricing();
+      usage.openApps(untrack(activeServerId), null);
+    });
+
     createEffect(settings.skillsMarketplaceOpen, (open) => {
       if (!open) return;
       usage.dismissUsage();
@@ -176,6 +185,10 @@ const context = createSimpleContext({
         leavePricing();
         const serverId = activeServerId();
         if (serverId) usage.openLibrary(serverId, source);
+      },
+      openApps(source: HTMLElement | null) {
+        leavePricing();
+        usage.openApps(activeServerId(), source); // Fork (docs/fork/FEATURES.md #123)
       },
       openCrm(source: HTMLElement | null, connectors = false) {
         leavePricing();

@@ -11,6 +11,7 @@ import { WorkflowsPage } from "../../lazy-views";
 import { usePlatform } from "../../platform";
 import { useCustomAgents } from "../custom-agents/custom-agents-context";
 import { serverHasStorage } from "../files/storage-usage";
+import { savedAppsPort } from "../saved-apps/fork-saved-apps-store";
 import { useServerActions } from "../servers/server-actions";
 import {
   activeServerHasProviderSettings,
@@ -109,6 +110,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
       onProviders={openProviders()}
       onCrm={crmRailAction()}
       onCrmConnectors={crmConnectorsAction()}
+      onApps={savedAppsPort() ? windowPage.openApps : undefined}
       onMarketplace={() => {
         windowPage.leavePricing();
         setSkillsMarketplaceOpen(true);

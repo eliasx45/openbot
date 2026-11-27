@@ -131,3 +131,42 @@
     opacity: 1;
   }
 }
+
+/* Fork (docs/fork/FEATURES.md, fork 123): "Save as app" in a chat page's toolbar. */
+.chat-visual-save-app {
+  position: relative;
+  display: flex;
+}
+
+.chat-visual-save-app .ui-button {
+  gap: var(--openbot-space-1);
+  white-space: nowrap;
+}
+
+.chat-visual-save-app[data-state="saved"] .ui-button svg {
+  color: var(--openbot-success-text);
+}
+
+.chat-visual-save-app-spin {
+  animation: ui-spin 900ms linear infinite;
+}
+
+.chat-visual-save-app-error {
+  position: absolute;
+  top: calc(100% + var(--openbot-space-1));
+  inset-inline-end: 0;
+  width: max-content;
+  max-width: 260px;
+  margin: 0;
+  border-radius: var(--openbot-radius-md);
+  padding: var(--openbot-space-1) var(--openbot-space-2);
+  background: var(--openbot-bg-control);
+  box-shadow: 0 0 0 1px var(--openbot-border-strong);
+  color: var(--openbot-danger-text);
+  font-size: var(--openbot-text-xs);
+}
+
+/* Keep the toolbar shown while saving and after a failure, so the result is seen. */
+.chat-visual-actions:has(.chat-visual-save-app:is([data-state="busy"], [data-state="failed"])) {
+  opacity: 1;
+}

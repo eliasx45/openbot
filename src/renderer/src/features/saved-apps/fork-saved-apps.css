@@ -1,0 +1,427 @@
+/* Fork (docs/fork/FEATURES.md, fork 123): the Apps page, the app view and an app's own window. */
+
+.saved-apps-page {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  color: var(--openbot-text-primary);
+}
+
+.saved-apps-page > .page-header {
+  flex: none;
+  padding: var(--openbot-space-4) var(--openbot-space-6);
+}
+
+.saved-apps-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--openbot-space-2) var(--openbot-space-6) var(--openbot-space-6);
+}
+
+.saved-apps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+  gap: var(--openbot-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saved-apps-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--openbot-space-2);
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 var(--openbot-space-3);
+  border-radius: var(--openbot-radius-md);
+  padding: var(--openbot-space-1) var(--openbot-space-3);
+  background: var(--openbot-bg-surface);
+  box-shadow: 0 0 0 1px var(--openbot-border);
+  color: var(--openbot-text-secondary);
+  font-size: var(--openbot-text-sm);
+}
+
+.saved-apps-error {
+  color: var(--openbot-danger-text);
+}
+
+.saved-apps-undo {
+  height: auto;
+  padding: 0;
+  color: var(--openbot-accent-text);
+  font-size: inherit;
+}
+
+.saved-apps-empty {
+  display: flex;
+  max-width: 360px;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--openbot-space-2);
+  margin: 12vh auto 0;
+  text-align: center;
+}
+
+.saved-apps-empty h3 {
+  margin: var(--openbot-space-2) 0 0;
+  font-size: var(--openbot-text-md);
+  font-weight: var(--openbot-weight-semibold);
+}
+
+.saved-apps-empty p {
+  margin: 0;
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+}
+
+.saved-apps-empty-tile {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-surface);
+  box-shadow: 0 0 0 1px var(--openbot-border);
+  color: var(--openbot-text-secondary);
+}
+
+.saved-apps-empty-tile svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* A card: live thumbnail, then mark, name, agent and time, and a More menu. */
+.saved-app-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--openbot-space-2);
+}
+
+.saved-app-card-preview {
+  position: relative;
+  border-radius: var(--openbot-radius-lg);
+  box-shadow: 0 0 0 1px var(--openbot-border);
+  overflow: hidden;
+  transition: box-shadow var(--openbot-duration-hover) var(--openbot-ease-out);
+}
+
+.saved-app-card-preview:hover,
+.saved-app-card-preview:focus-within {
+  box-shadow: 0 0 0 1px var(--openbot-border-strong);
+}
+
+.saved-app-thumb {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: var(--openbot-bg-canvas, var(--openbot-bg-surface));
+}
+
+.saved-app-thumb-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 880px;
+  height: 550px;
+  border: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+  color-scheme: dark;
+}
+
+:root[data-openbot-color-scheme="light"] .saved-app-thumb-frame {
+  color-scheme: light;
+}
+
+.saved-app-thumb-letter {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-2xl);
+  font-weight: var(--openbot-weight-semibold);
+}
+
+.saved-app-card-open {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.saved-app-card-open:hover {
+  background: transparent;
+}
+
+.saved-app-card-open:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--openbot-accent-text);
+}
+
+.saved-app-card-window {
+  position: absolute;
+  top: var(--openbot-space-2);
+  inset-inline-end: var(--openbot-space-2);
+  opacity: 0;
+}
+
+.saved-app-card-window svg {
+  width: 15px;
+  height: 15px;
+}
+
+.saved-app-card-preview:hover .saved-app-card-window,
+.saved-app-card-window:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .saved-app-card-window {
+    opacity: 1;
+  }
+}
+
+.saved-app-card-info {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--openbot-space-2);
+}
+
+.saved-app-card-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.saved-app-card-name {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  overflow: hidden;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-sm);
+  font-weight: var(--openbot-weight-medium);
+  line-height: var(--openbot-leading-sm, 1.4);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.saved-app-card-name:hover {
+  background: none;
+  text-decoration: underline;
+}
+
+.saved-app-card-rename {
+  box-sizing: border-box;
+  width: 100%;
+  height: 22px;
+  padding-inline: var(--openbot-space-1);
+  font-size: var(--openbot-text-sm);
+}
+
+.saved-app-card-meta {
+  margin: 0;
+  overflow: hidden;
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-app-card-more {
+  flex: none;
+  color: var(--openbot-text-secondary);
+}
+
+.saved-app-card-menu svg {
+  width: var(--openbot-icon-sm, 16px);
+  height: var(--openbot-icon-sm, 16px);
+}
+
+.saved-app-card-remove {
+  color: var(--openbot-danger-text);
+}
+
+.saved-app-mark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--openbot-radius-md);
+  background: var(--openbot-bg-surface);
+  box-shadow: 0 0 0 1px var(--openbot-border);
+  color: var(--openbot-text-secondary);
+  font-size: var(--openbot-text-sm);
+  font-weight: var(--openbot-weight-semibold);
+}
+
+/* The app, full-pane or in its own window. */
+.saved-apps-page-app {
+  overflow: hidden;
+}
+
+.saved-app-view {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.saved-app-view-header {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--openbot-space-3);
+  padding: var(--openbot-space-3) var(--openbot-space-4);
+  border-bottom: 1px solid var(--openbot-border);
+}
+
+.saved-app-view-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--openbot-space-2);
+}
+
+.saved-app-view-titles {
+  min-width: 0;
+}
+
+.saved-app-view-name {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--openbot-text-md);
+  font-weight: var(--openbot-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-app-view-by {
+  margin: 0;
+  overflow: hidden;
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-app-view-actions {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  gap: var(--openbot-space-1);
+}
+
+.saved-app-view-actions .ui-button,
+.saved-app-version-trigger {
+  gap: var(--openbot-space-1);
+  white-space: nowrap;
+}
+
+.saved-app-view-actions svg {
+  width: var(--openbot-icon-sm, 16px);
+  height: var(--openbot-icon-sm, 16px);
+}
+
+/* Narrow: the action buttons keep their icons only. */
+@container saved-app (max-width: 640px) {
+  .saved-app-view-actions .ui-button > span {
+    display: none;
+  }
+}
+
+.saved-app-view {
+  container: saved-app / inline-size;
+}
+
+.saved-app-view-body {
+  min-height: 0;
+  flex: 1;
+}
+
+.saved-app-version-menu {
+  min-width: 260px;
+}
+
+.saved-app-version-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--openbot-space-2);
+}
+
+.saved-app-version-check {
+  display: grid;
+  width: 16px;
+  height: 18px;
+  flex: none;
+  place-items: center;
+}
+
+.saved-app-version-check svg {
+  width: 14px;
+  height: 14px;
+}
+
+.saved-app-version-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.saved-app-version-text small {
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-xs);
+}
+
+.saved-app-version-separator {
+  height: 1px;
+  margin: var(--openbot-space-1) 0;
+  border: 0;
+  background: var(--openbot-border);
+}
+
+/* An app's own window: the header drags the window and leaves room for the window buttons on macOS. */
+.saved-app-window {
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--openbot-bg-canvas, var(--openbot-bg-surface));
+  color: var(--openbot-text-primary);
+}
+
+.saved-app-view[data-in-window] .saved-app-view-header {
+  -webkit-app-region: drag;
+}
+
+.saved-app-view[data-in-window] .saved-app-view-header :is(button, a, input, [role="button"]) {
+  -webkit-app-region: no-drag;
+}
+
+.saved-app-window[data-mac] .saved-app-view-header {
+  padding-inline-start: 84px;
+}
+
+.saved-app-window-missing {
+  margin: 20vh auto 0;
+  color: var(--openbot-text-muted);
+  text-align: center;
+}

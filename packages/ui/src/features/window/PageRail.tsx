@@ -1,6 +1,7 @@
 import { AppLogo, type AppLogoVariant, ProviderLogo } from "@openbot/brand";
 import { usageTone } from "@openbot/team-client/plan-limits";
 import {
+  AppWindow,
   Bot,
   BriefcaseBusiness,
   Button,
@@ -345,6 +346,7 @@ export type PageRailPage =
   | "library"
   | "providers"
   | "crm"
+  | "apps" // Fork (docs/fork/FEATURES.md #123)
   | "marketplace"
   | "settings";
 
@@ -356,6 +358,7 @@ export const PAGE_RAIL_PINNABLE_PAGES = [
   "library",
   "providers",
   "crm",
+  "apps", // Fork (docs/fork/FEATURES.md #123)
 ] as const satisfies readonly PageRailPage[];
 export type PageRailPinnablePage = (typeof PAGE_RAIL_PINNABLE_PAGES)[number];
 
@@ -378,6 +381,8 @@ export interface PageRailProps {
   onProviders?: ((button: HTMLElement) => void) | undefined;
   onCrm?: ((button: HTMLElement) => void) | undefined;
   onCrmConnectors?: ((button: HTMLElement) => void) | undefined;
+  /** Fork (docs/fork/FEATURES.md #123): the saved apps page. */
+  onApps?: ((button: HTMLElement) => void) | undefined;
   onMarketplace?: (() => void) | undefined;
   onSettings: (button: HTMLElement) => void;
   settingsNotice?: string | undefined;
@@ -530,6 +535,8 @@ export function PageRail(props: PageRailProps) {
         menu: onConnectors && [{ label: t("crm.connectors.title"), icon: Plug, open: onConnectors }],
       });
     }
+    const onApps = props.onApps; // Fork (docs/fork/FEATURES.md #123)
+    if (onApps) list.push({ id: "apps", label: t("app.rail.apps"), icon: AppWindow, open: onApps });
     return list;
   });
   return (

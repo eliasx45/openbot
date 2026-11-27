@@ -1,6 +1,7 @@
 import {
   CHAT_VISUAL_COLOR_SCHEME,
   CHAT_VISUAL_FRAME_SANDBOX,
+  CHAT_VISUAL_STATE_UNAVAILABLE,
   type ChatVisualKey,
   type ChatVisualRect,
   type ChatVisualReplyResult,
@@ -10,11 +11,13 @@ import {
   chatVisualFrameHeight,
   chatVisualFrameUrl,
   chatVisualReplyMessage,
+  chatVisualStateReplyMessage,
   chatVisualThemeMessage,
   parseChatVisualMessage,
 } from "@openbot/contracts/chat-visual";
+import type { PageStateOperation, PageStateReply } from "@openbot/contracts/fork-saved-apps";
 import type { AttachmentSummary } from "@openbot/contracts/ipc";
-import { Button, Maximize2, PanelRight, Wallpaper } from "@openbot/ui";
+import { AppWindow, Button, Check, LoaderCircle, Maximize2, PanelRight, Wallpaper } from "@openbot/ui";
 import { Portal } from "@solidjs/web";
 import { createEffect, createSignal, onSettled, Show, untrack } from "solid-js";
 import { type DocumentColorScheme, documentColorScheme } from "../../document-color-scheme";
@@ -53,7 +56,8 @@ const THEME_TOKENS: ReadonlyArray<readonly [`--${string}`, string]> = [
   ["--font-mono", "--openbot-font-mono"],
 ];
 
-function visualTheme(element: Element, scheme: DocumentColorScheme): ChatVisualTheme {
+// Fork (docs/fork/FEATURES.md #123): exported for the saved apps' live thumbnails.
+export function visualTheme(element: Element, scheme: DocumentColorScheme): ChatVisualTheme {
   const style = getComputedStyle(element);
   const theme: ChatVisualTheme = { "--background": "transparent", [CHAT_VISUAL_COLOR_SCHEME]: scheme };
   for (const [name, token] of THEME_TOKENS) {
@@ -79,6 +83,16 @@ interface ChatVisualProps {
   onUseAsBackdrop?: (() => void) | undefined;
   quoteShortcut?: QuoteShortcutModifier | undefined;
   macWindowControls?: boolean | undefined;
+  /** Fork (docs/fork/FEATURES.md #123): openbotPage.state; without it the page hears that saved data is not available. */
+  onState?: ((request: PageStateOperation) => Promise<PageStateReply>) | undefined;
+  /** Fork (docs/fork/FEATURES.md #123): the "Save as app" button of a chat page. */
+  saveAsApp?: SaveAsAppAction | undefined;
+}
+
+export interface SaveAsAppAction {
+  /** Saves the page and answers the app's id. */
+  save: () => Promise<string>;
+  open: (appId: string) => void;
 }
 
 export function ChatVisual(props: ChatVisualProps) {
@@ -187,6 +201,15 @@ function VisualFrame(props: ChatVisualProps) {
         return reply({});
       case "refused":
         return reply(null);
+      case "state": {
+        // Fork (docs/fork/FEATURES.md #123): openbotPage.state, answered by the app's host.
+        const answer = (outcome: PageStateReply) => {
+          if (frame?.contentWindow === page) page.postMessage(chatVisualStateReplyMessage(message.id, outcome), "*");
+        };
+        if (!props.onState) return answer({ ok: false, error: CHAT_VISUAL_STATE_UNAVAILABLE });
+        props.onState(message.request).then(answer, () => answer({ ok: false, error: CHAT_VISUAL_STATE_UNAVAILABLE }));
+        return;
+      }
       case "context":
         if (!props.onContext || !userActed()) return reply(null);
         props.onContext(message.text);
@@ -338,6 +361,7 @@ function VisualFrame(props: ChatVisualProps) {
               </Button>
             )}
           </Show>
+          <Show when={props.saveAsApp}>{(action) => <SaveAsAppButton action={action()} />}</Show>
           <Button
             ref={(element) => (expandButton = element)}
             variant="secondary"
@@ -373,6 +397,74 @@ function VisualFrame(props: ChatVisualProps) {
               frame?.focus({ preventScroll: true });
             }}
           />
+        )}
+      </Show>
+    </div>
+  );
+}
+
+type SaveAsAppState =
+  | { kind: "idle" }
+  | { kind: "busy" }
+  | { kind: "saved"; appId: string }
+  | { kind: "failed"; error: string };
+
+// Fork (docs/fork/FEATURES.md #123): "Save as app" → spinner → "Saved · Open"; a failure shows a short red line.
+function SaveAsAppButton(props: { action: SaveAsAppAction }) {
+  const { t, errorMessage } = useText();
+  const [state, setState] = createSignal<SaveAsAppState>({ kind: "idle" });
+  // Signal writes show at the next flush, so a fast second click reads this instead.
+  let latest: SaveAsAppState = { kind: "idle" };
+  const show = (next: SaveAsAppState) => {
+    latest = next;
+    setState(next);
+  };
+  const click = () => {
+    const current = latest;
+    if (current.kind === "busy") return;
+    if (current.kind === "saved") return props.action.open(current.appId);
+    show({ kind: "busy" });
+    props.action.save().then(
+      (appId) => show({ kind: "saved", appId }),
+      (error: unknown) => show({ kind: "failed", error: errorMessage(error, t("chat.visual.saveAsAppFailed")) }),
+    );
+  };
+  const failure = () => {
+    const current = state();
+    return current.kind === "failed" ? current.error : undefined;
+  };
+  const label = () => {
+    const current = state().kind;
+    if (current === "busy") return t("chat.visual.savingAsApp");
+    return current === "saved" ? t("chat.visual.savedAsApp") : t("chat.visual.saveAsApp");
+  };
+  return (
+    <div class="chat-visual-save-app" data-state={state().kind}>
+      <Button
+        variant="secondary"
+        size="sm"
+        type="button"
+        aria-busy={state().kind === "busy" ? "true" : undefined}
+        title={state().kind === "saved" ? t("chat.visual.openSavedApp") : label()}
+        onClick={click}
+      >
+        <Show
+          when={state().kind === "busy"}
+          fallback={
+            <Show when={state().kind === "saved"} fallback={<AppWindow aria-hidden="true" />}>
+              <Check aria-hidden="true" />
+            </Show>
+          }
+        >
+          <LoaderCircle class="chat-visual-save-app-spin" aria-hidden="true" />
+        </Show>
+        <span>{label()}</span>
+      </Button>
+      <Show when={failure()}>
+        {(error) => (
+          <p class="chat-visual-save-app-error" role="alert">
+            {error()}
+          </p>
         )}
       </Show>
     </div>

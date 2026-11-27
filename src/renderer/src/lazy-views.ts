@@ -11,6 +11,10 @@ export const AgentUsagePanel = lazy(() =>
 export const LibraryPanel = lazy(() =>
   import("./features/files/LibraryPanel").then((module) => ({ default: module.LibraryPanel })),
 );
+// Fork (docs/fork/FEATURES.md #123)
+export const SavedAppsPage = lazy(() =>
+  import("./features/saved-apps/fork-saved-apps-page").then((module) => ({ default: module.SavedAppsPage })),
+);
 export const CrmPage = lazy(() => import("./features/crm/CrmPage").then((module) => ({ default: module.CrmPage })));
 export const CrmScreen = lazy(() =>
   import("./features/crm/CrmScreen").then((module) => ({ default: module.CrmScreen })),

@@ -268,6 +268,12 @@ export const messages = defineMessages("chat", {
   "chat.visual.fullScreen": "Full screen",
   "chat.visual.openInSidePanel": "Open in side panel",
   "chat.visual.exitFullScreen": "Exit full screen",
+  // Fork (docs/fork/FEATURES.md #123): save a chat page as an app.
+  "chat.visual.saveAsApp": "Save as app",
+  "chat.visual.savingAsApp": "Saving…",
+  "chat.visual.savedAsApp": "Saved · Open",
+  "chat.visual.openSavedApp": "Open the saved app",
+  "chat.visual.saveAsAppFailed": "The page could not be saved as an app.",
   "chat.preview.switchLabel": "Preview or code",
   "chat.preview.code": "Code",
   "chat.preview.preview": "Preview",

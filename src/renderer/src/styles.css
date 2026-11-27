@@ -71,6 +71,7 @@
 @import "./features/window/window.css";
 @import "./features/files/library.css";
 @import "./features/crm/crm-page.css";
+@import "./features/saved-apps/fork-saved-apps.css"; /* Fork (docs/fork/FEATURES.md, fork 123) */
 @import "@openbot/ui/features/settings/opencode-key-dialog.css";
 @import "@openbot/ui/features/sidebar/section-defaults.css";
 @import "./features/settings/settings-mobile-connect.css";

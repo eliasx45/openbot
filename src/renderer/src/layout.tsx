@@ -45,6 +45,7 @@ const RAIL_PINNED_BY_DEFAULT: ReadonlySet<PageRailPinnablePage> = new Set([
   "usage",
   "library",
   "crm",
+  "apps", // Fork (docs/fork/FEATURES.md #123)
 ]);
 
 const railPinChoicesSchema = z.record(z.string(), z.boolean().optional().catch(undefined));

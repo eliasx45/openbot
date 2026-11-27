@@ -7,6 +7,7 @@ import { App } from "./App";
 import { startActionSounds } from "./action-sounds";
 import { syncAppearance } from "./appearance-choice";
 import "./dev-worktree";
+import { readSavedAppWindowId, SavedAppWindow } from "./features/saved-apps/fork-saved-app-window";
 import { WindowBackdropBubbles } from "./features/window/backdrop-bubbles";
 import { readChatWindowTarget } from "./features/window/chat-window";
 import { syncGlassContrast } from "./fork-glass-contrast";
@@ -33,11 +34,17 @@ syncLogoColor();
 startActionSounds();
 startRendererTiming();
 
+// Fork (docs/fork/FEATURES.md #123): a saved app's own window shows only the app.
+const savedAppWindowId = readSavedAppWindowId(window.location.search);
+
 render(
-  () => (
-    <WindowBackdropBubbles>
-      <App chatWindow={readChatWindowTarget(window.location.search)} />
-    </WindowBackdropBubbles>
-  ),
+  () =>
+    savedAppWindowId ? (
+      <SavedAppWindow id={savedAppWindowId} />
+    ) : (
+      <WindowBackdropBubbles>
+        <App chatWindow={readChatWindowTarget(window.location.search)} />
+      </WindowBackdropBubbles>
+    ),
   root,
 );

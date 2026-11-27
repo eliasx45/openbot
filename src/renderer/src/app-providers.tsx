@@ -30,6 +30,7 @@ import { DynamicIslandBridge } from "./features/dynamic-island/dynamic-island-br
 import { DynamicIslandProvider } from "./features/dynamic-island/dynamic-island-context";
 import { SetupProvider } from "./features/onboarding/onboarding-context";
 import { RemoteDesktopProvider } from "./features/remote-desktop/remote-desktop-context";
+import { SavedAppsBridge } from "./features/saved-apps/fork-saved-apps-page";
 import { ServerScopeProvider } from "./features/servers/server-scope";
 import { ServerSelectionProvider } from "./features/servers/server-selection";
 import { ServerSettingsProvider } from "./features/servers/server-settings";
@@ -163,6 +164,8 @@ function ScopedProviders(props: ParentProps<ScopedConversationProps>): JSX.Eleme
                                     <Show when={!platform.chatWindow}>
                                       <DynamicIslandBridge />
                                       <ServerBrowserWindowBridge />
+                                      {/* Fork (docs/fork/FEATURES.md #123) */}
+                                      <SavedAppsBridge />
                                     </Show>
                                     {props.children}
                                   </ServerScopeProvider>

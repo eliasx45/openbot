@@ -5,6 +5,7 @@ import type { AgentMessage } from "@openbot/ui/data";
 import { ChatVisual } from "@openbot/ui/features/conversation/ChatVisual";
 import { createSignal, onCleanup, untrack } from "solid-js";
 import { deviceQuoteShortcut } from "../../send-shortcut-preference";
+import { openSavedAppPage, pageStateHost, saveChatPageAsApp, savedAppsPort } from "../saved-apps/fork-saved-apps-store";
 import { isChatVisualAppShortcut } from "./chat-visual-shortcuts";
 import { chatVisualPageUrl } from "./chat-visual-url";
 import { conversationRuntime } from "./conversation-runtime";
@@ -54,6 +55,27 @@ export function ChatVisualReply(props: {
       },
     );
   }
+  // Fork (docs/fork/FEATURES.md #123): the page's saved data, and "Save as app" for a page an agent made.
+  const pageSource = () => {
+    const agentId = props.message.senderAgentId ?? view.agent?.id;
+    if (!agentId || props.message.streaming || props.message.author !== "agent") return null;
+    const title = props.message.body.trim();
+    return title
+      ? { serverId: view.server?.id ?? "local", agentId, attachmentId: visual().attachment.id, title }
+      : null;
+  };
+  const inChatWindow = new URLSearchParams(window.location.search).get("window") === "chat";
+  const saveAsApp = () => {
+    const source = pageSource();
+    if (!source || !savedAppsPort()) return undefined;
+    return {
+      save: () => saveChatPageAsApp({ ...source, messageId: props.message.id }),
+      open: (appId: string) => {
+        if (inChatWindow) void savedAppsPort()?.forkOpenSavedAppWindow(appId);
+        else openSavedAppPage(appId);
+      },
+    };
+  };
   return (
     <ChatVisual
       src={pageUrl()}
@@ -70,6 +92,8 @@ export function ChatVisualReply(props: {
       onUseAsBackdrop={backdropAction(props.message)}
       isAppShortcut={isChatVisualAppShortcut}
       macWindowControls={view.platform === "darwin"}
+      onState={pageStateHost(pageSource)}
+      saveAsApp={saveAsApp()}
     />
   );
 }

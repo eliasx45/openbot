@@ -6,7 +6,8 @@ import { desktopCrmHost } from "../crm/crm-port";
 import { serverCanAdminister } from "../servers/server-capabilities";
 import { useServers } from "../servers/servers-context";
 
-type HostPaneView = "usage" | "schedule" | "tasks" | "workflows" | "library" | "crm";
+// Fork (docs/fork/FEATURES.md #123): "apps", the saved apps of this computer.
+type HostPaneView = "usage" | "schedule" | "tasks" | "workflows" | "library" | "crm" | "apps";
 
 const context = createSimpleContext({
   name: "UsageProvider",
@@ -65,6 +66,10 @@ const context = createSimpleContext({
       open("library", serverId, source);
     }
 
+    function openApps(serverId: string, source: HTMLElement | null) {
+      open("apps", serverId, source); // Fork (docs/fork/FEATURES.md #123)
+    }
+
     function openCrm(serverId: string, source: HTMLElement | null, connectors = false) {
       setCrmConnectorsRequest(connectors ? serverId : undefined);
       open("crm", serverId, source);
@@ -99,6 +104,7 @@ const context = createSimpleContext({
       workflowRequest,
       takeWorkflowRequest: () => setWorkflowRequest(undefined),
       openLibrary,
+      openApps,
       openCrm,
       crmEnabled: crm.enabled,
       crmConnectorsRequest,
