@@ -36,6 +36,8 @@ export type ReferenceChipKind = "agent" | "mcp" | "plugin" | "quote" | "skill" |
 
 export function ReferenceChip(props: {
   name: string;
+  /** Fork (docs/fork/FEATURES.md #127): what the chip shows instead of `name`, such as typeset math. */
+  label?: JSX.Element;
   icon: JSX.Element;
   kind: ReferenceChipKind;
   class?: string;
@@ -50,7 +52,7 @@ export function ReferenceChip(props: {
         {props.icon}
       </span>
       <span class={referenceChipClasses.name} dir="auto">
-        {props.name}
+        {props.label ?? props.name}
       </span>
     </>
   );

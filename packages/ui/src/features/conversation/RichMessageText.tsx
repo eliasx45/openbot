@@ -20,6 +20,7 @@ import {
   streamingTrailReach,
   useStreamingReveal,
 } from "./streamingReveal";
+import { UiMathText } from "./ui-blocks/UiMathText";
 
 export interface RichMessageTextProps {
   body: string;
@@ -180,6 +181,8 @@ export function RichMessageText(props: RichMessageTextProps) {
               <ReferenceChip
                 kind="quote"
                 name={quote.text}
+                // Fork (docs/fork/FEATURES.md #127): a quote of a formula shows the formula, not its LaTeX.
+                label={<UiMathText text={quote.text} />}
                 class="message-reference-chip message-quote-tag"
                 icon={<TextQuote />}
                 onClick={onOpenQuote ? () => onOpenQuote(quote.messageId, quote.text) : undefined}

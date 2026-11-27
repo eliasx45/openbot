@@ -1479,3 +1479,13 @@ Skipped features, to pick up later: [LATER.md](LATER.md).
 - **Here:** `src/backend/agent-service.ts` (`#noteQuitInterrupted`), `src/backend/fork-restart-resume.ts`, fake `hold-turn` in `scripts/provider-fakes/agents/antigravity-subagent.ts`.
 - **Tests:** `src/backend/fork-restart-resume.test.ts` (quit notes: settled at boot, Claude noted once, a wake counts one try, a queued message gets the note); `scripts/antigravity-quit-resume-e2e.ts` (real service twice with the fake `agy`: the quit leaves the turn interrupted, the note is pending, the next start sends one wake; fails without the fix); `scripts/restart-resume-e2e.ts` and `scripts/antigravity-restart-keeps-subagents-e2e.ts` still pass.
 - **Check:** while a Gemini agent works, quit and reopen OpenBot: its chat shows "🔄 Resumes after the restart", then the agent continues.
+
+## 127. A quoted formula shows as math in the sent message
+
+- **Get:** quote part of an answer that has math (select it, then Quote) and send: the quote chip above your message shows the formula typeset, like the answer, not its LaTeX source. Hovering the chip still shows the source.
+- **Why:** Elias, Owl chat, 27 Nov 2026: the chip showed `$\ker f=\{0\}$`.
+- **Cause:** selecting typeset math copies its LaTeX (the quote keeps the source on purpose, so the agent reads it), and the chip printed that text as-is.
+- **How (portable):** `ReferenceChip` takes an optional `label` shown instead of `name` (the title and the screen-reader name stay `name`); the quote chip in `RichMessageText` passes `UiMathText`, the chat's math-in-labels renderer.
+- **Here:** `packages/ui/src/reference-chip.tsx`, `packages/ui/src/features/conversation/RichMessageText.tsx`.
+- **Tests:** `src/renderer/src/features/conversation/QuoteChipMath.test.tsx` (formula typeset with its source in the tooltip; plain quote and text around math kept).
+- **Check:** in Owl's chat, quote a formula and send: the chip shows the formula.
