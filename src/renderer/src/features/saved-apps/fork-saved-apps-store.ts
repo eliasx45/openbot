@@ -78,7 +78,7 @@ export function watchSavedApps(): void {
   port.forkSavedAppInstalls().then(setInstalls, () => undefined);
 }
 
-export async function refreshSavedApps(): Promise<void> {
+async function refreshSavedApps(): Promise<void> {
   const port = savedAppsPort();
   if (!port) return;
   try {
@@ -152,7 +152,7 @@ export function installedSavedApp(id: string) {
 const ICON_SIDE = 256;
 
 /** The launcher's icon: the name's first letter on a rounded plate, like the app's mark on its card. */
-export async function drawSavedAppIcon(name: string): Promise<Uint8Array | null> {
+async function drawSavedAppIcon(name: string): Promise<Uint8Array | null> {
   try {
     const canvas = document.createElement("canvas");
     canvas.width = ICON_SIDE;

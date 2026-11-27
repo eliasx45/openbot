@@ -12,7 +12,7 @@ import { type ToolOperationFailed, toolStep, toToolOperationFailed } from "./too
 const sectionId = z.string().min(1).max(INPUT_LIMITS.identifier);
 const ids = (limit: number) => z.array(z.string().trim().min(1).max(INPUT_LIMITS.identifier)).max(limit);
 
-export const readSectionToolSchema = z
+const readSectionToolSchema = z
   .object({
     sectionId: sectionId
       .optional()
@@ -20,7 +20,7 @@ export const readSectionToolSchema = z
   })
   .strict();
 
-export const updateSectionDefaultsToolSchema = z
+const updateSectionDefaultsToolSchema = z
   .object({
     sectionId: sectionId.describe("Custom section id from openbot.list_sections."),
     instructions: z

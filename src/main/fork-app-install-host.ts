@@ -22,8 +22,12 @@ import {
 
 export const SAVED_APPS_INSTALL_DIR_ENV = "OPENBOT_SAVED_APPS_INSTALL_DIR";
 
+function withoutTrash({ trashItem: _trashItem, ...shell }: SavedAppInstallerShell): SavedAppInstallerShell {
+  return shell;
+}
+
 /** The running app's bundle id from its Info.plist (Contents/MacOS/<exe> → Contents/Info.plist). */
-export function hostBundleId(executable: string): string {
+function hostBundleId(executable: string): string {
   try {
     const plist = readFileSync(resolve(executable, "..", "..", "Info.plist"), "utf8");
     const id = /<key>CFBundleIdentifier<\/key>\s*<string>([A-Za-z0-9.-]+)<\/string>/u.exec(plist)?.[1];
@@ -136,7 +140,7 @@ export function createElectronSavedAppInstaller(input: {
     executable: process.execPath,
     hostBundleId: input.platform === "darwin" ? hostBundleId(process.execPath) : SAVED_APP_HOST_BUNDLE_ID,
     unavailable: input.folders.unavailable,
-    shell: input.folders.override ? { ...input.shell, trashItem: undefined } : input.shell,
+    shell: input.folders.override ? withoutTrash(input.shell) : input.shell,
     log: input.log,
     run: (file, args) =>
       new Promise((done) => {

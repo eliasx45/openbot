@@ -211,5 +211,3 @@ export function parseChromeDir(value: unknown): string {
     throw new Error("Invalid Chrome profile.");
   return dir;
 }
-
-export const parseAgentBrowserProfileChoices = decodeAgentBrowserProfileChoices;

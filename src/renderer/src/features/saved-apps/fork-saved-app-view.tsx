@@ -30,7 +30,7 @@ import { SavedAppInstalledPill, SavedAppInstallItems, useSavedAppInstall } from 
 import { pageDataHost, pageStateHost, savedAppInstalls, savedAppsPort, takeSavedApp } from "./fork-saved-apps-store";
 
 /** The first letter of the name, for the tile shown before (or instead of) the live page. */
-export function savedAppLetter(name: string): string {
+function savedAppLetter(name: string): string {
   return (Array.from(name.trim())[0] ?? "A").toUpperCase();
 }
 

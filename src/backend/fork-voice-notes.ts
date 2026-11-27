@@ -51,7 +51,7 @@ export const sendVoiceNoteToolSchema = z.strictObject({
 });
 
 /** A voice note that could not be made. The message tells the agent what to do. */
-export class VoiceNoteFailed extends Schema.TaggedError<VoiceNoteFailed>()("VoiceNoteFailed", {
+class VoiceNoteFailed extends Schema.TaggedError<VoiceNoteFailed>()("VoiceNoteFailed", {
   cause: Schema.Defect(),
 }) {}
 

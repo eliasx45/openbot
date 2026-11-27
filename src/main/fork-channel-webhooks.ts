@@ -46,8 +46,8 @@ export interface ChannelWebhookLogDetail {
   attempts?: number;
 }
 
-export type ChannelWebhookFetch = (url: string, init: RequestInit) => Promise<Pick<Response, "status">>;
-export type ChannelWebhookResolve = (hostname: string) => Promise<readonly string[]>;
+type ChannelWebhookFetch = (url: string, init: RequestInit) => Promise<Pick<Response, "status">>;
+type ChannelWebhookResolve = (hostname: string) => Promise<readonly string[]>;
 
 export interface ChannelWebhookServiceOptions {
   path: string;
@@ -73,7 +73,7 @@ function decodeStored(parsed: unknown): StoredWebhooks | null {
   return { channels };
 }
 
-export function channelWebhookPayload(input: {
+function channelWebhookPayload(input: {
   channelId: string;
   channelName: string;
   message: ChannelMessage;

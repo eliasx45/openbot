@@ -47,6 +47,8 @@ const config: KnipConfig = {
     "wmctrl",
     "picom",
     "ffmpeg",
+    "ffprobe",
+    "swiftc",
     "gdbus",
     "import",
   ],

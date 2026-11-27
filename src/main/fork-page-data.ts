@@ -90,7 +90,7 @@ function count(value: unknown): number {
   return isNumber(value) && Number.isFinite(value) ? value : 0;
 }
 
-export type PageDataCell = string | number | null | { blobBytes: number };
+type PageDataCell = string | number | null | { blobBytes: number };
 
 export interface PageDataQueryResult {
   columns: string[];
@@ -98,7 +98,7 @@ export interface PageDataQueryResult {
   truncated: boolean;
 }
 
-export type PageDataCheck<T> = { ok: true; value: T } | { ok: false; message: string };
+type PageDataCheck<T> = { ok: true; value: T } | { ok: false; message: string };
 
 export interface PageDataDependencies {
   localServerId: string;

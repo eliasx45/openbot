@@ -760,7 +760,7 @@ export function SettingsVoiceTab(props: SettingsVoiceTabProps) {
               <Select<VoiceNoteVoice>
                 class="settings-modal-select"
                 options={VOICE_NOTE_VOICES.map((voice) => voice.id)}
-                value={voiceNotes().settings?.voice}
+                value={voiceNotes().settings?.voice ?? null}
                 onChange={(next) => {
                   if (next) props.store.setVoiceNoteVoice(next, t("settings.voice.voiceNotes.sample"));
                 }}

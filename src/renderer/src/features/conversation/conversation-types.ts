@@ -96,7 +96,7 @@ export interface ConversationChannelSource {
   feed?: ConversationChannelFeed | undefined;
 }
 
-export interface ConversationChannelFeed {
+interface ConversationChannelFeed {
   shown: () => boolean;
   composerPlaceholder: () => string;
   View: () => JSX.Element;

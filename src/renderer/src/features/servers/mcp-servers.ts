@@ -14,7 +14,6 @@ export type {
   McpTestResult,
 } from "@openbot/contracts/ipc";
 export {
-  isClaudeCodeMcpServerId,
   mcpConfigErrors,
   mcpConfigIsValid,
   normalizeMcpConfig,

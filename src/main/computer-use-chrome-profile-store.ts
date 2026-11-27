@@ -2,7 +2,7 @@ import { isBoolean, isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { PreferenceStore } from "./preference-file";
 
 /** The stored choice. A file without the switch, or no file, reads as off. */
-export interface StoredComputerUseChromeProfile {
+interface StoredComputerUseChromeProfile {
   existingProfile: boolean;
 }
 

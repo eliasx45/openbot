@@ -90,7 +90,7 @@ describe("WhatsApp Watch: sender decision", () => {
   });
 
   it("without a watch list, behaves as before", () => {
-    const plain = rules({ watched: undefined });
+    const { watched: _watched, ...plain } = rules();
     expect(senderDecision(plain, direct(ICHIRO))).toEqual({ type: "ignore" });
   });
 });

@@ -252,7 +252,7 @@ export interface MessagingThreadsHooks {
 }
 
 /** Fork (docs/fork/FEATURES.md #76). */
-export interface MessagingPlacementHooks {
+interface MessagingPlacementHooks {
   /** The agent's own chat, made when it has none yet. */
   mainThread(agentId: string): string;
   isMainThread(threadId: string): boolean;

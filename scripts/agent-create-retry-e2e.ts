@@ -400,10 +400,12 @@ async function sentFor(agentId: string, marker: string): Promise<{ messages: num
 try {
   host = await startHost();
   const ownerToken = await login(OWNER);
+  // Fork (docs/fork/FEATURES.md #118): only an owner or admin creates agents, so the second person who
+  // creates one with the same operationId is an admin.
   const memberToken = await step(
-    "setup: an owner and a member",
+    "setup: an owner and an admin",
     async () => {
-      const invite = await runCauseEffect(current().team.createInvite("member"));
+      const invite = await runCauseEffect(current().team.createInvite("admin"));
       const joined = await call("POST", TEAM_API_ROUTES.join.server, {
         body: { inviteToken: invite.token, ...MEMBER },
       });
@@ -495,10 +497,10 @@ try {
     return { id, newAgents: agentIds().length - before, ...sent };
   });
 
-  await step("the same operationId from a different member makes that member's own agent", async () => {
+  await step("the same operationId from a different admin makes that admin's own agent", async () => {
     const result = await create(memberToken, "member", operationId);
     assert.equal(result.status, 201);
-    assert.ok(result.id && result.id !== first.id, "The member got the owner's agent.");
+    assert.ok(result.id && result.id !== first.id, "The admin got the owner's agent.");
     return { id: result.id, ...(await sentFor(result.id, "member")) };
   });
 

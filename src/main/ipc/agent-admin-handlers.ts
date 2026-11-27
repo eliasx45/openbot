@@ -9,6 +9,7 @@ import {
   decodeAgentAdminSettings,
   decodeAgentBackupModelSettings,
   decodeAgentBrowserProfile,
+  decodeAgentBrowserProfileChoices,
   decodeAgentBuiltinMemorySettings,
   decodeAgentDefaultsOverview,
   decodeAgentPlanCardSettings,
@@ -24,7 +25,6 @@ import {
   decodeHostBrowserTabProfiles,
   decodeInstalledSkills,
   type InstalledSkill,
-  parseAgentBrowserProfileChoices,
   parseBrowserProfileId,
   parseBrowserProfileName,
   parseChromeDir,
@@ -385,7 +385,7 @@ export function agentAdminIpcHandlers({
         local: (agentId) => ({ agentId, profileIds: chromeImport.agentChoices(agentId) }),
         remote: (agentId) => ({ agentId, profileIds: [] }),
       }),
-      updateAgentBrowserProfileChoices: scopedHandler(parseAgentBrowserProfileChoices, {
+      updateAgentBrowserProfileChoices: scopedHandler(decodeAgentBrowserProfileChoices, {
         local: (input) => chromeImport.setAgentChoices(input),
         remote: () => chromeOnlyHere(),
       }),

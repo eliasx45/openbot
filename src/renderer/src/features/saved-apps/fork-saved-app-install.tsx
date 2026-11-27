@@ -15,7 +15,7 @@ import {
 type Text = ReturnType<typeof useText>["t"];
 
 /** The one line a failed action shows; null when it worked. */
-export function savedAppInstallFailure(t: Text, action: SavedAppInstallAction, reply: SavedAppInstallReply) {
+function savedAppInstallFailure(t: Text, action: SavedAppInstallAction, reply: SavedAppInstallReply) {
   if (reply.ok) return null;
   switch (reply.reason) {
     case "no-desktop":

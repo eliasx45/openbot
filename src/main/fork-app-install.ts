@@ -34,10 +34,10 @@ export const savedAppKey = (id: string) =>
 export const savedAppBundleId = (id: string, host: string) =>
   `${validBundleId(host) ? host : SAVED_APP_HOST_BUNDLE_ID}.savedapp.${savedAppKey(id)}`;
 
-export const windowsAppUserModelId = (id: string) => `${SAVED_APP_HOST_BUNDLE_ID}.savedapp.${savedAppKey(id)}`;
+const windowsAppUserModelId = (id: string) => `${SAVED_APP_HOST_BUNDLE_ID}.savedapp.${savedAppKey(id)}`;
 
 /** The link every launcher opens: the app in a window of its own. */
-export function savedAppLauncherLink(id: string): string {
+function savedAppLauncherLink(id: string): string {
   return savedAppLink(id, true);
 }
 
@@ -80,10 +80,10 @@ export function launcherName(raw: unknown): string {
 }
 
 /** macOS and Windows compare file names without case and, on macOS, without Unicode form. */
-export const nameKey = (name: string) => name.normalize("NFD").toLocaleLowerCase("en-US");
+const nameKey = (name: string) => name.normalize("NFD").toLocaleLowerCase("en-US");
 
 /** `base`, then `base 2`, `base 3`… until `free` says yes; null when none of 99 is free. */
-export async function firstFreeName(base: string, free: (name: string) => Promise<boolean>): Promise<string | null> {
+async function firstFreeName(base: string, free: (name: string) => Promise<boolean>): Promise<string | null> {
   for (let n = 1; n < 100; n += 1) {
     const candidate = n === 1 ? base : `${base} ${n}`;
     if (await free(candidate)) return candidate;
@@ -154,7 +154,7 @@ export interface ShortcutOptions {
 }
 
 /** Electron's `shell.writeShortcutLink` options: OpenBot's executable with the link as its one argument. */
-export function windowsShortcut(input: { id: string; name: string; executable: string; iconPath?: string }) {
+function windowsShortcut(input: { id: string; name: string; executable: string; iconPath?: string }) {
   return {
     target: input.executable,
     args: savedAppLauncherLink(input.id),
@@ -169,7 +169,7 @@ export function windowsShortcut(input: { id: string; name: string; executable: s
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /** `{ width, height }` of a PNG within the limits, or null. */
-export function pngSize(bytes: Uint8Array | null): { width: number; height: number } | null {
+function pngSize(bytes: Uint8Array | null): { width: number; height: number } | null {
   if (!bytes || bytes.byteLength < 33 || bytes.byteLength > MAX_ICON_BYTES) return null;
   const png = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (!png.subarray(0, 8).equals(PNG_SIGNATURE) || png.toString("latin1", 12, 16) !== "IHDR") return null;

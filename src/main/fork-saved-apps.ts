@@ -32,7 +32,7 @@ const DOC = /^[0-9a-f]{64}$/u;
 const APPS_FILE = "apps.json";
 const WINDOWS_FILE = "windows.json";
 
-export interface SavedAppVersionRecord {
+interface SavedAppVersionRecord {
   rev: number;
   messageId: string;
   attachmentId: string;
@@ -120,7 +120,7 @@ function readRecord(value: unknown): SavedAppRecord | null {
 }
 
 /** The newest versions, the pinned one always among them. */
-export function keptVersions(
+function keptVersions(
   versions: readonly SavedAppVersionRecord[],
   pinnedRev?: number,
   limit = SAVED_APP_VERSIONS,
@@ -131,11 +131,11 @@ export function keptVersions(
   return pinned && !newest.includes(pinned) ? [pinned, ...newest.slice(1)] : newest;
 }
 
-export function shownRev(record: SavedAppRecord): number {
+function shownRev(record: SavedAppRecord): number {
   return record.pinnedRev ?? record.versions.at(-1)?.rev ?? 1;
 }
 
-export function pageDigest(html: Uint8Array): string {
+function pageDigest(html: Uint8Array): string {
   return createHash("sha256").update(html).digest("hex");
 }
 
@@ -358,7 +358,7 @@ export class SavedAppsStore {
 
 type StateValues = Map<string, PageStateValue>;
 
-export class PageStateLimit extends Error {}
+class PageStateLimit extends Error {}
 
 /** Each page's saved data (openbotPage.state): `<dir>/state/<scope>.json`. Kept when an app is removed. */
 export class PageStateStore {
@@ -443,7 +443,7 @@ export function writeSavedAppWindowSize(dir: string, id: string, size: SavedAppW
 }
 
 /** Where a chat page lives and what it holds, as the main process reads it. */
-export interface SavedAppSourcePage {
+interface SavedAppSourcePage {
   html: Uint8Array;
   /** The agents the page belongs to (its author among them). */
   agentIds: readonly string[];

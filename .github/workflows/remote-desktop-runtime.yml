@@ -49,6 +49,10 @@ concurrency:
 jobs:
   prepare:
     name: Read build identity
+    # Fork (docs/fork/FEATURES.md #133): the fork uses upstream's published runtimes and cannot publish
+    # a release (HTTP 403), so a push or manual run builds for 48 minutes and then fails. Pull requests
+    # still build.
+    if: github.event_name == 'pull_request' || github.repository == 'nightly-labs/openbot'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

@@ -71,6 +71,18 @@ it("opens the image in the image viewer", async () => {
       value: () => ({ finished: Promise.resolve(), cancel: vi.fn(), finish: vi.fn() }),
     });
   }
+  // jsdom has no matchMedia; the image viewer watches the screen resolution with it.
+  if (!("matchMedia" in globalThis)) {
+    Object.defineProperty(globalThis, "matchMedia", {
+      configurable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    });
+  }
   show();
   const button = document.querySelector<HTMLButtonElement>(".ui-block-media-image");
   if (!button) throw new Error("no image button");

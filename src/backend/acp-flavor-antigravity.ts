@@ -175,7 +175,7 @@ function antigravityOwnMcpServerNames(cwd: string, argv: readonly string[]): str
 
 const ANTIGRAVITY_SUBAGENT_WINDOW_MS = 10 * 60_000;
 
-export function antigravitySubagentSessions(
+function antigravitySubagentSessions(
   argv: readonly string[],
   parentId: string,
   toolCallId: string,
@@ -215,7 +215,7 @@ export function antigravitySubagentSessions(
   });
 }
 
-export function antigravitySubagentLaunches(input: unknown): AcpSubagentLaunch[] {
+function antigravitySubagentLaunches(input: unknown): AcpSubagentLaunch[] {
   if (!isRecord(input)) return [];
   const list =
     Array.isArray(input.Subagents) && input.Subagents.length > 0 ? input.Subagents.filter(isRecord) : [input];
@@ -231,14 +231,14 @@ export function antigravitySubagentLaunches(input: unknown): AcpSubagentLaunch[]
   });
 }
 
-export function antigravitySubagentReport(name: string, input: unknown): { to: string; text: string } | null {
+function antigravitySubagentReport(name: string, input: unknown): { to: string; text: string } | null {
   if (!/\bsend_message\b/u.test(name)) return null;
   const to = getString(input, "Recipient");
   const text = getString(input, "Message");
   return to && text ? { to, text } : null;
 }
 
-export function antigravityStoppedSubagents(name: string, input: unknown): string[] {
+function antigravityStoppedSubagents(name: string, input: unknown): string[] {
   if (!/\bmanage_subagents\b/u.test(name) || getString(input, "Action") !== "kill" || !isRecord(input)) return [];
   let ids: unknown = input.ConversationIds;
   if (typeof ids === "string") {

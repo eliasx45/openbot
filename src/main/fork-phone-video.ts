@@ -30,7 +30,7 @@ const MIN_VIDEO_KBPS = 150;
 const AUDIO_KBPS = 96;
 const CONCURRENCY = 2;
 /** A route waits at most this long for copies before it answers with what is ready. */
-export const PHONE_COPY_WAIT_MS = 20_000;
+const PHONE_COPY_WAIT_MS = 20_000;
 const FFMPEG = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "ffmpeg"];
 const FFPROBE = ["/opt/homebrew/bin/ffprobe", "/usr/local/bin/ffprobe", "ffprobe"];
 /** Codecs the iOS and Android players read in an MP4/MOV, in 8-bit 4:2:0. */
@@ -281,7 +281,7 @@ export function parseProbe(stdout: string): VideoProbe | null {
 }
 
 /** H.264 or HEVC, 8-bit 4:2:0, in an MP4 or MOV: what the iOS and Android players read. */
-export function phonePlayable(path: string, probe: VideoProbe): boolean {
+function phonePlayable(path: string, probe: VideoProbe): boolean {
   const extension = extname(path).toLowerCase();
   return (
     [".mp4", ".m4v", ".mov"].includes(extension) &&
@@ -299,7 +299,7 @@ export function phoneVideoKbps(durationSeconds: number): number | null {
   return video >= MIN_VIDEO_KBPS ? video : null;
 }
 
-export function phoneEncodeArgs(input: string, output: string, videoKbps: number, hasAudio: boolean): string[] {
+function phoneEncodeArgs(input: string, output: string, videoKbps: number, hasAudio: boolean): string[] {
   return [
     "-nostdin",
     "-v",
@@ -340,7 +340,7 @@ export function phoneEncodeArgs(input: string, output: string, videoKbps: number
   ];
 }
 
-export function phoneCopyName(name: string): string {
+function phoneCopyName(name: string): string {
   const extension = extname(name);
   return `${(extension ? name.slice(0, -extension.length) : name).slice(0, 180)} · phone.mp4`;
 }

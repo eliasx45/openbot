@@ -142,7 +142,7 @@ export interface SidebarDragWorld {
    * Fork (docs/fork/FEATURES.md #94): the chats and folders in a section, in the order they show. With
    * it, a drop lands at an exact place among them, also between a folder's chats and its folders.
    */
-  folderItems?: (sectionId: string) => SidebarFolderItem[];
+  folderItems?: ((sectionId: string) => SidebarFolderItem[]) | undefined;
   /** Whether a section is closed: below a closed folder's header, a chat goes after the folder. */
   sectionIsCollapsed?: (sectionId: string) => boolean;
 }

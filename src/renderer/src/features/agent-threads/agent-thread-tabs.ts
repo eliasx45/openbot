@@ -32,7 +32,7 @@ interface ClosedTab {
 }
 
 /** ⇧⌘T, or Ctrl+Shift+T on Windows and Linux. */
-export function isReopenTabShortcut(
+function isReopenTabShortcut(
   event: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">,
 ): boolean {
   return event.key?.toLowerCase() === "t" && (event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey;

@@ -145,7 +145,7 @@ function FilePreviewChat(props: {
         {(file) => (
           <FilePreviewPanel
             preview={file()}
-            sourceUrl={file() === WORKSHEET_PDF_PREVIEW ? WORKSHEET_PDF_URL : undefined}
+            sourceUrl={file() === WORKSHEET_PDF_PREVIEW ? WORKSHEET_PDF_URL : null}
             pageUrl={file().mimeType === "text/html" ? props.htmlPageUrl : undefined}
             agents={STORY_AGENTS}
             maxWidth={() => Math.min(PANEL_MAX, Math.max(PANEL_MIN, stageWidth() - CONVERSATION_MIN))}

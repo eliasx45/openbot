@@ -498,7 +498,7 @@ export function foldCodexSubagentItem(
 }
 
 export interface CodexSubagentModels {
-  parent?: SubagentModelPick;
+  parent?: SubagentModelPick | undefined;
   resolved: Map<string, { model: string | null; effort: string | null }>;
 }
 

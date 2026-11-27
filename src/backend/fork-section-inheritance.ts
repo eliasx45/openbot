@@ -210,13 +210,13 @@ export interface ResolvedSectionInheritance {
   mcpServerIds: string[];
 }
 
-export function sectionChain(layout: SidebarLayoutSnapshot, sectionId: string): string[] {
+function sectionChain(layout: SidebarLayoutSnapshot, sectionId: string): string[] {
   if (!layout.sections.some((section) => section.id === sectionId)) return [];
   const parents = sidebarFolderParents(layout);
   return [...sidebarFolderAncestors(parents, sectionId), sectionId];
 }
 
-export function sectionPath(layout: SidebarLayoutSnapshot, sectionId: string): string[] {
+function sectionPath(layout: SidebarLayoutSnapshot, sectionId: string): string[] {
   return sidebarFolderPath(layout, sidebarFolderParents(layout), sectionId);
 }
 

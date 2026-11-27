@@ -422,7 +422,9 @@ try {
       const invite = await runCauseEffect(team.createInvite("member"));
       const joined = await call(TEAM_API_ROUTES.join.server, { body: { inviteToken: invite.token, ...MEMBER } });
       assert.equal(joined.status, 201, `Join returned ${joined.status}.`);
-      await setLevels(ownerToken, { [closed]: "none", [viewer]: "view" });
+      // Fork (docs/fork/FEATURES.md #107): an agent that no level names is closed to members, so the
+      // open agent is set to manage.
+      await setLevels(ownerToken, { [open]: "manage", [closed]: "none", [viewer]: "view" });
       return {
         workflows: {
           open: await hostWorkflow("Open flow", open),

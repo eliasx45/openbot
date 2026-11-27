@@ -205,6 +205,7 @@ async function runCase(
   automatic: boolean,
   text: string,
   order: readonly string[] = [BACKUP],
+  moves = true,
 ): Promise<CaseReport> {
   const agent = await runCauseEffect(
     agents.createAgent({
@@ -250,6 +251,12 @@ async function runCase(
     passed: false,
   };
   report.cases.push(result);
+  if (!moves) {
+    assert.equal(status, "failed", `${name}: the message fails on its own model`);
+    assert.equal(result.model, model, `${name}: the agent stays on its model`);
+    assert.ok(result.errors > 0, `${name}: the error shows`);
+    return result;
+  }
   assert.equal(status, "completed", `${name}: ${mailbox.getDelivery(deliveryId)?.delivery.error ?? status}`);
   assert.equal(result.model, BACKUP, `${name}: the agent is on the backup model`);
   assert.equal(result.errors, 0, `${name}: no error shows`);
@@ -304,50 +311,25 @@ try {
   );
   chained.passed = true;
 
-  const rate = await runCase("rate limit before work", "gemini-rate", true, "RATE-NOW");
-  assert.deepEqual(
-    rate.prompts.map((prompt) => [prompt.model, prompt.continuation]),
-    [
-      ["gemini-rate", false],
-      [BACKUP, false],
-    ],
-    "The message runs again on the backup after a rate limit.",
-  );
-  rate.passed = true;
-
-  const rateAfter = await runCase(
-    "rate limit after work, switch without asking",
-    "gemini-rate-b",
-    true,
-    "ACT-FIRST RATE-NOW",
-  );
-  assert.deepEqual(
-    rateAfter.prompts.map((prompt) => [prompt.model, prompt.continuation, prompt.workSteps]),
-    [
-      ["gemini-rate-b", false, false],
-      [BACKUP, true, true],
-    ],
-    "The backup continues the work that a rate limit stopped.",
-  );
-  rateAfter.passed = true;
-
-  for (const [name, model, text] of [
-    ["dropped connection before work", "gemini-net", "NET-NOW"],
-    ["unknown model before work", "gemini-gone", "GONE-NOW"],
-    ["unavailable model before work", "gemini-gone-b", "GONE-NOW"],
-    ["410 Gone model before work", "gemini-gone-c", "GONE-NOW"],
-    ["retired model before work", "gemini-gone-d", "GONE-NOW"],
+  // Fork (docs/fork/FEATURES.md #81): only a usage limit moves an agent to a backup. A rate limit, a
+  // dropped connection and a model that is gone fail on the agent's own model and show the error, as
+  // with no backup listed.
+  for (const [name, model, automatic, text] of [
+    ["rate limit before work", "gemini-rate", true, "RATE-NOW"],
+    ["rate limit after work, switch without asking", "gemini-rate-b", true, "ACT-FIRST RATE-NOW"],
+    ["dropped connection before work", "gemini-net", true, "NET-NOW"],
+    ["unknown model before work", "gemini-gone", true, "GONE-NOW"],
+    ["unavailable model before work", "gemini-gone-b", true, "GONE-NOW"],
+    ["410 Gone model before work", "gemini-gone-c", true, "GONE-NOW"],
+    ["retired model before work", "gemini-gone-d", true, "GONE-NOW"],
   ] as const) {
-    const moved = await runCase(name, model, true, text);
+    const stays = await runCase(name, model, automatic, text, [BACKUP], false);
     assert.deepEqual(
-      moved.prompts.map((prompt) => [prompt.model, prompt.continuation]),
-      [
-        [model, false],
-        [BACKUP, false],
-      ],
-      `${name}: the message runs again on the backup.`,
+      stays.prompts.map((prompt) => prompt.model),
+      [model],
+      `${name}: the message does not run again on the backup.`,
     );
-    moved.passed = true;
+    stays.passed = true;
   }
 
   for (const [name, model, automatic, text, continuation] of [

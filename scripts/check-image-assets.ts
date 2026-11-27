@@ -11,6 +11,8 @@ const ALLOWED_DIRECTORIES = [
   "apps/auth-api/content-art/",
   "apps/auth-api/src/content/guides/media/",
   "scripts/hosting/desktop/",
+  // Fork #43: the database load test report's chart, written by scripts/db-load-test-report.ts.
+  "perf/",
 ] as const;
 
 const IMAGE_FILE = /\.(avif|bmp|gif|heic|icns|ico|jpe?g|mov|mp4|png|svg|tiff?|webm|webp)$/i;

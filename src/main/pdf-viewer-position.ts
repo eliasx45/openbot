@@ -23,7 +23,7 @@ function restorePosition(position: PdfViewerPosition): string {
 })()`;
 }
 
-export function pdfViewerFrameFor(frames: readonly WebFrameMain[], url: string): WebFrameMain | null {
+function pdfViewerFrameFor(frames: readonly WebFrameMain[], url: string): WebFrameMain | null {
   return (
     frames.find(
       (frame) => frame.url.startsWith(PDF_VIEWER_ORIGIN) && frame.parent !== null && frame.parent.url === url,

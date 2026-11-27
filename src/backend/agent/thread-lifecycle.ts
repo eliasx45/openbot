@@ -1605,6 +1605,9 @@ export class ThreadLifecycle {
       if (!client?.holdsBackgroundWork) continue;
       const background = yield* Effect.result(client.holdsBackgroundWork(session.externalSessionId));
       if (Result.isSuccess(background) && !background.success) continue;
+      // Fork (#133): a failed check holds only a provider that waited before #92 (Claude). A Codex
+      // app-server without `thread/backgroundTerminals/list` held a Computer Use or MCP refresh for good.
+      if (Result.isFailure(background) && !RUNTIME_RELOADED_ON_RESUME.has(session.provider)) continue;
       hold = addBackgroundHold(hold, {
         subagents: client.runningBackgroundSubagents?.(session.externalSessionId) ?? 0,
         limitMs: Result.isFailure(background) ? null : (client.backgroundHoldLimitMs ?? null),

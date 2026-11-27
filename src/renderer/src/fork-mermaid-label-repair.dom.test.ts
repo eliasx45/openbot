@@ -1,4 +1,3 @@
-// biome-ignore lint/correctness/noUndeclaredDependencies: the test runs the real parser that @openbot/ui (which declares mermaid) uses.
 import mermaid from "mermaid";
 import { beforeAll, describe, expect, it } from "vitest";
 import { quoteFlowchartLabels } from "../../../packages/ui/src/features/conversation/mermaid-label-repair";

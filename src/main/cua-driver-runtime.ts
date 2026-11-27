@@ -134,7 +134,7 @@ export function cuaDriverCommandAlias(input: CuaDriverCommandAliasInput): string
  * long-running service, and the agents' `mcp --socket` proxies only connect to it. Without it, the
  * arguments are the ones OpenBot always used.
  */
-export function cuaDriverServeArgs(socketPath: string, existingProfile: boolean): string[] {
+function cuaDriverServeArgs(socketPath: string, existingProfile: boolean): string[] {
   return ["serve", "--socket", socketPath, "--no-overlay", ...(existingProfile ? ["--grant", "existing-profile"] : [])];
 }
 

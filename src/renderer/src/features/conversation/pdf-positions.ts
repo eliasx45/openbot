@@ -2,8 +2,8 @@ import type { PdfViewerPosition } from "@openbot/contracts/ipc";
 import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import type { PdfPosition } from "@openbot/ui/features/conversation/pdf-reading-mode";
 
-export const PDF_POSITIONS_STORAGE_KEY = "openbot:file-preview-pdf-positions";
-export const PDF_FRAME_POSITIONS_STORAGE_KEY = "openbot:file-preview-pdf-frame-positions";
+const PDF_POSITIONS_STORAGE_KEY = "openbot:file-preview-pdf-positions";
+const PDF_FRAME_POSITIONS_STORAGE_KEY = "openbot:file-preview-pdf-frame-positions";
 const POSITION_LIMIT = 200;
 
 export function pdfPositionKey(ownerAgentId: string, fileKey: string | undefined): string | undefined {
@@ -97,11 +97,6 @@ export function savePdfPosition(key: string, position: PdfPosition): void {
   } catch {}
 }
 
-export function forgetStoredPdfPositions(): void {
-  stored = undefined;
-  storedFrames = undefined;
-}
-
 function decodeFramePosition(value: unknown): PdfViewerPosition | null {
   if (!isDynamicRecord(value)) return null;
   const { x, y, zoom } = value;
@@ -121,7 +116,7 @@ function decodeFramePositions(value: unknown): Map<string, PdfViewerPosition> {
   return positions;
 }
 
-export function parsePdfFramePositions(raw: string | null): Map<string, PdfViewerPosition> {
+function parsePdfFramePositions(raw: string | null): Map<string, PdfViewerPosition> {
   if (!raw) return new Map();
   try {
     return decodeFramePositions(JSON.parse(raw));
@@ -141,7 +136,7 @@ export function readPdfFramePosition(key: string): PdfViewerPosition | null {
   return storedFramePositions().get(key) ?? null;
 }
 
-export function samePdfFramePosition(left: PdfViewerPosition | null, right: PdfViewerPosition): boolean {
+function samePdfFramePosition(left: PdfViewerPosition | null, right: PdfViewerPosition): boolean {
   return left !== null && left.x === right.x && left.y === right.y && left.zoom === right.zoom;
 }
 

@@ -13,9 +13,11 @@ permissions:
 # A new PR push cancels the old run. On main, a run always completes, and only the newest commit
 # waits for it: GitHub cancels an older waiting run. Merges come faster than one run takes, so each
 # run tests all the commits merged since the last run, and runner use does not grow with each merge.
+# Fork (docs/fork/FEATURES.md #133): the fork has no production deploy, so a new push to main cancels
+# the run of the previous push too; only the newest commit's result is reported.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.repository != 'nightly-labs/openbot' }}
 
 env:
   GIT_CONFIG_COUNT: 1
@@ -174,8 +176,19 @@ jobs:
           # tested from every released schema. `git archive` needs only the tag commits.
           - name: Check released database schemas
             if: needs.detect.result != 'success' || needs.detect.outputs.schema == 'true'
+            # Fork (docs/fork/FEATURES.md #133): the fork has only the release tags of its first copy.
+            # It reads them from upstream, up to the upstream version it merged (package.json), so a newer
+            # upstream release does not fail the check before the fork merges it.
             run: |
-              git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'
+              if [ "$GITHUB_REPOSITORY" = nightly-labs/openbot ]; then
+                git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'
+              else
+                git fetch --no-tags --depth=1 https://github.com/nightly-labs/openbot.git '+refs/tags/v*:refs/tags/v*'
+                merged="v$(jq -r .version package.json)"
+                git tag --list 'v*' | while read -r tag; do
+                  [ "$(printf '%s\n%s\n' "$tag" "$merged" | sort -V | tail -n 1)" = "$merged" ] || git tag -d "$tag" > /dev/null
+                done
+              fi
               bun scripts/released-schema-fixtures.ts --check
 
   browser:

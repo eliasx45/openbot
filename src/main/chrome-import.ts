@@ -81,7 +81,7 @@ interface ChromeCookie {
   path: string;
   secure: boolean;
   httpOnly: boolean;
-  sameSite: CookiesSetDetails["sameSite"];
+  sameSite: NonNullable<CookiesSetDetails["sameSite"]>;
   /** Unix seconds; undefined for a session cookie. */
   expires: number | undefined;
   /** Unix ms of the last change in Chrome. */
@@ -180,7 +180,7 @@ export function isSignInUrl(url: string): boolean {
 }
 
 /** The registrable part of a host, close enough for cookie hosts: `accounts.google.com` → `google.com`. */
-export function siteOfHost(host: string): string {
+function siteOfHost(host: string): string {
   const labels = host.replace(/^\./u, "").toLowerCase().split(".").filter(Boolean);
   if (labels.length <= 2) return labels.join(".");
   const second = labels[labels.length - 2] ?? "";
@@ -201,7 +201,7 @@ function cookieKey(host: string, name: string, path: string): string {
   return `${host}\t${name}\t${path}`;
 }
 
-function sameSiteOf(value: number): CookiesSetDetails["sameSite"] {
+function sameSiteOf(value: number): NonNullable<CookiesSetDetails["sameSite"]> {
   if (value === 0) return "no_restriction";
   if (value === 1) return "lax";
   if (value === 2) return "strict";

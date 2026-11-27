@@ -365,8 +365,8 @@ function tables(
   scales: number[],
   open: {
     scale: number;
-    beforeVersion?: number;
-    afterVersion?: number;
+    beforeVersion?: number | undefined;
+    afterVersion?: number | undefined;
     beforeOpenMs: number[];
     afterOpenMs: number[];
     fileBytes: number;
@@ -584,7 +584,8 @@ function installedHeadlessShell(): string | undefined {
 async function renderPng(htmlPath: string, pngPath: string): Promise<void> {
   try {
     const { chromium } = await import("playwright-core");
-    const browser = await chromium.launch({ executablePath: installedHeadlessShell() });
+    const executablePath = installedHeadlessShell();
+    const browser = await chromium.launch(executablePath ? { executablePath } : {});
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 });
     await page.goto(`file://${htmlPath}`);
     await page.locator("#figure").screenshot({ path: pngPath });

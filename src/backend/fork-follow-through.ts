@@ -24,7 +24,7 @@ import { localTime } from "./fork-restart-resume";
 
 export const FORK_FOLLOW_THROUGH_ROUTINE_ID = "fork-follow-through";
 export const FORK_FOLLOW_THROUGH_ROUTINE_NAME = "👥 Team follow-through";
-export const FORK_FOLLOW_THROUGH_HEADER = "[OpenBot: 👥 team follow-through]";
+const FORK_FOLLOW_THROUGH_HEADER = "[OpenBot: 👥 team follow-through]";
 /** Test switches: `OPENBOT_FORK_FOLLOW_THROUGH_SWEEP_MS`, `..._DELAY_MS`, `..._GAP_MS`. */
 const SWEEP_MS = () => envNumber("OPENBOT_FORK_FOLLOW_THROUGH_SWEEP_MS", 60_000);
 /** How long a report waits for the lead's own decision before the wake. */
@@ -32,7 +32,7 @@ const DELAY_MS = () => envNumber("OPENBOT_FORK_FOLLOW_THROUGH_DELAY_MS", 3 * 60_
 /** The shortest time between two follow-through wakes of one agent. */
 const GAP_MS = () => envNumber("OPENBOT_FORK_FOLLOW_THROUGH_GAP_MS", 10 * 60_000);
 /** Older reports are history, not open work. */
-export const FOLLOW_THROUGH_WINDOW_MS = 2 * 60 * 60_000;
+const FOLLOW_THROUGH_WINDOW_MS = 2 * 60 * 60_000;
 const EXCERPT_LIMIT = 200;
 
 /** A message delivered to the agent, as the mailbox has it. */
@@ -81,7 +81,7 @@ export interface ForkFollowThroughHooks {
   log(message: string, details: Record<string, string | number | boolean | null>): void;
 }
 
-export function followThroughEnabled(): boolean {
+function followThroughEnabled(): boolean {
   return process.env.OPENBOT_FORK_FOLLOW_THROUGH !== "0";
 }
 
@@ -93,7 +93,7 @@ const isWake = (message: FollowThroughReceived) =>
   message.sender.kind === "routine" && message.sender.routineId === FORK_FOLLOW_THROUGH_ROUTINE_ID;
 
 /** When the agent last got a follow-through wake, or null. */
-export function lastWakeAt(traffic: FollowThroughTraffic): number | null {
+function lastWakeAt(traffic: FollowThroughTraffic): number | null {
   const times = traffic.received.filter(isWake).map((message) => Date.parse(message.createdAt));
   return times.length > 0 ? Math.max(...times) : null;
 }

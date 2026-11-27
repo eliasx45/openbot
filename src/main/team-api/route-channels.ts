@@ -218,7 +218,7 @@ function pageTasks(tasks: readonly ChannelTask[], messages: readonly ChannelMess
   return tasks.filter((task) => openRuns.has(task.rootTaskId) || shown.has(task.id));
 }
 
-export function hiddenAuthor(message: ChannelMessage, hiddenAgentIds: ReadonlySet<string>): boolean {
+function hiddenAuthor(message: ChannelMessage, hiddenAgentIds: ReadonlySet<string>): boolean {
   return message.author.kind === "agent" && hiddenAgentIds.has(message.author.id);
 }
 

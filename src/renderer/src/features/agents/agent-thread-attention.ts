@@ -50,7 +50,7 @@ function promptThreadId(event: NonNullable<PendingAttentionPrompts[string]>): st
   return event.type === "prompt" ? event.threadId : event.request.threadId;
 }
 
-function byAgent<Item extends { agentId: string; threadId?: string }, Value>(
+function byAgent<Item extends { agentId: string; threadId?: string | undefined }, Value>(
   items: readonly Item[],
   inAgentThread: (agentId: string, threadId: string | undefined) => boolean,
   inSideThread: (agentId: string, threadId: string | undefined) => boolean,

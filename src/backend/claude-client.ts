@@ -292,7 +292,7 @@ function isClaudeAutoToolSearch(value: string | undefined): boolean {
 const TOOL_DESCRIPTION_LIMIT = 120;
 const LABELLED_TOOLS: ReadonlySet<string> = new Set(["Bash", "Task", "Agent"]);
 
-export const FORK_CLAUDE_MAX_RETRIES = "15";
+const FORK_CLAUDE_MAX_RETRIES = "15";
 const OPENBOT_CLAUDE_CLIENT = {
   CLAUDE_AGENT_SDK_CLIENT_APP: "openbot/0.1.0",
   CLAUDE_CODE_ARTIFACT: "0",

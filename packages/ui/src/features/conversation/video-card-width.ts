@@ -9,8 +9,8 @@
 
 import { createSignal } from "solid-js";
 
-export const VIDEO_CARD_MIN_WIDTH = 280;
-export const VIDEO_CARD_MAX_WIDTH = 1100;
+const VIDEO_CARD_MIN_WIDTH = 280;
+const VIDEO_CARD_MAX_WIDTH = 1100;
 /** Two tiles in a chat column of about 900-1350 px, three above. */
 const DEFAULT_WIDTH = 440;
 /** A new key: a width kept under the old one was set while the grip had no effect. */

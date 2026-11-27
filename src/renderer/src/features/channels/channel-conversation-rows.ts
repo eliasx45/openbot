@@ -52,7 +52,7 @@ const HANDOFF_DELIVERY_STATUS: Record<ChannelTask["state"], QueueDeliveryStatus>
   cancelled: "cancelled",
 };
 
-export function channelHandoffMessage(entry: ChannelMessage, tasks: readonly ChannelTask[]): ChannelHandoff | null {
+function channelHandoffMessage(entry: ChannelMessage, tasks: readonly ChannelTask[]): ChannelHandoff | null {
   const found = channelHandoff(entry, tasks);
   if (!found) return null;
   const { replyToMessageId: _reply, ...rest } = entry.message;

@@ -36,7 +36,7 @@ const forward = Bun.serve({
     const upstream = await fetch(`https://api.anthropic.com${url.pathname}${url.search}`, {
       method: request.method,
       headers,
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),
+      ...(request.method === "GET" || request.method === "HEAD" ? {} : { body: await request.arrayBuffer() }),
     });
     const out = new Headers(upstream.headers);
     out.delete("content-encoding");

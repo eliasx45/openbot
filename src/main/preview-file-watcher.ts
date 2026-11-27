@@ -1,7 +1,7 @@
 import { watch } from "node:fs";
 import { basename, dirname } from "node:path";
 
-export const PREVIEW_FILE_CHANGE_DELAY_MS = 300;
+const PREVIEW_FILE_CHANGE_DELAY_MS = 300;
 
 export interface FolderWatch {
   close: () => void;
@@ -30,7 +30,10 @@ const watchFolderWithNode: WatchFolder = (folder, listener) => {
 };
 
 export class PreviewFileWatcher {
-  #watchers = new Map<number, { key: string; watcher: Pick<FolderWatch, "close">; timer?: NodeJS.Timeout }>();
+  #watchers = new Map<
+    number,
+    { key: string; watcher: Pick<FolderWatch, "close">; timer?: NodeJS.Timeout | undefined }
+  >();
   readonly #onChange: (owner: number, key: string) => void;
   readonly #delayMs: number;
   readonly #watchFolder: WatchFolder;
@@ -44,7 +47,7 @@ export class PreviewFileWatcher {
   watch(owner: number, key: string, path: string): void {
     this.stop(owner);
     const name = basename(path);
-    const entry: { key: string; watcher: Pick<FolderWatch, "close">; timer?: NodeJS.Timeout } = {
+    const entry: { key: string; watcher: Pick<FolderWatch, "close">; timer?: NodeJS.Timeout | undefined } = {
       key,
       watcher: { close: () => undefined },
     };

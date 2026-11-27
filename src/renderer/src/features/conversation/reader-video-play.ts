@@ -19,7 +19,7 @@ export function watchReaderMediaPlay(element: HTMLElement, onPlay: (media: HTMLM
  * when a video plays once its file has loaded after the reader's click. A muted video that plays with no
  * reader input (a looping, autoplaying clip like a GIF, or a script's `play()`) does not hold the chat.
  */
-export function readerStartedMedia(media: HTMLMediaElement): boolean {
+function readerStartedMedia(media: HTMLMediaElement): boolean {
   if (navigator.userActivation?.isActive) return true;
   return !media.muted && media.volume > 0;
 }

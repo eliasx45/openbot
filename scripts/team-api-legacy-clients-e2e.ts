@@ -88,6 +88,7 @@ const HOST_VERSION = "0.0.0-e2e";
 const STEP_DEADLINE_MS = 30_000;
 const CLIENT_VERSION = "0.3.5";
 const OWNER = { username: "owner-user", password: "owner-password-123" };
+const ADMIN = { username: "admin-user", password: "admin-password-123" };
 const MEMBER = { username: "member-user", password: "member-password-123" };
 
 plugin({
@@ -463,6 +464,35 @@ try {
     ({ id, reusedInviteStatus }) => ({ memberId: id, reusedInviteStatus }),
   );
 
+  // Fork (docs/fork/FEATURES.md #107): agents that no level names are closed to members. These checks
+  // are about the released wire, so the owner opens the agents to Everyone, as on a host that shares them.
+  async function openToEveryone(levels: Record<string, "none" | "manage">) {
+    const agentIds = new Set(agents?.listAgents().map((agent) => agent.id) ?? []);
+    await Effect.runPromise(
+      access.set(
+        identity.serverId,
+        { revision: access.get(identity.serverId).revision, everyone: levels, roles: [] },
+        agentIds,
+        agentIds,
+        null,
+      ),
+    );
+  }
+  await openToEveryone({ [source.id]: "manage" });
+  // Fork (docs/fork/FEATURES.md #118): only an owner or admin adds agents (duplicates too) and reads the
+  // AI account usage, so those released routes are checked with an admin's session.
+  const admin = await (async () => {
+    const adminInvite = await runCauseEffect(team.createInvite("admin"));
+    const joined = await v1(port, "POST", "/v1/join", { inviteToken: adminInvite.token, ...ADMIN });
+    assert.equal(joined.status, 201);
+    const login = await v1(port, "POST", "/v1/auth/login", ADMIN);
+    assert.equal(login.status, 200);
+    return {
+      id: text(record(record(joined.body, "admin join").member, "admin member").id, "admin id"),
+      token: text(record(login.body, "admin login").sessionToken, "admin session token"),
+    };
+  })();
+
   await step("v1 agents: the released `bot` vocabulary and provider view", async () => {
     const listed = await v1(port, "GET", "/v1/agents", undefined, member.token);
     assert.equal(listed.status, 200);
@@ -525,7 +555,7 @@ try {
   const duplicate = await step("v3 duplicate: 201 `{bot, layout}` and an idempotent retry", async () => {
     const body = { ...record(fixture("v3/client-http-request.json"), "fixture"), operationId: randomUUID() };
     const path = `/v1/agents/${source.id}/duplicate`;
-    const first = await v3(port, "POST", path, body, member.token);
+    const first = await v3(port, "POST", path, body, admin.token);
     assert.equal(first.status, 201);
     const firstBody = record(first.body, "duplicate");
     const copy = record(firstBody.bot, "bot");
@@ -533,10 +563,10 @@ try {
     assert.notEqual(copy.id, source.id);
     const releasedKeys = Object.keys(record(fixture("v3/host-http-response.json"), "fixture")).sort();
     assert.deepEqual(Object.keys(firstBody).sort(), releasedKeys);
-    const retry = await v3(port, "POST", path, body, member.token);
+    const retry = await v3(port, "POST", path, body, admin.token);
     assert.equal(retry.status, 201);
     assert.equal(record(record(retry.body, "retry").bot, "retry bot").id, copy.id, "A retry made a second copy.");
-    const listed = await v1(port, "GET", "/v1/agents", undefined, member.token);
+    const listed = await v1(port, "GET", "/v1/agents", undefined, admin.token);
     assert.ok(Array.isArray(listed.body));
     assert.equal(listed.body.filter((value) => record(value, "agent").name === copy.name).length, 1);
     return { copyId: text(copy.id, "copy id"), layoutKeys: Object.keys(layout).sort() };
@@ -549,7 +579,7 @@ try {
       method: "POST",
       path,
       body: { operationId: randomUUID(), name: "Renamed" },
-      token: member.token,
+      token: admin.token,
     });
     assert.ok(extra.status >= 400 && extra.status < 500, `An extra key was accepted: ${extra.status}.`);
     const notUuid = await wire(port, {
@@ -557,10 +587,10 @@ try {
       method: "POST",
       path,
       body: { operationId: "not-a-uuid" },
-      token: member.token,
+      token: admin.token,
     });
     assert.ok(notUuid.status >= 400 && notUuid.status < 500, `A bad operation id was accepted: ${notUuid.status}.`);
-    const listed = await v1(port, "GET", "/v1/agents", undefined, member.token);
+    const listed = await v1(port, "GET", "/v1/agents", undefined, admin.token);
     assert.ok(Array.isArray(listed.body));
     assert.equal(listed.body.length, 2, "A refused duplicate request still made a copy.");
     return { extraKeyStatus: extra.status, badOperationIdStatus: notUuid.status };
@@ -771,16 +801,7 @@ try {
   }
 
   async function setCopyAccess(level: "none" | "manage") {
-    const agentIds = new Set([source.id, duplicate.copyId]);
-    await Effect.runPromise(
-      access.set(
-        identity.serverId,
-        { revision: access.get(identity.serverId).revision, everyone: { [duplicate.copyId]: level }, roles: [] },
-        agentIds,
-        agentIds,
-        null,
-      ),
-    );
+    await openToEveryone({ [source.id]: "manage", [duplicate.copyId]: level });
   }
 
   await step("context-usage-v1: a v8 client gets the context of each agent that it can see", async () => {
@@ -895,11 +916,16 @@ try {
       agent.id === source.id ? { ...agent, model: wideModel.id, reasoningEffort: "ultra" } : agent,
     );
 
-  async function current(protocol: number, capabilities: readonly string[], path: string): Promise<WireResponse> {
+  async function current(
+    protocol: number,
+    capabilities: readonly string[],
+    path: string,
+    token = member.token,
+  ): Promise<WireResponse> {
     const response = await fetch(`http://127.0.0.1:${port}${path}`, {
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${member.token}`,
+        Authorization: `Bearer ${token}`,
         [TEAM_PROTOCOL_VERSION_HEADER]: String(protocol),
         [TEAM_APP_VERSION_HEADER]: CLIENT_VERSION,
         [TEAM_CAPABILITIES_HEADER]: capabilities.join(","),
@@ -1005,7 +1031,7 @@ try {
   async function currentUsageEvent(capabilities: readonly string[], sent: AccountUsage = reading): Promise<JsonObject> {
     const opened = new WebSocket(`ws://127.0.0.1:${port}/v1/events`, [
       TEAM_PROTOCOL_V1_WEBSOCKET,
-      `openbot-token.${member.token}`,
+      `openbot-token.${admin.token}`,
     ]);
     await new Promise<void>((resolveOpen, reject) => {
       opened.addEventListener("open", () => resolveOpen(), { once: true });
@@ -1037,7 +1063,7 @@ try {
       assert.ok(capabilities.includes(TEAM_USAGE_TERTIARY_CAPABILITY), "A v9 client does not ask for it.");
       const results: { path: string; limits: string[][] }[] = [];
       for (const usagePath of usagePaths) {
-        const got = await current(TEAM_PROTOCOL_V9, capabilities, usagePath);
+        const got = await current(TEAM_PROTOCOL_V9, capabilities, usagePath, admin.token);
         assert.equal(got.status, 200, `GET ${usagePath}: ${JSON.stringify(got.body)}.`);
         const limits = record(got.body, "usage").limits;
         assert.ok(Array.isArray(limits) && limits.length === 2);
@@ -1062,7 +1088,7 @@ try {
       const results: { protocol: number; path: string; keys: string[] }[] = [];
       for (const protocol of [TEAM_PROTOCOL_V7, 8, TEAM_PROTOCOL_V9]) {
         for (const usagePath of usagePaths) {
-          const got = await current(protocol, withoutTertiary(protocol), usagePath);
+          const got = await current(protocol, withoutTertiary(protocol), usagePath, admin.token);
           assert.equal(got.status, 200, `Protocol ${protocol}, ${usagePath}: ${JSON.stringify(got.body)}.`);
           const limits = record(got.body, "usage").limits;
           assert.ok(Array.isArray(limits));
@@ -1231,7 +1257,11 @@ try {
   });
   const fingerprints = { localFingerprint: "host-fingerprint", remoteFingerprint: "client-fingerprint" };
 
-  async function connectV2(peerId: string, opening: "valid" | "forged" | "request-first" = "valid") {
+  async function connectV2(
+    peerId: string,
+    opening: "valid" | "forged" | "request-first" = "valid",
+    who: { id: string; role: "member" | "admin" } = { id: member.id, role: "member" },
+  ) {
     const bridge = new LoopbackBridge();
     const ticket = `ticket-${randomUUID()}`;
     const sessionId = randomUUID();
@@ -1239,11 +1269,11 @@ try {
     const claims = {
       sessionId,
       hostId: identity.serverId,
-      userId: `account-${member.id}`,
-      membershipId: member.id,
+      userId: `account-${who.id}`,
+      membershipId: who.id,
       authEpoch: 1,
       sessionExpiresAt,
-      role: "member" as const,
+      role: who.role,
       clientPublicKey: clientKeys.publicKey,
     };
     const pathChanges: [sessionId: string, lost: boolean][] = [];
@@ -1268,8 +1298,8 @@ try {
         connectionId: randomUUID(),
         sessionId,
         userId: claims.userId,
-        membershipId: member.id,
-        role: "member",
+        membershipId: who.id,
+        role: who.role,
         sessionExpiresAt,
       }),
     );
@@ -1440,15 +1470,17 @@ try {
       assert.ok(Array.isArray(agents) && agents.some((value) => record(value, "agent").id === source.id));
       const queue = await result("GET", `/v1/agents/${source.id}/queue`);
       assert.equal(record(queue.body, "queue").botId, source.id, "A protocol 4 queue lost its `botId` key.");
-      const duplicated = await result("POST", `/v1/agents/${duplicate.copyId}/duplicate`, {
+      // Fork (docs/fork/FEATURES.md #118): this peer is a member, so the marked duplicate passes the
+      // protocol gate and the route refuses it; "v3 duplicate" checks the released 201 body as an admin.
+      const duplicated = await call("POST", `/v1/agents/${duplicate.copyId}/duplicate`, marked, {
         operationId: randomUUID(),
       });
-      assert.equal(duplicated.status, 201);
-      const decoded = record(
-        decodeTeamProtocolV3HttpResponse("POST", `/v1/agents/${duplicate.copyId}/duplicate`, 201, duplicated.body),
-        "duplicate",
+      const duplicateError = "error" in duplicated ? duplicated.error : undefined;
+      assert.deepEqual(
+        duplicateError && { status: duplicateError.status, message: duplicateError.message },
+        { status: 403, message: "Administrator access is required." },
+        `A member's marked duplicate was not refused by the route: ${JSON.stringify(duplicated)}.`,
       );
-      assert.notEqual(record(decoded.bot, "bot").id, duplicate.copyId);
       return { refused: 5, agents: agents.length, queueKeys: Object.keys(record(queue.body, "queue")).sort() };
     },
   );
@@ -1587,6 +1619,27 @@ try {
   });
 
   await step("usage-tertiary-v1 RPC: a WebRTC usage read follows the capability", async () => {
+    // Fork (docs/fork/FEATURES.md #118): a member reads no usage, so an admin's peer reads it.
+    const adminPeer = await connectV2("peer-v2-admin", "valid", { id: admin.id, role: "admin" });
+    const ready = await adminPeer.bridge.rpcFrom(0, (data) => {
+      const frame = authFrame(data);
+      return frame?.type === "auth-ready" ? frame : null;
+    });
+    adminPeer.bridge.emit(
+      "data",
+      "peer-v2-admin",
+      "rpc",
+      encodeTeamProtocolV2Frame({
+        version: 2,
+        type: "auth-complete",
+        clientNonce: adminPeer.clientNonce,
+        hostNonce: ready.hostNonce,
+      }),
+    );
+    await adminPeer.bridge.rpcFrom(0, (data) => {
+      const frame = authFrame(data);
+      return frame?.type === "auth-confirmed" && frame.hostNonce === ready.hostNonce ? frame : null;
+    });
     const reading: AccountUsage = {
       limits: [
         {
@@ -1599,10 +1652,10 @@ try {
     };
     const usage = async (capabilities: readonly string[]) => {
       const requestId = randomUUID();
-      const from = v2.bridge.sent.length;
-      v2.bridge.emit(
+      const from = adminPeer.bridge.sent.length;
+      adminPeer.bridge.emit(
         "data",
-        "peer-v2",
+        "peer-v2-admin",
         "rpc",
         encodeTeamProtocolV2Frame(
           createTeamProtocolV2Request(requestId, "http.request", {
@@ -1613,7 +1666,7 @@ try {
           }),
         ),
       );
-      const frame = await v2.bridge.rpcFrom(from, rpcResponse(requestId));
+      const frame = await adminPeer.bridge.rpcFrom(from, rpcResponse(requestId));
       assert.ok("result" in frame, `The usage frame failed: ${JSON.stringify(frame)}.`);
       const limits = record(record(frame.result, "RPC result").body, "usage").limits;
       assert.ok(Array.isArray(limits));

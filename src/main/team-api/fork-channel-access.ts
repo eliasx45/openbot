@@ -23,7 +23,7 @@ export function forkChannelRoute(pathname: string): boolean {
   return pathname === "/v1/channels" || pathname.startsWith("/v1/channels/") || CHANNEL_SCOPED_ROUTES.has(pathname);
 }
 
-export type ForkAttachmentScope =
+type ForkAttachmentScope =
   | { draft: true }
   | { draft: false; agentIds: string[]; channelId: string | null; threadId: string | null }
   | null;

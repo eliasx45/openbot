@@ -2,7 +2,7 @@ import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import Constants from "expo-constants";
 import { Directory, File, Paths } from "expo-file-system";
 
-export const APP_GROUP: string =
+const APP_GROUP: string =
   typeof Constants.expoConfig?.extra?.forkAppGroup === "string"
     ? Constants.expoConfig.extra.forkAppGroup
     : "group.run.openbot.mobile";

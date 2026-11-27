@@ -108,7 +108,7 @@ function elicitationOptions(property: DynamicRecord): Array<{ label: string; des
  * The card submits the displayed labels, which are the titles when the schema names them: the
  * response must carry the consts the schema asked for instead. An array field gets an array.
  */
-export function elicitationValue(property: DynamicRecord | undefined, answers: string[]): ElicitationFieldValue {
+function elicitationValue(property: DynamicRecord | undefined, answers: string[]): ElicitationFieldValue {
   if (!property) return answers[0] ?? "";
   const choices = elicitationChoices(property) ?? [];
   // MCP and ACP carry a multi-select as an array of strings.

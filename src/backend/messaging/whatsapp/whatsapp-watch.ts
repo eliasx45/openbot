@@ -23,7 +23,7 @@ export class WhatsAppWatchRefused extends Error {
 }
 
 /** The phone number that a user JID names, without its device; null for a group or a LID. */
-export function phoneOfJid(jid: string): string | null {
+function phoneOfJid(jid: string): string | null {
   const decoded = jidDecode(jid);
   return decoded?.server === "s.whatsapp.net" && decoded.user ? decoded.user : null;
 }
