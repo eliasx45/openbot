@@ -5,6 +5,12 @@
 // with the fake `agy acp` of `provider-fakes/agents/antigravity-subagent.ts`, whose `hold-turn` never
 // ends by itself. `bun scripts/antigravity-quit-resume-e2e.ts`; writes
 // .openbot-build/antigravity-quit-resume-e2e/report.json.
+//
+// Fork (docs/fork/FEATURES.md #136): three agents run at the quit (Elias's app, 27 Nov 17:47: six). At the
+// next start an MCP refresh runs before the wakes (the Computer Use server coming up), which used to drop
+// every Gemini chat's session, so each note ended "provider session gone" and no agent continued. Each
+// agent now gets one wake in the session its turn ran in. A teammate's message that waits in Owl's queue
+// runs first, and Owl's wake still follows (before, it took the wake's place without a word).
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -71,7 +77,9 @@ async function waitFor<T>(label: string, read: () => Promise<T | null | undefine
 }
 
 const prompts = async () =>
-  (await readJsonl<{ event: string; text?: string }>(agyLog)).filter((entry) => entry.event === "prompt");
+  (await readJsonl<{ event: string; text?: string; sessionId?: string }>(agyLog)).filter(
+    (entry) => entry.event === "prompt",
+  );
 
 function start() {
   const database = new OpenBotDatabase(userData);
@@ -99,7 +107,17 @@ interface Report {
   noteAtQuit?: { state: string; quit: boolean | undefined; requestText: string } | undefined;
   wake?: string | undefined;
   noteAfterBoot?: { state: string; quit: boolean | null } | undefined;
+  /** Fork (#136): per agent, the session of the held turn and of its wake, and the note's end. */
+  agents?: Array<{
+    name: string;
+    heldSession: string;
+    wakeSession: string | null;
+    state: string;
+    reason: string | null;
+  }>;
   error?: string;
+  prompts?: string[];
+  notes?: string[];
 }
 
 const report: Report = { passed: false };
@@ -123,15 +141,64 @@ try {
     "the first turn",
     async () => first.agents.listQueue(agent.id).deliveries.length > 0 && idle(first.agents, agent.id),
   );
-  await runCauseEffect(first.agents.sendMessage({ agentId: agent.id, text: "hold-turn" }));
+  // Fork (#136): two more Gemini agents whose turns run at the quit.
+  const others = [];
+  for (const name of ["Owl", "Kid"]) {
+    const other = await runCauseEffect(
+      first.agents.createAgent({
+        name,
+        description: `${name} checks that several Gemini turns continue after a restart.`,
+        avatarSeed: name.toLowerCase(),
+        avatarHue: null,
+        initialMessage: "first-turn",
+        provider: "antigravity",
+      }),
+    );
+    await waitFor(
+      `${name}'s first turn`,
+      async () => first.agents.listQueue(other.id).deliveries.length > 0 && idle(first.agents, other.id),
+    );
+    others.push(other);
+  }
+  const all = [agent, ...others];
+  for (const each of all) await runCauseEffect(first.agents.sendMessage({ agentId: each.id, text: "hold-turn" }));
   await waitFor(
-    "the held turn to run",
+    "the held turns to run",
     async () =>
-      (await prompts()).some((entry) => entry.text === "hold-turn") &&
-      first.agents.listQueue(agent.id).deliveries.some((delivery) => delivery.status === "running"),
+      (await prompts()).filter((entry) => /(?:^|>)hold-turn$/u.test(entry.text ?? "")).length === all.length &&
+      all.every((each) => first.agents.listQueue(each.id).deliveries.some((delivery) => delivery.status === "running")),
   );
   await runCauseEffect(first.agents.stop());
   first.database.close();
+  // Fork (#136): the session each agent's held turn ran in, as the quit left it.
+  const sessions = new DatabaseSync(join(userData, "openbot.db"));
+  const heldSessions = new Map(
+    sessions
+      .prepare(
+        `SELECT thread.agent_id, session.external_session_id FROM projection_provider_sessions session
+         JOIN projection_threads thread ON thread.thread_id = session.thread_id WHERE session.state = 'active'`,
+      )
+      .all()
+      .map((row) => [String(row.agent_id), String(row.external_session_id)]),
+  );
+  sessions.close();
+  // Fork (#136): a teammate's message waits in Owl's queue at the next start.
+  {
+    const database = new OpenBotDatabase(userData);
+    const store = new AgentStore(database.userDataPath, home, database);
+    const mailbox = new MailboxStore(database.userDataPath, store.sharedRoot, store.database);
+    await runCauseEffect(mailbox.initialize());
+    await runCauseEffect(
+      mailbox.enqueue({
+        sender: { kind: "agent", agentId: agent.id },
+        recipientAgentIds: [others[0]?.id ?? ""],
+        text: "teammate-note: the toolkit moved to /tmp/kit",
+        replyToMessageId: null,
+        expectsReply: false,
+      }),
+    );
+    database.close();
+  }
 
   const sqlite = new DatabaseSync(join(userData, "openbot.db"));
   const turns = sqlite
@@ -153,13 +220,35 @@ try {
   const before = (await prompts()).length;
   const second = start();
   await runCauseEffect(second.agents.initialize());
-  const wake = await waitFor("the wake prompt", async () =>
-    (await prompts()).slice(before).find((entry) => entry.text?.includes("[OpenBot: 🔄 restart]")),
-  );
-  report.wake = wake.text?.slice(0, 300);
-  await waitFor("the wake turn to end", async () => idle(second.agents, agent.id));
-  const wakes = (await prompts()).slice(before).filter((entry) => entry.text?.includes("[OpenBot: 🔄 restart]"));
-  assert.equal(wakes.length, 1, "One wake, not more.");
+  // Fork (#136): an MCP refresh at boot, before the wakes (in the app: the Computer Use server comes up).
+  await runCauseEffect(second.agents.refreshAllAgentRuntimes());
+  const isWake = (entry: { text?: string }) => entry.text?.includes("[OpenBot: 🔄 restart]") === true;
+  const wake = await waitFor("the wake prompts", async () => {
+    const found = (await prompts()).slice(before).filter(isWake);
+    return found.length >= all.length ? found : null;
+  });
+  report.wake = wake[0]?.text?.slice(0, 300);
+  await waitFor("the wake turns to end", async () => all.every((each) => idle(second.agents, each.id)));
+  const wakes = (await prompts()).slice(before).filter(isWake);
+  assert.equal(wakes.length, all.length, "One wake per agent, not more.");
+  const saved2 = JSON.parse(readFileSync(join(userData, "fork-restart-resume.json"), "utf8"));
+  report.agents = all.map((each) => {
+    const entry = saved2.entries.find((item: { agentId: string; kind: string }) => item.agentId === each.id);
+    const heldSession = heldSessions.get(each.id) ?? "";
+    return {
+      name: each.name,
+      heldSession,
+      wakeSession: wakes.find((item) => item.sessionId === heldSession)?.sessionId ?? null,
+      state: entry?.state ?? "missing",
+      reason: entry?.reason ?? null,
+    };
+  });
+  for (const each of report.agents) {
+    assert.equal(each.state, "queued", `${each.name}'s note's wake ran (${each.reason}).`);
+    assert.equal(each.wakeSession, each.heldSession, `${each.name}'s wake runs in the session of its turn.`);
+  }
+  const teammate = (await prompts()).slice(before).find((entry) => entry.text?.includes("teammate-note"));
+  assert.ok(teammate, "Owl's queued teammate message ran too.");
   const after = JSON.parse(readFileSync(join(userData, "fork-restart-resume.json"), "utf8"));
   const queued = after.entries.find((entry: { key: string }) => entry.key === `turn:${held?.turnId}`);
   report.noteAfterBoot = queued && { state: queued.state, quit: queued.quit ?? null };
@@ -170,6 +259,12 @@ try {
   report.passed = true;
 } catch (error) {
   report.error = error instanceof Error ? (error.stack ?? error.message) : String(error);
+  report.prompts = (await prompts().catch(() => [])).map((entry) => `${entry.sessionId}: ${entry.text?.slice(-160)}`);
+  try {
+    report.notes = JSON.parse(readFileSync(join(userData, "fork-restart-resume.json"), "utf8")).entries.map(
+      (entry: { key: string; state: string; reason: string | null }) => `${entry.key} ${entry.state} ${entry.reason}`,
+    );
+  } catch {}
 } finally {
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(OUT, "report.json"), `${JSON.stringify(report, null, 1)}\n`);

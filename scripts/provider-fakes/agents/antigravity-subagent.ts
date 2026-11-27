@@ -222,8 +222,9 @@ serveFakeAcpAgent({
     const text = promptText(request);
     logEntry({ event: "prompt", sessionId, text });
     // Fork (docs/fork/FEATURES.md #126): a turn that runs until OpenBot quits. Fork (#134): also a
-    // teammate request that holds `[hold-turn]`, a teammate that works on.
-    if (text === "hold-turn" || text.includes("[hold-turn]")) {
+    // teammate request that holds `[hold-turn]`, a teammate that works on. Fork (#136): also after the
+    // memory or section-teammates block that OpenBot puts before a prompt.
+    if (/(?:^|>)hold-turn$/u.test(text) || text.includes("[hold-turn]")) {
       peer.say(sessionId, "Working on it.");
       return;
     }

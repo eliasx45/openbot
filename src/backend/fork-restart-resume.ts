@@ -54,6 +54,15 @@ export const FORK_BACKGROUND_STOPPED_METHOD = "openbot/fork-background-stopped";
 const RESTART_RESUME_LONG_DOWNTIME_MS = 2 * 60 * 60_000;
 /** The first wake and one more try when that wake's own turn is interrupted by a restart too. */
 const RESTART_RESUME_MAX_ATTEMPTS = 2;
+/**
+ * Fork (docs/fork/FEATURES.md #136): the tries when each stop was OpenBot quitting (a rebuild, an update,
+ * the user's Quit), not a crash. A lead's turn that user messages keep open for hours is the wake's own
+ * turn after the first restart, and 5 quits in 83 minutes (27 Nov) ended it for good at the third.
+ */
+const RESTART_RESUME_MAX_QUIT_ATTEMPTS = 6;
+/** Fork (#136): at most this many messages that came into the interrupted turn are named in the wake. */
+const STEERED_LIMIT = 12;
+const STEERED_TEXT_LIMIT = 600;
 /** The routine id of `wait_until` wakes, which continue the agent's own work as a user message does. */
 const WAIT_ROUTINE_ID = "fork-wait";
 /** Fork (#130): the routine id of team follow-through wakes (`fork-follow-through.ts`, which imports this file). */
@@ -139,12 +148,33 @@ export interface RestartResumeEntry {
   handedTo?: string;
   /** Fork (docs/fork/FEATURES.md #126): noted as OpenBot quit; cleared when the next run starts. */
   quit?: true;
+  /**
+   * Fork (docs/fork/FEATURES.md #136): every stop of this work so far was OpenBot quitting, not a crash,
+   * so it gets `RESTART_RESUME_MAX_QUIT_ATTEMPTS` tries.
+   */
+  cleanStops?: true;
+  /**
+   * Fork (#136): messages that came into the interrupted turn after the agent's last written answer
+   * (steered in, or batched with the request). The wake names those that did not run again by themselves.
+   */
+  steered?: RestartResumeMessage[];
+}
+
+/** Fork (docs/fork/FEATURES.md #136): one message of the interrupted turn that the wake names. */
+export interface RestartResumeMessage {
+  deliveryId: string;
+  /** "the user", or the sending agent's name and id. */
+  from: string;
+  at: string;
+  text: string;
 }
 
 interface SavedState {
   version: 1;
   enabled: boolean;
   aliveAt: string | null;
+  /** Fork (docs/fork/FEATURES.md #136): when the run stopped cleanly (`dispose`); null while it runs. */
+  stoppedAt?: string | null;
   entries: RestartResumeEntry[];
 }
 
@@ -169,6 +199,16 @@ export interface ForkRestartResumeHooks {
   laneBusy(agentId: string): boolean;
   /** Messages that wait in the queue of the agent's own chat (not a plan continuation). */
   laneQueued(agentId: string): number;
+  /**
+   * Fork (docs/fork/FEATURES.md #136): of those, the user's. Only a message of the user runs instead of the
+   * wake (with the hand-over note); a teammate's report or a routine run waits in the queue before the
+   * wake, which goes on after it. Without the hook every queued message counts.
+   */
+  laneQueuedFromUser?(agentId: string): number;
+  /** Fork (#136): a turn of the own chat that runs, or a delivery that starts, is the user's. */
+  laneBusyWithUser?(agentId: string): boolean;
+  /** Fork (#136): an agent's name, for the messages that the wake names. */
+  agentName?(agentId: string): string | null;
   /** The first queued delivery of the own chat waits for its goal or plan continuation. */
   continuationQueued(agentId: string): boolean;
   delivery(deliveryId: string): QueueDelivery | null;
@@ -195,6 +235,8 @@ export class ForkRestartResume {
   #state: SavedState = { version: 1, enabled: true, aliveAt: null, entries: [] };
   /** The `aliveAt` of the previous run, read once at construction. */
   readonly #previousAliveAt: number | null;
+  /** Fork (docs/fork/FEATURES.md #136): the previous run stopped cleanly (it quit; it did not crash). */
+  readonly #previousCleanStop: boolean;
   #heartbeat: ReturnType<typeof setInterval> | null = null;
   #pump: ReturnType<typeof setInterval> | null = null;
   #busy = false;
@@ -222,6 +264,7 @@ export class ForkRestartResume {
             version: 1,
             enabled: saved.enabled !== false,
             aliveAt: typeof saved.aliveAt === "string" ? saved.aliveAt : null,
+            stoppedAt: typeof saved.stoppedAt === "string" ? saved.stoppedAt : null,
             entries: Array.isArray(saved.entries) ? saved.entries.filter(isEntry) : [],
           };
         }
@@ -229,6 +272,7 @@ export class ForkRestartResume {
     }
     const alive = this.#state.aliveAt ? Date.parse(this.#state.aliveAt) : Number.NaN;
     this.#previousAliveAt = Number.isFinite(alive) ? alive : null;
+    this.#previousCleanStop = typeof this.#state.stoppedAt === "string";
   }
 
   /** On unless the user turned it off (`/autoresume off`) or `OPENBOT_FORK_RESTART_RESUME=0`. */
@@ -301,6 +345,9 @@ export class ForkRestartResume {
     // note stands. A wake noted at the quit is already one try further.
     if (existing && (!wake || existing.quit)) return;
     const attempt = wake ? (earlier?.attempt ?? attemptOfRun(wake)) + 1 : 1;
+    // Fork (docs/fork/FEATURES.md #136): OpenBot quit (noted now, or the previous run stopped cleanly).
+    const cleanStop = input.quitting === true || this.#previousCleanStop;
+    const cleanStops = cleanStop && (!wake || earlier?.cleanStops === true || earlier === null);
     const request =
       own.findLast((delivery) => delivery.sender.kind === "user") ??
       own.find((delivery) => delivery.sender.kind !== "routine") ??
@@ -324,7 +371,12 @@ export class ForkRestartResume {
       waitId: null,
       deliveryId: null,
       ...(input.quitting ? { quit: true as const } : {}),
+      ...(cleanStops ? { cleanStops: true as const } : {}),
     };
+    // Fork (docs/fork/FEATURES.md #136): the messages after the agent's last answer, newest last.
+    const steered = this.#steeredMessages(own, messages, request && request !== wake ? request.id : null, wake?.id);
+    const kept = mergeSteered(earlier?.steered ?? [], steered);
+    if (kept.length > 0) entry.steered = kept;
     const reason = this.#captureSkip(entry, own, messages);
     if (reason) {
       entry.state = "skipped";
@@ -341,7 +393,7 @@ export class ForkRestartResume {
     own: readonly QueueDelivery[],
     messages: readonly ConversationMessage[],
   ): string | null {
-    if (entry.attempt > RESTART_RESUME_MAX_ATTEMPTS) return "retry limit: the resume was interrupted again";
+    if (entry.attempt > maxAttempts(entry)) return "retry limit: the resume was interrupted again";
     if (messages.some((message) => message.questionPrompt && message.questionPrompt.resolution === null))
       return "waited for the user's answer";
     for (const delivery of own) {
@@ -359,8 +411,52 @@ export class ForkRestartResume {
       )
         return "routine run";
     }
-    if (this.#hooks.laneQueued(entry.agentId) > 0) return QUEUED_MESSAGE_RUNS;
+    if (this.#queuedFromUser(entry.agentId) > 0) return QUEUED_MESSAGE_RUNS;
     return null;
+  }
+
+  /** Fork (docs/fork/FEATURES.md #136): queued messages that run instead of the wake: the user's. */
+  #queuedFromUser(agentId: string): number {
+    return this.#hooks.laneQueuedFromUser?.(agentId) ?? this.#hooks.laneQueued(agentId);
+  }
+
+  /** Fork (#136): a turn of the user runs or starts in the own chat; it takes the wake's place. */
+  #busyWithUser(agentId: string): boolean {
+    return this.#hooks.laneBusyWithUser?.(agentId) ?? this.#hooks.laneBusy(agentId);
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md #136): the messages of the interrupted turn, besides its request, that came
+   * after the agent's last written answer of the turn: the ones it most likely had not handled yet.
+   */
+  #steeredMessages(
+    own: readonly QueueDelivery[],
+    messages: readonly ConversationMessage[],
+    requestId: string | null,
+    wakeId: string | undefined,
+  ): RestartResumeMessage[] {
+    const answered = messages
+      .filter((message) => message.author === "assistant" && !message.itemType && message.text.trim() !== "")
+      .map((message) => Date.parse(message.createdAt))
+      .filter(Number.isFinite);
+    const lastAnswer = answered.length > 0 ? Math.max(...answered) : Number.NEGATIVE_INFINITY;
+    return own
+      .filter(
+        (delivery) =>
+          delivery.id !== requestId &&
+          delivery.id !== wakeId &&
+          delivery.sender.kind !== "routine" &&
+          Date.parse(delivery.createdAt) > lastAnswer,
+      )
+      .map((delivery) => ({
+        deliveryId: delivery.id,
+        from:
+          delivery.sender.kind === "agent"
+            ? `${this.#hooks.agentName?.(delivery.sender.agentId) ?? "an agent"} (${delivery.sender.agentId})`
+            : "the user",
+        at: delivery.createdAt,
+        text: delivery.text.slice(0, STEERED_TEXT_LIMIT),
+      }));
   }
 
   /** The last time the previous run was alive: its heartbeat, else the newest sign of the turn. */
@@ -381,6 +477,7 @@ export class ForkRestartResume {
   start(): void {
     this.#startedAt = Date.now();
     this.#state.aliveAt = new Date().toISOString();
+    this.#state.stoppedAt = null; // Fork (docs/fork/FEATURES.md #136)
     const cutoff = Date.now() - KEEP_MS;
     this.#state.entries = this.#state.entries.filter((entry) => Date.parse(entry.capturedAt) >= cutoff);
     for (const entry of this.#state.entries) {
@@ -422,13 +519,18 @@ export class ForkRestartResume {
     this.#pump = null;
     if (this.#startedAt > 0) {
       this.#state.aliveAt = new Date().toISOString();
+      this.#state.stoppedAt = this.#state.aliveAt; // Fork (docs/fork/FEATURES.md #136): a clean stop.
       this.#save();
     }
   }
 
-  /** A turn started in an agent's own chat: a wake not queued yet is no longer wanted. */
-  turnStarted(agentId: string, threadId: string): void {
-    if (this.#hooks.agent(agentId)?.threadId === threadId) this.#turnStartedAt.set(agentId, Date.now());
+  /**
+   * A turn started in an agent's own chat: a wake not queued yet is no longer wanted. Fork
+   * (docs/fork/FEATURES.md #136): only a turn of the user takes the wake's place; after a teammate's
+   * report or a routine run the wake still runs (`fromUser` false).
+   */
+  turnStarted(agentId: string, threadId: string, fromUser = true): void {
+    if (fromUser && this.#hooks.agent(agentId)?.threadId === threadId) this.#turnStartedAt.set(agentId, Date.now());
   }
 
   /**
@@ -601,6 +703,8 @@ export class ForkRestartResume {
         interruptedAt: entry.interruptedAt,
         subagents: entry.subagents,
         requestText: entry.requestText,
+        // Fork (docs/fork/FEATURES.md #136): the messages that came into the stopped turn, not the one that runs now.
+        steered: (entry.steered ?? []).filter((message) => message.deliveryId !== input.deliveryId),
       })),
       timezone: this.#hooks.timezone(),
       provider: agent.provider,
@@ -675,7 +779,7 @@ export class ForkRestartResume {
     if ((this.#turnStartedAt.get(entry.agentId) ?? 0) >= Date.parse(entry.capturedAt))
       return tookOver(live ? "another turn started since the stop" : "another turn started since the restart");
     if (entry.kind === "goal" && !this.#hooks.goalWorking(entry.agentId)) return skip("the goal no longer runs");
-    if (this.#hooks.laneQueued(entry.agentId) > 0) return tookOver(QUEUED_MESSAGE_RUNS);
+    if (this.#queuedFromUser(entry.agentId) > 0) return tookOver(QUEUED_MESSAGE_RUNS);
     const tries = this.#firstTry.get(entry.key) ?? { settle: null, provider: null };
     this.#firstTry.set(entry.key, tries);
     // A provider that is not ready, or signed out, gets some time; then one quiet line, no loop.
@@ -690,15 +794,36 @@ export class ForkRestartResume {
       this.#skipLive(entry, "provider not ready", "status.agent.subagentResumeNotReady", { provider: agent.provider });
       return "skipped";
     }
-    // Boot recovery settles the interrupted deliveries once the provider is ready.
-    const statuses = entry.deliveryIds.map((id) => this.#hooks.delivery(id)?.status ?? "missing");
-    if (statuses.some((status) => status === "queued" || status === "starting" || status === "running")) {
+    // Boot recovery settles the interrupted deliveries once the provider is ready. Fork (docs/fork/FEATURES.md
+    // #136): a teammate's report that it queued again (`requeueAfterRestart`) runs by itself; it is settled.
+    const deliveries = entry.deliveryIds.map((id) => this.#hooks.delivery(id));
+    const ranAgain = (delivery: QueueDelivery | null) =>
+      delivery !== null &&
+      entry.turnId !== null &&
+      delivery.turnId !== entry.turnId &&
+      delivery.status !== "interrupted" &&
+      delivery.status !== "failed" &&
+      delivery.status !== "cancelled";
+    const statuses = deliveries.map((delivery) => delivery?.status ?? "missing");
+    if (
+      deliveries.some(
+        (delivery) =>
+          !ranAgain(delivery) &&
+          (delivery?.status === "queued" || delivery?.status === "starting" || delivery?.status === "running"),
+      )
+    ) {
       tries.settle ??= now;
       return now - tries.settle > SETTLE_WAIT_MS() ? skip("the interrupted turn did not settle") : "later";
     }
     if (entry.kind === "turn" && statuses.length > 0 && statuses.every((status) => status === "completed"))
       return skip("the interrupted turn had completed");
-    if (this.#hooks.laneBusy(entry.agentId)) return tookOver("another turn runs");
+    if (
+      entry.kind === "turn" &&
+      deliveries.length > 0 &&
+      deliveries.every((d) => ranAgain(d) || d?.status === "completed")
+    )
+      return skip("the interrupted messages run again");
+    if (this.#busyWithUser(entry.agentId)) return tookOver("another turn runs");
     const session = this.#hooks.session(entry.agentId, entry.threadId);
     // `SendMessage` finds a subagent only in the session it ran in: a context reset, an account or
     // provider change gives the chat a new one. Fork (#92): another provider's agent is told what
@@ -709,7 +834,9 @@ export class ForkRestartResume {
       this.#skipLive(entry, "the provider session changed", "status.agent.subagentResumeSessionChanged");
       return "skipped";
     }
-    if (!session && (!live || sameSessionOnly))
+    // Fork (docs/fork/FEATURES.md #136): a Gemini (Antigravity) chat whose session is gone continues in a
+    // new one, and the wake says so (`freshSession`).
+    if (!session && (sameSessionOnly || (!live && agent.provider !== "antigravity")))
       return skip("provider session gone", sourceText("status.agent.restartResumeSessionGone"));
     let subagents = entry.subagents;
     if (session && agent.provider === "claude" && subagents.some((subagent) => !subagent.providerAgentId)) {
@@ -740,8 +867,13 @@ export class ForkRestartResume {
       entry.reason = "cancelled by the user";
       return "skipped";
     }
-    if (this.#hooks.laneBusy(entry.agentId) || this.#hooks.laneQueued(entry.agentId) > 0)
+    if (this.#busyWithUser(entry.agentId) || this.#queuedFromUser(entry.agentId) > 0)
       return tookOver("another turn runs");
+    // Fork (#136): the messages of the interrupted turn that did not run again by themselves.
+    const steered = (entry.steered ?? []).filter((message) => {
+      const delivery = this.#hooks.delivery(message.deliveryId);
+      return delivery === null || !ranAgain(delivery);
+    });
     if (entry.waitId) this.#hooks.closeWait(entry.agentId, entry.waitId);
     entry.waitId = null;
     // Saved once the delivery exists (`#tick`): a stop before that leaves the note pending, and the
@@ -762,6 +894,9 @@ export class ForkRestartResume {
         requestText: entry.requestText,
         now: new Date(now).toISOString(),
         provider: agent.provider,
+        steered,
+        freshSession: !session,
+        lastTry: entry.attempt >= maxAttempts(entry),
       }),
     });
     this.#log(entry);
@@ -809,7 +944,7 @@ const HAND_OVER_REQUEST_LIMIT = 1_000;
  * leaves the order to the agent: the user's message first, then the stopped work if it is still wanted.
  */
 export function restartHandOverText(input: {
-  notes: ReadonlyArray<Pick<RestartResumeEntry, "kind" | "interruptedAt" | "subagents" | "requestText">>;
+  notes: ReadonlyArray<Pick<RestartResumeEntry, "kind" | "interruptedAt" | "subagents" | "requestText" | "steered">>;
   timezone: string | undefined;
   provider: string;
 }): string {
@@ -844,6 +979,10 @@ export function restartHandOverText(input: {
       : null,
     request ? "The request that was stopped:" : null,
     request ? request.slice(0, HAND_OVER_REQUEST_LIMIT) : null,
+    steeredText(
+      input.notes.flatMap((note) => note.steered ?? []),
+      input.timezone,
+    ),
   ]
     .filter((line): line is string => line !== null)
     .join("\n");
@@ -877,6 +1016,12 @@ export function restartResumeText(input: {
   now?: string;
   /** Fork (#92): the agent's provider. Antigravity's subagents are continued with its own tools. */
   provider?: string;
+  /** Fork (docs/fork/FEATURES.md #136): messages of the interrupted turn the agent may not have handled. */
+  steered?: readonly RestartResumeMessage[];
+  /** Fork (#136): the earlier provider session is gone; the wake runs in a new one. */
+  freshSession?: boolean;
+  /** Fork (#136): no automatic try follows this one. Without it, any try after the first is the last. */
+  lastTry?: boolean;
 }): string {
   if (input.provider === "antigravity") return antigravityResumeText(input);
   const at = localTime(input.interruptedAt, input.timezone);
@@ -912,9 +1057,12 @@ export function restartResumeText(input: {
     input.attempt > 1
       ? process
         ? "The subagents you continued after the first stop stopped again. This is the last automatic try."
-        : "Your first resume after the restart was interrupted by another restart. This is the last automatic try."
+        : input.lastTry === false
+          ? `Your resume after the restart was interrupted by another restart; this is automatic try ${input.attempt}.`
+          : "Your first resume after the restart was interrupted by another restart. This is the last automatic try."
       : null,
     longDowntime,
+    input.freshSession ? FRESH_SESSION_LINE : null,
     finished.length > 0
       ? `These subagents had finished just before the stop; only their "done" notification was lost. Do NOT continue or relaunch them — use their answers as if they had reported:\n${results.join("\n\n")}`
       : null,
@@ -927,9 +1075,12 @@ export function restartResumeText(input: {
       ? subagents.length > 0
         ? "Then tell the user in one line that you continued it, and end your turn: its result comes back to you as before."
         : "Then go on as you would have when they reported: tell the user the result, or continue your work with it."
-      : "Then continue your work. This is the same chat and session: you know what you did before the restart.",
+      : input.freshSession
+        ? "Then continue your work."
+        : "Then continue your work. This is the same chat and session: you know what you did before the restart.",
     input.requestText ? "The request it continues:" : null,
     input.requestText || null,
+    steeredText(input.steered ?? [], input.timezone),
   ]
     .filter((line): line is string => line !== null)
     .join("\n");
@@ -951,13 +1102,26 @@ function antigravityResumeText(input: Parameters<typeof restartResumeText>[0]): 
     ? `Your subagents were stopped at ${at}: ${input.cause === "crashed" ? "the Antigravity process they ran in ended by itself" : "OpenBot closed the Antigravity process they ran in (a settings, MCP or account change)"} while OpenBot kept running — this is not a message from the user. A stopped subagent does not report back, so do not wait for it.`
     : `Your subagents were stopped at ${at} by an OpenBot restart — this is not a message from the user. A stopped subagent does not report back, so do not wait for it.`;
   const named = input.subagents.filter((subagent) => subagent.title || subagent.providerAgentId);
+  // Fork (docs/fork/FEATURES.md #136): a stopped turn without subagents is worded as one (it said
+  // "Your subagents were stopped" to a lead whose own turn the quit had stopped).
+  const turnOnly = !process && named.length === 0 && input.kind !== "subagents";
+  const said = turnOnly
+    ? input.kind === "goal"
+      ? `Your goal turns were stopped at ${at} by an OpenBot restart, between two turns — this is not a message from the user.`
+      : `Your last turn was interrupted at ${at} by an OpenBot restart — this is not a message from the user.`
+    : what;
   const task = (subagent: RestartResumeSubagent) =>
     subagent.prompt ? ` (task: ${subagent.prompt.replace(/\s+/gu, " ").trim()})` : "";
   const name = (subagent: RestartResumeSubagent) =>
     `${subagent.providerAgentId ?? "(conversation ID unknown)"} — ${subagent.title || "(no role)"}${task(subagent)}`;
   return [
-    `[OpenBot: 🔄 restart] ${what}`,
-    input.attempt > 1 ? "The subagents stopped again after the first try. This is the last automatic try." : null,
+    `[OpenBot: 🔄 restart] ${said}`,
+    input.attempt > 1
+      ? input.lastTry === false && !process
+        ? `Your resume after the restart was interrupted by another restart; this is automatic try ${input.attempt}.`
+        : "The subagents stopped again after the first try. This is the last automatic try."
+      : null,
+    input.freshSession ? FRESH_SESSION_LINE : null,
     named.length > 0 ? `These subagents were stopped mid-task: ${named.map(name).join("; ")}.` : null,
     "Before you redo anything, check what already happened (files, git, messages already sent). Never repeat sends, posts, payments or other outward actions.",
     named.length > 0
@@ -968,9 +1132,48 @@ function antigravityResumeText(input: Parameters<typeof restartResumeText>[0]): 
       : "Then continue your work.",
     input.requestText ? "The request it continues:" : null,
     input.requestText || null,
+    steeredText(input.steered ?? [], input.timezone),
   ]
     .filter((line): line is string => line !== null)
     .join("\n");
+}
+
+/** Fork (docs/fork/FEATURES.md #136): the earlier provider session could not be kept. */
+const FRESH_SESSION_LINE =
+  "OpenBot could not reopen your earlier provider session, so this is a new one and you do not remember that turn: rebuild what you need from the request below, the files you wrote, git and the messages you sent before you go on.";
+
+/**
+ * Fork (docs/fork/FEATURES.md #136): the messages that came into the interrupted turn after the agent's
+ * last answer (the lead's updates, a teammate's report, the user's follow-ups): the restart stopped the
+ * turn before the agent handled them, and nothing else brings them back.
+ */
+function steeredText(messages: readonly RestartResumeMessage[], timezone: string | undefined): string | null {
+  if (messages.length === 0) return null;
+  const lines = messages
+    .slice(-STEERED_LIMIT)
+    .map(
+      (message) =>
+        `- ${localTime(message.at, timezone)}, from ${message.from}: ${message.text.replace(/\s+/gu, " ").trim()}`,
+    );
+  return [
+    `These messages came into that turn after your last answer, and the restart stopped it before you handled them. Handle each one now (answer, act on it, or reply to its sender with openbot.send_message as it asks):`,
+    ...lines,
+  ].join("\n");
+}
+
+/** Fork (#136): the tries this work gets. */
+function maxAttempts(entry: Pick<RestartResumeEntry, "cleanStops">) {
+  return entry.cleanStops ? RESTART_RESUME_MAX_QUIT_ATTEMPTS : RESTART_RESUME_MAX_ATTEMPTS;
+}
+
+/** Fork (#136): the messages of earlier tries and of this one, each once, oldest first. */
+function mergeSteered(
+  earlier: readonly RestartResumeMessage[],
+  now: readonly RestartResumeMessage[],
+): RestartResumeMessage[] {
+  const byId = new Map(earlier.map((message) => [message.deliveryId, message]));
+  for (const message of now) byId.set(message.deliveryId, message);
+  return [...byId.values()].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).slice(-STEERED_LIMIT);
 }
 
 /** "45 minutes", "9 hours", "2 days". */

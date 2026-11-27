@@ -228,6 +228,8 @@ export class ThreadLifecycle {
   readonly #archiveRetries: CodexArchiveRetries;
   readonly #pendingRuntimeRefreshes = new Set<string>();
   readonly #mcpRuntimeRefreshes = new Set<string>();
+  /** Fork (docs/fork/FEATURES.md #136): agents whose pending refresh also asks for new sessions (skills, settings). */
+  readonly #forkFullRefreshes = new Set<string>();
   readonly #backgroundWaits = new Map<string, { since: number; until: number | null }>();
   readonly #sessionMcpSets = new Map<string, string>();
   readonly #pendingStarts = new Map<string, number>();
@@ -289,6 +291,7 @@ export class ThreadLifecycle {
     const agent = this.#store.list().find((candidate) => candidate.id === agentId);
     if (!agent) throw new Error(sourceText("error.agent.selectedGone"));
     this.#pendingRuntimeRefreshes.add(agentId);
+    this.#forkFullRefreshes.add(agentId); // Fork (docs/fork/FEATURES.md #136)
     yield* this.applyPendingRuntimeRefresh(agent);
   }, Effect.uninterruptible).bind(this);
 
@@ -1562,11 +1565,22 @@ export class ThreadLifecycle {
     const waitedOut = wait?.until != null && Date.now() >= wait.until;
     const threadIds = this.#store.database.activeProviderSessionThreads(agent.id);
     const reloadProvider = RUNTIME_RELOADED_ON_RESUME.has(agent.provider) ? agent.provider : null;
+    // Fork (docs/fork/FEATURES.md #136): an MCP or tool-runtime refresh leaves a session that no client
+    // has open alone. Its next start compares the session's tool manifest (`#hasCurrentSessionTools`) and
+    // replaces it only when the tools changed. At boot no client has any session open, and an MCP change
+    // then (a server such as Computer Use coming up) refreshed every agent: each Gemini (Antigravity) chat
+    // lost its session, so the restart resume found none ("provider session gone") and none of the agents
+    // that the quit stopped continued (27 Nov 2026 17:47, six agents).
+    const mcpOnly =
+      this.#mcpRuntimeRefreshes.has(agent.id) &&
+      !this.#forkFullRefreshes.has(agent.id) &&
+      !resets?.includes(settingsIdentity);
     for (const threadId of threadIds) {
       if (this.#activeTurnOf(agent.id, threadId)) {
         deferred = true;
         continue;
       }
+      if (mcpOnly && !this.#forkSessionOpen(threadId)) continue;
       const background = yield* this.#backgroundHold(threadId);
       // Fork (#92): a client with a limit holds the refresh for that long at most. The close then
       // reports its subagents as stopped, and the agent gets a notice.
@@ -1589,10 +1603,18 @@ export class ThreadLifecycle {
     if (!deferred) {
       this.#pendingRuntimeRefreshes.delete(agent.id);
       this.#mcpRuntimeRefreshes.delete(agent.id);
+      this.#forkFullRefreshes.delete(agent.id);
       this.#backgroundWaits.delete(agent.id);
       this.#store.clearSessionSettingReset(agent.id, settingsIdentity);
     }
   }, Effect.uninterruptible).bind(this);
+
+  /** Fork (docs/fork/FEATURES.md #136): a client holds one of the thread's active sessions. */
+  #forkSessionOpen(threadId: string): boolean {
+    return this.#store.database
+      .listProviderSessions(threadId)
+      .some((session) => session.state === "active" && this.#conversation.openClientFor(session.externalSessionId));
+  }
 
   readonly #backgroundHold = Effect.fn("ThreadLifecycle.backgroundHold")(function* (
     this: ThreadLifecycle,

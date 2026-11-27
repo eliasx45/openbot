@@ -4878,6 +4878,19 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       laneBusy: (agentId) =>
         Boolean(this.#conversation.workingSnapshot(agentId)?.activeTurnId) || this.#mailbox.laneActive(agentId, null),
       laneQueued: (agentId) => this.#mailbox.laneQueuedIds(agentId, null).length,
+      // Fork (docs/fork/FEATURES.md #136): only the user's message runs instead of a restart wake.
+      laneQueuedFromUser: (agentId) =>
+        this.#mailbox
+          .laneQueuedIds(agentId, null)
+          .filter((id) => this.#mailbox.getDelivery(id)?.delivery.sender.kind === "user").length,
+      laneBusyWithUser: (agentId) => {
+        const turnId = this.#conversation.workingSnapshot(agentId)?.activeTurnId;
+        const running = turnId ? this.#mailbox.findDeliveriesByTurn(agentId, turnId) : [];
+        return [...running, ...this.#mailbox.startingDeliveriesForAgent(agentId, null)].some(
+          ({ delivery }) => delivery.sender.kind === "user",
+        );
+      },
+      agentName: (agentId) => this.#store.get(agentId)?.name ?? null,
       continuationQueued: (agentId) => this.#mailbox.nextQueued(agentId, null)?.planContinuation?.queued === true,
       delivery: (deliveryId) => this.#mailbox.getDelivery(deliveryId)?.delivery ?? null,
       deliveryOfTurn: (turnId) => this.#mailbox.findDeliveryByTurn(turnId)?.delivery ?? null,
@@ -7965,7 +7978,13 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
 
   #emit(event: AgentEvent, memberId?: string): void {
     recordAgentRestartActivity(event);
-    if (event.type === "turn-started") forkHub.restartResume?.turnStarted(event.agentId, event.threadId);
+    // Fork (docs/fork/FEATURES.md #136): only the user's turn takes a restart wake's place.
+    if (event.type === "turn-started")
+      forkHub.restartResume?.turnStarted(
+        event.agentId,
+        event.threadId,
+        event.origin === undefined || event.origin === "user",
+      );
     if (event.type === "usage-changed") for (const provider of AGENT_PROVIDERS) this.#refreshPoolInUse(provider);
     this.#liveVoice?.observe(event);
     if (this.channels?.event(event) || this.messaging?.event(event, this.#scope) || this.#tasks?.event(event)) return;

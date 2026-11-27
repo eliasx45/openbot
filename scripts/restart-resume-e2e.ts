@@ -313,6 +313,11 @@ function stateFile(): {
 } {
   return JSON.parse(readFileSync(join(userData, "fork-restart-resume.json"), "utf8"));
 }
+/** Fork (docs/fork/FEATURES.md #136): the previous run as if it crashed: no clean stop in the state file. */
+function markCrashed(): void {
+  const saved = stateFile();
+  writeFileSync(join(userData, "fork-restart-resume.json"), JSON.stringify({ ...saved, stoppedAt: null }));
+}
 function entriesOf(agentId: string) {
   try {
     return stateFile().entries.filter((entry) => entry.agentId === agentId);
@@ -938,6 +943,9 @@ try {
   current = null;
 
   // ---------- I4: the wake of Retry was interrupted: one more try ----------
+  // Fork (docs/fork/FEATURES.md #136): clean quits get more tries; I4 and I5 check the crash limit, so the
+  // previous run is made to look crashed (no clean stop written).
+  markCrashed();
   const i4 = await start("I4", { OPENBOT_FORK_RESTART_RESUME_GRACE_MS: "800" });
   current = i4;
   await need("the second try of Retry", () => wakeTurnsFor(retry.request).length === 2, 30_000);
@@ -962,6 +970,7 @@ try {
 
   // ---------- I5: interrupted again: no more tries; then /autoresume off ----------
   await control({ hold: "HOLD5", turnMs: 150 });
+  markCrashed();
   const i5 = await start("I5", { OPENBOT_FORK_RESTART_RESUME_GRACE_MS: "800" });
   current = i5;
   await sleep(800 + STAGGER_MS * 3);
