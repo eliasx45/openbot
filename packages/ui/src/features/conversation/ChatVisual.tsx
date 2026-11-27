@@ -1,5 +1,7 @@
 import {
   CHAT_VISUAL_COLOR_SCHEME,
+  CHAT_VISUAL_DATA_TOO_MANY,
+  CHAT_VISUAL_DATA_UNAVAILABLE,
   CHAT_VISUAL_FRAME_SANDBOX,
   CHAT_VISUAL_STATE_UNAVAILABLE,
   type ChatVisualKey,
@@ -15,7 +17,13 @@ import {
   chatVisualThemeMessage,
   parseChatVisualMessage,
 } from "@openbot/contracts/chat-visual";
-import type { PageStateOperation, PageStateReply } from "@openbot/contracts/fork-saved-apps";
+import {
+  createRateLimiter,
+  PAGE_DATA_RATES,
+  type PageDataOperation,
+  type PageStateOperation,
+  type PageStateReply,
+} from "@openbot/contracts/fork-saved-apps";
 import type { AttachmentSummary } from "@openbot/contracts/ipc";
 import { AppWindow, Button, Check, LoaderCircle, Maximize2, PanelRight, Wallpaper } from "@openbot/ui";
 import { Portal } from "@solidjs/web";
@@ -85,6 +93,8 @@ interface ChatVisualProps {
   macWindowControls?: boolean | undefined;
   /** Fork (docs/fork/FEATURES.md #123): openbotPage.state; without it the page hears that saved data is not available. */
   onState?: ((request: PageStateOperation) => Promise<PageStateReply>) | undefined;
+  /** Fork (docs/fork/FEATURES.md #123): openbotPage.data; main checks the page declared it. */
+  onData?: ((request: PageDataOperation) => Promise<PageStateReply>) | undefined;
   /** Fork (docs/fork/FEATURES.md #123): the "Save as app" button of a chat page. */
   saveAsApp?: SaveAsAppAction | undefined;
 }
@@ -126,6 +136,8 @@ function VisualFrame(props: ChatVisualProps) {
   let frame: HTMLIFrameElement | undefined;
   let box: HTMLDivElement | undefined;
   let expandButton: HTMLButtonElement | undefined;
+  // Fork (docs/fork/FEATURES.md #123): openbotPage.data calls of this frame, at most 10 in 10 seconds.
+  const dataRate = createRateLimiter(PAGE_DATA_RATES);
   const url = () => {
     const current = theme();
     return current && props.html === undefined && props.src !== undefined
@@ -210,6 +222,16 @@ function VisualFrame(props: ChatVisualProps) {
         };
         if (!props.onState) return answer({ ok: false, error: CHAT_VISUAL_STATE_UNAVAILABLE });
         props.onState(message.request).then(answer, () => answer({ ok: false, error: CHAT_VISUAL_STATE_UNAVAILABLE }));
+        return;
+      }
+      case "data": {
+        // Fork (docs/fork/FEATURES.md #123): openbotPage.data, answered by main for a page that declared it.
+        const answer = (outcome: PageStateReply) => {
+          if (frame?.contentWindow === page) page.postMessage(chatVisualStateReplyMessage(message.id, outcome), "*");
+        };
+        if (!props.onData) return answer({ ok: false, error: CHAT_VISUAL_DATA_UNAVAILABLE });
+        if (!dataRate.take()) return answer({ ok: false, error: CHAT_VISUAL_DATA_TOO_MANY });
+        props.onData(message.request).then(answer, () => answer({ ok: false, error: CHAT_VISUAL_DATA_UNAVAILABLE }));
         return;
       }
       case "context":

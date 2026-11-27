@@ -2739,6 +2739,7 @@ export class OpenBotToolRouter {
           messageId,
           attachmentId,
           title: args.title,
+          uses: args.uses ?? [],
         });
         return { turnId: params.turnId, messageId, attachmentId };
       },

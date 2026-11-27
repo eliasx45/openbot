@@ -12,6 +12,7 @@ import {
   FEEDBACK_FINDERS,
   FEEDBACK_SURFACES,
 } from "@openbot/contracts/feedback";
+import { PAGE_USES } from "@openbot/contracts/fork-saved-apps";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import { API_KEY_NAME_PATTERN, CONNECTOR_IDS, VAULT_API_KEY_LIMIT, VAULT_NOTES_LIMIT } from "@openbot/contracts/ipc";
 import { isUiBlockId, UI_BLOCK_LIMITS } from "@openbot/contracts/ui-blocks";
@@ -108,7 +109,8 @@ const VISUAL_PAGE_ACTIONS = [
   `openbotPage.setContext(text) from a click keeps the page state as a quote in the user's message box, so you read it with the next message; up to ${CHAT_VISUAL_CONTEXT_LIMIT} characters, and empty text removes it.`,
   "OpenBot gives each page a full-screen button and opens a clicked image large, so do not build them. The mobile app runs page scripts but has no openbotPage, so check that window.openbotPage exists before you call it.",
   // Fork (docs/fork/FEATURES.md #123): saved data for pages and saved apps.
-  "To keep data (a list, a score, settings) across reloads, use await openbotPage.state.get(key), .set(key, jsonValue) (null deletes) and .keys() when window.openbotPage?.state exists: it stays with the page, in its newer versions with the same title and in the app the user saves from it (up to 64 KB per value, 256 KB per page).",
+  "To keep data across reloads, use await openbotPage.state.get(key), .set(key, json) (null deletes) and .keys(): it stays with the page, its newer versions and its saved app (64 KB per value, 256 KB per page).",
+  'To show shared table rows live, pass uses: ["data"] and call await openbotPage.data.query(sql, params) (one read-only SELECT; gives { columns, rows, truncated }) or .tables().',
 ].join(" ");
 
 export const htmlRenderToolSchema = z.object({
@@ -123,6 +125,12 @@ export const htmlRenderToolSchema = z.object({
     .describe(
       `The highest frame height in CSS pixels, ${CHAT_VISUAL_MIN_HEIGHT}-${CHAT_VISUAL_MAX_HEIGHT}. Omit it to fit the whole page.`,
     ),
+  // Fork (docs/fork/FEATURES.md #123): what the page reads through openbotPage beyond the basics.
+  uses: z
+    .array(z.enum(PAGE_USES))
+    .max(PAGE_USES.length)
+    .optional()
+    .describe('"data": the page reads shared tables live.'),
 });
 
 const backdropBubbleColor = z.string().regex(/^#[0-9a-fA-F]{6}$/u, "Use a #rrggbb color.");

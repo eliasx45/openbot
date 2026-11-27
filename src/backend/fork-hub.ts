@@ -1,3 +1,4 @@
+import type { PageUse } from "@openbot/contracts/fork-saved-apps";
 /**
  * Fork: the fork's own services, reachable from the few upstream functions that call into them
  * (prompt building, turn ends) without threading them through upstream constructors. Keeping the
@@ -39,7 +40,15 @@ export interface ForkChannelWebhooks {
 
 /** Fork (docs/fork/FEATURES.md #123): a new chat page (html_render) can be a new version of a saved app. */
 export interface ForkSavedAppsHook {
-  pageAdded(page: { agentId: string; threadId: string; messageId: string; attachmentId: string; title: string }): void;
+  pageAdded(page: {
+    agentId: string;
+    threadId: string;
+    messageId: string;
+    attachmentId: string;
+    title: string;
+    /** html_render `uses` (phase C): kept by main where the page cannot change it. */
+    uses: readonly PageUse[];
+  }): void;
 }
 
 export const forkHub: {

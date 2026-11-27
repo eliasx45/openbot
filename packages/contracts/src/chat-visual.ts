@@ -1,4 +1,11 @@
-import { isPageStateKey, type PageStateOperation, type PageStateValue, pageStateValue } from "./fork-saved-apps";
+import {
+  isPageStateKey,
+  type PageDataOperation,
+  type PageStateOperation,
+  type PageStateValue,
+  pageDataOperation,
+  pageStateValue,
+} from "./fork-saved-apps";
 import { INPUT_LIMITS } from "./input-limits";
 import { type AvatarColor, isAvatarColor } from "./ipc-agent-identity";
 import { isBoundedString, isIdentifier } from "./ipc-bounded-values";
@@ -24,6 +31,11 @@ export const CHAT_VISUAL_SELECTION_CHANGED = "openbot/notifications/selection-ch
 // Fork (docs/fork/FEATURES.md #123): openbotPage.state, the page's saved data.
 export const CHAT_VISUAL_PAGE_STATE = "openbot/page-state";
 export const CHAT_VISUAL_STATE_UNAVAILABLE = "Saved data is not available here.";
+// Fork (docs/fork/FEATURES.md #123): openbotPage.data, live reads of OpenBot's shared tables.
+export const CHAT_VISUAL_PAGE_DATA = "openbot/page-data";
+export const CHAT_VISUAL_DATA_UNAVAILABLE = "Live data is not available here.";
+export const CHAT_VISUAL_DATA_UNDECLARED = "This page did not ask for data.";
+export const CHAT_VISUAL_DATA_TOO_MANY = "Too many data calls from this page. Wait a moment.";
 
 export type ChatVisualDisplayMode = "inline" | "fullscreen";
 const DISPLAY_MODES: readonly ChatVisualDisplayMode[] = ["inline", "fullscreen"];
@@ -206,7 +218,8 @@ export type ChatVisualMessage =
   | { type: "open-image"; src: string; name: string }
   | { type: "key"; key: ChatVisualKey }
   | { type: "selection"; text: string; rect: ChatVisualRect }
-  | { type: "state"; id: number | string; request: PageStateOperation }; // Fork (docs/fork/FEATURES.md #123)
+  | { type: "state"; id: number | string; request: PageStateOperation } // Fork (docs/fork/FEATURES.md #123)
+  | { type: "data"; id: number | string; request: PageDataOperation }; // Fork (docs/fork/FEATURES.md #123)
 
 export function chatVisualFrameHeight(reported?: number, requested?: number): number {
   const limit = requested !== undefined && Number.isFinite(requested) ? clampHeight(requested) : undefined;
@@ -315,6 +328,12 @@ export function parseChatVisualMessage(data: unknown): ChatVisualMessage | null 
       if (!isEdge(top) || !isEdge(left) || !isEdge(bottom) || !isEdge(right)) return null;
       return { type: "selection", text: text.trim(), rect: { top, left, bottom, right } };
     }
+    case CHAT_VISUAL_PAGE_DATA: {
+      // Fork (docs/fork/FEATURES.md #123)
+      const id = requestId(data.id);
+      const request = pageDataOperation(params);
+      return id !== null && request ? { type: "data", id, request } : refused(id);
+    }
     case CHAT_VISUAL_PAGE_STATE: {
       // Fork (docs/fork/FEATURES.md #123)
       const id = requestId(data.id);
@@ -413,6 +432,10 @@ state:Object.freeze({
 get:(key)=>request("${CHAT_VISUAL_PAGE_STATE}",{op:"get",key:String(key)}),
 set:(key,value)=>{let json=null;try{json=value===undefined?null:JSON.parse(JSON.stringify(value)??"null");}catch(error){return Promise.reject(error);}return request("${CHAT_VISUAL_PAGE_STATE}",{op:"set",key:String(key),value:json}).then(()=>undefined);},
 keys:()=>request("${CHAT_VISUAL_PAGE_STATE}",{op:"keys"})
+}),
+data:Object.freeze({
+query:(sql,params)=>request("${CHAT_VISUAL_PAGE_DATA}",{op:"query",sql:String(sql),params:params===undefined?[]:params}),
+tables:()=>request("${CHAT_VISUAL_PAGE_DATA}",{op:"tables"})
 })
 });
 let lastHeight=-1;
