@@ -88,6 +88,15 @@ import {
 import { type AgentCliInfo, cliPathEnvironment, compareReleases, isVersion, olderVersion } from "./cli";
 import { runCauseEffect } from "./effect-boundary";
 import { encodedModelId, providerModelValue } from "./encoded-model-id";
+import {
+  type ForkProviderRestart,
+  type ProcessTreeSample,
+  processAlive,
+  sampleProcessTree,
+  systemOverloaded,
+  treeJobs,
+  treeProgressed,
+} from "./fork-provider-hang";
 import { FORK_BACKGROUND_STOPPED_METHOD } from "./fork-restart-resume";
 import { IdleThreadPool } from "./idle-thread-pool";
 import { type DynamicToolNamespace, LocalMcpBridge, type LocalMcpSession } from "./local-mcp-bridge";
@@ -159,6 +168,27 @@ const ACP_HISTORY_REPLAY_QUEUE_LIMIT = 256;
 const ACP_PROMPT_AUDIO_BASE64_BYTES = 19 * 1024 * 1024;
 
 const ACP_TURN_STALL_MS = 5 * 60_000;
+
+/**
+ * Fork (docs/fork/FEATURES.md #131): an agent whose prompt stays open for background work counts as
+ * hung only after this long with no output, no answer to a `session/list` probe and no CPU progress
+ * of its process tree (time while the machine is overloaded does not count). Probes run this far apart.
+ * `OPENBOT_FORK_ACP_HANG_MS` and `OPENBOT_FORK_ACP_HANG_PROBE_MS` shorten them for tests, and
+ * `OPENBOT_FORK_ACP_IGNORE_LOAD=1` keeps counting on a loaded machine.
+ */
+const ACP_HANG_MS = 10 * 60_000;
+const ACP_HANG_PROBE_GAP_MS = 30_000;
+/** CPU the tree must use, as a share of one core over a probe round, to count as progress. */
+const ACP_HANG_CPU_SHARE = 0.01;
+/** And at least this much, so the few ms an idle process uses in a short test round are not progress. */
+const ACP_HANG_CPU_MIN_MS = 250;
+/** After a hung agent ended, how long its descendants get to end with it before OpenBot lists the survivors. */
+const ACP_HANG_REAP_MS = 1_000;
+
+function forkEnvMs(name: string): number | undefined {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
 
 const ACP_MODEL_RETRY_GRACE = 1.2;
 
@@ -281,6 +311,8 @@ interface AcpTurn {
   textAt: number;
   quietWatch: boolean;
   quietAnswer: ThreadItem | null;
+  /** Fork (docs/fork/FEATURES.md #131): OpenBot ended the hung agent of this turn; sent with `turn/completed`. */
+  forkRestart?: ForkProviderRestart;
 }
 
 type AcpSessionRestore = Omit<LoadSessionRequest, "sessionId">;
@@ -445,6 +477,12 @@ export interface AcpProviderOptions {
   servesModel?: ((modelId: string) => boolean) | undefined;
   mcpServers?: McpServerSource | undefined;
   turnStallMs?: number;
+  /** Fork (docs/fork/FEATURES.md #131): tests shorten `ACP_HANG_MS` and `ACP_HANG_PROBE_GAP_MS`. */
+  hangMs?: number;
+  hangProbeGapMs?: number;
+  /** Fork (docs/fork/FEATURES.md #131): tests give the process tree's CPU and the machine's load. */
+  sampleProcessTree?: (pid: number) => Promise<ProcessTreeSample | null>;
+  systemOverloaded?: () => boolean;
   firstUpdateMs?: number;
   /** Fork (docs/fork/FEATURES.md #111): tests shorten `ACP_ANSWER_QUIET_MS`. */
   answerQuietMs?: number;
@@ -3708,7 +3746,7 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     this: AcpAgentClient,
     thread: AcpThread,
     turn: AcpTurn,
-    status: "interrupted" | "failed",
+    status: "interrupted" | "failed" | "completed",
     error: string | null,
   ) {
     if (thread.activeTurn !== turn || turn.completing) return;
@@ -3723,7 +3761,12 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     thread: AcpThread,
     turn: AcpTurn,
   ) {
-    const agentLimit = this.options.turnStallMs ?? this.#flavor.turnStallMs ?? ACP_TURN_STALL_MS;
+    const agentLimit =
+      this.options.turnStallMs ??
+      // Fork (docs/fork/FEATURES.md #131): end-to-end tests of the whole app shorten the stall limit.
+      forkEnvMs("OPENBOT_FORK_ACP_TURN_STALL_MS") ??
+      this.#flavor.turnStallMs ??
+      ACP_TURN_STALL_MS;
     const grace = this.#flavor.modelRetryUpdate ? ACP_MODEL_RETRY_GRACE : 1;
     let answeredAt = 0;
     while (thread.activeTurn === turn && !turn.completing && !turn.stopped) {
@@ -3764,7 +3807,7 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     const transport = thread?.transport ?? this.#transport;
     if (!this.#flavor.promptOpenForBackgroundTasks || this.#probing || !transport.running) return false;
     this.#probing = true;
-    const hung = yield* Effect.gen({ self: this }, function* () {
+    const timedOut = Effect.gen({ self: this }, function* () {
       const connection = yield* providerSync(() => transport.requireConnection());
       yield* providerCall(() => connection.listSessions({ cwd: this.options.discoveryCwd?.() ?? process.cwd() })).pipe(
         this.#backgroundTimeout("session/list"),
@@ -3772,6 +3815,50 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     }).pipe(
       Effect.as(false),
       Effect.catch((failure) => Effect.succeed(failure.cause instanceof TimeoutError)),
+    );
+    // Fork (docs/fork/FEATURES.md #131): one slow answer is not a hung agent. A busy machine made
+    // `agy` miss one probe and OpenBot ended it with the background job its turn waited for (Chopper,
+    // 27 Nov 2026). The agent is hung only when, for `ACP_HANG_MS` of counted time, it wrote nothing,
+    // answered no probe and its process tree used no CPU. Time while the machine is overloaded does
+    // not count. Any sign of life ends the watch; the stall watch then starts over.
+    const hangMs = this.options.hangMs ?? forkEnvMs("OPENBOT_FORK_ACP_HANG_MS") ?? ACP_HANG_MS;
+    const gapMs = this.options.hangProbeGapMs ?? forkEnvMs("OPENBOT_FORK_ACP_HANG_PROBE_MS") ?? ACP_HANG_PROBE_GAP_MS;
+    const sample = this.options.sampleProcessTree ?? sampleProcessTree;
+    const overloaded =
+      this.options.systemOverloaded ??
+      (process.env.OPENBOT_FORK_ACP_IGNORE_LOAD === "1" ? () => false : systemOverloaded);
+    const pid = transport.pid;
+    const turn = thread?.activeTurn;
+    const outputAt = transport.lastOutputAt;
+    const activityAt = turn?.lastActivityAt ?? 0;
+    const alive = () =>
+      !transport.running || transport.lastOutputAt > outputAt || (turn ? turn.lastActivityAt > activityAt : false);
+    const read = (at: number | undefined) =>
+      at === undefined ? Effect.succeed(null) : Effect.promise(() => sample(at).catch(() => null));
+    let lastSample: ProcessTreeSample | null = null;
+    const hung = yield* Effect.gen({ self: this }, function* () {
+      let before = yield* read(pid);
+      let counted = 0;
+      let last = Date.now();
+      for (let round = 1; ; round += 1) {
+        if (!(yield* timedOut) || alive()) return false;
+        const after = yield* read(pid);
+        const now = Date.now();
+        const minCpuMs = Math.max(ACP_HANG_CPU_MIN_MS, (now - last) * ACP_HANG_CPU_SHARE);
+        if (before && after && treeProgressed(before, after, minCpuMs)) return false;
+        if (after) lastSample = after;
+        before = after ?? before;
+        if (!overloaded()) counted += now - last;
+        last = now;
+        if (counted >= hangMs) return true;
+        this.emit(
+          "diagnostic",
+          `${this.#label} did not answer session/list in time and its processes made no progress (${round}; ${Math.round(counted / 1000)} s of ${Math.round(hangMs / 1000)} s).`,
+        );
+        yield* Effect.sleep(gapMs);
+        if (alive()) return false;
+      }
+    }).pipe(
       Effect.ensuring(
         Effect.sync(() => {
           this.#probing = false;
@@ -3779,20 +3866,56 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       ),
     );
     if (!hung || !transport.running) return false;
+    const silentMinutes = Math.round(hangMs / 60_000);
+    logger.warn("An ACP agent made no progress, so OpenBot ends its process.", {
+      provider: this.provider,
+      silentMs: hangMs,
+    });
     this.emit("diagnostic", `${this.#label} did not answer session/list in time.`);
+    const message = sourceText("error.provider.acpUnresponsive", { provider: this.#label });
+    const jobs = pid !== undefined && lastSample ? treeJobs(lastSample, pid, (text) => this.#redact(text)) : [];
+    const restart = (): ForkProviderRestart => ({
+      running: jobs.filter((job) => processAlive(job.pid)),
+      ended: jobs.filter((job) => !processAlive(job.pid)),
+      silentMinutes,
+    });
+    const active = thread?.activeTurn ?? null;
     if (thread && transport !== this.#transport) {
-      const turn = thread.activeTurn;
-      const message = sourceText("error.provider.acpUnresponsive", { provider: this.#label });
-      if (turn) {
-        turn.failureCause = "timeout";
-        yield* this.#abandonTurn(thread, turn, "failed", message);
+      // The prompt fails when its process ends: stop the turn's task first, end it after the process.
+      if (active && thread.activeTurn === active && !active.completing) {
+        active.abandoned = true;
+        if (active.task) yield* Fiber.interrupt(active.task);
       }
       thread.needsResume = true;
       yield* transport.stop(Effect.void).pipe(Effect.ignore);
+      if (active && jobs.length > 0) yield* Effect.sleep(ACP_HANG_REAP_MS);
+      if (active) yield* this.#endHungTurn(thread, active, message, restart());
       return true;
     }
-    yield* this.#endAgentProcess(sourceText("error.provider.acpUnresponsive", { provider: this.#label }));
+    if (thread && active) yield* this.#endHungTurn(thread, active, message, restart());
+    yield* this.#endAgentProcess(message);
     return true;
+  });
+
+  /**
+   * Fork (docs/fork/FEATURES.md #131): the turn of an agent OpenBot ended as hung. A turn that already
+   * posted its answer and was only held open for background work completes: the answer stands. Either
+   * way the turn carries `forkProviderRestart`, so OpenBot resumes the chat by itself.
+   */
+  readonly #endHungTurn = Effect.fn("AcpAgentClient.endHungTurn")(function* (
+    this: AcpAgentClient,
+    thread: AcpThread,
+    turn: AcpTurn,
+    message: string,
+    restart: ForkProviderRestart,
+  ) {
+    turn.forkRestart = restart;
+    if (turn.quietAnswer !== null || turn.text.trim() !== "") {
+      yield* this.#abandonTurn(thread, turn, "completed", null);
+      return;
+    }
+    turn.failureCause = "timeout";
+    yield* this.#abandonTurn(thread, turn, "failed", message);
   });
 
   #whileProcessWrites<A>(request: Effect.Effect<A, ProviderClientOperationError>, method: string) {
@@ -4412,7 +4535,12 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     }
     this.emit("notification", {
       method: "turn/completed",
-      params: { threadId: thread.id, turn: { id: turn.id, status } },
+      params: {
+        threadId: thread.id,
+        turn: { id: turn.id, status },
+        // Fork (docs/fork/FEATURES.md #131): the chat resumes by itself after a hung agent was ended.
+        ...(turn.forkRestart ? { forkProviderRestart: turn.forkRestart } : {}),
+      },
     });
     thread.activeTurn = null;
     if (this.#threads.get(thread.id) !== thread) return;

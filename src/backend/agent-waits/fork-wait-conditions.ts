@@ -83,7 +83,26 @@ interface Watched {
    * Fork (docs/fork/FEATURES.md, "Agents ride out a network drop"): OpenBot opened this wait itself,
    * because a turn failed on a network error. The wake text says so.
    */
-  network?: { failedAt: number; error: string };
+  network?: { failedAt: number; error: string; restart?: ProviderRestartRecord };
+}
+
+/** Fork (docs/fork/FEATURES.md #131): a resume after OpenBot ended a hung provider. */
+interface ProviderRestartRecord {
+  provider: string;
+  outcome: string;
+  silentMinutes: number;
+  running: { pid: number; command: string }[];
+  ended: { pid: number; command: string }[];
+  teammateRequests: { messageId: string; requesterName: string }[];
+}
+
+export interface ProviderRestartInput {
+  agentId: string;
+  turnId: string;
+  requestMessageId: string | null;
+  requestText: string | null;
+  error: string | null;
+  restart: ProviderRestartRecord;
 }
 
 /** How long a turn that failed on the network waits for it, at most. */
@@ -306,11 +325,68 @@ export class ForkWaitConditions {
     return wait.id;
   }
 
+  /**
+   * Fork (docs/fork/FEATURES.md #131): OpenBot ended a hung provider during a turn of the agent's own
+   * chat. This opens a wait that starts a turn in the same chat and session as soon as the agent is
+   * idle, saying what happened and which of the provider's jobs still run. Shares the network
+   * resume's limit (`NETWORK_RESUME_LIMIT` per hour); returns the wait id (an open one when the agent
+   * already waits for its resume), or null at the limit.
+   */
+  openProviderRestartResume(input: ProviderRestartInput, now = Date.now()): string | null {
+    for (const watched of this.#watched.values()) {
+      const open = watched.agentId === input.agentId ? watched.network?.restart : undefined;
+      if (!open) continue;
+      // The agent hung again before its resume ran: the one resume covers both turns.
+      open.teammateRequests.push(...input.restart.teammateRequests);
+      open.running.push(...input.restart.running);
+      open.ended.push(...input.restart.ended);
+      this.#save();
+      return watched.waitId;
+    }
+    const recent = (this.#networkResumes.get(input.agentId) ?? []).filter((at) => now - at < NETWORK_RESUME_WINDOW_MS);
+    if (recent.length >= NETWORK_RESUME_LIMIT) {
+      this.#networkResumes.set(input.agentId, recent);
+      return null;
+    }
+    const requestText =
+      input.requestText?.trim() ||
+      "(No message: the provider started this turn itself, as it does when a background subagent or command ends.)";
+    let wait: AgentWait;
+    try {
+      wait = this.#store.open({
+        agentId: input.agentId,
+        requestMessageId: input.requestMessageId ?? `provider-restart:${input.turnId}`,
+        requestText,
+        note: "🔄 Provider restarted by OpenBot · resumes by itself".slice(0, INPUT_LIMITS.agentWaitNote),
+        routineId: null,
+      });
+    } catch (error) {
+      if (error instanceof AgentWaitError) return null;
+      throw error;
+    }
+    recent.push(now);
+    this.#networkResumes.set(input.agentId, recent);
+    this.#watched.set(wait.id, {
+      waitId: wait.id,
+      agentId: input.agentId,
+      note: "provider restarted; continue",
+      requestText,
+      watching: "the agent is idle",
+      deadline: now + NETWORK_RESUME_MINUTES * 60_000,
+      condition: { kind: "agent", agentId: input.agentId, sawWorking: true },
+      network: { failedAt: now, error: (input.error ?? "").slice(0, 500), restart: input.restart },
+    });
+    this.#save();
+    this.#changed(input.agentId);
+    return wait.id;
+  }
+
   /** A turn of the agent completed, so its network works: a network resume it still waits for is not needed. */
   closeNetworkResumes(agentId: string): void {
     let closed = false;
     for (const watched of [...this.#watched.values()]) {
-      if (watched.agentId !== agentId || !watched.network) continue;
+      // Fork (docs/fork/FEATURES.md #131): a provider restart's resume still has to tell the agent.
+      if (watched.agentId !== agentId || !watched.network || watched.network.restart) continue;
       this.#watched.delete(watched.waitId);
       this.#store.delete(agentId, watched.waitId);
       closed = true;
@@ -436,7 +512,11 @@ export class ForkWaitConditions {
     );
   }
 
-  #fireNetwork(watched: Watched, network: { failedAt: number; error: string }, detail: string, timedOut: boolean) {
+  #fireNetwork(watched: Watched, network: NonNullable<Watched["network"]>, detail: string, timedOut: boolean) {
+    if (network.restart) {
+      this.#fireRestart(watched, network.failedAt, network.restart);
+      return;
+    }
     const failedAt = new Date(network.failedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const title = shortName(timedOut ? "🔌 Network still down" : "🔌 Network back: continue");
     const text = [
@@ -461,6 +541,45 @@ export class ForkWaitConditions {
       `${this.#hooks.agentName(watched.agentId)}: ${timedOut ? "network still down" : "network back, resuming"}`,
       detail,
     );
+  }
+
+  /** Fork (docs/fork/FEATURES.md #131): the resume turn after OpenBot ended a hung provider. */
+  #fireRestart(watched: Watched, endedAt: number, restart: ProviderRestartRecord): void {
+    const at = new Date(endedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const jobs = (list: { pid: number; command: string }[]) =>
+      list.map((job) => `- pid ${job.pid}: ${job.command}`).join("\n");
+    const text = [
+      `[OpenBot: 🔄 provider restarted] At ${at} your provider (${restart.provider}) showed no progress for ${restart.silentMinutes} min: no output, no answer, no CPU use. OpenBot ended its process and restarted it; this turn continues in the same chat and session. This is not a message from the user.`,
+      restart.outcome === "completed" ? "Your answer of that turn was kept." : "That turn ended before you answered.",
+      ...(restart.running.length > 0
+        ? [
+            `These processes your provider had started still run. Do not start them again; check their output or logs and wait for them as before:\n${jobs(restart.running)}`,
+          ]
+        : []),
+      ...(restart.ended.length > 0
+        ? [
+            `These processes ended with the provider. Check their output first; start one again only if its work is not done:\n${jobs(restart.ended)}`,
+          ]
+        : []),
+      "The request that turn worked on:",
+      watched.requestText,
+      "",
+      "Continue that work now. Do not restart jobs that are still alive.",
+      ...restart.teammateRequests.map(
+        (request) =>
+          `${request.requesterName} asked for this (message ${request.messageId}). They were told you continue by yourself; your answer of this turn goes to them as your reply.`,
+      ),
+      "Then tell the user in one line what the restart interrupted and what still runs.",
+    ].join("\n");
+    try {
+      this.#hooks.wake({
+        agentId: watched.agentId,
+        waitId: watched.waitId,
+        title: shortName("🔄 Provider restarted: continue"),
+        text,
+      });
+    } catch {}
+    this.#hooks.notify(`${this.#hooks.agentName(watched.agentId)}: provider restarted, resuming`, restart.provider);
   }
 
   #changed(agentId: string): void {

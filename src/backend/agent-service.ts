@@ -2,11 +2,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+// Fork (docs/fork/FEATURES.md #131).
 import {
   AGENT_PROVIDERS,
   agentProviderDescriptor,
   agentSteersTurns,
   customAgentIdOfModel,
+  providerDisplayName,
 } from "@openbot/contracts/agent-providers";
 import { sortConversationMessages } from "@openbot/contracts/conversation-order";
 import { developmentStartingModel } from "@openbot/contracts/development-defaults";
@@ -972,6 +974,34 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         logger.warn("A turn failed on a network error.", { agentId, provider, resumes: waitId !== null });
       },
       turnCompleted: (agentId) => this.#waitConditions.closeNetworkResumes(agentId),
+      // Fork (docs/fork/FEATURES.md #131): a hung provider was ended; the chat resumes by itself.
+      providerRestarted: (input) => {
+        const { agentId, provider, restart } = input;
+        const waitId = this.#waitConditions.openProviderRestartResume({
+          agentId,
+          turnId: input.turnId,
+          requestMessageId: input.requestMessageId,
+          requestText: input.requestText,
+          error: input.error === null ? null : this.#mcp.redact(input.error),
+          restart: {
+            provider: providerDisplayName(provider),
+            outcome: input.outcome,
+            silentMinutes: restart.silentMinutes,
+            running: restart.running,
+            ended: restart.ended,
+            teammateRequests: input.teammateRequests,
+          },
+        });
+        logger.warn("OpenBot ended a hung provider during a turn.", {
+          agentId,
+          provider,
+          outcome: input.outcome,
+          running: restart.running.length,
+          ended: restart.ended.length,
+          resumes: waitId !== null,
+        });
+        return waitId;
+      },
     };
     // Fork: goal mode, and the memory recall, journal and nightly tidy (docs/fork/FEATURES.md).
     forkHub.goals = new ForkGoals({

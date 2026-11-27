@@ -57,6 +57,10 @@ export class AcpConnection {
   get ended(): Deferred.Deferred<ProcessEnd> | null {
     return this.#ended;
   }
+  /** Fork (docs/fork/FEATURES.md #131): the running process's id, to read its tree's CPU time. */
+  get pid(): number | undefined {
+    return this.#process?.pid;
+  }
   get lastOutputAt(): number {
     return this.#lastOutputAt;
   }

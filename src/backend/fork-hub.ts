@@ -7,11 +7,13 @@ import type { PageUse } from "@openbot/contracts/fork-saved-apps";
  */
 
 import type { ChannelMessage } from "@openbot/contracts/ipc";
+import type { AgentProvider } from "./agent-client";
 import type { ForkCacheCompact } from "./fork-cache-compact";
 import type { ForkComposio } from "./fork-composio";
 import type { ForkFollowThrough } from "./fork-follow-through";
 import type { ForkGoals } from "./fork-goals";
 import type { ForkMemory } from "./fork-memory";
+import type { ForkProviderRestart } from "./fork-provider-hang";
 import type { ForkRestartResume } from "./fork-restart-resume";
 import type { ForkSectionInheritance } from "./fork-section-inheritance";
 import type { ForkVoiceNotes } from "./fork-voice-notes";
@@ -27,6 +29,22 @@ export interface ForkNetworkResume {
     requestText: string | null;
   }): void;
   turnCompleted(agentId: string): void;
+  /**
+   * Fork (docs/fork/FEATURES.md #131): OpenBot ended a hung provider during this turn. Opens a wait that
+   * resumes the chat once the agent is idle; returns its id, or null at the resume limit.
+   */
+  providerRestarted(input: {
+    agentId: string;
+    turnId: string;
+    provider: AgentProvider;
+    outcome: string;
+    error: string | null;
+    requestMessageId: string | null;
+    requestText: string | null;
+    restart: ForkProviderRestart;
+    /** Teammate requests the turn worked on: the resume answers them. */
+    teammateRequests: { messageId: string; requesterName: string }[];
+  }): string | null;
 }
 
 /** Fork (docs/fork/FEATURES.md #107): an agent's final answer of a turn in a channel goes to its outbound webhook. */

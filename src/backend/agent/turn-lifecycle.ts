@@ -40,6 +40,7 @@ import { newAssistantMessage, normalizeCompletionStatus } from "../conversation-
 import { causeHelpers, reportOriginalFailure } from "../effect-boundary";
 import { isCompactCommand } from "../fork-cache-compact";
 import { forkHub } from "../fork-hub";
+import { type ForkProviderRestart, readForkProviderRestart } from "../fork-provider-hang";
 import { FORK_BACKGROUND_STOPPED_METHOD } from "../fork-restart-resume";
 import {
   AUTO_RESULT_KEY_PREFIX,
@@ -428,6 +429,10 @@ export class TurnLifecycle {
   readonly #followUpTurns = new Set<string>();
   readonly #quietChannelTurns = new Set<string>();
   readonly #quietEmptyAnswers = new Set<string>();
+  /** Fork (docs/fork/FEATURES.md #131): turns whose hung provider OpenBot ended, from `turn/completed`. */
+  readonly #forkRestarts = new Map<string, ForkProviderRestart>();
+  /** Fork (docs/fork/FEATURES.md #131): per agent, the restart wake and the teammate requests it answers. */
+  readonly #forkRestartPending = new Map<string, { waitId: string; deliveryIds: string[] }>();
   readonly #quietEndTimers = new Map<string, NodeJS.Timeout>();
   readonly #quietStops = new Set<string>();
   readonly #quietRepeats = new Set<string>();
@@ -1482,6 +1487,9 @@ export class TurnLifecycle {
         const turnId = getString(turn, "id");
         if (!turnId) return;
         const reported = getString(turn, "status") ?? "completed";
+        // Fork (docs/fork/FEATURES.md #131): OpenBot ended this turn's hung provider.
+        const forkRestart = readForkProviderRestart(getRecord(params, "forkProviderRestart"));
+        if (forkRestart) this.#forkRestarts.set(turnId, forkRestart);
         const noAnswer = reported === "completed" && this.#holdNoAnswer(agentId, threadId, turnId, source);
         const status =
           ((reported === "failed" && this.#quietEmptyAnswers.has(turnId)) ||
@@ -2068,6 +2076,8 @@ export class TurnLifecycle {
       this.#runningTurns.delete(turnId);
       this.#markEnded(turnId);
       this.#completingTurns.add(turnId);
+      const forkRestart = this.#forkRestarts.get(turnId);
+      this.#forkRestarts.delete(turnId);
       const toolOutcomes = this.#traces.toolOutcomes(turnId);
       const trace = this.#traces.take(turnId, new Date().toISOString());
       const noUpdateSteps = this.#noUpdateSteps.get(turnId);
@@ -2424,7 +2434,33 @@ export class TurnLifecycle {
       if (routineSession && routineDelivery && outcome === "completed" && !quiet && !markerAnswer && latestAssistant)
         yield* this.#hooks.routineAnswered(agentId, routineDelivery, latestAssistant.text);
       if (!channelTurn && !routineSession && !taskTurn) forkHub.cacheCompact?.turnEnded(agentId);
-      if (!channelTurn && !routineSession && !taskTurn && running !== undefined) {
+      let forkRestartWait: string | null = null;
+      if (!channelTurn && !routineSession && !taskTurn && running !== undefined && forkRestart) {
+        // Fork (docs/fork/FEATURES.md #131): OpenBot ended a hung provider; the chat resumes by itself.
+        const request =
+          deliveries.findLast(({ delivery }) => delivery.sender.kind === "user") ?? deliveries.at(0) ?? null;
+        forkRestartWait =
+          forkHub.networkResume?.providerRestarted({
+            agentId,
+            turnId,
+            provider: running.client.provider,
+            outcome,
+            error: reportedError ?? null,
+            requestMessageId: request?.delivery.id ?? null,
+            requestText: request?.delivery.text ?? null,
+            restart: forkRestart,
+            teammateRequests:
+              outcome === "failed"
+                ? this.#teammateRequests(agentId, deliveries).map(({ delivery }) => ({
+                    messageId: delivery.messageId,
+                    requesterName:
+                      delivery.sender.kind === "agent"
+                        ? (this.#store.get(delivery.sender.agentId)?.name ?? delivery.sender.agentId)
+                        : "",
+                  }))
+                : [],
+          }) ?? null;
+      } else if (!channelTurn && !routineSession && !taskTurn && running !== undefined) {
         const dropError = forkNetworkDrop(outcome, reportedError, failover?.message);
         if (dropError !== null) {
           const request =
@@ -2579,7 +2615,19 @@ export class TurnLifecycle {
             !refused &&
             !limited &&
             (tokenRefused || (failureCause !== undefined && TEMPORARY_REQUEST_CAUSES.has(failureCause)));
-          for (const { delivery } of deliveries) yield* this.#answerFailedRequest(agentId, delivery.id, temporary);
+          // Fork (docs/fork/FEATURES.md #131): while the chat resumes by itself after a hung provider, a
+          // teammate's request stays open and its sender gets a note, not a failure to act on.
+          const held =
+            forkRestartWait !== null && terminal === "failed"
+              ? new Set(this.#teammateRequests(agentId, deliveries).map(({ delivery }) => delivery.id))
+              : new Set<string>();
+          for (const { delivery } of deliveries)
+            if (held.has(delivery.id)) yield* this.#noteProviderRestart(agentId, delivery.id);
+            else yield* this.#answerFailedRequest(agentId, delivery.id, temporary);
+          if (forkRestartWait !== null && held.size > 0) {
+            const earlier = this.#forkRestartPending.get(agentId)?.deliveryIds ?? [];
+            this.#forkRestartPending.set(agentId, { waitId: forkRestartWait, deliveryIds: [...earlier, ...held] });
+          }
           yield* this.#relayTaskResults(
             agentId,
             turnId,
@@ -2590,6 +2638,7 @@ export class TurnLifecycle {
             ),
           );
         }
+        yield* this.#settleRestartWake(agentId, turnId, deliveries, outcome, forkRestartWait, latestAssistant?.text);
         for (const { delivery } of deliveries) {
           if (delivery.sender.kind === "agent") this.#hooks.scheduleDrain(delivery.sender.agentId);
         }
@@ -3031,6 +3080,73 @@ export class TurnLifecycle {
       ),
     );
   }, Effect.uninterruptible);
+
+  /** Fork (docs/fork/FEATURES.md #131): the requests from other agents among a turn's deliveries. */
+  #teammateRequests(agentId: string, deliveries: readonly DeliveryContext[]): DeliveryContext[] {
+    return deliveries.filter(
+      ({ delivery }) =>
+        delivery.sender.kind === "agent" &&
+        delivery.sender.agentId !== agentId &&
+        this.#mailbox.expectsReply(delivery.messageId),
+    );
+  }
+
+  /**
+   * Fork (docs/fork/FEATURES.md #131): the end of the resume turn after a hung provider. Its answer
+   * goes to the teammates whose requests the ended turn held; if it failed and does not resume again,
+   * they get the failure note they would have got at once.
+   */
+  readonly #settleRestartWake = Effect.fn("TurnLifecycle.settleRestartWake")(function* (
+    this: TurnLifecycle,
+    agentId: string,
+    turnId: string,
+    deliveries: readonly DeliveryContext[],
+    outcome: string,
+    resumesAgain: string | null,
+    answer: string | undefined,
+  ) {
+    const pending = this.#forkRestartPending.get(agentId);
+    if (
+      !pending ||
+      !deliveries.some(({ delivery }) => delivery.sender.kind === "routine" && delivery.sender.runId === pending.waitId)
+    )
+      return;
+    this.#forkRestartPending.delete(agentId);
+    if (resumesAgain !== null) {
+      this.#forkRestartPending.set(agentId, { waitId: resumesAgain, deliveryIds: pending.deliveryIds });
+      return;
+    }
+    for (const deliveryId of pending.deliveryIds) {
+      const request = this.#mailbox.getDelivery(deliveryId);
+      if (!request) continue;
+      if (outcome !== "completed" || !answer) {
+        yield* this.#answerFailedRequest(agentId, deliveryId, true);
+        continue;
+      }
+      if (!this.#mailbox.hasReplyFrom(agentId, request.delivery.messageId))
+        yield* this.#relayLaterResult(agentId, turnId, request, answer).pipe(
+          Effect.catch((failure) =>
+            Effect.sync(() => this.#hooks.emitError("failed_request_answer_failed", failure.cause, agentId)),
+          ),
+        );
+    }
+  });
+
+  #noteProviderRestart(agentId: string, deliveryId: string): Effect.Effect<void> {
+    return this.#mailbox
+      .noteProviderRestart(deliveryId, this.#store.get(agentId)?.name ?? agentId, (id) => this.#store.has(id))
+      .pipe(
+        Effect.match({
+          onFailure: (failure) => this.#hooks.emitError("failed_request_answer_failed", failure.cause, agentId),
+          onSuccess: (requesterId) => {
+            if (requesterId) {
+              this.#mailboxSync.emitQueue(requesterId);
+              this.#hooks.scheduleDrain(requesterId);
+            }
+          },
+        }),
+      );
+  }
 
   #answerFailedRequest(agentId: string, deliveryId: string, temporary: boolean): Effect.Effect<void> {
     return this.#mailbox

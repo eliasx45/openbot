@@ -65,6 +65,8 @@ import { recordRestartActivity } from "./restart-activity";
 const MAX_ATTACHMENTS = INPUT_LIMITS.attachments;
 const FAILED_REQUEST_REASON_LIMIT = 2_000;
 const FAILED_REQUEST_KEY_PREFIX = "failed-request:";
+/** Fork (docs/fork/FEATURES.md #131): the note that a teammate's provider was restarted. */
+const PROVIDER_RESTART_NOTE_KEY_PREFIX = "fork-provider-restart:";
 export const AUTO_RESULT_KEY_PREFIX = "auto-result:";
 const RESTARTED_RESULT_KEY_PREFIX = "restarted-result:";
 const WELCOME_PENDING_STATUSES: ReadonlySet<QueueDeliveryStatus> = new Set(["queued", "starting", "running"]);
@@ -2537,6 +2539,47 @@ export class MailboxStore {
       ...(taskId ? { taskId } : {}),
       expectsReply: false,
       idempotencyKey: `${FAILED_REQUEST_KEY_PREFIX}${deliveryId}`,
+    });
+    return requesterId;
+  }, Effect.uninterruptible).bind(this);
+
+  /**
+   * Fork (docs/fork/FEATURES.md #131): OpenBot ended the teammate's hung provider while it worked on
+   * another agent's request, and the teammate's chat resumes by itself. The requester gets one note that
+   * needs no reply, instead of a failure that makes it send the request again or restart the teammate.
+   * Not a reply (no `replyToMessageId`): the request stays open for the resumed answer. Returns the
+   * requester's id when a note was queued.
+   */
+  noteProviderRestart = Effect.fn("MailboxStore.noteProviderRestart")(function* (
+    this: MailboxStore,
+    deliveryId: string,
+    teammateName: string,
+    agentExists: (agentId: string) => boolean,
+  ): Effect.fn.Return<string | null, StoredStateFailure> {
+    const delivery = this.#state.deliveries.find((candidate) => candidate.id === deliveryId);
+    const request = delivery && this.#state.messages.find((message) => message.id === delivery.messageId);
+    if (!delivery || request?.sender.kind !== "agent" || request.channelId) return null;
+    const teammateId = delivery.recipientAgentId;
+    const requesterId = request.sender.agentId;
+    if (
+      requesterId === teammateId ||
+      !agentExists(requesterId) ||
+      request.expectsReply === false ||
+      this.hasReplyFrom(teammateId, request.id)
+    )
+      return null;
+    const asked = request.text.replace(/\s+/gu, " ").trim();
+    yield* this.enqueue({
+      sender: { kind: "agent", agentId: teammateId },
+      ...(request.requesterIds ? { requesterIds: request.requesterIds } : {}),
+      recipientAgentIds: [requesterId],
+      text: [
+        `⏳ ${teammateName}'s provider was restarted by OpenBot; it continues by itself — don't resend or restart it.`,
+        `OpenBot note, not written by this teammate, about your request "${asked.length > 120 ? `${asked.slice(0, 119)}…` : asked}". Its answer comes as a reply when it is done. No reply needed.`,
+      ].join("\n"),
+      replyToMessageId: null,
+      expectsReply: false,
+      idempotencyKey: `${PROVIDER_RESTART_NOTE_KEY_PREFIX}${deliveryId}`,
     });
     return requesterId;
   }, Effect.uninterruptible).bind(this);
