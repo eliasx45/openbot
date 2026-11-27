@@ -54,10 +54,13 @@ import {
 } from "./file-preview-brightness";
 import { decodedFileText } from "./file-text";
 import { MediaFilePreview } from "./MediaFilePreview";
+import { keepFrame, moveFrameInto, pdfBytesFingerprint, takeKeptFrame } from "./pdf-frame-keeper";
 import {
   PDF_READING_MODE_LABEL,
   PDF_READING_MODES,
+  type PdfFramePositions,
   type PdfPaperReader,
+  type PdfPosition,
   type PdfReadingMode,
   pdfReadingMode,
 } from "./pdf-reading-mode";
@@ -67,6 +70,10 @@ const TEXT_LIMIT = 1_000_000;
 const HIGHLIGHT_LIMIT = 200_000;
 const HIGHLIGHT_LINE_LIMIT = 5_000;
 const BLOB_PREVIEW_KINDS = new Set<FilePreview["previewKind"]>(["image", "pdf", "audio", "video"]);
+const PDF_FRAME_POSITION_POLL_MS = 1_000;
+const PDF_FRAME_RESTORE_DELAY_MS = 250;
+const PDF_FRAME_RESTORE_TRIES = 40;
+const PDF_FRAME_SETTLE_DELAY_MS = 600;
 
 type HeaderPopup = "pageColors" | "brightness";
 
@@ -81,6 +88,10 @@ interface FilePreviewPanelProps {
   readReadingMode?: (() => PdfReadingMode) | undefined;
   onReadingModeChange?: ((mode: PdfReadingMode) => void) | undefined;
   pdfReader?: PdfPaperReader | undefined;
+  pdfPositionKey?: string | undefined;
+  readPdfPosition?: ((key: string) => PdfPosition | null) | undefined;
+  onPdfPositionChange?: ((key: string, position: PdfPosition) => void) | undefined;
+  pdfFramePositions?: PdfFramePositions | undefined;
   preview: FilePreview | null;
   fileKey?: string | undefined;
   directory?: WorkspaceDirectory | null;
@@ -113,6 +124,7 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
   const { t, format } = useText();
   const [panelWidth, setPanelWidth] = createSignal(props.readWidth());
   const [previewUrl, setPreviewUrl] = createSignal<string | null>(null);
+  const [pdfFrameSource, setPdfFrameSource] = createSignal<PdfFrameSource | null>(null);
   const [revealed, setRevealed] = createSignal(false);
   const [rawSource, setRawSource] = createSignal(false);
   const [wrapLines, setWrapLines] = createSignal(untrack(() => props.readWrapLines()));
@@ -164,16 +176,18 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
     showPopup(null);
   });
   createEffect(
-    () => ({ preview: file(), sourceUrl: props.sourceUrl }),
-    ({ preview, sourceUrl }) => {
+    () => ({ preview: file(), sourceUrl: props.sourceUrl, frameKey: props.pdfPositionKey }),
+    ({ preview, sourceUrl, frameKey }) => {
       if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
       currentPreviewUrl = null;
+      setPdfFrameSource(null);
       if (!preview) {
         setPreviewUrl(null);
         return;
       }
       if (sourceUrl && BLOB_PREVIEW_KINDS.has(preview.previewKind)) {
         setPreviewUrl(sourceUrl);
+        if (preview.previewKind === "pdf") setPdfFrameSource({ src: sourceUrl, key: frameKey, identity: sourceUrl });
         return;
       }
       if (!preview.bytes || !BLOB_PREVIEW_KINDS.has(preview.previewKind)) {
@@ -197,6 +211,8 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
       const url = URL.createObjectURL(blob);
       currentPreviewUrl = url;
       setPreviewUrl(url);
+      if (preview.previewKind === "pdf")
+        setPdfFrameSource({ src: url, key: frameKey, identity: pdfBytesFingerprint(preview.bytes) });
     },
   );
   onSettled(() => () => {
@@ -504,7 +520,11 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
         <Show when={previewKind() === "pdf" && previewUrl()}>
           <Show
             when={pdfReader() && paperMode()}
-            fallback={<iframe class="file-preview-pdf" title={title()} src={previewUrl() ?? ""} />}
+            fallback={
+              <Show when={pdfFrameSource()}>
+                {(source) => <PdfFrame source={source()} title={title()} positions={props.pdfFramePositions} />}
+              </Show>
+            }
           >
             {(mode) => (
               <Dynamic
@@ -514,6 +534,9 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
                 title={title()}
                 mode={mode()}
                 onOpenLink={props.onOpenLink}
+                positionKey={props.pdfPositionKey ?? null}
+                readPosition={props.readPdfPosition}
+                onPositionChange={props.onPdfPositionChange}
               />
             )}
           </Show>
@@ -547,6 +570,66 @@ export default function FilePreviewPanel(props: FilePreviewPanelProps) {
       </div>
     </aside>
   );
+}
+
+interface PdfFrameSource {
+  src: string;
+  key: string | undefined;
+  identity: string;
+}
+
+function PdfFrame(props: { source: PdfFrameSource; title: string; positions: PdfFramePositions | undefined }) {
+  let host!: HTMLDivElement;
+  createEffect(
+    () => props.source,
+    ({ src, key, identity }) => {
+      const kept = key && identity ? takeKeptFrame(key, identity) : null;
+      const frame = kept ?? document.createElement("iframe");
+      frame.className = "file-preview-pdf";
+      frame.title = untrack(() => props.title);
+      if (!kept) frame.src = src;
+      moveFrameInto(host, frame);
+      const positions = untrack(() => props.positions);
+      const frameUrl = frame.getAttribute("src") ?? src;
+      let active = true;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const track = () => {
+        timer = setTimeout(async () => {
+          if (!active || !positions || !key) return;
+          const position = await positions.read(frameUrl).catch(() => null);
+          if (active && position) positions.save(key, position);
+          if (active) track();
+        }, PDF_FRAME_POSITION_POLL_MS);
+      };
+      const restore = async (tries: number, settle: boolean) => {
+        if (!active || !positions || !key) return;
+        const position = positions.load(key);
+        const restored = position ? await positions.restore(frameUrl, position).catch(() => false) : true;
+        if (!active) return;
+        if (restored && position && settle) timer = setTimeout(() => void restore(0, false), PDF_FRAME_SETTLE_DELAY_MS);
+        else if (restored || tries <= 0) track();
+        else timer = setTimeout(() => void restore(tries - 1, settle), PDF_FRAME_RESTORE_DELAY_MS);
+      };
+      if (positions && key) {
+        if (kept) track();
+        else void restore(PDF_FRAME_RESTORE_TRIES, true);
+      }
+      return () => {
+        active = false;
+        clearTimeout(timer);
+        if (key && identity) keepFrame(key, identity, frame);
+        else frame.remove();
+      };
+    },
+  );
+  createEffect(
+    () => props.title,
+    (title) => {
+      const frame = host.querySelector("iframe");
+      if (frame) frame.title = title;
+    },
+  );
+  return <div ref={host} class="file-preview-pdf-host" />;
 }
 
 function HeaderButton(props: {

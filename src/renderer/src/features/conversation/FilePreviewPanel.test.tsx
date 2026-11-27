@@ -4,8 +4,9 @@ import {
   filePreviewCanDim,
   parseFilePreviewBrightness,
 } from "@openbot/ui/features/conversation/file-preview-brightness";
+import { clearKeptFrames } from "@openbot/ui/features/conversation/pdf-frame-keeper";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
-import { flush } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import FilePreviewPanel, { BRIGHTNESS_STORAGE_KEY, READING_MODE_STORAGE_KEY } from "./FilePreviewPanel";
 
@@ -33,10 +34,11 @@ const MARKDOWN: FilePreview = {
   bytes: new TextEncoder().encode("# Notes"),
 };
 
-function showPanel(preview: FilePreview) {
-  render(() => (
+function showPanel(preview: FilePreview, pdfPositionKey?: string) {
+  const shown = render(() => (
     <FilePreviewPanel
       preview={preview}
+      pdfPositionKey={pdfPositionKey}
       sourceUrl="openbot-attachment://file/worksheet"
       agents={[]}
       maxWidth={() => 900}
@@ -50,11 +52,13 @@ function showPanel(preview: FilePreview) {
   flush();
   const content = document.querySelector<HTMLElement>(".file-preview-content");
   if (!content) throw new Error("no preview content");
-  return content;
+  return Object.assign(content, { unmountPanel: shown.unmount });
 }
 
 afterEach(() => {
   window.localStorage.clear();
+  clearKeptFrames();
+  Reflect.deleteProperty(Element.prototype, "moveBefore");
 });
 
 describe("file preview brightness value", () => {
@@ -169,5 +173,117 @@ describe("page colors with the brightness slider", () => {
     expect(escapeKey.defaultPrevented).toBe(true);
     await vi.waitFor(() => expect(screen.queryByRole("menu", { name: "Page colors" })).toBeNull());
     expect(window.localStorage.getItem(READING_MODE_STORAGE_KEY)).toBeNull();
+  });
+});
+
+describe("PDF place across agent switches", () => {
+  it("shows the same browser PDF frame again when the tab comes back, so its page and zoom stay", () => {
+    Object.assign(Element.prototype, {
+      moveBefore(this: Element, node: Node, child: Node | null) {
+        this.insertBefore(node, child);
+      },
+    });
+    const first = showPanel(PDF, "reader\u0000attachment\u0000worksheet");
+    const frame = first.querySelector("iframe");
+    expect(frame?.getAttribute("src")).toBe("openbot-attachment://file/worksheet");
+    first.unmountPanel();
+    expect(frame?.isConnected).toBe(true);
+
+    const second = showPanel(PDF, "reader\u0000attachment\u0000worksheet");
+    expect(second.querySelector("iframe")).toBe(frame);
+  });
+
+  it("opens a new frame for another tab", () => {
+    Object.assign(Element.prototype, {
+      moveBefore(this: Element, node: Node, child: Node | null) {
+        this.insertBefore(node, child);
+      },
+    });
+    const first = showPanel(PDF, "reader\u0000attachment\u0000worksheet");
+    const frame = first.querySelector("iframe");
+    first.unmountPanel();
+    const second = showPanel(PDF, "planner\u0000attachment\u0000worksheet");
+    expect(second.querySelector("iframe")).not.toBe(frame);
+    expect(second.querySelector("iframe")?.getAttribute("src")).toBe("openbot-attachment://file/worksheet");
+  });
+});
+
+describe("PDF place when the file changes on disk", () => {
+  it("puts the browser PDF viewer back at the same place in the new frame", async () => {
+    let made = 0;
+    const created = vi.spyOn(URL, "createObjectURL").mockImplementation(() => `blob:test/${++made}`);
+    const revoked = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const place = { x: 0, y: 2400, zoom: 0.6 };
+    const positions = {
+      read: vi.fn(async () => null),
+      restore: vi.fn(async () => true),
+      load: vi.fn(() => place),
+      save: vi.fn(),
+    };
+    const [preview, setPreview] = createSignal<FilePreview>({ ...PDF, bytes: new Uint8Array([37, 80, 68, 70]) });
+    render(() => (
+      <FilePreviewPanel
+        preview={preview()}
+        pdfPositionKey={"reader\u0000shared\u0000/tmp/2 - CS/Recall-Sheet.pdf"}
+        pdfFramePositions={positions}
+        agents={[]}
+        maxWidth={() => 900}
+        onWidthChange={vi.fn()}
+        onOpenLink={vi.fn()}
+        onOpenSharedFile={vi.fn()}
+        onOpenExternally={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    flush();
+    await vi.waitFor(() => expect(positions.restore).toHaveBeenCalledWith("blob:test/1", place));
+    const first = document.querySelector(".file-preview-content iframe");
+
+    setPreview({ ...PDF, bytes: new Uint8Array([37, 80, 68, 71]) });
+    flush();
+    await vi.waitFor(() => expect(positions.restore).toHaveBeenCalledWith("blob:test/2", place));
+    const second = document.querySelector(".file-preview-content iframe");
+    expect(second).not.toBe(first);
+    expect(second?.getAttribute("src")).toBe("blob:test/2");
+    created.mockRestore();
+    revoked.mockRestore();
+  });
+});
+
+describe("switching PDF tabs in one panel", () => {
+  it("shows the new tab's file, not the previous tab's revoked URL", () => {
+    Object.assign(Element.prototype, {
+      moveBefore(this: Element, node: Node, child: Node | null) {
+        this.insertBefore(node, child);
+      },
+    });
+    let made = 0;
+    const created = vi.spyOn(URL, "createObjectURL").mockImplementation(() => `blob:test/${++made}`);
+    const revoked = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const [tab, setTab] = createSignal({ key: "linker\u0000workspace\u0000a.pdf", bytes: [37, 80, 68, 70] });
+    render(() => (
+      <FilePreviewPanel
+        preview={{ ...PDF, bytes: new Uint8Array(tab().bytes) }}
+        pdfPositionKey={tab().key}
+        agents={[]}
+        maxWidth={() => 900}
+        onWidthChange={vi.fn()}
+        onOpenLink={vi.fn()}
+        onOpenSharedFile={vi.fn()}
+        onOpenExternally={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    flush();
+    const first = document.querySelector(".file-preview-content iframe");
+    expect(first?.getAttribute("src")).toBe("blob:test/1");
+
+    setTab({ key: "linker\u0000workspace\u0000b.pdf", bytes: [37, 80, 68, 70] });
+    flush();
+    expect(revoked).toHaveBeenCalledWith("blob:test/1");
+    const second = document.querySelector(".file-preview-content iframe");
+    expect(second?.getAttribute("src")).toBe("blob:test/2");
+    created.mockRestore();
+    revoked.mockRestore();
   });
 });

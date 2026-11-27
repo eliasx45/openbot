@@ -115,6 +115,37 @@ export interface PreviewWorkspaceFileInput extends OpenWorkspaceFileInput {
   exactPath?: boolean;
 }
 
+export interface WatchPreviewFileInput {
+  key: string;
+  path: string;
+  agentId?: string;
+}
+
+export interface PdfViewerPosition {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+export function isPdfViewerPosition(value: unknown): value is PdfViewerPosition {
+  if (!isDynamicRecord(value)) return false;
+  const { x, y, zoom } = value;
+  return (
+    typeof x === "number" &&
+    Number.isFinite(x) &&
+    typeof y === "number" &&
+    Number.isFinite(y) &&
+    typeof zoom === "number" &&
+    Number.isFinite(zoom) &&
+    zoom > 0
+  );
+}
+
+export interface RestorePdfViewerPositionInput {
+  url: string;
+  position: PdfViewerPosition;
+}
+
 export interface FileChipTarget {
   kind: "shared" | "workspace";
   path: string;

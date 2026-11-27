@@ -14,9 +14,17 @@ describe("buildContentSecurityPolicy", () => {
   it.each([true, false])("allows loopback viewer frames when packaged=%s", (packaged) => {
     const directives = buildContentSecurityPolicy(packaged).split("; ");
     expect(directives.find((directive) => directive.startsWith("frame-src "))).toBe(
-      "frame-src 'self' openbot-attachment: openbot-remote-attachment: openbot-visual: openbot-remote-visual: https://*.openbot.run http://127.0.0.1:* http://localhost:*",
+      "frame-src 'self' blob: openbot-attachment: openbot-remote-attachment: openbot-visual: openbot-remote-visual: https://*.openbot.run http://127.0.0.1:* http://localhost:*",
     );
     expect(directives.find((directive) => directive.startsWith("script-src "))).toBe("script-src 'self'");
+  });
+
+  it("lets the side panel show a local PDF from its blob URL in the browser's PDF viewer", () => {
+    const frameSource = buildContentSecurityPolicy(true)
+      .split("; ")
+      .find((directive) => directive.startsWith("frame-src "));
+    expect(frameSource?.split(" ")).toContain("blob:");
+    expect(frameSource?.split(" ")).not.toContain("data:");
   });
 
   it("lets the renderer play an attachment recording, but only from the attachment schemes", () => {

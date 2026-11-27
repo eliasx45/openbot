@@ -459,3 +459,14 @@
 .side-panel-header .side-panel-tab:has(.agent-threads-state-working) {
   --side-panel-tab-mark: var(--openbot-space-6);
 }
+
+.side-panel-reload[data-reloading] svg {
+  animation: ui-spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-panel-reload[data-reloading] svg {
+    animation: none;
+    opacity: 0.5;
+  }
+}

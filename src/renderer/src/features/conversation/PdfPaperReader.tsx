@@ -8,19 +8,26 @@ import {
   Minus,
   Plus,
 } from "@openbot/ui";
-import type { PdfPaperMode, PdfPaperReaderProps } from "@openbot/ui/features/conversation/pdf-reading-mode";
+import type {
+  PdfPaperMode,
+  PdfPaperReaderProps,
+  PdfPosition,
+} from "@openbot/ui/features/conversation/pdf-reading-mode";
 import { useText } from "@openbot/ui/text";
 import type { JSX } from "@solidjs/web";
 import type { PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
 import { createEffect, createStore, onSettled, Show, untrack } from "solid-js";
 import { loadPdfViewer } from "./pdf-js";
 import { imageQuads, type PaperPalette, paperPalette, parseHexColour, recolourPage } from "./pdf-paper";
+import { type PdfPageBox, pdfScrollDelta, pdfScrollPosition } from "./pdf-positions";
 
 const FIT_WIDTH = "page-width";
 const WHEEL_ZOOM_SPEED = 0.01;
 const LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+const POSITION_SAVE_DELAY_MS = 150;
 
 interface PaperPageView {
+  div: HTMLElement;
   canvas: HTMLCanvasElement | null;
   imageCoordinates: ArrayLike<number> | null;
   reset: () => void;
@@ -59,6 +66,63 @@ export default function PdfPaperReader(props: PdfPaperReaderProps) {
   let viewer: PDFViewer | undefined;
   let mode: PdfPaperMode = untrack(() => props.mode);
   let palette: PaperPalette | null = null;
+  let positionKey: string | null = null;
+  let restored = false;
+  let restoredTop: number | null = null;
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const pageBoxes = (): PdfPageBox[] => {
+    if (!viewer) return [];
+    const top = scroller.getBoundingClientRect().top;
+    const boxes: PdfPageBox[] = [];
+    for (let index = 0; index < viewer.pagesCount; index += 1) {
+      const page: PaperPageView | undefined = viewer.getPageView(index);
+      if (!page) break;
+      const box = page.div.getBoundingClientRect();
+      boxes.push({ top: box.top - top, height: box.height });
+    }
+    return boxes;
+  };
+
+  const shownPosition = (): PdfPosition | null => {
+    if (!viewer) return null;
+    const place = pdfScrollPosition(0, pageBoxes());
+    return place ? { ...place, scale: view.fitWidth ? null : viewer.currentScale } : null;
+  };
+
+  const savePosition = () => {
+    clearTimeout(saveTimer);
+    saveTimer = undefined;
+    if (!restored || !positionKey || view.pages === 0) return;
+    const position = shownPosition();
+    if (position) props.onPositionChange?.(positionKey, position);
+  };
+
+  const scheduleSave = () => {
+    if (!restored || saveTimer !== undefined) return;
+    saveTimer = setTimeout(savePosition, POSITION_SAVE_DELAY_MS);
+  };
+
+  const scrollTo = (position: PdfPosition) => {
+    const delta = pdfScrollDelta(position, 0, pageBoxes());
+    if (delta !== null) scroller.scrollTop += delta;
+    restoredTop = scroller.scrollTop;
+  };
+
+  const restorePosition = () => {
+    if (!viewer) return;
+    const position = positionKey ? (props.readPosition?.(positionKey) ?? null) : null;
+    if (position?.scale) viewer.currentScale = position.scale;
+    else viewer.currentScaleValue = FIT_WIDTH;
+    if (position) scrollTo(position);
+    restored = true;
+  };
+
+  const settlePosition = () => {
+    if (!positionKey || restoredTop === null || scroller.scrollTop !== restoredTop) return;
+    const position = props.readPosition?.(positionKey);
+    if (position) scrollTo(position);
+  };
 
   const repaintAll = () => {
     if (!viewer) return;
@@ -83,6 +147,10 @@ export default function PdfPaperReader(props: PdfPaperReaderProps) {
     ({ bytes, url }) => {
       let current = true;
       let destroy: (() => void) | undefined;
+      savePosition();
+      positionKey = untrack(() => props.positionKey ?? null);
+      restored = false;
+      restoredTop = null;
       setView((state) => {
         state.failed = false;
         state.pages = 0;
@@ -106,9 +174,8 @@ export default function PdfPaperReader(props: PdfPaperReaderProps) {
               imagesRightClickMinSize: Number.MAX_SAFE_INTEGER,
             });
             linkService.setViewer(created);
-            eventBus.on("pagesinit", () => {
-              created.currentScaleValue = FIT_WIDTH;
-            });
+            eventBus.on("pagesinit", restorePosition);
+            eventBus.on("pagesloaded", settlePosition);
             eventBus.on("pagechanging", (event: { pageNumber: number }) => {
               setView((state) => {
                 state.page = event.pageNumber;
@@ -119,6 +186,7 @@ export default function PdfPaperReader(props: PdfPaperReaderProps) {
                 state.scale = event.scale;
                 state.fitWidth = event.presetValue === FIT_WIDTH;
               });
+              scheduleSave();
             });
             eventBus.on("pagerendered", (event: PageRenderedEvent) => {
               if (!event.error) paintPage(event.source, mode, palette);
@@ -177,10 +245,13 @@ export default function PdfPaperReader(props: PdfPaperReaderProps) {
     };
     scroller.addEventListener("wheel", zoom, { passive: false });
     scroller.addEventListener("click", openLink);
+    scroller.addEventListener("scroll", scheduleSave, { passive: true });
     return () => {
+      savePosition();
       resize.disconnect();
       scroller.removeEventListener("wheel", zoom);
       scroller.removeEventListener("click", openLink);
+      scroller.removeEventListener("scroll", scheduleSave);
       viewer?.setDocument(null);
     };
   });

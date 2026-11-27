@@ -585,15 +585,36 @@ export function createPanelsStore(deps: PanelsStoreDeps) {
     if (step === undefined || previous === undefined || refreshTimer !== undefined) return;
     refreshTimer = setTimeout(() => {
       refreshTimer = undefined;
-      refreshSidebarFilePreview();
+      void refreshSidebarFilePreview();
     }, FILE_PREVIEW_REFRESH_MS);
   });
   onCleanup(() => clearTimeout(refreshTimer));
 
-  let refreshRequest = 0;
-  function refreshSidebarFilePreview() {
+  const watchedPreviewKey = createMemo(() => {
     const file = deps.sidebarFilePreview();
-    if (!file || !filePreviewOpen() || file.source.kind === "attachment") return;
+    if (!file || !filePreviewOpen() || file.preview === null) return null;
+    return file.source.kind === "shared" || file.source.kind === "workspace" ? filePreviewKey(file.source) : null;
+  });
+  createEffect(watchedPreviewKey, (key) => {
+    const watch = conversationRuntime(deps.props).agent.watchPreviewFile;
+    const source = untrack(deps.sidebarFilePreview)?.source;
+    if (!watch || key === null || !source || (source.kind !== "shared" && source.kind !== "workspace")) return;
+    void watch(
+      source.kind === "shared" ? { key, path: source.path } : { key, path: source.path, agentId: source.agentId },
+    ).catch(() => undefined);
+    return () => void watch(null).catch(() => undefined);
+  });
+  const stopFileChanges = conversationRuntime(deps.props).agent.onPreviewFileChanged?.((key) => {
+    const file = deps.sidebarFilePreview();
+    if (file && filePreviewOpen() && filePreviewKey(file.source) === key) void refreshSidebarFilePreview(true);
+  });
+  onCleanup(() => stopFileChanges?.());
+
+  let refreshRequest = 0;
+  function refreshSidebarFilePreview(whole = false): Promise<void> {
+    const limit = whole ? undefined : FILE_PREVIEW_REFRESH_BYTES;
+    const file = deps.sidebarFilePreview();
+    if (!file || !filePreviewOpen() || file.source.kind === "attachment") return Promise.resolve();
     const { ownerAgentId, source } = file;
     const generation = deps.currentFilePreviewGeneration();
     const request = ++refreshRequest;
@@ -604,24 +625,23 @@ export function createPanelsStore(deps: PanelsStoreDeps) {
       deps.sidebarFilePreview()?.source === source;
     const agent = conversationRuntime(deps.props).agent;
     if (source.kind === "workspace-folder") {
-      void agent.listWorkspaceDirectory({ agentId: source.agentId, path: source.path }).then(
+      return agent.listWorkspaceDirectory({ agentId: source.agentId, path: source.path }).then(
         (directory) => {
           if (!current() || JSON.stringify(directory) === JSON.stringify(file.directory)) return;
           deps.setSidebarFilePreview({ ownerAgentId, source, preview: null, directory });
         },
         () => undefined,
       );
-      return;
     }
     const read =
       source.kind === "shared"
-        ? agent.previewSharedFile({ path: source.path, maxBytes: FILE_PREVIEW_REFRESH_BYTES })
+        ? agent.previewSharedFile({ path: source.path, ...(limit ? { maxBytes: limit } : {}) })
         : agent.previewWorkspaceFile({
             agentId: source.agentId,
             path: source.path,
-            maxBytes: FILE_PREVIEW_REFRESH_BYTES,
+            ...(limit ? { maxBytes: limit } : {}),
           });
-    void read.then(
+    return read.then(
       (preview) => {
         const overLimit = preview.bytes === null && file.preview?.bytes;
         if (!current() || overLimit || (file.preview && samePreview(preview, file.preview))) {
@@ -761,6 +781,7 @@ export function createPanelsStore(deps: PanelsStoreDeps) {
     downloadMessageImageFile,
     revealSidebarFile,
     clearSidebarFilePreview,
+    reloadSidebarFile: () => refreshSidebarFilePreview(true),
   };
 }
 

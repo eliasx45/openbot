@@ -31,9 +31,11 @@ import {
   isConversationWithReadState,
   isFilePreviewKind,
   isFilePreviewPageUrl,
+  isPdfViewerPosition,
   isPinnedMessagesSnapshot,
   isQueuedMessageReceipt,
   isQueueSnapshot,
+  type PdfViewerPosition,
   type PinnedMessagesSnapshot,
   type QueuedMessageReceipt,
   type QueueSnapshot,
@@ -73,6 +75,22 @@ export function decodeAttachmentImportProgress(value: unknown): AttachmentImport
     sent: requiredNumber(progress, "sent"),
     total: requiredNumber(progress, "total"),
   };
+}
+
+export function decodePreviewFileKey(value: unknown): string {
+  if (typeof value !== "string") throw new Error("Invalid preview file change.");
+  return value;
+}
+
+export function decodePdfViewerPosition(value: unknown): PdfViewerPosition | null {
+  if (value === null) return null;
+  if (!isPdfViewerPosition(value)) throw new Error("Invalid PDF viewer position.");
+  return { x: value.x, y: value.y, zoom: value.zoom };
+}
+
+export function decodeBooleanResult(value: unknown): boolean {
+  if (typeof value !== "boolean") throw new Error("Invalid boolean response.");
+  return value;
 }
 
 export function decodeOptionalFilePreviewPageUrl(value: unknown): string | null {

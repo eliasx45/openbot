@@ -3193,6 +3193,10 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       openWorkspaceFile: async (_input: OpenWorkspaceFileInput) => undefined,
       previewSharedFile: async (input: OpenSharedFileInput) => mockFilePreview(input.path, "shared-file"),
       releaseFilePreview: async () => undefined,
+      watchPreviewFile: async () => undefined,
+      onPreviewFileChanged: () => () => undefined,
+      readPdfViewerPosition: async () => null,
+      restorePdfViewerPosition: async () => false,
       addPreviewPage: async () => null,
       previewWorkspaceFile: async (input: OpenWorkspaceFileInput) => {
         if (!/\.[^/]+$/u.test(input.path)) throw new Error("Workspace path is not a file.");

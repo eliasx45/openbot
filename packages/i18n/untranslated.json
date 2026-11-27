@@ -1030,6 +1030,22 @@
     "tr",
     "zh"
   ],
+  "conversation.sidePanel.reloadFile": [
+    "ar",
+    "de",
+    "es",
+    "fr",
+    "he",
+    "it",
+    "ja",
+    "ko",
+    "nl",
+    "pl",
+    "pt",
+    "ru",
+    "tr",
+    "zh"
+  ],
   "customProvider.acp.error.usagePromptInvalid": ["ko"],
   "customProvider.acp.usagePrompt": ["ko"],
   "customProvider.acp.usagePromptHint": ["ko"],

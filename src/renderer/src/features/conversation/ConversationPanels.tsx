@@ -57,6 +57,7 @@ import { setVoiceTalkMode, useVoiceTalkMode } from "./voice-talk-mode";
 const loadAgentSettingsPanel = () => import("./AgentSettingsPanel");
 
 import { type HostFolderPick, HostFolderPicker } from "@openbot/ui/features/conversation/HostFolderPicker";
+import type { PdfFramePositions } from "@openbot/ui/features/conversation/pdf-reading-mode";
 import { Portal } from "@solidjs/web";
 import { createEffect, createMemo, createSignal, Loading, lazy, onSettled, Show, untrack } from "solid-js";
 import {
@@ -67,6 +68,7 @@ import {
   remoteAgentFolderCalls,
 } from "./agent-folders-port";
 import { conversationPort } from "./conversation-port";
+import { pdfPositionKey, readPdfFramePosition, savePdfFramePosition } from "./pdf-positions";
 
 function VoiceConversationPane(pill: VoicePillPresence) {
   const controller = useConversationController();
@@ -179,6 +181,7 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
     openWorkspaceFolderEntry,
     previewQuoteId,
     previewFileKey,
+    reloadSidebarFile,
     previewWorkspaceAgentId,
     quoteSelection,
     addPageText,
@@ -266,6 +269,16 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
     };
   };
   const publishAgent = createPublishAgent((url) => void conversationRuntime(props).openUrl(url), publishCalls);
+  const pdfFramePositions = (): PdfFramePositions | undefined => {
+    const { readPdfViewerPosition, restorePdfViewerPosition } = conversationRuntime(props).agent;
+    if (!readPdfViewerPosition || !restorePdfViewerPosition) return undefined;
+    return {
+      read: readPdfViewerPosition,
+      restore: (url, position) => restorePdfViewerPosition({ url, position }),
+      load: readPdfFramePosition,
+      save: savePdfFramePosition,
+    };
+  };
   const localAgentDefaults = () => (props.server?.kind === "local" ? props.agentDefaults : undefined);
   const localFolderCalls = agentFolderCalls();
   const [folderPick, setFolderPick] = createSignal<
@@ -565,6 +578,7 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
             onSelect: openSidePanelFile,
             onClose: closeSidePanelFile,
             onMove: moveSidePanelFile,
+            onReload: filePreviewOpen() && sidebarFilePreview()?.preview ? reloadSidebarFile : undefined,
           }}
           onToggleMaximized={() => setSidePanelMaximized(!sidePanel().maximized)}
           onCollapse={toggleSidePanel}
@@ -616,6 +630,8 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
                 pageUrl={htmlAttachmentPageUrl(attached()) ?? file().preview?.pageUrl}
                 pageHtml={props.runtime?.visualPage ? htmlAttachmentPageHtml(attached(), file().preview) : undefined}
                 fileKey={previewFileKey()}
+                pdfPositionKey={pdfPositionKey(file().ownerAgentId, previewFileKey())}
+                pdfFramePositions={pdfFramePositions()}
                 selectionQuoteId={previewQuoteId()}
                 onPageQuote={(text) => {
                   const quoteId = previewQuoteId();

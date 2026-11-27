@@ -57,6 +57,7 @@ export const messages = defineMessages("conversation", {
   "conversation.sidePanel.open": "Open side panel",
   "conversation.sidePanel.close": "Close side panel",
   "conversation.sidePanel.add": "Add pane",
+  "conversation.sidePanel.reloadFile": "Reload file",
   "conversation.sidePanel.maximize": "Maximize side panel",
   "conversation.sidePanel.restore": "Restore side panel",
   "conversation.sidePanel.closePane": "Close {name}",

@@ -14,6 +14,7 @@ import {
   Minimize2,
   PanelRight,
   Plus,
+  RefreshCw,
   Settings,
   Tabs,
   Workflow,
@@ -173,6 +174,7 @@ export interface SidePanelFiles {
   onSelect: (key: string) => void;
   onClose: (key: string) => void;
   onMove: (key: string, index: number) => void;
+  onReload?: (() => Promise<void>) | undefined;
 }
 
 export interface SidePanelThreads {
@@ -744,6 +746,7 @@ function SidePanelTabRow(
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
           </Show>
+          <Show when={props.files?.onReload}>{(reload) => <ReloadFileButton reload={reload()} />}</Show>
           <Show when={hasTabs() && (newBrowserTab() !== undefined || closedPanes().length > 0)}>
             <DropdownMenu.Root placement="bottom-end" gutter={4}>
               <DropdownMenu.Trigger
@@ -845,5 +848,32 @@ export function SidePanelLauncher(props: {
         )}
       </For>
     </nav>
+  );
+}
+
+const RELOAD_SPIN_MIN_MS = 450;
+
+function ReloadFileButton(props: { reload: () => Promise<void> }) {
+  const { t } = useText();
+  const [reloading, setReloading] = createSignal(false);
+  const reload = () => {
+    if (reloading()) return;
+    setReloading(true);
+    const shown = new Promise((done) => setTimeout(done, RELOAD_SPIN_MIN_MS));
+    void Promise.all([props.reload().catch(() => undefined), shown]).finally(() => setReloading(false));
+  };
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      class="side-panel-reload"
+      aria-label={t("conversation.sidePanel.reloadFile")}
+      title={t("conversation.sidePanel.reloadFile")}
+      aria-busy={reloading() ? "true" : undefined}
+      data-reloading={reloading() ? "" : undefined}
+      onClick={reload}
+    >
+      <RefreshCw aria-hidden="true" />
+    </Button>
   );
 }

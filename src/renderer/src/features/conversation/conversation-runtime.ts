@@ -47,7 +47,13 @@ export interface ConversationRuntime {
     Partial<Pick<OpenBotDesktopApi["agent"], "openMessageLink" | "pasteMessageLink" | "cancelMessageLink">> &
     Partial<Pick<OpenBotDesktopApi["agent"], "stopAttachmentDownload" | "onAttachmentDownload">> &
     Partial<Pick<OpenBotDesktopApi["agent"], "retryAttachmentImport" | "discardAttachmentImport">> &
-    Partial<Pick<OpenBotDesktopApi["agent"], "checkFileChips">>;
+    Partial<Pick<OpenBotDesktopApi["agent"], "checkFileChips">> &
+    Partial<
+      Pick<
+        OpenBotDesktopApi["agent"],
+        "watchPreviewFile" | "onPreviewFileChanged" | "readPdfViewerPosition" | "restorePdfViewerPosition"
+      >
+    >;
   browser: Pick<
     OpenBotDesktopApi["browser"],
     | "capturePreview"

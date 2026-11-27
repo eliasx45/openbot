@@ -4,6 +4,7 @@ import { pdfReadingMode } from "@openbot/ui/features/conversation/pdf-reading-mo
 import type { ComponentProps } from "@solidjs/web";
 import { readSidePanelWidth, resetSidePanelWidth, saveSidePanelWidth } from "../../components/side-panel-width";
 import PdfPaperReader from "./PdfPaperReader";
+import { readPdfPosition, savePdfPosition } from "./pdf-positions";
 
 const WRAP_LINES_STORAGE_KEY = "openbot:file-preview-wrap-lines";
 export const BRIGHTNESS_STORAGE_KEY = "openbot:file-preview-brightness";
@@ -22,6 +23,8 @@ export default function FilePreviewPanel(
     | "readReadingMode"
     | "onReadingModeChange"
     | "pdfReader"
+    | "readPdfPosition"
+    | "onPdfPositionChange"
   >,
 ) {
   return (
@@ -37,6 +40,8 @@ export default function FilePreviewPanel(
       readReadingMode={() => pdfReadingMode(window.localStorage.getItem(READING_MODE_STORAGE_KEY))}
       onReadingModeChange={(mode) => window.localStorage.setItem(READING_MODE_STORAGE_KEY, mode)}
       pdfReader={PdfPaperReader}
+      readPdfPosition={readPdfPosition}
+      onPdfPositionChange={savePdfPosition}
     />
   );
 }

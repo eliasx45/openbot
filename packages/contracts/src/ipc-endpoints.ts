@@ -238,8 +238,11 @@ import type {
   OpenAttachmentInput,
   OpenSharedFileInput,
   OpenWorkspaceFileInput,
+  PdfViewerPosition,
   PreviewSharedFileInput,
   PreviewWorkspaceFileInput,
+  RestorePdfViewerPositionInput,
+  WatchPreviewFileInput,
   WorkspaceDirectory,
 } from "./ipc-attachments";
 import type { BitwardenConnectorStatus, BitwardenHostConnectInput } from "./ipc-bitwarden-connector";
@@ -1803,6 +1806,10 @@ export const IPC_ENDPOINTS = {
     previewSharedFile: scopedRequest<PreviewSharedFileInput, FilePreview>()("agent:preview-shared-file"),
     previewWorkspaceFile: scopedRequest<PreviewWorkspaceFileInput, FilePreview>()("agent:preview-workspace-file"),
     releaseFilePreview: request<string, void>()("agent:release-file-preview"),
+    watchPreviewFile: scopedRequest<WatchPreviewFileInput | null, void>()("agent:watch-preview-file"),
+    previewFileChanged: event<string>()("agent:preview-file-changed"),
+    readPdfViewerPosition: request<string, PdfViewerPosition | null>()("agent:read-pdf-viewer-position"),
+    restorePdfViewerPosition: request<RestorePdfViewerPositionInput, boolean>()("agent:restore-pdf-viewer-position"),
     addPreviewPage: request<string, string | null>()("agent:add-preview-page"),
     listWorkspaceDirectory: scopedRequest<OpenWorkspaceFileInput, WorkspaceDirectory>()(
       "agent:list-workspace-directory",

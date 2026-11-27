@@ -220,6 +220,7 @@
     "./features/conversation/UnreadMessages": "./src/features/conversation/UnreadMessages.tsx",
     "./features/conversation/WordFilePreview": "./src/features/conversation/WordFilePreview.tsx",
     "./features/conversation/pdf-reading-mode": "./src/features/conversation/pdf-reading-mode.ts",
+    "./features/conversation/pdf-frame-keeper": "./src/features/conversation/pdf-frame-keeper.ts",
     "./features/conversation/ui-blocks/UiBlockCard": "./src/features/conversation/ui-blocks/UiBlockCard.tsx",
     "./features/conversation/ui-blocks/UiConfirmBlock": "./src/features/conversation/ui-blocks/UiConfirmBlock.tsx",
     "./features/conversation/ui-blocks/UiChoiceBlock": "./src/features/conversation/ui-blocks/UiChoiceBlock.tsx",

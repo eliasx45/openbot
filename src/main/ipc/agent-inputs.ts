@@ -41,6 +41,7 @@ import {
   isBusyMessageMode,
   isFilePreviewPageUrl,
   isMessageReaction,
+  isPdfViewerPosition,
   isProviderAccountId,
   isReasoningEffort,
   isRoutineSchedule,
@@ -65,6 +66,7 @@ import {
   type RespondToApprovalInput,
   type RespondToBrowserTakeoverInput,
   type RespondToPromptInput,
+  type RestorePdfViewerPositionInput,
   ROUTINE_LIMIT_POLICIES,
   ROUTINE_MISSED_POLICIES,
   ROUTINE_RUN_PLACES,
@@ -93,6 +95,7 @@ import {
   type UpdateChannelRoutineInput,
   type UpdateQueuedMessageInput,
   type UpdateRoutineInput,
+  type WatchPreviewFileInput,
   type WithdrawFeedbackInput,
 } from "@openbot/contracts/ipc";
 import { isBoolean, isNumber, isOneOf, isString } from "@openbot/contracts/runtime-values";
@@ -1014,6 +1017,32 @@ export function parseOpenWorkspaceFile(value: unknown): OpenWorkspaceFileInput {
     path: requireString(value.path, "path", INPUT_LIMITS.path),
     action: parseFileAction(value.action),
   };
+}
+
+export function parseWatchPreviewFile(value: unknown): WatchPreviewFileInput | null {
+  if (value === null) return null;
+  if (!isObject(value)) throw new Error("Invalid file watch request.");
+  const input = {
+    key: requireString(value.key, "key", INPUT_LIMITS.path * 2),
+    path: requireString(value.path, "path", INPUT_LIMITS.path),
+  };
+  return value.agentId === undefined
+    ? input
+    : { ...input, agentId: requireString(value.agentId, "agentId", INPUT_LIMITS.identifier) };
+}
+
+const PDF_FRAME_URL = /^(?:blob:|openbot-attachment:|openbot-remote-attachment:)/u;
+
+export function parsePdfFrameUrl(value: unknown): string {
+  const url = requireString(value, "url", INPUT_LIMITS.path * 2);
+  if (!PDF_FRAME_URL.test(url)) throw new Error("Invalid PDF frame URL.");
+  return url;
+}
+
+export function parseRestorePdfViewerPosition(value: unknown): RestorePdfViewerPositionInput {
+  if (!isObject(value) || !isPdfViewerPosition(value.position)) throw new Error("Invalid PDF viewer position.");
+  const { x, y, zoom } = value.position;
+  return { url: parsePdfFrameUrl(value.url), position: { x, y, zoom } };
 }
 
 const FILE_CHIP_KINDS: readonly FileChipTarget["kind"][] = ["shared", "workspace"];

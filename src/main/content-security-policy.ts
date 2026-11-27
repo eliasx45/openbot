@@ -20,7 +20,7 @@ export function buildContentSecurityPolicy(
     "media-src 'self' blob: openbot-attachment: openbot-remote-attachment:",
     `connect-src 'self' openbot-attachment: openbot-remote-attachment: https://analytics.openbot.run ws://127.0.0.1:* wss://*.openbot.run${selfHostedSignalSource}${developmentSources}`,
     "object-src 'none'",
-    "frame-src 'self' openbot-attachment: openbot-remote-attachment: openbot-visual: openbot-remote-visual: https://*.openbot.run http://127.0.0.1:* http://localhost:*",
+    "frame-src 'self' blob: openbot-attachment: openbot-remote-attachment: openbot-visual: openbot-remote-visual: https://*.openbot.run http://127.0.0.1:* http://localhost:*",
     "base-uri 'none'",
   ].join("; ");
 }

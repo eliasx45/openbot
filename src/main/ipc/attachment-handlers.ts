@@ -19,9 +19,11 @@ import {
   decodeWorkspaceDirectory,
   type FileAction,
   type ImportAttachmentsInput,
+  IPC_ENDPOINTS,
   LOCAL_SERVER_ID,
   type OpenAttachmentInput,
   type OpenStoredFileInput,
+  type WatchPreviewFileInput,
 } from "@openbot/contracts/ipc";
 import { TEAM_API_ROUTES } from "@openbot/contracts/team-api-routes";
 import {
@@ -39,17 +41,20 @@ import {
 import type { AppTranslate } from "@openbot/i18n";
 import { sourceText } from "@openbot/i18n/source";
 import { Effect, Schema } from "effect";
-import { app, type BrowserWindow, dialog, type OpenDialogOptions, shell } from "electron";
+import { app, type BrowserWindow, dialog, type OpenDialogOptions, shell, type WebContents } from "electron";
 import { type Zippable, zip } from "fflate";
 import type { AgentService } from "../../backend/agent-service";
 import { causeHelpers, runCauseEffect } from "../../backend/effect-boundary";
 import type { MailboxStore } from "../../backend/mailbox-store";
 import { filePreviewFromBytes, localFilePreview, mimeTypeForName } from "../file-preview";
 import { filePreviewPages } from "../file-preview-pages";
+import { readPdfViewerPosition, restorePdfViewerPosition } from "../pdf-viewer-position";
+import { PreviewFileWatcher } from "../preview-file-watcher";
 import { AttachmentDownloadStopped } from "../remote-attachment-cache";
 import { decodeVoid } from "../remote-host-decoding";
 import type { RemoteServerManager } from "../remote-server-manager";
 import { remoteCall, remoteDecode } from "../remote-service-effects";
+import { sendToRenderer } from "../renderer-ipc";
 import {
   agentRequest,
   parseAttachmentData,
@@ -62,11 +67,14 @@ import {
   parseOpenAttachment,
   parseOpenSharedFile,
   parseOpenWorkspaceFile,
+  parsePdfFrameUrl,
   parsePreviewPageHtml,
   parsePreviewSharedFile,
   parsePreviewWorkspaceFile,
+  parseRestorePdfViewerPosition,
+  parseWatchPreviewFile,
 } from "./agent-inputs";
-import { type IpcGroupHandlers, payloadHandler } from "./define-ipc-group";
+import { eventPayloadHandler, type IpcGroupHandlers, payloadHandler } from "./define-ipc-group";
 import { routeToServer } from "./route-to-server";
 import { scopedHandler } from "./scoped-handler";
 
@@ -103,6 +111,30 @@ export function attachmentIpcHandlers({
   getMainWindow,
   translate,
 }: AttachmentIpcDependencies): Pick<IpcGroupHandlers, "agentAttachments" | "attachmentImports"> {
+  const watchedSenders = new Map<number, WebContents>();
+  const previewWatcher = new PreviewFileWatcher({
+    onChange: (owner, key) => {
+      const contents = watchedSenders.get(owner);
+      if (contents)
+        sendToRenderer(
+          { isDestroyed: () => contents.isDestroyed(), webContents: contents },
+          IPC_ENDPOINTS.agentAttachments.previewFileChanged,
+          key,
+        );
+    },
+  });
+  async function watchPreviewFile(contents: WebContents, serverId: string, input: WatchPreviewFileInput | null) {
+    previewWatcher.stop(contents.id);
+    if (!input || serverId !== LOCAL_SERVER_ID) return;
+    if (!watchedSenders.has(contents.id)) contents.once("destroyed", () => previewWatcher.stop(contents.id));
+    watchedSenders.set(contents.id, contents);
+    const resolved = await runCauseEffect(
+      input.agentId === undefined
+        ? service.resolveSharedFile(input.path, { followLinks: true })
+        : service.resolveLocalWorkspaceFile(input.agentId, input.path),
+    ).catch(() => null);
+    if (resolved) previewWatcher.watch(contents.id, input.key, resolved.path);
+  }
   async function deliverLocalFile(
     path: string,
     name: string,
@@ -150,6 +182,15 @@ export function attachmentIpcHandlers({
         remote: (data, serverId) => runCauseEffect(uploadRemoteImports(remoteServers, serverId, { paths: [], data })),
       }),
       releaseFilePreview: payloadHandler(parseFilePreviewPageUrl, (pageUrl) => filePreviewPages.release(pageUrl)),
+      watchPreviewFile: eventPayloadHandler(agentRequest(parseWatchPreviewFile), (event, { serverId, payload }) =>
+        watchPreviewFile(event.sender, serverId, payload),
+      ),
+      readPdfViewerPosition: eventPayloadHandler(parsePdfFrameUrl, (event, url) =>
+        readPdfViewerPosition(event.sender, url),
+      ),
+      restorePdfViewerPosition: eventPayloadHandler(parseRestorePdfViewerPosition, (event, { url, position }) =>
+        restorePdfViewerPosition(event.sender, url, position),
+      ),
       addPreviewPage: payloadHandler(
         parsePreviewPageHtml,
         (html) =>
