@@ -477,6 +477,7 @@ export class AgentImportService {
       agents: manifest.agents.map((agent) => {
         const files = agent.files ? filesUnder(inner, agent.files) : [];
         const avatar = avatars.get(agent.key);
+        const model = modelNames.get(agent.key);
         return {
           key: agent.key,
           name: agent.name,
@@ -489,7 +490,7 @@ export class AgentImportService {
           fileCount: files.length,
           fileBytes: files.reduce((total, [, entry]) => total + entry.size, 0),
           nameExists: existing.has(agent.name.toLowerCase()),
-          ...(modelNames.has(agent.key) ? { model: modelNames.get(agent.key) } : {}),
+          ...(model ? { model } : {}),
         };
       }),
       channels: manifest.channels.map((channel) => ({
