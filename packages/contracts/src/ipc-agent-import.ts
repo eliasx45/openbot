@@ -38,6 +38,7 @@ export interface AgentImportPreviewAgent {
   fileCount: number;
   fileBytes: number;
   nameExists: boolean;
+  model?: string;
 }
 
 export interface AgentImportPreviewChannel {
@@ -185,7 +186,8 @@ export function decodeAgentImportPreviewAgent(value: unknown): AgentImportPrevie
     !isBoundedString(agent.title, INPUT_LIMITS.agentTitle) ||
     !isBoundedString(agent.description, INPUT_LIMITS.agentDescription) ||
     (agent.avatarUrl !== null && !(isString(agent.avatarUrl) && agent.avatarUrl.startsWith("data:image/"))) ||
-    !isBoolean(agent.nameExists)
+    !isBoolean(agent.nameExists) ||
+    !(agent.model === undefined || isBoundedString(agent.model, INPUT_LIMITS.modelName))
   )
     invalid("imported agent");
   return {
@@ -200,6 +202,7 @@ export function decodeAgentImportPreviewAgent(value: unknown): AgentImportPrevie
     fileCount: count(agent.fileCount, "imported agent"),
     fileBytes: count(agent.fileBytes, "imported agent"),
     nameExists: agent.nameExists,
+    ...(agent.model === undefined ? {} : { model: agent.model }),
   };
 }
 

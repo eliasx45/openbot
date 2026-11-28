@@ -8,6 +8,7 @@ import {
   type AgentImportPreview,
   type AgentImportResult,
   type AgentImportSkipped,
+  type AgentModelOption,
   type AgentSummary,
   type ApplyAgentImportInput,
   type AvatarImageInput,
@@ -17,6 +18,7 @@ import {
   type CreateChannelRoutineInput,
   type CreateRoutineInput,
   isChannelDraft,
+  type UpdateAgentInput,
 } from "@openbot/contracts/ipc";
 import { sourceText } from "@openbot/i18n/source";
 import { Deferred, Effect, Exit, Result } from "effect";
@@ -43,6 +45,7 @@ import {
   decodeImportManifest,
   type ImportAgent,
   type ImportChannel,
+  type ImportModel,
 } from "./agent-import-manifest";
 import { validTimezone } from "./agent-marketplace-service";
 import { type ArchiveOperationError, archiveCall, archiveFailure, archiveSync } from "./archive-effects";
@@ -80,6 +83,10 @@ export interface AgentImportAgents {
   initializeMemorySelection(agentId: string): void;
   setAvatar(agentId: string, image: AvatarImageInput | null): ReturnType<AgentService["setAvatar"]>;
   deleteAgent(agentId: string): ReturnType<AgentService["deleteAgent"]>;
+  listModels(): AgentModelOption[];
+  updateAgent(
+    input: Pick<UpdateAgentInput, "agentId" | "provider" | "model" | "reasoningEffort">,
+  ): Effect.Effect<AgentSummary, { cause: unknown }>;
   channels: { command(command: ChannelCommand, actor: ChannelActor): ReturnType<ChannelService["command"]> };
   createChannelMemory(input: CreateChannelMemoryInput): unknown;
   createChannelRoutine(input: CreateChannelRoutineInput): unknown;
@@ -420,7 +427,14 @@ export class AgentImportService {
     const avatarBytes = yield* readEntriesEffect(archive, avatarPaths, AVATAR_IMAGE_LIMITS.sourceBytes);
     const avatars = new Map<string, AvatarImageInput>();
     const existing = new Set(this.agents.listAgents().map((agent) => agent.name.toLowerCase()));
+    const models = this.agents.listModels();
+    const modelNames = new Map<string, string>();
     for (const agent of manifest.agents) {
+      if (agent.model) {
+        const option = findModel(models, agent.model);
+        if (option) modelNames.set(agent.key, option.name);
+        else warnings.push(sourceText("error.import.modelNotHere", { model: agent.model.model, name: agent.name }));
+      }
       for (const skill of agent.skills)
         if (!inner.has(`${skill}/SKILL.md`))
           return yield* archiveFailure(
@@ -475,6 +489,7 @@ export class AgentImportService {
           fileCount: files.length,
           fileBytes: files.reduce((total, [, entry]) => total + entry.size, 0),
           nameExists: existing.has(agent.name.toLowerCase()),
+          ...(modelNames.has(agent.key) ? { model: modelNames.get(agent.key) } : {}),
         };
       }),
       channels: manifest.channels.map((channel) => ({
@@ -724,6 +739,7 @@ export class AgentImportService {
         Effect.gen({ self: this }, function* () {
           let agent = created;
           try {
+            if (source.model) agent = yield* this.#applyModel(agent, source.name, source.model, warnings);
             if (files.length) {
               const needed = files.reduce((total, [, entry]) => total + Math.ceil(entry.size / 4096) * 4096, 0);
               const free = yield* this.freeDiskBytes(agent.workspacePath);
@@ -842,6 +858,59 @@ export class AgentImportService {
             }).pipe(Effect.orDie),
     );
   });
+
+  readonly #applyModel = Effect.fn("AgentImportService.applyModel")(function* (
+    this: AgentImportService,
+    agent: AgentSummary,
+    name: string,
+    wanted: ImportModel,
+    warnings: string[],
+  ) {
+    const models = this.agents.listModels();
+    const fallback = (current: AgentSummary) =>
+      models.find((option) => option.provider === current.provider && option.id === current.model)?.name ??
+      current.model;
+    const option = findModel(models, wanted);
+    if (!option) {
+      warnings.push(sourceText("error.import.modelMissing", { model: wanted.model, name, fallback: fallback(agent) }));
+      return agent;
+    }
+    let reasoningEffort = option.defaultReasoningEffort;
+    if (wanted.reasoningEffort && option.supportedReasoningEfforts.includes(wanted.reasoningEffort))
+      reasoningEffort = wanted.reasoningEffort;
+    else if (wanted.reasoningEffort)
+      warnings.push(
+        sourceText("error.import.effortNotSupported", {
+          name,
+          model: option.name,
+          effort: wanted.reasoningEffort,
+          fallback: reasoningEffort,
+        }),
+      );
+    if (agent.provider === option.provider && agent.model === option.id && agent.reasoningEffort === reasoningEffort)
+      return agent;
+    const updated = yield* Effect.result(
+      this.agents
+        .updateAgent({ agentId: agent.id, provider: option.provider, model: option.id, reasoningEffort })
+        .pipe(Effect.uninterruptible),
+    );
+    if (Result.isSuccess(updated)) return updated.success;
+    warnings.push(
+      sourceText("error.import.modelNotSet", {
+        model: wanted.model,
+        name,
+        fallback: fallback(agent),
+        reason: message(updated.failure.cause),
+      }),
+    );
+    return agent;
+  });
+}
+
+function findModel(models: readonly AgentModelOption[], wanted: ImportModel): AgentModelOption | undefined {
+  return models.find(
+    (option) => option.id === wanted.model && (wanted.provider === null || option.provider === wanted.provider),
+  );
 }
 
 function skillDigest(files: ReadonlyArray<readonly [string, Uint8Array]>): string {

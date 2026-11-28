@@ -20,6 +20,14 @@ export const messages = defineMessages("error.import", {
   "error.import.skillFolderMissing": "{name}: the skill folder {skill} has no SKILL.md.",
   "error.import.avatarSkipped": "{name}: the avatar is skipped because it is not a PNG, JPEG, or WebP under 512 KB.",
   "error.import.exportClosed": "The export is no longer open. Choose it again.",
+  "error.import.modelInvalid": "{name}: the model in the export is invalid, so the agent uses the default model.",
+  "error.import.effortInvalid":
+    "{name}: the reasoning effort in the export is invalid, so the agent uses the model's default effort.",
+  "error.import.modelNotHere": "Model {model} is not available here; {name} will use the default model.",
+  "error.import.modelMissing": "Model {model} is not available here; {name} uses {fallback}.",
+  "error.import.modelNotSet": "Model {model} could not be set here; {name} uses {fallback}. {reason}",
+  "error.import.effortNotSupported":
+    '{name}: {model} has no reasoning effort "{effort}", so it uses its default effort ({fallback}).',
   "error.import.agentNotInExport": "The selection names an agent that is not in the export.",
   "error.import.channelNotInExport": "The selection names a channel that is not in the export.",
   "error.import.serverAgentLimit": "A server can have at most {limit} agents.",

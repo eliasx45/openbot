@@ -1363,7 +1363,7 @@ checked, so a local import has no size limit, only 200,000 files. Files in `.git
 agent whose workspace files need more free disk space than there is, checks all
 skills of an agent, creates it through `AgentService` and publishes skills through the local skill
 library; an agent whose step fails is deleted with the skill revisions it published, and the others
-continue. An optional `channels` list carries Grok Bot group chats. After the agents, each selected
+continue. An optional `model` object on an agent (`provider`, `model`, `reasoningEffort`; only `model` is required) puts the new agent on that model through `AgentService.updateAgent`, as Agent settings do; a model the host does not list, a refused update or an invalid value keeps the host's default model and adds a warning. An optional `channels` list carries Grok Bot group chats. After the agents, each selected
 channel is created through `ChannelService.command` as the local user (`host.channelActor()`), with
 the members and lead mapped to the new agent ids; a channel needs one imported member, and one whose
 memory step fails is deleted. Step 1 offers two ways to add the export agent: its Grok Bot link, or the skill set up by hand.

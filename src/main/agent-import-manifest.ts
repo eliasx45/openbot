@@ -1,5 +1,15 @@
+import { type AgentProviderId, isAgentProvider } from "@openbot/contracts/agent-providers";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
-import { AGENT_IMPORT_LIMITS, isAgentImportKey, isRoutineSchedule, type RoutineSchedule } from "@openbot/contracts/ipc";
+import {
+  AGENT_IMPORT_LIMITS,
+  type AgentModelId,
+  type AgentReasoningEffort,
+  isAgentImportKey,
+  isAgentModel,
+  isReasoningEffort,
+  isRoutineSchedule,
+  type RoutineSchedule,
+} from "@openbot/contracts/ipc";
 import { isBoolean, isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { isUnsafeArchivePath } from "./skill-package";
@@ -16,6 +26,12 @@ interface ImportRoutine {
   schedule: RoutineSchedule;
 }
 
+export interface ImportModel {
+  provider: AgentProviderId | null;
+  model: AgentModelId;
+  reasoningEffort: AgentReasoningEffort | null;
+}
+
 export interface ImportAgent {
   key: string;
   name: string;
@@ -26,6 +42,7 @@ export interface ImportAgent {
   files: string | null;
   routines: ImportRoutine[];
   memories: string[];
+  model: ImportModel | null;
 }
 
 export interface ImportChannel {
@@ -183,7 +200,25 @@ function decodeAgent(
     files: path(value.files, "files path"),
     routines: decodeRoutines(routines, name, warnings, now),
     memories: decodeMemories(memories, name, warnings, memoryLimit),
+    model: decodeModel(value.model, name, warnings),
   };
+}
+
+function decodeModel(value: unknown, agent: string, warnings: string[]): ImportModel | null {
+  if (value === undefined || value === null) return null;
+  if (
+    !isDynamicRecord(value) ||
+    !isAgentModel(value.model) ||
+    !(value.provider === undefined || value.provider === null || isAgentProvider(value.provider))
+  ) {
+    warnings.push(sourceText("error.import.modelInvalid", { name: agent }));
+    return null;
+  }
+  const effort = value.reasoningEffort;
+  const reasoningEffort = isReasoningEffort(effort) ? effort : null;
+  if (effort !== undefined && effort !== null && reasoningEffort === null)
+    warnings.push(sourceText("error.import.effortInvalid", { name: agent }));
+  return { provider: isAgentProvider(value.provider) ? value.provider : null, model: value.model, reasoningEffort };
 }
 
 function invalidField(key: string, field: string): never {

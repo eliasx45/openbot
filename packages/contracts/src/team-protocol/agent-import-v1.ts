@@ -31,18 +31,21 @@ export const AGENT_IMPORT_PREVIEW = fields({
   sourceApp: string(64),
   exportedAt: nullable(string(64)),
   agents: list(
-    fields({
-      key,
-      name,
-      title: string(120),
-      description: string(2_000),
-      skillCount: count,
-      routineCount: count,
-      memoryCount: count,
-      fileCount: count,
-      fileBytes: count,
-      nameExists: boolean,
-    }),
+    fields(
+      {
+        key,
+        name,
+        title: string(120),
+        description: string(2_000),
+        skillCount: count,
+        routineCount: count,
+        memoryCount: count,
+        fileCount: count,
+        fileBytes: count,
+        nameExists: boolean,
+      },
+      { model: string(160) },
+    ),
     100,
   ),
   channels: list(

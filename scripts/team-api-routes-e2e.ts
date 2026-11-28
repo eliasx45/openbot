@@ -2506,6 +2506,8 @@ try {
       memoryLimit: () => 50,
       initializeMemorySelection: unused("agentImport.initializeMemorySelection"),
       setAvatar: () => Effect.die("The export has no avatars."),
+      listModels: () => [],
+      updateAgent: () => Effect.die("The import is not applied in this run."),
       deleteAgent: () => Effect.die("The import is not applied in this run."),
       channels: { command: () => Effect.die("The export has no group chats.") },
       createChannelMemory: unused("agentImport.createChannelMemory"),

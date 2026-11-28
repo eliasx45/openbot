@@ -79,6 +79,8 @@ const agentBoundary: AgentImportAgents = {
   memoryLimit: () => 50,
   initializeMemorySelection: () => undefined,
   setAvatar: () => Effect.die("The export has no avatars."),
+  listModels: () => [],
+  updateAgent: () => Effect.die("The export has no models."),
   deleteAgent: (agentId) =>
     Effect.sync(() => {
       deleted.push(agentId);

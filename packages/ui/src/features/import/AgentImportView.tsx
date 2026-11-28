@@ -715,6 +715,7 @@ function contentsLabel(agent: AgentImportPreviewAgent, t: AppTranslate): string 
     countLabel(agent.memoryCount, "memory", t),
   ];
   if (agent.fileCount > 0) parts.push(countLabel(agent.fileCount, "file", t));
+  if (agent.model) parts.push(agent.model);
   return parts.join(" · ");
 }
 
